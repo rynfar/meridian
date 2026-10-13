@@ -1,0 +1,9 @@
+{
+  "tarballSha256": "022B991207C6DCA82DF18211D8D5D4E01D47CC26869EBB3BC4E519195440C54E",
+  "scope": "Credentialless source and installed lifecycle; no model-turn acceptance",
+  "node": "v22.23.3",
+  "bun": "1.3.11",
+  "checkout": "3ff563a5f9a11d6ef2531a106110f55077b5fee4",
+  "head": "cecdaeb9925bf332c58f77b44b42c7656a7466f9",
+  "npmIntegrity": "sha512-OWO9a8ZjSZTUj21eWtGDnsnNLe6knxSUQjUrIOEiupQvonP2OVT3AUumGuMER3CAl2XadrJ7n01ORnE9JP0Now=="
+}

@@ -639,3 +639,20 @@ snapshot and revalidate the saved mode/path after asynchronous path vetting,
 returning 409 instead of committing against a concurrent selection change.
 The settings boundary is limited to 32 pending requests per instance and 16
 shared live probe slots; the completed version cache holds at most 128 files.
+
+### Detached CLI components (draft implementation, #1302)
+
+`src/cli/detachedProtocol.ts` owns bounded private framing and lifecycle state;
+`detachedControl.ts` owns the private socket transport, never a public HTTP route.
+`detachedLog.ts` owns bounded log output under a caller-owned private directory.
+`detachedStore.ts` owns endpoint records and a supervisor lifetime lease, reusing
+`session/crossProcessTurnCoordinator.ts` and `session/processIncarnation.ts`
+without changing their recovery rules. Dependencies flow from CLI management into
+existing coordination primitives; no session module imports CLI management.
+`detachedCommand.ts`, `detachedSupervisor.ts` and `detachedChild.ts` wire the CLI
+launcher, original child IPC and lifetime cleanup. The supervisor joins its child
+before releasing its lease. `detachedWindowsAcl.ts` creates protected Windows
+state directories and checks existing directory/record/log ACLs; POSIX retains
+uid/mode checks. Windows ACL and native named-pipe behavior have dedicated CI
+coverage and remain acceptance gates until that native run passes. See the
+[implementation proposal](docs/maintenance/proposals/1302-detached-cli.md).

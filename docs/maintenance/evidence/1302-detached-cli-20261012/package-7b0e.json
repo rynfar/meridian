@@ -1,0 +1,33 @@
+{
+  "name": "@rynfar/meridian",
+  "version": "1.81.0",
+  "filename": "rynfar-meridian-1.81.0.tgz",
+  "size": 1661705,
+  "unpackedSize": 6126314,
+  "shasum": "a8bfb66cbb7edf16f930a9e73081a35d4c67ffce",
+  "integrity": "sha512-fYmlCvibCfJoM66GQLaL2fWWdetjleSoVAQxbEIQXxOU1dSvaJXusPxkR7bv/7n0zLcUlfI/80N9Fi9OpAspyg==",
+  "applicationHead": "7b0e2f467f5139374e55645f6cb58904b047e33b",
+  "tarballSha256": "3f350c4b4fee98a47bc240bf50f6c81c8d464ed68c680cdf5d476633efa84530",
+  "published": false,
+  "platforms": {
+    "darwin": {
+      "arch": "arm64",
+      "node": "22.22.3",
+      "installation": "npm install --ignore-scripts --no-audit --no-fund <candidate.tgz>; independent existing proof dependency tree",
+      "sdk": "0.2.141",
+      "claude": "2.1.296"
+    },
+    "linux": {
+      "arch": "arm64",
+      "node": "24.20.0",
+      "image": "node:24.20.0-bookworm",
+      "installation": "npm install --offline --ignore-scripts --no-audit --no-fund ./candidate-7b0e.tgz",
+      "network": "none",
+      "rootfs": "read-only during lifecycle runs",
+      "credentialsMounted": false,
+      "newImagePulledOrBuilt": false,
+      "sdk": "0.2.141",
+      "claude": "2.1.296"
+    }
+  }
+}

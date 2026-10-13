@@ -1,0 +1,70 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\hostedtoolcache\\windows\\node\\22.23.3\\x64\\node.exe D:\\a\\_temp\\meridian-detached-package\\install\\node_modules\\@rynfar\\meridian\\dist\\cli.js start --detach --json\n",
+  "cli": "D:\\a\\_temp\\meridian-detached-package\\install\\node_modules\\@rynfar\\meridian\\dist\\cli.js",
+  "runtime": "C:\\hostedtoolcache\\windows\\node\\22.23.3\\x64\\node.exe",
+  "entrySha256": "287c1aaef330933920c2f30674c1360ccd1015337223863b19249b5c9d06b65e",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    53448,
+    53449
+  ],
+  "commands": [
+    {
+      "port": 53448,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:53448\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 53448,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:53448\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 53448,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:53448",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 53449,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:53449",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

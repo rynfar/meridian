@@ -1,0 +1,61 @@
+{
+  "runtime": "v22.22.3",
+  "port": 60850,
+  "commands": [
+    {
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:60850",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-probe/config/detached/30dc8e008aeac8c392804420da3825ed23d94615b1e6485b1ab958b6151e0ff3.log",
+        "instanceId": "f18c231b6434c797d0022e03023a46fa"
+      },
+      "stderr": ""
+    },
+    {
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-existing",
+        "endpoint": "http://127.0.0.1:60850",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-probe/config/detached/30dc8e008aeac8c392804420da3825ed23d94615b1e6485b1ab958b6151e0ff3.log",
+        "instanceId": "f18c231b6434c797d0022e03023a46fa"
+      },
+      "stderr": ""
+    },
+    {
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:60850",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-probe/config/detached/30dc8e008aeac8c392804420da3825ed23d94615b1e6485b1ab958b6151e0ff3.log",
+        "instanceId": "f18c231b6434c797d0022e03023a46fa"
+      },
+      "stderr": ""
+    }
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'ok\\n' !== 'ok'\n",
+  "network": "Seatbelt loopback and Unix sockets only; /bin/ps alone executes without sandbox for read-only process identity; real credential stores denied to CLI and descendants; explicit dummy API profile; no inference requests"
+}

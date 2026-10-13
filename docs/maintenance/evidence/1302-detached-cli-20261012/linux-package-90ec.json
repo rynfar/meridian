@@ -1,0 +1,14 @@
+{
+  "implementationHead": "90ec6828fba4e5d05f3f9a5f6b5d39892f286306",
+  "image": "node:24.20.0-bookworm",
+  "imageId": "sha256:fef6dfc9506e0cb916ab0711809724606a2caff1e5d631f5669d1892b465e726",
+  "platform": "linux/arm64",
+  "network": "none",
+  "rootfs": "read-only",
+  "caps": "ALL dropped",
+  "credentialsMounted": false,
+  "newImagePulledOrBuilt": false,
+  "machineId": "test-specific file mounted read-only, matching project Dockerfile requirement",
+  "candidateSha256": "5827f2044a1c4e88cd44ce09e64e6a5428b4304ce494447d60b228ebf9ceb0bf",
+  "initialFailure": "Image has no /etc/machine-id; ownership capture fails before child creation. Provisioned test-specific OS identity; production checks unchanged."
+}

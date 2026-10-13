@@ -1,0 +1,108 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\Users\\runneradmin\\.bun\\bin\\bun.exe D:\\a\\meridian\\meridian\\bin\\cli.ts start --detach --json\n",
+  "configurationDiagnostic": [
+    {
+      "label": "allowlisted",
+      "elapsedMs": 10382,
+      "pass": false,
+      "stage": "launch-coordination",
+      "causes": [
+        {
+          "name": "Error",
+          "message": "cannot capture turn-lock owner process incarnation"
+        }
+      ]
+    },
+    {
+      "label": "module-path",
+      "elapsedMs": 1137,
+      "pass": true,
+      "stage": "launch-coordination"
+    },
+    {
+      "label": "windows-module-environment",
+      "elapsedMs": 1083,
+      "pass": true,
+      "stage": "launch-coordination"
+    },
+    {
+      "label": "hosted-runner-environment",
+      "elapsedMs": 951,
+      "pass": true,
+      "stage": "launch-coordination"
+    }
+  ],
+  "startupLogs": [
+    {
+      "path": "D:\\a\\_temp\\meridian-detached-package\\source\\config\\detached\\03d71eb70cd6a5402208819a0f8e6af4661b37a622a0484e7fadb18df9b50e4c.log",
+      "readFailure": "Error: ENOENT: no such file or directory, open 'D:\\a\\_temp\\meridian-detached-package\\source\\config\\detached\\03d71eb70cd6a5402208819a0f8e6af4661b37a622a0484e7fadb18df9b50e4c.log'"
+    }
+  ],
+  "cli": "D:\\a\\meridian\\meridian\\bin\\cli.ts",
+  "runtime": "C:\\Users\\runneradmin\\.bun\\bin\\bun.exe",
+  "entrySha256": "331488b274e3f4ac9c251cca8b0af676601d77caf0f7e70e0b2289392d3a5d59",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    61846,
+    61847
+  ],
+  "commands": [
+    {
+      "port": 61846,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:61846\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\source\\\\config\\\\detached\\\\03d71eb70cd6a5402208819a0f8e6af4661b37a622a0484e7fadb18df9b50e4c.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 61846,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:61846\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\source\\\\config\\\\detached\\\\03d71eb70cd6a5402208819a0f8e6af4661b37a622a0484e7fadb18df9b50e4c.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 61846,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:61846",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 61847,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:61847",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

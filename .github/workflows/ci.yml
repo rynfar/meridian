@@ -87,6 +87,11 @@ jobs:
       - run: bun test src/__tests__/durable-file-system.test.ts src/__tests__/windows-durable-storage.test.ts
         shell: bash
 
+      # Detached state must use actual Windows ACLs, not Unix mode assumptions.
+      # Also exercise the real Node supervisor and named pipe lifecycle.
+      - run: bun test --timeout 120000 src/__tests__/detached-windows-acl.test.ts src/__tests__/detached-supervisor-process.test.ts
+        shell: bash
+
       # Exercise Windows client paths through extraction, query construction,
       # and the HTTP adapter boundary. These assertions intentionally avoid
       # resolving the client path on the runner. The HTTP round trips can
@@ -113,6 +118,50 @@ jobs:
       # Build the bundle.
       - run: bun run build
         shell: bash
+
+      # Run the real source and independently npm-installed package. This uses
+      # a dummy loopback API profile and makes no model/inference requests.
+      - name: detached source and installed-package lifecycle
+        shell: pwsh
+        run: |
+          $proof = Join-Path $env:RUNNER_TEMP "meridian-detached-package"
+          New-Item -ItemType Directory -Path $proof -ErrorAction Stop | Out-Null
+          $pack = npm pack --ignore-scripts --json --pack-destination $proof | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Candidate packing failed" }
+          $archive = Join-Path $proof $pack[0].filename
+          $install = Join-Path $proof "install"
+          New-Item -ItemType Directory -Path $install -ErrorAction Stop | Out-Null
+          '{"private":true}' | Set-Content (Join-Path $install "package.json")
+          npm install --prefix $install --ignore-scripts --no-audit --no-fund $archive
+          if ($LASTEXITCODE -ne 0) { throw "Candidate installation failed" }
+          $harness = Join-Path $env:GITHUB_WORKSPACE "docs/maintenance/evidence/1302-detached-cli-20261012/e2e-detached-lifecycle.mjs"
+          $source = Join-Path $env:GITHUB_WORKSPACE "bin/cli.ts"
+          $entry = Join-Path $install "node_modules/@rynfar/meridian/dist/cli.js"
+          node $harness (Get-Command bun).Source $source (Join-Path $proof "source")
+          $sourceExit = $LASTEXITCODE
+          node $harness (Get-Command node).Source $entry (Join-Path $proof "installed")
+          $installedExit = $LASTEXITCODE
+          @{
+            head = "${{ github.event.pull_request.head.sha }}"
+            checkout = "${{ github.sha }}"
+            tarballSha256 = (Get-FileHash -Algorithm SHA256 $archive).Hash
+            npmIntegrity = $pack[0].integrity
+            node = (node --version)
+            bun = (bun --version)
+            scope = "Credentialless source and installed lifecycle; no model-turn acceptance"
+          } | ConvertTo-Json | Set-Content (Join-Path $proof "identity.json")
+          if ($sourceExit -ne 0 -or $installedExit -ne 0) { throw "Detached lifecycle failed: source=$sourceExit installed=$installedExit" }
+
+      - name: preserve detached package receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-detached-lifecycle-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/meridian-detached-package/source/receipt.json
+            ${{ runner.temp }}/meridian-detached-package/installed/receipt.json
+            ${{ runner.temp }}/meridian-detached-package/identity.json
+          if-no-files-found: warn
 
       # Smoke-start: launch the bundled CLI in the background, hit /health,
       # verify it responds with a body. We don't have Claude auth in CI, so

@@ -1,0 +1,11 @@
+{
+  "head": "7b0e2f467f5139374e55645f6cb58904b047e33b",
+  "ciMergeCheckout": "72ec7d12d84055e4960355c9abff9c0fe9a2a1a7",
+  "job": "https://github.com/rynfar/meridian/actions/runs/38327263497/job/115068721032",
+  "result": "success",
+  "detachedTests": 6,
+  "assertions": 40,
+  "failures": 0,
+  "logSha256": "4625eb76077bb55835e195d6835cad278bc50b16a3e1ead143a48429ef9f6ca5",
+  "scope": "Native Windows ACL checks and actual Node supervisor with fixture HTTP server. No actual Meridian active SDK turn or independently installed Windows package proof. Original failed job did not identify its exception; causality remains qualified."
+}

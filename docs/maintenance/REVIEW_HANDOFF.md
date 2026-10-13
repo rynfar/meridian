@@ -1,3 +1,142 @@
+## Detached CLI #1359 — actual Windows source failure under diagnosis
+
+0bb7df27 Windows job115072298927 fails source Bun startup before log allocation;
+fixture/ACL tests pass. Both concurrent source attempts failed and cleanup found
+no running managed instance. Installed test was not reached. Original receipt is
+escrowed. Next CI will retain both outcomes and a bounded same-environment
+configuration/ACL error chain; no production fix or acceptance is claimed.
+
+## Detached CLI #1359 — actual Windows package gate
+
+CI now packs and independently npm-installs the candidate, then runs actual
+source Bun and installed Node lifecycle checks on the clean hosted Windows
+runner. Sanitized receipts/package identity upload even when available after
+failure. Native outcome is pending. No application code changes or model calls;
+active-turn drain still needs qualified plugins and credentials. See the
+[evidence record](evidence/1302-detached-cli-20261012/README.md).
+
+## Detached CLI #1359 — corrected native Windows checks pass
+
+Head `7b0e2f467f5139374e55645f6cb58904b047e33b` passes the
+[native Windows job](https://github.com/rynfar/meridian/actions/runs/38327263497/job/115068721032):
+6 detached tests, 40 assertions, zero failures. This includes the unchanged real
+Node launcher/targeted-stop fixture and all private-state ACL cases. The job
+uses PR merge checkout `72ec7d12d84055e4960355c9abff9c0fe9a2a1a7`.
+The earlier failed job did not log its exception; passing the correction does
+not conclusively identify that original cause. Source Darwin lifecycle/recovery
+also pass on this head. Original full local process60564 exited0: 5,778 tests passed, 39 skipped,
+zero failures across23 groups, plus standalone typecheck/build. Required CI
+passes on this application head. The same independently installed candidate passes lifecycle/crash recovery on
+Darwin and Linux ARM64. Actual Windows application/package and plugin-qualified
+active-model drain remain open. See the linked evidence directory below. No model
+calls or credential changes. Older checkpoints below retain their historical scope.
+
+## Detached CLI #1359 — Windows stop failure retained; candidate race fix
+
+558e575d local original63882 exited0 (5777 pass/38 skip, typecheck/build). Windows
+native ACL cases all pass; the actual Node process case fails on stop exit1 after
+startup/reuse/foreign-listener checks pass. Underlying exception was not printed.
+Candidate correction handles confirmed record disappearance during asynchronous
+ACL inspection, preserves all other rejections, and adds filesystem/native
+regressions. Windows stop is not yet considered fixed. [Evidence](evidence/1302-detached-cli-20261012/README.md).
+Linux ARM64 installed90ec6828 lifecycle/recovery receipts and initial missing
+machine-id failures are now escrowed; they do not qualify the newer candidate.
+#1340 refreshed at unchangedab836ac7; its existing stale-read regression deferral
+stands. Active-model acceptance still needs matching plugins and real authorized
+credentials. No auth refresh or model calls.
+
+## Detached CLI #1359 — Windows ACL implementation awaiting native CI
+
+Added protected directory creation plus existing-directory, record and log ACL
+validation using fixed PowerShell source and literal environment path transport.
+Existing broad ACLs are refused, never repaired. Windows SYSTEM/Administrators
+are trusted privileged principals; other allow entries and unsafe inheritance
+are refused. Dedicated real Windows tests now cover these refusals, literal paths
+and the Node supervisor/named-pipe flow. Local25 pass/3 Windows-only skips and
+standalone typecheck pass. Full current-head/native Windows gates remain pending;
+the5777-test full gate below belongs to90ec6828 before this correction. Source and
+installed active-model drain/platform acceptance still remain open. No model calls.
+
+## Detached CLI #1359 — actual recovery matrix passes
+
+Actual source Bun and independently installed Node now pass original-supervisor
+SIGKILL, original supervisor close, listener release verified by rebinding,
+confirmed-dead-owner replacement after ~30s quarantine, distinct replacement
+identity, normal readiness/stop, and invalid-backend startup followed by a valid
+start. [Harness and receipts](evidence/1302-detached-cli-20261012/README.md).
+Application code remains90ec6828 with5777 full tests/typecheck/build passing;
+new additions are manual evidence and documentation. Next concrete platform gate:
+Windows currently skips Unix uid/mode guards, so equivalent ACL protection plus
+native named-pipe/lifecycle acceptance must be established. Active-turn drain
+still requires matching plugins and actual authorized model credentials. No model
+calls/auth refresh/Docker mutations. #1359 remains draft and #1302 stays open.
+
+## Detached CLI #1359 — source and installed lifecycle verified
+
+Frozen 90ec6828 full original process 61680 exited0: 5777 pass/35 skips/0 fail
+across23 isolated groups, standalone typecheck/build pass. Actual source Bun and
+independently installed Node22.22.3 candidate both pass concurrent launch,
+launcher independence, two managed ports, targeted graceful stop, repeated stop
+and persistent log assertions. [Harness, receipts, failures and package identity](evidence/1302-detached-cli-20261012/README.md)
+are durable. This is credentialless readiness/lifecycle proof with an explicit
+dummy profile and a network/credential fence; ps-only read-only process identity
+exception is documented. No actual model-turn drain claim.
+Crash/stale-owner/startup-error application cases, platform acceptance and live
+plugin-qualified drain remain pending. Draft #1359 stays open. Fresh paginated
+queue:31 PRs/21 issues in the same six administered repos; [priority report](BACKLOG_PRIORITY_20261012.md)
+separates the consequential account/platform holds from this feature progress.
+
+## Detached CLI #1359 — supervisor and CLI checkpoint
+
+CLI dispatch, original-child IPC, launcher commitment and supervisor cleanup are
+implemented. Real Node process regression verifies concurrent launcher exit with
+one persistent child, private graceful stop, preserved logs, foreign-listener
+protection and pre-commit disconnect cleanup (19 assertions). The initial run
+exposed Node exit 13 while waiting on the coordinator's unreferenced retry timer;
+a command-owned bounded deadline now keeps that standalone wait alive.
+[Evidence and remaining gates](evidence/1302-detached-cli-20261012/README.md).
+This is production lifecycle code with a fixture server, not actual Meridian or
+installed package acceptance. Full current-head gates and actual application/
+platform/active-turn verification remain pending; draft #1359 and issue #1302 stay
+open. No model calls or credential changes. Older checkpoints below are historical.
+
+## Detached CLI #1359 — ownership checkpoint
+
+Original full process67248 exited0 on frozen d8d393a715908d4af25f76e20e4e705065cd754e:
+5768 pass/35 skips/0 fail across23 groups; standalone typecheck/build pass.
+After that terminal result, endpoint ownership records and supervisor lifetime
+lease code were added. New focused suite:24 pass/102 assertions; typecheck passes.
+Release now joins an in-flight record publication before releasing ownership,
+and duplicate publication is refused. Records never confer numeric-PID signaling
+authority. [Evidence](evidence/1302-detached-cli-20261012/README.md).
+Supervisor event loop, parent/child IPC and actual CLI dispatch remain the next
+implementation step; #1359 is draft and #1302 remains open. Full gates above
+qualify only the earlier control/logging revision. No live model or auth work.
+
+## Detached CLI #1359 — implementation foundations
+
+Private bounded control/framing, one-shot graceful-stop state, real local socket
+transport and bounded cross-launch logs are implemented under src/cli. Sixteen
+focused tests (69 assertions) and typecheck pass; the actual Node22.22.3 bundle
+probe covers admission, private concurrent stop and rotation on Darwin ARM64.
+[Evidence and remaining lifecycle work](evidence/1302-detached-cli-20261012/README.md).
+Supervisor ownership/publication, child IPC, CLI dispatch and actual source/
+installed lifecycle acceptance are still pending. No new CLI command is exposed.
+The branch remains draft and #1302 stays open; no model or credential operations.
+
+## Detached CLI feature #1302 — concrete implementation design
+
+[Lifecycle proposal](proposals/1302-detached-cli.md) on isolated branch
+codex/detached-cli-1302-20261012 from e0f9feab defines a private supervisor/child
+handshake, nonce-bound control channel, fail-closed ownership recovery, targeted
+graceful stop, bounded readiness and logs, and source/installed cross-platform
+verification. It does not change exported plugin interfaces or add HTTP shutdown.
+Adversarial review corrected signal-based stop to private child IPC because
+SIGTERM is not a portable graceful-stop guarantee on Windows. Log retention is
+bounded per endpoint across launches, not merely per process incarnation.
+Status: worth implementing after consequential fixes; no new runtime behavior
+is implemented or accepted yet. No model call, credential change or release.
+
 ## Current Nix runtime integration — #1342 → #1357
 
 Authored current-main incorporation26e2dd4a5/dd4bf666 preserves Connor Grady's

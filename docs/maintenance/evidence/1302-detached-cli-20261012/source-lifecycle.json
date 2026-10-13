@@ -1,0 +1,156 @@
+{
+  "pass": true,
+  "cli": "/Users/rynfar/repos/meridian-detached-cli-1302-20261012/bin/cli.ts",
+  "runtime": "/Users/rynfar/.bun/bin/bun",
+  "entrySha256": "11dbf0bc346f62ef14bd9a1f319555b1511d16d43134e2080703d130855ae63a",
+  "platform": "darwin",
+  "arch": "arm64",
+  "ports": [
+    65223,
+    65224
+  ],
+  "commands": [
+    {
+      "port": 65223,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:65223",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-concurrent-matrix/config/detached/bfeee861aa3c12e977b858fd2203edf7b05661efd21263d0d24b3596ba11e625.log",
+        "instanceId": "39d74b3b5b2ba856529413784417f7b0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65223,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-existing",
+        "endpoint": "http://127.0.0.1:65223",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-concurrent-matrix/config/detached/bfeee861aa3c12e977b858fd2203edf7b05661efd21263d0d24b3596ba11e625.log",
+        "instanceId": "39d74b3b5b2ba856529413784417f7b0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65224,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:65224",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-concurrent-matrix/config/detached/6df96e58cb11d89df1b3c3ea0ad2cd5829abba435133ac789407c3aeede1d02d.log",
+        "instanceId": "7e988a375c4e60aa3e330000dfec5dab"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65223,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:65223",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-concurrent-matrix/config/detached/bfeee861aa3c12e977b858fd2203edf7b05661efd21263d0d24b3596ba11e625.log",
+        "instanceId": "39d74b3b5b2ba856529413784417f7b0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65223,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65223",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65224,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:65224",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-source-concurrent-matrix/config/detached/6df96e58cb11d89df1b3c3ea0ad2cd5829abba435133ac789407c3aeede1d02d.log",
+        "instanceId": "7e988a375c4e60aa3e330000dfec5dab"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65223,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65223",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65224,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65224",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Seatbelt loopback/Unix sockets with ps-only read-only identity exception."
+}

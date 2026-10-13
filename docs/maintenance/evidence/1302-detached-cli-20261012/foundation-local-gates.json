@@ -1,0 +1,16 @@
+{
+  "pass": 5768,
+  "skip": 35,
+  "fail": 0,
+  "revision": "d8d393a715908d4af25f76e20e4e705065cd754e",
+  "originalProcess": 67248,
+  "exitCode": 0,
+  "groups": 23,
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "logSha256": "10c430fc250de4b755e2f84f901c603848c93344e86aa64ab37081f1115c4722",
+  "scope": "Control and logging foundations before ownership-record changes"
+}

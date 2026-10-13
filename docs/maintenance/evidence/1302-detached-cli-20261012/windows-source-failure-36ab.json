@@ -1,0 +1,85 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\Users\\runneradmin\\.bun\\bin\\bun.exe D:\\a\\meridian\\meridian\\bin\\cli.ts start --detach --json\n",
+  "configurationDiagnostic": {
+    "pass": false,
+    "causes": [
+      {
+        "name": "Error",
+        "message": "Detached path must have a private Windows ACL"
+      },
+      {
+        "name": "Error",
+        "message": "Command failed: C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand CgAkAEUAcgByAG8AcgBBAGMAdABpAG8AbgBQAHIAZQBmAGUAcgBlAG4AYwBlACAAPQAgACcAUwB0AG8AcAAnAAoAJABwAGEAdABoACAAPQAgACQAZQBuAHYAOgBNAEUAUgBJAEQASQBBAE4AXwBEAEUAVABBAEMASABFAEQAXwBBAEMATABfAFAAQQBUAEgACgAkAGEAYwB0AGkAbwBuACAAPQAgACQAZQBuAHYAOgBNAEUAUgBJAEQASQBBAE4AXwBEAEUAVABBAEMASABFAEQAXwBBAEMATABfAEEAQwBUAEkATwBOAAoAJABzAGkAZAAgAD0AIABbAFMAeQBzAHQAZQBtAC4AUwBlAGMAdQByAGkAdAB5AC4AUAByAGkAbgBjAGkAcABhAGwALgBXAGkAbgBkAG8AdwBzAEkAZABlAG4AdABpAHQAeQBdADoAOgBHAGUAdABDAHUAcgByAGUAbgB0ACgAKQAuAFUAcwBlAHIACgAkAHMAaQBkAFQAeQBwAGUAIAA9ACAAWwBTAHkAcwB0AGUAbQAuAFMAZQBjAHUAcgBpAHQAeQAuAFAAcgBpAG4AYwBpAHAAYQBsAC4AUwBlAGMAdQByAGkAdAB5AEkAZABlAG4AdABpAGYAaQBlAHIAXQAKACQAZgB1AGwAbAAgAD0AIABbAFMAeQBzAHQAZQBtAC4AUwBlAGMAdQByAGkAdAB5AC4AQQBjAGMAZQBzAHMAQwBvAG4AdAByAG8AbAAuAEYAaQBsAGUAUwB5AHMAdABlAG0AUgBpAGcAaAB0AHMAXQA6ADoARgB1AGwAbABDAG8AbgB0AHIAbwBsAAoAJABpAG4AaABlAHIAaQB0ACAAPQAgAFsAUwB5AHMAdABlAG0ALgBTAGUAYwB1AHIAaQB0AHkALgBBAGMAYwBlAHMAcwBDAG8AbgB0AHIAbwBsAC4ASQBuAGgAZQByAGkAdABhAG4AYwBlAEYAbABhAGcAcwBdADoAOgBDAG8AbgB0AGEAaQBuAGUAcgBJAG4AaABlAHIAaQB0ACAALQBiAG8AcgAgAFsAUwB5AHMAdAB",
+        "code": null,
+        "stderr": ""
+      }
+    ]
+  },
+  "cli": "D:\\a\\meridian\\meridian\\bin\\cli.ts",
+  "runtime": "C:\\Users\\runneradmin\\.bun\\bin\\bun.exe",
+  "entrySha256": "331488b274e3f4ac9c251cca8b0af676601d77caf0f7e70e0b2289392d3a5d59",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    62874,
+    62875
+  ],
+  "commands": [
+    {
+      "port": 62874,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:62874\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 62874,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:62874\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 62874,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:62874",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 62875,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:62875",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

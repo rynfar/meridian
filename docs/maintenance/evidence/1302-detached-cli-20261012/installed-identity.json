@@ -1,0 +1,9 @@
+{
+  "tarball": "rynfar-meridian-1.81.0.tgz",
+  "shasum": "a934d5bae7f44e561902db99f857b97973afa0c2",
+  "integrity": "sha512-EB1LPld2b9quMwFn+uSm5q+BVHooXP9nG5YzBpi1pQ9wf40P7x6iCSapgGh0nFVUselMF8odLz5eTsaSmkSiGQ==",
+  "node": "v22.22.3",
+  "meridian": "1.81.0",
+  "sdk": "0.2.141",
+  "claude": "2.1.296"
+}

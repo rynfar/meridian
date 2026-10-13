@@ -1,0 +1,154 @@
+{
+  "pass": true,
+  "cli": "/proof/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/usr/local/bin/node",
+  "entrySha256": "76210d542c35840f2ee6c2361942f39b36cbb82b81a260c6a9d2eac4df2c61b3",
+  "platform": "linux",
+  "arch": "arm64",
+  "ports": [
+    43447,
+    44725
+  ],
+  "commands": [
+    {
+      "port": 43447,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:43447",
+        "managed": true,
+        "logPath": "/proof/recovery-7b0e/config/detached/0b15f62b5f80739960c63654f3a9e017d4a210546a28d657d16d1f26feaf87ab.log",
+        "instanceId": "1e64ac6186a9faedc7ddd60e83760600"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 43447,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:43447",
+        "managed": true,
+        "logPath": "/proof/recovery-7b0e/config/detached/0b15f62b5f80739960c63654f3a9e017d4a210546a28d657d16d1f26feaf87ab.log",
+        "instanceId": "1e64ac6186a9faedc7ddd60e83760600"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 44725,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:44725\",\"managed\":false,\"logPath\":\"/proof/recovery-7b0e/config/detached/ab122bfc7f9750daab9600cf96729b46b09b2839a451e5d74f6a2cc66ca894ac.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 44725,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:44725",
+        "managed": true,
+        "logPath": "/proof/recovery-7b0e/config/detached/ab122bfc7f9750daab9600cf96729b46b09b2839a451e5d74f6a2cc66ca894ac.log",
+        "instanceId": "24acdd5b6e7f46a43a3cffc16ea3fcf1"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 44725,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:44725",
+        "managed": true,
+        "logPath": "/proof/recovery-7b0e/config/detached/ab122bfc7f9750daab9600cf96729b46b09b2839a451e5d74f6a2cc66ca894ac.log",
+        "instanceId": "24acdd5b6e7f46a43a3cffc16ea3fcf1"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 43447,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:43447",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 44725,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:44725",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "faults": [
+    {
+      "case": "supervisor-crash",
+      "instanceId": "762eb98ab35ae8263b3187910635156f",
+      "supervisorExit": {
+        "code": null,
+        "signal": "SIGKILL"
+      },
+      "listenerClosed": true
+    },
+    {
+      "case": "confirmed-dead-owner-recovery",
+      "waitMs": 30189,
+      "oldInstanceId": "762eb98ab35ae8263b3187910635156f",
+      "newInstanceId": "1e64ac6186a9faedc7ddd60e83760600"
+    },
+    {
+      "case": "invalid-backend-startup",
+      "failedWithExit": 1,
+      "laterValidStartup": true
+    }
+  ],
+  "scope": "Actual supervisor original-handle crash, listener shutdown, confirmed-dead-owner recovery and startup error. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only identity exception. Linux: network-disabled isolated container, no credential mounts."
+}

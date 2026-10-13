@@ -1,0 +1,156 @@
+{
+  "pass": true,
+  "cli": "/proof/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/usr/local/bin/node",
+  "entrySha256": "76210d542c35840f2ee6c2361942f39b36cbb82b81a260c6a9d2eac4df2c61b3",
+  "platform": "linux",
+  "arch": "arm64",
+  "ports": [
+    42979,
+    36675
+  ],
+  "commands": [
+    {
+      "port": 42979,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:42979",
+        "managed": true,
+        "logPath": "/proof/lifecycle-7b0e/config/detached/bad00f25c7d6cf9502fb22fbeb24fb87a4b4a27989ece0025a7be19e4496fed4.log",
+        "instanceId": "cbe24de00637529b47494318ff3d39d0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 42979,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-existing",
+        "endpoint": "http://127.0.0.1:42979",
+        "managed": true,
+        "logPath": "/proof/lifecycle-7b0e/config/detached/bad00f25c7d6cf9502fb22fbeb24fb87a4b4a27989ece0025a7be19e4496fed4.log",
+        "instanceId": "cbe24de00637529b47494318ff3d39d0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 36675,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:36675",
+        "managed": true,
+        "logPath": "/proof/lifecycle-7b0e/config/detached/0c5cbace97c182c6cd44a5725f2d7d838e79dceebd43d925808357b56e494222.log",
+        "instanceId": "a581eb85504f46b448673e97221dda31"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 42979,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:42979",
+        "managed": true,
+        "logPath": "/proof/lifecycle-7b0e/config/detached/bad00f25c7d6cf9502fb22fbeb24fb87a4b4a27989ece0025a7be19e4496fed4.log",
+        "instanceId": "cbe24de00637529b47494318ff3d39d0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 42979,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:42979",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 36675,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:36675",
+        "managed": true,
+        "logPath": "/proof/lifecycle-7b0e/config/detached/0c5cbace97c182c6cd44a5725f2d7d838e79dceebd43d925808357b56e494222.log",
+        "instanceId": "a581eb85504f46b448673e97221dda31"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 42979,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:42979",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 36675,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:36675",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts."
+}

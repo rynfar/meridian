@@ -1,0 +1,33 @@
+{
+  "runtime": "v22.22.3",
+  "port": 58764,
+  "commands": [
+    {
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:58764\",\"managed\":false,\"logPath\":\"/private/tmp/meridian-detached1302-source-probe/config/detached/1355d054f56a98ce67eafe234cc69d875dcfd4f593e68e556d40b672e955e83b.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:58764",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "failure": "Error: Command failed: /usr/bin/sandbox-exec -f /tmp/meridian-detached1302-source-probe/fence.sb /Users/rynfar/.bun/bin/bun /Users/rynfar/repos/meridian-detached-cli-1302-20261012/bin/cli.ts start --detach --json\n",
+  "network": "Seatbelt loopback only; real credential stores denied; explicit dummy API profile; no inference requests"
+}

@@ -1,0 +1,93 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\Users\\runneradmin\\.bun\\bin\\bun.exe D:\\a\\meridian\\meridian\\bin\\cli.ts start --detach --json\n",
+  "configurationDiagnostic": [
+    {
+      "label": "allowlisted",
+      "elapsedMs": 296,
+      "pass": true
+    },
+    {
+      "label": "module-path",
+      "elapsedMs": 286,
+      "pass": true
+    },
+    {
+      "label": "hosted-runner-environment",
+      "elapsedMs": 298,
+      "pass": true
+    }
+  ],
+  "startupLogs": [
+    {
+      "path": "D:\\a\\_temp\\meridian-detached-package\\source\\config\\detached\\8fcc0ef5c6745627b74e0e646413d2c0c8c23975c7459410c14afb2c13ec2404.log",
+      "readFailure": "Error: ENOENT: no such file or directory, open 'D:\\a\\_temp\\meridian-detached-package\\source\\config\\detached\\8fcc0ef5c6745627b74e0e646413d2c0c8c23975c7459410c14afb2c13ec2404.log'"
+    }
+  ],
+  "cli": "D:\\a\\meridian\\meridian\\bin\\cli.ts",
+  "runtime": "C:\\Users\\runneradmin\\.bun\\bin\\bun.exe",
+  "entrySha256": "331488b274e3f4ac9c251cca8b0af676601d77caf0f7e70e0b2289392d3a5d59",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    52107,
+    52108
+  ],
+  "commands": [
+    {
+      "port": 52107,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52107\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\source\\\\config\\\\detached\\\\8fcc0ef5c6745627b74e0e646413d2c0c8c23975c7459410c14afb2c13ec2404.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52107,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52107\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\source\\\\config\\\\detached\\\\8fcc0ef5c6745627b74e0e646413d2c0c8c23975c7459410c14afb2c13ec2404.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52107,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52107",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 52108,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52108",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

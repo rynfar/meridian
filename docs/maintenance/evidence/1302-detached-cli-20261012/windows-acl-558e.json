@@ -1,0 +1,21 @@
+{
+  "head": "558e575df27c9e730f7646ee3e2aa66e5788de4d",
+  "job": "https://github.com/rynfar/meridian/actions/runs/38326356102/job/115065824818",
+  "result": "failure",
+  "aclCases": {
+    "passed": 3,
+    "failed": 0
+  },
+  "processCase": {
+    "result": "failed",
+    "location": "detached-supervisor-process.test.ts:48",
+    "assertion": "stop exit code expected 0, received 1",
+    "passedBeforeFailure": [
+      "concurrent starts",
+      "same identity",
+      "ready listener after launcher exits",
+      "foreign listener not adopted or stopped"
+    ]
+  },
+  "causeStatus": "ACL inspection/record retirement race is a candidate explanation, not established from this log alone. Added deterministic missing-file ACL regression and retained native process test."
+}

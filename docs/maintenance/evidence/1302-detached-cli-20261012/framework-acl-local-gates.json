@@ -1,0 +1,13 @@
+{
+  "head": "f5f7cb5f7d56cb5157f9b4c2b4256acea963cdb7",
+  "command": "npm test && npm run typecheck && npm run build",
+  "exit": 0,
+  "counts": {
+    "pass": 5778,
+    "skip": 40,
+    "fail": 0
+  },
+  "isolatedGroups": 23,
+  "logSha256": "6ea77e4441ae04731317deba9aee1499993c5b9e853e1449557d7c38604fd182",
+  "scope": "Local full suite, standalone typecheck/build. Native Windows lifecycle remains failed."
+}

@@ -1,0 +1,70 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: /usr/local/bin/node /proof/node_modules/@rynfar/meridian/dist/cli.js start --detach --json\n",
+  "cli": "/proof/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/usr/local/bin/node",
+  "entrySha256": "52b36973b41013fcf584c7d96a7755a5598c65b1a8a45a4b70b01701f471e645",
+  "platform": "linux",
+  "arch": "arm64",
+  "ports": [
+    39347,
+    34151
+  ],
+  "commands": [
+    {
+      "port": 39347,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:39347\",\"managed\":false,\"logPath\":\"/proof/lifecycle-pre-acl/config/detached/7f2beba08dd4a76dcb90ed2613760bd782eaa20096e861f19b37b8bd1d61063a.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 39347,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:39347\",\"managed\":false,\"logPath\":\"/proof/lifecycle-pre-acl/config/detached/7f2beba08dd4a76dcb90ed2613760bd782eaa20096e861f19b37b8bd1d61063a.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 39347,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:39347",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 34151,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:34151",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts."
+}

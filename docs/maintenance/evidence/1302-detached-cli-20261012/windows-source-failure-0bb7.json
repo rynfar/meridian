@@ -1,0 +1,70 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\Users\\runneradmin\\.bun\\bin\\bun.exe D:\\a\\meridian\\meridian\\bin\\cli.ts start --detach --json\n",
+  "cli": "D:\\a\\meridian\\meridian\\bin\\cli.ts",
+  "runtime": "C:\\Users\\runneradmin\\.bun\\bin\\bun.exe",
+  "entrySha256": "331488b274e3f4ac9c251cca8b0af676601d77caf0f7e70e0b2289392d3a5d59",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    52067,
+    52068
+  ],
+  "commands": [
+    {
+      "port": 52067,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52067\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52067,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52067\",\"managed\":false,\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52067,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52067",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 52068,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52068",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

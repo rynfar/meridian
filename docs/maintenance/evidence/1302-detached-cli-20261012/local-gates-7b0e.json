@@ -1,0 +1,12 @@
+{
+  "head": "7b0e2f467f5139374e55645f6cb58904b047e33b",
+  "originalSession": 60564,
+  "exitCode": 0,
+  "passed": 5778,
+  "skipped": 39,
+  "failed": 0,
+  "groups": 23,
+  "typecheck": "pass",
+  "build": "pass",
+  "logSha256": "2469a4b5ad7bf807c3cb4c1cb4a9f75d1c6399c8fe2730e8ab6d0e3bb571f916"
+}

@@ -1,0 +1,18 @@
+{
+  "head": "90ec6828fba4e5d05f3f9a5f6b5d39892f286306",
+  "originalProcess": 61680,
+  "exitCode": 0,
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "tests": {
+    "pass": 5777,
+    "skip": 35,
+    "fail": 0,
+    "isolatedGroups": 23
+  },
+  "logSha256": "c5ce2ed5ec4a93c3a1e98cf1c86ebcdd86482dbb845453ab694b74240c53f533",
+  "scope": "Frozen implementation head; harness and documentation appended only after original process terminal exit."
+}

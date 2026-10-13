@@ -1,0 +1,76 @@
+{
+  "pass": false,
+  "failure": "Error: Command failed: C:\\hostedtoolcache\\windows\\node\\22.23.3\\x64\\node.exe D:\\a\\_temp\\meridian-detached-package\\install\\node_modules\\@rynfar\\meridian\\dist\\cli.js start --detach --json\n",
+  "startupLogs": [
+    {
+      "path": "D:\\a\\_temp\\meridian-detached-package\\installed\\config\\detached\\812e09228ae815635d3aee2b3f77c064ad7d111e1ad2ea8e0080001371dd1986.log",
+      "readFailure": "Error: ENOENT: no such file or directory, open 'D:\\a\\_temp\\meridian-detached-package\\installed\\config\\detached\\812e09228ae815635d3aee2b3f77c064ad7d111e1ad2ea8e0080001371dd1986.log'"
+    }
+  ],
+  "cli": "D:\\a\\_temp\\meridian-detached-package\\install\\node_modules\\@rynfar\\meridian\\dist\\cli.js",
+  "runtime": "C:\\hostedtoolcache\\windows\\node\\22.23.3\\x64\\node.exe",
+  "entrySha256": "f27bae992e068e939c5afe82a52785dac283b4df283db540b88d78e26bbb1558",
+  "platform": "win32",
+  "arch": "x64",
+  "ports": [
+    52115,
+    52116
+  ],
+  "commands": [
+    {
+      "port": 52115,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52115\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\installed\\\\config\\\\detached\\\\812e09228ae815635d3aee2b3f77c064ad7d111e1ad2ea8e0080001371dd1986.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52115,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:52115\",\"managed\":false,\"logPath\":\"D:\\\\a\\\\_temp\\\\meridian-detached-package\\\\installed\\\\config\\\\detached\\\\812e09228ae815635d3aee2b3f77c064ad7d111e1ad2ea8e0080001371dd1986.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 52115,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52115",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 52116,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:52116",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

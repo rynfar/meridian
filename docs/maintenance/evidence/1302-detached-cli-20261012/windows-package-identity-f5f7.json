@@ -1,0 +1,9 @@
+{
+  "bun": "1.3.11",
+  "node": "v22.23.3",
+  "checkout": "7aaf9d5578dd094b279ee791180bf11887bc9f40",
+  "head": "f5f7cb5f7d56cb5157f9b4c2b4256acea963cdb7",
+  "tarballSha256": "AC03E94BBB3B36252A8FCE081149197208EDC642DAAF961E7DC7F1BB28563415",
+  "npmIntegrity": "sha512-5stRQPA9HtyLAOpUbj32A678gwo6ucWN2zIHZ3fAqtIbWZuHKAK0Ytz1f3vogLlWvNlhSFxd8aKxX7Ie1z5dCw==",
+  "scope": "Credentialless source and installed lifecycle; no model-turn acceptance"
+}

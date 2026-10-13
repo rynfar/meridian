@@ -1,0 +1,9 @@
+{
+  "npmIntegrity": "sha512-nIgujYwGzVENInzvFptpTiQoo1ftRdOscL1R64B/sdc26BB1IUk0nRPWNgk4MByzgvOZzY2IwpONQXny+W76Kg==",
+  "scope": "Credentialless source and installed lifecycle; no model-turn acceptance",
+  "node": "v22.23.3",
+  "checkout": "d2539c10a3c355816ac401b9d37f8fb826f7c6c5",
+  "tarballSha256": "20F2F1E496317415E0DF0D401E4DFA7905515466D0E6B8EFF23321159135EEE1",
+  "bun": "1.3.11",
+  "head": "1c98b21c02901d5cf069e8a9eac434e748900389"
+}

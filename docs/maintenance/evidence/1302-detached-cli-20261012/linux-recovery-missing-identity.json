@@ -1,0 +1,49 @@
+{
+  "pass": false,
+  "failure": "Error: Owned supervisor exited before commitment: ",
+  "cli": "/proof/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/usr/local/bin/node",
+  "entrySha256": "52b36973b41013fcf584c7d96a7755a5598c65b1a8a45a4b70b01701f471e645",
+  "platform": "linux",
+  "arch": "arm64",
+  "ports": [
+    36495,
+    39009
+  ],
+  "commands": [
+    {
+      "port": 36495,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:36495",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 39009,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:39009",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "faults": [],
+  "scope": "Actual supervisor original-handle crash, listener shutdown, confirmed-dead-owner recovery and startup error. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only identity exception. Linux: network-disabled isolated container, no credential mounts."
+}

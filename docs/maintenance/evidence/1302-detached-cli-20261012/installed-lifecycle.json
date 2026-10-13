@@ -1,0 +1,156 @@
+{
+  "pass": true,
+  "cli": "/tmp/meridian-detached1302-installed-package/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/Users/rynfar/.local/bin/node",
+  "entrySha256": "52b36973b41013fcf584c7d96a7755a5598c65b1a8a45a4b70b01701f471e645",
+  "platform": "darwin",
+  "arch": "arm64",
+  "ports": [
+    58698,
+    58699
+  ],
+  "commands": [
+    {
+      "port": 58698,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:58698",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-concurrent-matrix/config/detached/4596a42e303f70e8d57c63481eec67b2cbf8d4a5078b1c3bf3ffb4946b66b150.log",
+        "instanceId": "3a6a53a4f9e94dbb7b5cdcc816358a53"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58698,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-existing",
+        "endpoint": "http://127.0.0.1:58698",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-concurrent-matrix/config/detached/4596a42e303f70e8d57c63481eec67b2cbf8d4a5078b1c3bf3ffb4946b66b150.log",
+        "instanceId": "3a6a53a4f9e94dbb7b5cdcc816358a53"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58699,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:58699",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-concurrent-matrix/config/detached/3329ec00e8874640cea8bc43c3e7a158721a27c9e2edbf1623c80498107bd002.log",
+        "instanceId": "3da655c43f5e9bd45426a76d557c8b15"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58698,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:58698",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-concurrent-matrix/config/detached/4596a42e303f70e8d57c63481eec67b2cbf8d4a5078b1c3bf3ffb4946b66b150.log",
+        "instanceId": "3a6a53a4f9e94dbb7b5cdcc816358a53"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58698,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:58698",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58699,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:58699",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-concurrent-matrix/config/detached/3329ec00e8874640cea8bc43c3e7a158721a27c9e2edbf1623c80498107bd002.log",
+        "instanceId": "3da655c43f5e9bd45426a76d557c8b15"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58698,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:58698",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 58699,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:58699",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Seatbelt loopback/Unix sockets with ps-only read-only identity exception."
+}

@@ -1,0 +1,17 @@
+{
+  "head": "558e575df27c9e730f7646ee3e2aa66e5788de4d",
+  "originalProcess": 63882,
+  "exitCode": 0,
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "tests": {
+    "pass": 5777,
+    "skip": 38,
+    "fail": 0,
+    "isolatedGroups": 23
+  },
+  "logSha256": "3c5729b4435f8e546c9b4de331247b5c3c9c09fbf2bae686a19929d95a91923b"
+}

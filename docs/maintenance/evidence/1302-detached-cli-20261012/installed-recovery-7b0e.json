@@ -1,0 +1,154 @@
+{
+  "pass": true,
+  "cli": "/tmp/meridian-detached1302-installed-package/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/Users/rynfar/.local/bin/node",
+  "entrySha256": "76210d542c35840f2ee6c2361942f39b36cbb82b81a260c6a9d2eac4df2c61b3",
+  "platform": "darwin",
+  "arch": "arm64",
+  "ports": [
+    60037,
+    60039
+  ],
+  "commands": [
+    {
+      "port": 60037,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:60037",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-recovery-7b0e/config/detached/f8fe816c5e606bc6a45366f9e4e380e1a86a214bc9132e57d90b8088bab9f956.log",
+        "instanceId": "14fd1315dd7f9dd48cd62ddf0b58c4d0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 60037,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:60037",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-recovery-7b0e/config/detached/f8fe816c5e606bc6a45366f9e4e380e1a86a214bc9132e57d90b8088bab9f956.log",
+        "instanceId": "14fd1315dd7f9dd48cd62ddf0b58c4d0"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 60039,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "{\"schemaVersion\":1,\"action\":\"start\",\"outcome\":\"failed\",\"endpoint\":\"http://127.0.0.1:60039\",\"managed\":false,\"logPath\":\"/private/tmp/meridian-detached1302-installed-recovery-7b0e/config/detached/93a4e8dec0ef11ff5330e3a9e548030a7ffa67fc4f51cc1f93a94c61433f3014.log\",\"diagnostic\":\"ownership-or-startup-failure\"}\n",
+      "stderr": ""
+    },
+    {
+      "port": 60039,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:60039",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-recovery-7b0e/config/detached/93a4e8dec0ef11ff5330e3a9e548030a7ffa67fc4f51cc1f93a94c61433f3014.log",
+        "instanceId": "2d9e2e241eccba3cdf54c3d81fa22839"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 60039,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:60039",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-recovery-7b0e/config/detached/93a4e8dec0ef11ff5330e3a9e548030a7ffa67fc4f51cc1f93a94c61433f3014.log",
+        "instanceId": "2d9e2e241eccba3cdf54c3d81fa22839"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 60037,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:60037",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 60039,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:60039",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "faults": [
+    {
+      "case": "supervisor-crash",
+      "instanceId": "0a17220f8b5a43746655b83ddf5f0615",
+      "supervisorExit": {
+        "code": null,
+        "signal": "SIGKILL"
+      },
+      "listenerClosed": true
+    },
+    {
+      "case": "confirmed-dead-owner-recovery",
+      "waitMs": 29964,
+      "oldInstanceId": "0a17220f8b5a43746655b83ddf5f0615",
+      "newInstanceId": "14fd1315dd7f9dd48cd62ddf0b58c4d0"
+    },
+    {
+      "case": "invalid-backend-startup",
+      "failedWithExit": 1,
+      "laterValidStartup": true
+    }
+  ],
+  "scope": "Actual supervisor original-handle crash, listener shutdown, confirmed-dead-owner recovery and startup error. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only identity exception. Linux: network-disabled isolated container, no credential mounts."
+}

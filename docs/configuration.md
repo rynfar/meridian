@@ -968,6 +968,8 @@ ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 o
 | Command | Description |
 |---------|-------------|
 | `meridian` | Start the proxy server. When the port is already serving Meridian, prints `meridian status` and exits 0 instead of failing |
+| `meridian start --detach [--json]` | Start a managed background instance, or report the ready instance already at the endpoint |
+| `meridian stop [--json]` | Gracefully stop the detached instance selected by the same host, port and config directory |
 | `meridian status` | Print what the running instance is doing — the `/` page rendered for a terminal. Reads `MERIDIAN_HOST`/`MERIDIAN_PORT`; exits 1 when nothing of ours is there |
 | `meridian setup` | Configure the OpenCode plugin in `~/.config/opencode/opencode.json` |
 | `meridian profile add <name> [--headless]` | Add a profile and authenticate via Claude OAuth; `--headless` prints a URL, prompts for the returned code, and stores the exchanged credentials |
@@ -978,6 +980,43 @@ ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 o
 | `meridian profile remove <name>` | Remove a profile and its credentials |
 | `meridian refresh-token` | Manually refresh the Claude OAuth token (exits 0/1) |
 | `meridian test-error-report` | Crash on purpose so the configured [error-reporting](#error-reporting) collector receives a test issue. Always exits 1; when reporting is off it only prints how to turn it on |
+
+### Detached startup and shutdown
+
+```sh
+meridian start --detach
+meridian status
+meridian stop
+```
+
+The server outlives the launching terminal or application. Plain `meridian`
+and `meridian start` keep the foreground behavior. Select another instance with
+`MERIDIAN_HOST`, `MERIDIAN_PORT` and `MERIDIAN_CONFIG_DIR`; use the same values
+when stopping it. Starting does not change an existing instance's environment.
+
+For automation, add `--json` to start or stop. Output includes `schemaVersion: 1`,
+`action`, `outcome`, `endpoint` and `managed`, plus `instanceId` and `logPath`
+when known. Exit 0 means `ready-created`, `ready-existing`, `stopped` or
+`already-stopped`; errors exit 1 and invalid command syntax exits 2. Readiness
+confirms the local listener and `/readyz`, not permission to use a particular
+model or subscription. Startup waits up to approximately 60 seconds.
+
+Logs persist at the printed `logPath` under
+`$MERIDIAN_CONFIG_DIR/detached/` (default `~/.config/meridian/detached/`). Each
+endpoint retains up to 10 MiB in its active log and one 10 MiB rotated file.
+Both stdout and stderr go there; `tail -f` the printed path to follow output.
+
+Stop targets only the privately tracked instance and uses its normal graceful
+shutdown. It observes completion for up to 45 seconds; `draining` with a deadline
+diagnostic means completion was not confirmed, so inspect the logs before retrying.
+An unrelated or unmanaged listener is never terminated. A ready existing Meridian
+may be reported with `managed: false`; that does not grant this command ownership.
+Unknown ownership fails closed rather than using a saved PID to kill a process.
+
+This supervisor does not restart a crashed server or start it at login. Use a
+service manager for those policies. Socket activation and detached startup cannot
+be combined. Cross-platform and active-turn acceptance remain pending while this
+feature is in draft development.
 
 ## SDK Feature Toggles (Experimental)
 

@@ -7958,3 +7958,46 @@ feedback without exploring private SDK attachment files. The model's prose is no
 an assertion. Retain before/after reports and join original processes/pipes before
 deleting temporary grants. This gate supplements E41 and E65; it does not claim
 the reporter's unspecified Pi/model/OS environment or a release is verified.
+
+## Detached CLI lifecycle (#1302)
+
+The committed [lifecycle harness](docs/maintenance/evidence/1302-detached-cli-20261012/e2e-detached-lifecycle.mjs)
+executes actual source or installed CLI processes with a dummy loopback API
+profile, isolated configuration and no inference. On Darwin, run:
+
+```sh
+node docs/maintenance/evidence/1302-detached-cli-20261012/e2e-detached-lifecycle.mjs \
+  /absolute/runtime /absolute/meridian/cli-entry /tmp/new-detached-proof
+```
+
+Use Bun plus `bin/cli.ts` for source and Node plus the independently installed
+package's `dist/cli.js` for packaging acceptance. The scratch directory must not
+already exist. Require concurrent creation/reuse with matching identity,
+readiness after launcher exit, two independently controlled endpoints, targeted
+and repeated stop, and shutdown log assertions. Each invocation writes a
+`receipt.json`; preserve failed receipts as well as passing ones.
+
+The adjacent `e2e-detached-recovery.mjs` has the same arguments on Darwin/Linux.
+It kills only its original spawned supervisor handle, joins that process, proves
+listener release by binding the port, requires a distinct replacement after
+confirmed-dead-owner quarantine, and exercises invalid-backend startup followed
+by successful normal startup. Listener release is not itself proof of joining
+an active SDK descendant.
+
+Darwin uses Seatbelt with loopback/Unix sockets and a read-only `/bin/ps`
+identity exception. Linux execution requires an explicitly network-disabled
+container, no credential mounts and an OS machine-id; use the exact isolation
+recorded in the [evidence directory](docs/maintenance/evidence/1302-detached-cli-20261012/README.md).
+Windows lifecycle runs only on a clean GitHub-hosted runner: `windows-smoke`
+executes source Bun and an independently npm-installed candidate with Node,
+and uploads receipts plus package identity. Its allowlisted environment and
+dummy profile are not an OS network fence. The recovery harness does not yet
+claim Windows support.
+
+These checks establish local process/readiness behavior, not active-model drain.
+Acceptance additionally requires a real affected client/SDK/model turn with its
+matching client integration and server scrub plugin verified before inference,
+stop while work is active, original process/pipe completion, repeated-stop
+non-escalation, and preserved ownership on drain timeout. Do not enable Extra
+Usage, refresh credentials or substitute a different model/platform to fill
+missing evidence. Keep source and installed results tied to the tested head.

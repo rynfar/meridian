@@ -1,0 +1,156 @@
+{
+  "pass": true,
+  "cli": "/tmp/meridian-detached1302-installed-package/node_modules/@rynfar/meridian/dist/cli.js",
+  "runtime": "/Users/rynfar/.local/bin/node",
+  "entrySha256": "76210d542c35840f2ee6c2361942f39b36cbb82b81a260c6a9d2eac4df2c61b3",
+  "platform": "darwin",
+  "arch": "arm64",
+  "ports": [
+    65089,
+    65090
+  ],
+  "commands": [
+    {
+      "port": 65089,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:65089",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-lifecycle-windows-harness/config/detached/6c46458dc9be35647f1e2bc765f562e0ffc8fa6ded9af378bf8f74d866ccb4f2.log",
+        "instanceId": "ba52cb2bb92f78c801e5518f44a0a31a"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65089,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-existing",
+        "endpoint": "http://127.0.0.1:65089",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-lifecycle-windows-harness/config/detached/6c46458dc9be35647f1e2bc765f562e0ffc8fa6ded9af378bf8f74d866ccb4f2.log",
+        "instanceId": "ba52cb2bb92f78c801e5518f44a0a31a"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65090,
+      "args": [
+        "start",
+        "--detach",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "start",
+        "outcome": "ready-created",
+        "endpoint": "http://127.0.0.1:65090",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-lifecycle-windows-harness/config/detached/6f964de5fe41c5bae6de8452f08c3933af271cdca99e5d17e80db386e7a37cc3.log",
+        "instanceId": "ae435408bba68e73084f01efc71cb59e"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65089,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:65089",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-lifecycle-windows-harness/config/detached/6c46458dc9be35647f1e2bc765f562e0ffc8fa6ded9af378bf8f74d866ccb4f2.log",
+        "instanceId": "ba52cb2bb92f78c801e5518f44a0a31a"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65089,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65089",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65090,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "stopped",
+        "endpoint": "http://127.0.0.1:65090",
+        "managed": true,
+        "logPath": "/private/tmp/meridian-detached1302-installed-lifecycle-windows-harness/config/detached/6f964de5fe41c5bae6de8452f08c3933af271cdca99e5d17e80db386e7a37cc3.log",
+        "instanceId": "ae435408bba68e73084f01efc71cb59e"
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65089,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65089",
+        "managed": false
+      },
+      "stderr": ""
+    },
+    {
+      "port": 65090,
+      "args": [
+        "stop",
+        "--json"
+      ],
+      "exit": 0,
+      "value": {
+        "schemaVersion": 1,
+        "action": "stop",
+        "outcome": "already-stopped",
+        "endpoint": "http://127.0.0.1:65090",
+        "managed": false
+      },
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI startup/readiness/targeted graceful stop only. No SDK inference; dummy API profile. Darwin: Seatbelt loopback/Unix sockets with ps-only read-only identity exception. Linux: network-disabled isolated container, no credential mounts. Windows: clean GitHub-hosted CI, allowlisted environment, dummy loopback API profile; no OS network fence."
+}

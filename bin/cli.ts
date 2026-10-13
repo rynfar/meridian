@@ -25,6 +25,8 @@ Usage: meridian [command] [options]
 
 Commands:
   (default)        Start the proxy server
+  start --detach   Start an independently managed background instance
+  stop             Gracefully stop that detached instance
   status           Show what a running instance is doing (the / page, in the terminal)
   setup            Configure client integrations (run once after install)
   profile          Manage Claude account profiles (add, list, switch, remove)
@@ -315,7 +317,8 @@ export async function runCli(
   runAuthCheck: () => Promise<{ stdout: string }> = async () => {
     const claudePath = await resolveClaudeExecutableAsync()
     return execFile(claudePath, ["auth", "status"], { timeout: 5000 })
-  }
+  },
+  privateChild?: { readonly requested: boolean; attach(stop: () => void): void; ready(): void },
 ) {
   // First, so a failure anywhere in startup is reported too. Off unless an
   // error-reporting DSN is configured; see src/errorReporting/index.ts.
@@ -379,8 +382,9 @@ export async function runCli(
   // only the CLI (not a library consumer embedding startProxyServer) should
   // ever call process.exit() on a signal.
   let shuttingDown = false
-  const handleShutdownSignal = (signal: NodeJS.Signals) => {
+  const beginShutdown = (signal: string, forceRepeatedSignal: boolean) => {
     if (shuttingDown) {
+      if (!forceRepeatedSignal) return
       // Second signal = force. The drain window is up to 30s and a wedged
       // stream can hold it open for all of it; swallowing every later signal
       // made the process unkillable by Ctrl-C or a supervisor's retry, short
@@ -397,11 +401,49 @@ export async function runCli(
         process.exit(1)
       })
   }
-  process.on("SIGTERM", handleShutdownSignal)
-  process.on("SIGINT", handleShutdownSignal)
+  process.on("SIGTERM", signal => beginShutdown(signal, true))
+  process.on("SIGINT", signal => beginShutdown(signal, true))
+  if (privateChild) {
+    privateChild.attach(() => beginShutdown("private parent stop", false))
+    if (!privateChild.requested) {
+      if (!proxy.server.listening) await new Promise<void>((resolve, reject) => {
+        const ready = () => { cleanup(); resolve() }
+        const fail = (error: Error) => { cleanup(); reject(error) }
+        const closed = () => fail(new Error("Detached listener closed before readiness"))
+        const cleanup = () => { proxy.server.off("listening", ready); proxy.server.off("error", fail); proxy.server.off("close", closed) }
+        proxy.server.once("listening", ready); proxy.server.once("error", fail); proxy.server.once("close", closed)
+      })
+      privateChild.ready()
+    }
+  }
 }
 
 if (import.meta.main) {
+  if (args[0] === "__detached-supervisor") {
+    try {
+      const { resolve } = await import("node:path")
+      const { runDetachedSupervisor } = await import("../src/cli/detachedSupervisor")
+      await runDetachedSupervisor(resolve(process.argv[1]!), host, port)
+      process.exit(0)
+    } catch { process.exit(1) }
+  }
+  if (args[0] === "__detached-child") {
+    const { detachedChildControl } = await import("../src/cli/detachedChild")
+    const control = detachedChildControl()
+    await runCli(undefined, undefined, control)
+  } else if (args[0] === "stop" || (args[0] === "start" && args.length > 1)) {
+    const action = args[0]
+    const allowed = action === "stop" ? new Set(["--json"]) : new Set(["--detach", "--json"])
+    if (args.slice(1).some(value => !allowed.has(value)) || (action === "start" && !args.includes("--detach"))) {
+      console.error("Usage: meridian start --detach [--json] | meridian stop [--json]")
+      process.exit(2)
+    }
+    const { resolve } = await import("node:path")
+    const { runDetachedCommand, detachedCommandSucceeded } = await import("../src/cli/detachedCommand")
+    const result = await runDetachedCommand(action, resolve(process.argv[1]!), host, port)
+    console.log(args.includes("--json") ? JSON.stringify(result) : `${result.outcome}: ${result.endpoint}${result.logPath ? `\nLogs: ${result.logPath}` : ""}${result.diagnostic ? `\nReason: ${result.diagnostic}` : ""}`)
+    process.exit(detachedCommandSucceeded(result) ? 0 : 1)
+  } else {
   // Ask before starting, because the answer changes what "port in use" means.
   // The port that Meridian wants is usually held by Meridian, and being told
   // so is not an error — it is the question `meridian status` answers, asked
@@ -422,4 +464,5 @@ if (import.meta.main) {
     process.exit(1)
   }
   await runCli()
+  }
 }
