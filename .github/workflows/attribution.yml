@@ -1,0 +1,30 @@
+name: Attribution
+
+# pull_request_target runs this file and the script from main, so the check
+# cannot be edited by the pull request it judges. It never checks out or runs
+# pull request code, and its token is read-only.
+on:
+  pull_request_target:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # A squash names the PR opener as Author. Fail when a maintainer PR carries a
+  # contributor's commits, so their work cannot land under the maintainer's name.
+  authorship:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: node scripts/check-pr-attribution.mjs ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
