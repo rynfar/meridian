@@ -16,12 +16,40 @@ the contributor's PR is what merges:
 
 | Draft | Carries | Contributor PR to merge instead |
 |---|---|---|
-| #1362 | @Nowaker `13abefad5` | #1360 (signed, `CLEAN`) |
+| #1362 | @Nowaker `13abefad5` | #1360 — merged; #1362 closed unmerged |
 | #1317 | @Cd1s `80d4b9667` | #1314 (unsigned, `BLOCKED`) |
 | #1322 | @passabilities (10), @justprosh (7), @Nowaker (1) | #1211, #1231, #1292; Nowaker's `52965e113` is from closed #1283 |
 
 Corrections to past PRs (reopening, comment edits, release notes, any rewrite of
 `main`) are the owner's decisions in #1363. Do not start them from this note.
+
+## Contributor merges under the new process (2026-10-13)
+
+Each landed as the contributor's own PR. Author is the output of
+`git log -1 --format='%an <%ae>'` on `origin/main`.
+
+| PR | Landed | Author on `main` | Maintainer commits on their branch | Path |
+|---|---|---|---|---|
+| #1360 | `58c4126c3` | Damian Nowak (@Nowaker) | tests, CLI help, evidence, merge of `main` | direct (signed) |
+| #1213 | `55edbcc35` | Robert (@robertn702) | conflict resolution, two test corrections, doc correction, live gate | `--admin` (unsigned) |
+| #1201 | `fa4266e16` | jmuz (@XInTheDark) | conflict-free merge of `main` only | `--admin` (unsigned), explicit `--body`, no maintainer trailer |
+
+- #1213: [evidence](evidence/1213-sonnet-native-context-20261013/README.md).
+  5,773 local tests, build, final-head CI, live OpenCode 2.0.16 / Sonnet 5.5
+  before/after on macOS arm64. Not carried from the earlier draft: the exact-id
+  restriction and `CLAUDE_CODE_DISABLE_1M_CONTEXT` handling; the second is an
+  open follow-up if wanted. Issue #1212 closed by the merge.
+- #1201: [evidence](evidence/1201-per-call-results-20261013/README.md).
+  5,766 local tests, build, final-head CI, live Opus 5.5 `/v1/responses`
+  before/after. Its CI runs needed first-time-contributor approval. The landed
+  patch is identical to the contributor's commit. The reporter's own client was
+  not run.
+- A squash with an explicit `--body` carries no automatic `Co-authored-by`
+  line (observed on #1201); without one, every commit author on the branch is
+  added (#1213).
+- The earlier preparation branches for these two
+  (`codex/sonnet-context-1213-20261012`, `codex/checkpoint-pairs-1201-20261012`)
+  are superseded and must not be merged.
 
 ## Plugin config isolation — #1360 (2026-10-13)
 
