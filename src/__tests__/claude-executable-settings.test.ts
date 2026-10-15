@@ -69,7 +69,7 @@ describe("Claude Code executable setting", () => {
     return path
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "meridian-claude-executable-"))
     bin = join(dir, "bin")
     mkdirSync(bin)
@@ -80,7 +80,7 @@ describe("Claude Code executable setting", () => {
     process.env.PATH = `${bin}:${saved.PATH ?? ""}`
     resetCachedClaudePath()
     resetCachedClaudeAuthStatus()
-    clearSessionCache()
+    await clearSessionCache()
     ranWith.length = 0
     proxy = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
     app = proxy.app

@@ -37,10 +37,10 @@ const profiles = [
   { id: "work", claudeConfigDir: "/home/.claude-work" },
 ]
 
-beforeEach(() => {
+beforeEach(async () => {
   resetActiveProfile()
   resetFollowActive()
-  clearSessionCache()
+  await clearSessionCache()
   delete process.env.MERIDIAN_FOLLOW_ACTIVE
 })
 

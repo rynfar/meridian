@@ -161,7 +161,7 @@ describe("Polytoken native session concurrency", () => {
     routing: process.env.MERIDIAN_ROUTING,
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sessionDir = mkdtempSync(join(tmpdir(), "meridian-polytoken-concurrency-"))
     setSessionStoreDir(sessionDir)
     process.env.MERIDIAN_MAX_CONCURRENT = "2"
@@ -173,7 +173,7 @@ describe("Polytoken native session concurrency", () => {
     controls = []
     capturedInputs = []
     pendingRequests = new Set()
-    clearSessionCache()
+    await clearSessionCache()
     resetProcessSdkSemaphoreForTests()
   })
 
@@ -181,7 +181,7 @@ describe("Polytoken native session concurrency", () => {
     for (const control of controls) control.release()
     await Promise.allSettled([...pendingRequests])
     resetProcessSdkSemaphoreForTests()
-    clearSessionCache()
+    await clearSessionCache()
     setSessionStoreDir(null)
     rmSync(sessionDir, { recursive: true, force: true })
     if (savedEnv.max === undefined) delete process.env.MERIDIAN_MAX_CONCURRENT

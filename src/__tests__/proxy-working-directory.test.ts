@@ -89,11 +89,11 @@ function cwdAddendumFromAppend(params: any): string {
 }
 
 describe("Working directory", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "Hi" }])]
     capturedQueryParams = null
     capturedQueryHistory = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("should pass cwd option to the SDK query", async () => {

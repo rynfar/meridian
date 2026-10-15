@@ -90,7 +90,7 @@ try {
   const sources = await Promise.all(mappings().map(async row =>
     ({ id: row.claudeSessionId, rows: await history(row.claudeSessionId) })))
   await proxy.sweepSessionGc()
-  clearSessionCache()
+  await clearSessionCache()
   await proxy.sweepSessionGc()
   // Passive retirement deliberately stops one slot short of the budget, so the
   // backlog parks MAX_PENDING - 1 transcripts awaiting a real SDK deletion.

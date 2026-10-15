@@ -94,8 +94,8 @@ function postResponses(app: any, body: any) {
 }
 
 describe("/v1/responses (#475)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedOptions = []
   })
 
@@ -197,8 +197,8 @@ describe("/v1/responses (#475)", () => {
 })
 
 describe("/v1/responses session continuity via prompt_cache_key (#655)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedOptions = []
   })
 
@@ -245,8 +245,8 @@ describe("/v1/responses session continuity via prompt_cache_key (#655)", () => {
 })
 
 describe("/v1/responses keeps a spawned Codex thread out of its parent's session", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedOptions = []
   })
 

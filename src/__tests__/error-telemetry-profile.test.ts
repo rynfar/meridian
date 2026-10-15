@@ -61,9 +61,9 @@ const PROFILES = [
 const savedEnv: Record<string, string | undefined> = {}
 
 describe("error-path telemetry records the profile that failed", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetProcessSdkSemaphoreForTests()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     rateLimitStore.clear?.()
     failingDirs = new Set()

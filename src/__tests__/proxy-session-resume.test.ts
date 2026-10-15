@@ -123,11 +123,11 @@ function buildStaleSessionFixture() {
 // ============================================================
 
 describe("Session resume: session ID tracking", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [
       assistantMessage([{ type: "text", text: "Hello" }]),
     ]
-    clearSessionCache()
+    await clearSessionCache()
     capturedQueryParams = null
     queryCallCount = 0
     firstCallerSelectedSessionId = undefined
@@ -280,11 +280,11 @@ describe("Session resume: session ID tracking", () => {
 // ============================================================
 
 describe("Session resume: fingerprint fallback", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [
       assistantMessage([{ type: "text", text: "Hello" }]),
     ]
-    clearSessionCache()
+    await clearSessionCache()
     capturedQueryParams = null
     queryCallCount = 0
     firstCallerSelectedSessionId = undefined
@@ -383,11 +383,11 @@ describe("Session resume: fingerprint fallback", () => {
 // ============================================================
 
 describe("Session resume: only send last user message on resume", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [
       assistantMessage([{ type: "text", text: "Hello" }]),
     ]
-    clearSessionCache()
+    await clearSessionCache()
     capturedQueryParams = null
     queryCallCount = 0
     firstCallerSelectedSessionId = undefined
@@ -485,9 +485,9 @@ describe("Session resume: only send last user message on resume", () => {
 })
 
 describe("Session resume: stale cross-node history", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "Recovered" }])]
-    clearSessionCache()
+    await clearSessionCache()
     capturedQueryParams = null
     queryCallCount = 0
     firstCallerSelectedSessionId = undefined
@@ -496,7 +496,7 @@ describe("Session resume: stale cross-node history", () => {
   it("fresh-replays all 727 messages when only 514/515 cached messages match", async () => {
     const app = createTestApp()
     const { cached, incoming } = buildStaleSessionFixture()
-    storeSession("oc-stale-nonstream", cached, "sdk-stale-nonstream")
+    await storeSession("oc-stale-nonstream", cached, "sdk-stale-nonstream")
 
     const response = await post(app, {
       model: "claude-sonnet-4-5",
@@ -535,7 +535,7 @@ describe("Session resume: stale cross-node history", () => {
   it("uses the same full replay fallback for streaming requests", async () => {
     const app = createTestApp()
     const { cached, incoming } = buildStaleSessionFixture()
-    storeSession("oc-stale-stream", cached, "sdk-stale-stream")
+    await storeSession("oc-stale-stream", cached, "sdk-stale-stream")
     mockMessages = [
       messageStart(),
       textBlockStart(0),

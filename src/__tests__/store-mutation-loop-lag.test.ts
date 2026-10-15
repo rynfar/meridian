@@ -1,8 +1,8 @@
 /**
- * A session store mutation is synchronous, so its whole cost is event-loop
- * lag for every request the proxy serves. On a long-lived store (tens of MB)
- * re-parsing and re-serializing the whole file per mutation froze the loop for
- * hundreds of milliseconds at a time.
+ * A session store mutation parses and serializes on the event loop, so that
+ * cost is event-loop lag for every request the proxy serves. On a long-lived
+ * store (tens of MB) re-parsing and re-serializing the whole file per mutation
+ * froze the loop for hundreds of milliseconds at a time.
  */
 
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
@@ -73,12 +73,21 @@ function buildFixture(dir: string, entries: number, messagesPerEntry: number): {
   return { keys, text: publishForeign(dir, document) }
 }
 
-/** Event-loop delay caused by a synchronous call: how late an immediately due timer fires. */
+/** Longest event-loop stall while `work` runs: the widest gap between ticks of a 1 ms interval. */
 async function loopLagOf(work: () => unknown): Promise<number> {
-  const scheduledAt = performance.now()
-  const fired = new Promise<number>((resolve) => setTimeout(() => resolve(performance.now()), 0))
-  work()
-  return (await fired) - scheduledAt
+  let last = performance.now()
+  let worst = 0
+  const tick = setInterval(() => {
+    const now = performance.now()
+    worst = Math.max(worst, now - last)
+    last = now
+  }, 1)
+  try {
+    await work()
+  } finally {
+    clearInterval(tick)
+  }
+  return Math.max(worst, performance.now() - last)
 }
 
 function median(values: number[]): number {
@@ -116,34 +125,34 @@ describe("session store mutation cost on a large store", () => {
     }
 
     // The first mutation after a foreign write parses once and encodes every entry once.
-    storeSharedSession(keys[0]!, randomUUID(), 3, hash(), [hash(), hash(), hash()])
+    await storeSharedSession(keys[0]!, randomUUID(), 3, hash(), [hash(), hash(), hash()])
     const lags: number[] = []
     for (let index = 1; index <= 5; index++) {
-      lags.push(await loopLagOf(() => {
+      lags.push(await loopLagOf(() => (
         storeSharedSession(keys[index]!, randomUUID(), 3, hash(), [hash(), hash(), hash()])
-      }))
+      )))
     }
     const entry = lookupSharedSession(keys[6]!)!
-    lags.push(await loopLagOf(() => {
+    lags.push(await loopLagOf(() => (
       attachSharedTranscriptLocator(keys[6]!, entry.claudeSessionId, {
         sessionId: entry.claudeSessionId,
         configDir: "/home/user/.claude",
         projectDir: "/home/user/.claude/projects/other",
       })
-    }))
+    )))
 
     console.log(`[loop-lag] ${(text.length / 1e6).toFixed(1)} MB store: warm mutation median ${median(lags).toFixed(1)} ms, max ${Math.max(...lags).toFixed(1)} ms; full-document baseline median ${median(baselines).toFixed(1)} ms`)
     expect(median(lags)).toBeLessThan(median(baselines) * 0.75)
   })
 
-  it("never re-parses the store or re-serializes unchanged entries on a warm mutation", () => {
+  it("never re-parses the store or re-serializes unchanged entries on a warm mutation", async () => {
     const { keys, text } = buildFixture(dir, 60, 40)
-    storeSharedSession(keys[0]!, randomUUID(), 1, hash(), [hash()])
+    await storeSharedSession(keys[0]!, randomUUID(), 1, hash(), [hash()])
 
     const parse = spyOn(JSON, "parse")
     const stringify = spyOn(JSON, "stringify")
     try {
-      storeSharedSession(keys[1]!, randomUUID(), 1, hash(), [hash()])
+      await storeSharedSession(keys[1]!, randomUUID(), 1, hash(), [hash()])
       const largeParses = parse.mock.calls.filter(([input]) => typeof input === "string" && input.length > 1_000)
       expect(largeParses).toHaveLength(0)
       // One replaced entry, the metadata, and one small key literal per entry.
@@ -172,10 +181,10 @@ describe("copy-on-write store mutations", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it("writes exactly the document a full serialization would produce", () => {
-    storeSharedSession("a", "claude-a", 2, "h", ["m1", "m2"])
-    storeSharedSession("b", "claude-b", 1, "h", ["m1"])
-    storeSharedSession("a", "claude-a", 3, "h", ["m1", "m2", "m3"])
+  it("writes exactly the document a full serialization would produce", async () => {
+    await storeSharedSession("a", "claude-a", 2, "h", ["m1", "m2"])
+    await storeSharedSession("b", "claude-b", 1, "h", ["m1"])
+    await storeSharedSession("a", "claude-a", 3, "h", ["m1", "m2", "m3"])
     const raw = readFileSync(join(dir, "sessions.json"), "utf8")
     const parsed = JSON.parse(raw) as Record<string, unknown>
     expect(Object.keys(parsed)).toEqual([META_KEY, "a", "b"])
@@ -183,11 +192,11 @@ describe("copy-on-write store mutations", () => {
     expect((parsed.a as { messageCount: number }).messageCount).toBe(3)
   })
 
-  it("owns nested caller data before memoizing serialized entries", () => {
+  it("owns nested caller data before memoizing serialized entries", async () => {
     const hashes = ["m1"]
     const blockHashes = [["b1"]]
     const uuids = ["sdk-1"]
-    storeSharedSession("a", "claude-a", 1, "h", hashes, uuids, undefined, blockHashes)
+    await storeSharedSession("a", "claude-a", 1, "h", hashes, uuids, undefined, blockHashes)
     hashes[0] = "changed"
     blockHashes[0]![0] = "changed"
     uuids[0] = "changed"
@@ -195,14 +204,14 @@ describe("copy-on-write store mutations", () => {
     expect(cached.messageHashes).toEqual(["m1"])
     expect(cached.messageBlockHashes).toEqual([["b1"]])
     expect(cached.sdkMessageUuids).toEqual(["sdk-1"])
-    storeSharedSession("b", "claude-b", 1, "h", ["b"])
+    await storeSharedSession("b", "claude-b", 1, "h", ["b"])
     const disk = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
     expect(disk.a.messageHashes).toEqual(cached.messageHashes)
     expect(disk.a.messageBlockHashes).toEqual(cached.messageBlockHashes)
   })
 
-  it("prevents nested lookup edits from diverging from memoized disk bytes", () => {
-    storeSharedSession("a", "claude-a", 1, "h", ["m1"], undefined, undefined, [["b1"]])
+  it("prevents nested lookup edits from diverging from memoized disk bytes", async () => {
+    await storeSharedSession("a", "claude-a", 1, "h", ["m1"], undefined, undefined, [["b1"]])
     const cached = lookupSharedSession("a")!
     expect(() => { cached.messageHashes![0] = "changed" }).toThrow()
     expect(() => { cached.messageBlockHashes![0]![0] = "changed" }).toThrow()
@@ -212,45 +221,45 @@ describe("copy-on-write store mutations", () => {
     expect(lookupSharedSession("a")).toBe(cached)
   })
 
-  it("protects nested history parsed from a foreign writer before exposing it", () => {
+  it("protects nested history parsed from a foreign writer before exposing it", async () => {
     publishForeign(dir, { [META_KEY]: { version: 1, slots: {} }, a: fixtureEntry(2, Date.now()) })
     const cached = lookupSharedSession("a")!
     const original = cached.messageBlockHashes![0]![0]
     expect(() => { cached.messageBlockHashes![0]![0] = "changed" }).toThrow()
-    storeSharedSession("b", "claude-b", 1, "h", ["b"])
+    await storeSharedSession("b", "claude-b", 1, "h", ["b"])
     const disk = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
     expect(disk.a.messageBlockHashes[0][0]).toBe(original)
   })
 
-  it("hands out frozen entries and leaves earlier reads untouched by later mutations", () => {
-    storeSharedSession("a", "claude-a", 1, "h", ["m1"])
+  it("hands out frozen entries and leaves earlier reads untouched by later mutations", async () => {
+    await storeSharedSession("a", "claude-a", 1, "h", ["m1"])
     const before = lookupSharedSession("a")!
     expect(Object.isFrozen(before)).toBe(true)
 
-    expect(attachSharedTranscriptLocator("a", "claude-a", { sessionId: "claude-a", configDir: "/tmp/config" })).toBeTruthy()
+    expect(await attachSharedTranscriptLocator("a", "claude-a", { sessionId: "claude-a", configDir: "/tmp/config" })).toBeTruthy()
     expect(before.currentTranscript).toBeUndefined()
     expect(lookupSharedSession("a")!.currentTranscript).toEqual({ sessionId: "claude-a", configDir: "/tmp/config" })
   })
 
-  it("discards a mutator's partial changes when it throws", () => {
-    storeSharedSession("a", "claude-a", 1, "h", ["m1"])
+  it("discards a mutator's partial changes when it throws", async () => {
+    await storeSharedSession("a", "claude-a", 1, "h", ["m1"])
     const bytes = readFileSync(join(dir, "sessions.json"), "utf8")
-    expect(() => storeSharedSession(
+    await expect(storeSharedSession(
       "a", "claude-other", 1, "h", ["m1"], undefined, undefined, undefined, undefined, undefined,
       { sessionId: "claude-other", configDir: "/tmp/config" },
       { sessionId: "not-the-replaced-session", configDir: "/tmp/config" },
-    )).toThrow()
+    )).rejects.toThrow()
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(bytes)
     expect(lookupSharedSession("a")!.claudeSessionId).toBe("claude-a")
   })
 
-  it("builds a mutation on a foreign writer's document, not on the stale cache", () => {
-    storeSharedSession("a", "claude-a", 1, "h", ["m1"])
+  it("builds a mutation on a foreign writer's document, not on the stale cache", async () => {
+    await storeSharedSession("a", "claude-a", 1, "h", ["m1"])
     const foreign = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8")) as Record<string, unknown>
     foreign.b = fixtureEntry(2, Date.now())
     publishForeign(dir, foreign)
 
-    storeSharedSession("c", "claude-c", 1, "h", ["m1"])
+    await storeSharedSession("c", "claude-c", 1, "h", ["m1"])
     const parsed = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8")) as Record<string, unknown>
     expect(Object.keys(parsed).sort()).toEqual([META_KEY, "a", "b", "c"].sort())
   })

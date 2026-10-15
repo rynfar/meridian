@@ -272,11 +272,11 @@ const savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
 const savedInstances = process.env.MERIDIAN_ADAPTER_INSTANCES
 const savedConfigDir = process.env.MERIDIAN_CONFIG_DIR
 
-beforeEach(() => {
+beforeEach(async () => {
   captured.length = 0
   registeredMcpServers = []
   nextToolCall = null
-  clearSessionCache()
+  await clearSessionCache()
   delete process.env.MERIDIAN_PASSTHROUGH
   delete process.env.MERIDIAN_ADAPTER_INSTANCES
   process.env.MERIDIAN_CONFIG_DIR = `/tmp/meridian-polytoken-http-${Date.now()}-${Math.random().toString(36).slice(2)}`

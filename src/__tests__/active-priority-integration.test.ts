@@ -120,11 +120,11 @@ async function events(app: TestApp, since = 0, limit?: number) {
 
 const savedEnv: Record<string, string | undefined> = {}
 
-beforeEach(() => {
+beforeEach(async () => {
   capturedEnvs = []
   failingDirs = new Set()
   failureMessage = DEFAULT_FAILURE
-  clearSessionCache()
+  await clearSessionCache()
   resetActiveProfile()
   rateLimitStore.clear()
   // Exhaustion fires refinePriorityCooldown -> fetchOAuthUsage as a real

@@ -69,14 +69,14 @@ const BASE_BODY = {
 }
 
 describe("x-meridian-source: fingerprint cache skip for independent sessions", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
-  afterEach(() => {
-    clearSessionCache()
+  afterEach(async () => {
+    await clearSessionCache()
   })
 
   /**

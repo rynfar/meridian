@@ -210,7 +210,7 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
   // "parallel same-tool calls" describe below. The legacy path remains
   // reachable via the MERIDIAN_PASSTHROUGH_EARLY_STOP=0 kill switch and
   // must keep working for operators who disable early stop.
-  beforeEach(() => {
+  beforeEach(async () => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
@@ -219,7 +219,7 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
     capturedController = undefined
     capturedResume = undefined
     abortCompletesNormally = false
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {
@@ -429,7 +429,7 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
   let origEnv: string | undefined
   let origEarlyStop: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
@@ -437,7 +437,7 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     mockTurns = []
     capturedController = undefined
     capturedResume = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {
@@ -622,7 +622,7 @@ describe("dropped calls must not leak to the client (truth-divergence guard)", (
   let origEnv: string | undefined
   let origEarlyStop: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
@@ -630,7 +630,7 @@ describe("dropped calls must not leak to the client (truth-divergence guard)", (
     mockTurns = []
     capturedController = undefined
     capturedResume = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {
@@ -699,13 +699,13 @@ describe("envelope integrity tripwire", () => {
   let origEnv: string | undefined
   let origEarlyStop: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
     mockTurns = []
     capturedController = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {
@@ -773,7 +773,7 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
   let origEnv: string | undefined
   let origEarlyStop: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
@@ -781,7 +781,7 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
     mockTurns = []
     capturedController = undefined
     capturedResume = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

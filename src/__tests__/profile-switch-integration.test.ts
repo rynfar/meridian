@@ -55,9 +55,9 @@ const { createProxyServer } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { storeSession, lookupSession, clearSessionCache } = await import("../proxy/session/cache")
 
-beforeEach(() => {
+beforeEach(async () => {
   resetActiveProfile()
-  clearSessionCache()
+  await clearSessionCache()
 })
 
 function createTestApp(profiles?: Array<{ id: string; claudeConfigDir?: string; aliases?: string[] }>) {
@@ -230,7 +230,7 @@ describe("Session mappings across a profile switch", () => {
       { role: "assistant", content: "b" },
       { role: "user", content: "c" },
     ]
-    storeSession("personal:test-session-123", msgs, "claude-abc")
+    await storeSession("personal:test-session-123", msgs, "claude-abc")
 
     const res = await app.fetch(req("/profiles/active", {
       method: "POST",

@@ -94,10 +94,10 @@ async function postStream(app: any, content = "hello") {
 }
 
 describe("Stream error recovery after message_start", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     mockErrorAfter = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("closes the message lifecycle and puts the error where the client will read it", async () => {

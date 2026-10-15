@@ -114,13 +114,13 @@ async function post(
   await response.json()
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
   queuedSessionLabels = []
   callerSelectedSessionIds = new Map()
-  clearSessionCache()
-  clearSharedSessions()
+  await clearSessionCache()
+  await clearSharedSessions()
 })
 
 // ---------------------------------------------------------------------------
