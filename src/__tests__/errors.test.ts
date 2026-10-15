@@ -597,6 +597,15 @@ describe("classifyError", () => {
       expect(classifyResumeRefusal(new Error("claude code returned an error result: No message found with message.uuid of: abc123"))).toBe("missing-message")
     })
 
+    it("finds the missing-message refusal on stderr when the error only carries the exit code (#1371)", () => {
+      expect(
+        classifyResumeRefusal(
+          new Error("Claude Code process exited with code 1"),
+          "No message found with message.uuid of: e663b687-6d08-4cc4-b9a9-5245ce8f1e07",
+        ),
+      ).toBe("missing-message")
+    })
+
     it("a session that would not open is unresumable, not proven gone", () => {
       expect(classifyResumeRefusal(new Error("No conversation found with session ID: 2e9e868c-ab59-482c-ae28-3b60ec9cb95b"))).toBe("unresumable")
       expect(classifyResumeRefusal(new Error("No conversation found to continue"))).toBe("unresumable")

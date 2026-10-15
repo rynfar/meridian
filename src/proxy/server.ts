@@ -169,6 +169,7 @@ import {
   normalizeContextUsage,
   withClientAssistantUuid,
   reconcileReturnedSessionUuids,
+  inheritSdkUuids,
   independentRequestCause,
   formatDivergence,
   type LineageResult,
@@ -4365,8 +4366,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // RangeError when allMessages.length was 0. Cold-start requests
           // are now also rejected at the entrypoint (#450) but the defensive
           // initializer keeps any future reentry safe.
-          let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession?.sdkMessageUuids
-            ? [...cachedSession.sdkMessageUuids]
+          let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession
+            ? inheritSdkUuids(cachedSession, lineageResult, lineageMessages)
             : []
           // Pad to current message count (the last user message has no UUID yet)
           while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
@@ -5461,8 +5462,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // Defensive: start empty so allMessages.length === 0 doesn't crash the
             // ReadableStream's start() with `RangeError: Invalid array length`.
             // Cold-start requests with no messages are also rejected upstream now (#450).
-            let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession?.sdkMessageUuids
-              ? [...cachedSession.sdkMessageUuids]
+            let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession
+              ? inheritSdkUuids(cachedSession, lineageResult, lineageMessages)
               : []
             while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
             let currentClientAssistantUuid: string | null = null

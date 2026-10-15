@@ -599,6 +599,7 @@ export type ResumeRefusal = "busy" | "unresumable" | "missing-message"
  */
 export function classifyResumeRefusal(error: unknown, stderr?: string): ResumeRefusal | undefined {
   if (isBusySessionError(error, stderr)) return "busy"
+  if (stderr?.includes("No message found with message.uuid")) return "missing-message"
   if (!(error instanceof Error)) return undefined
   const msg = error.message
   if (msg.includes("No message found with message.uuid")) return "missing-message"

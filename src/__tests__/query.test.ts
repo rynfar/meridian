@@ -611,10 +611,51 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).hooks).toEqual(hooks)
   })
 
-  it("sets ENABLE_TOOL_SEARCH=true when hasDeferredTools is true", () => {
-    const result = buildQueryOptions(makeContext({ passthrough: true, hasDeferredTools: true }))
+  it("sets ENABLE_TOOL_SEARCH=true and keeps ToolSearch in tools when hasDeferredTools is true (#1368)", () => {
+    const passthroughMcp = createPassthroughMcpServer(
+      [
+        { name: "read" },
+        { name: "deferred_alpha", defer_loading: true },
+        { name: "deferred_beta", defer_loading: true },
+      ],
+      undefined,
+      "passthrough",
+    )
+    expect(passthroughMcp.deferredToolNames).toEqual([
+      "mcp__passthrough__deferred_alpha",
+      "mcp__passthrough__deferred_beta",
+    ])
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      hasDeferredTools: true,
+      passthroughMcp,
+    }))
     const env = (result.options as any).env
     expect(env.ENABLE_TOOL_SEARCH).toBe("true")
+    expect((result.options as any).tools).toEqual(["ToolSearch"])
+    const sp = (result.options as any).systemPrompt
+    const promptText = typeof sp === "string" ? sp : sp.append
+    expect(promptText).toContain("The following deferred tools are available via ToolSearch")
+    expect(promptText).toContain("mcp__passthrough__deferred_alpha")
+    expect(promptText).toContain("mcp__passthrough__deferred_beta")
+    expect(promptText).not.toContain("mcp__passthrough__read")
+  })
+
+  it("omits the deferred-tools note when CLAUDE_CODE_DISABLE_ATTACHMENTS is explicitly disabled (#1368)", () => {
+    const passthroughMcp = createPassthroughMcpServer(
+      [{ name: "deferred_alpha", defer_loading: true }],
+      undefined,
+      "passthrough",
+    )
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      hasDeferredTools: true,
+      passthroughMcp,
+      envOverrides: { CLAUDE_CODE_DISABLE_ATTACHMENTS: "0" },
+    }))
+    const sp = (result.options as any).systemPrompt
+    const promptText = typeof sp === "string" ? sp : sp.append
+    expect(promptText).not.toContain("The following deferred tools are available via ToolSearch")
   })
 
   it("sets ENABLE_TOOL_SEARCH=false when hasDeferredTools is false", () => {

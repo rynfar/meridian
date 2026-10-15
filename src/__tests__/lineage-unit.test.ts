@@ -16,6 +16,7 @@ import {
   normalizeContextUsage,
   withClientAssistantUuid,
   reconcileReturnedSessionUuids,
+  inheritSdkUuids,
   MIN_SUFFIX_FOR_COMPACTION,
   type SessionState,
 } from "../proxy/session/lineage"
@@ -1132,14 +1133,24 @@ describe("withClientAssistantUuid", () => {
 })
 
 describe("reconcileReturnedSessionUuids", () => {
-  it("clears copied UUIDs after an observed session change and keeps the current output", () => {
+  it("retains copied prefix UUIDs across a managed fork and trims stale tail slots (#1371)", () => {
     expect(reconcileReturnedSessionUuids(
-      [null, "copied-assistant", null, "current-assistant"],
+      [null, "copied-assistant", null, "current-assistant", "stale-tail"],
       3,
       "current-assistant",
       "source-session",
       "fork-session",
-    )).toEqual([null, null, null, "current-assistant"])
+    )).toEqual([null, "copied-assistant", null, "current-assistant"])
+  })
+
+  it("pads missing client slots before recording the current assistant UUID on a fork (#1371)", () => {
+    expect(reconcileReturnedSessionUuids(
+      [null, "copied-assistant"],
+      3,
+      "current-assistant",
+      "source-session",
+      "fork-session",
+    )).toEqual([null, "copied-assistant", null, "current-assistant"])
   })
 
   it("keeps the UUID map when the SDK returns the resumed session", () => {
@@ -1190,5 +1201,95 @@ describe("fork-remapped undo boundaries", () => {
       prefixOverlap: 6,
       rollbackUuid: "new-fork-output-uuid",
     })
+  })
+})
+
+describe("inheritSdkUuids (#1371)", () => {
+  const baseMessages = [
+    msg("user", "u0"),
+    msg("assistant", "a1"),
+    msg("user", "u2"),
+    msg("assistant", "a3"),
+    msg("user", "u4"),
+    msg("assistant", "a5"),
+  ]
+  const baseSession = makeSession({
+    messageCount: baseMessages.length,
+    lineageHash: computeLineageHash(baseMessages),
+    messageHashes: computeMessageHashes(baseMessages),
+    sdkMessageUuids: [null, "uuid-1", null, "uuid-3", null, "uuid-5"],
+  })
+
+  it("returns empty array on diverged lineage", () => {
+    const incoming = [msg("user", "unrelated")]
+    const lineage = verifyLineage(baseSession, incoming)
+    expect(lineage.type).toBe("diverged")
+    expect(inheritSdkUuids(baseSession, lineage, incoming)).toEqual([])
+  })
+
+  it("slices to prefixOverlap on undo so stale tail UUIDs are dropped", () => {
+    const incoming = [...baseMessages.slice(0, 4), msg("user", "revised u4")]
+    const lineage = verifyLineage(baseSession, incoming)
+    expect(lineage).toMatchObject({ type: "undo", prefixOverlap: 4, rollbackUuid: "uuid-3" })
+    expect(inheritSdkUuids(baseSession, lineage, incoming)).toEqual([null, "uuid-1", null, "uuid-3"])
+  })
+
+  it("copies all stored UUIDs on ordinary continuation and truncates on in-place block continuation", () => {
+    const incoming = [...baseMessages, msg("user", "u6")]
+    const lineage = verifyLineage(baseSession, incoming)
+    expect(lineage.type).toBe("continuation")
+    expect(inheritSdkUuids(baseSession, lineage, incoming)).toEqual([null, "uuid-1", null, "uuid-3", null, "uuid-5"])
+
+    const inPlaceLineage = {
+      type: "continuation" as const,
+      session: baseSession,
+      resumeFrom: 2,
+      resumeContentFrom: 1,
+    }
+    expect(inheritSdkUuids(baseSession, inPlaceLineage, baseMessages.slice(0, 3))).toEqual([null, "uuid-1", null])
+  })
+
+  it("re-aligns prefix and suffix UUIDs across compaction and nulls compacted slots", () => {
+    const storedMsgs = [
+      msg("user", "u0"),
+      msg("assistant", "a1"),
+      msg("user", "u2"),
+      msg("assistant", "a3"),
+      msg("user", "u4"),
+      msg("assistant", "a5"),
+      msg("user", "u6"),
+      msg("assistant", "a7"),
+    ]
+    const session = makeSession({
+      messageCount: storedMsgs.length,
+      lineageHash: computeLineageHash(storedMsgs),
+      messageHashes: computeMessageHashes(storedMsgs),
+      sdkMessageUuids: [null, "uuid-1", null, "uuid-3", null, "uuid-5", null, "uuid-7", "uuid-8"],
+    })
+    // Equal-length head replacement (indices 0..1 intact, 2..3 replaced in-place, 4..7 preserved suffix, 8 new user)
+    const incoming = [
+      storedMsgs[0]!,
+      storedMsgs[1]!,
+      msg("user", "compacted summary u2"),
+      msg("assistant", "compacted summary a3"),
+      storedMsgs[4]!,
+      storedMsgs[5]!,
+      storedMsgs[6]!,
+      storedMsgs[7]!,
+      msg("user", "u8"),
+    ]
+    const lineage = verifyLineage(session, incoming)
+    expect(lineage.type).toBe("compaction")
+    expect(inheritSdkUuids(session, lineage, incoming)).toEqual([
+      null,
+      "uuid-1",
+      null,
+      null,
+      null,
+      "uuid-5",
+      null,
+      "uuid-7",
+      null,
+    ])
   })
 })
