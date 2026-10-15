@@ -94,3 +94,9 @@ process.env.MERIDIAN_SESSION_GC_MAX_PENDING = "1000000"
 
 // SDK mocks do not spawn an operating-system child. Real proxy/E2E processes do not load this preload.
 process.env.MERIDIAN_TEST_DISABLE_SDK_PROCESS_GATE = "1"
+
+// No idle transcript sweep (transcriptSweep.ts) behind the suite's back.
+// startProxyServer arms one, and a pass that fired while a test left its proxy
+// running would read the developer's real ~/.claude login and hold an SDK slot
+// beside whatever test runs next. The sweep's own tests drive runPass().
+process.env.MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS = "0"

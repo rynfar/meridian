@@ -40,6 +40,34 @@ describe("AbortableSemaphore", () => {
     lease.release()
   })
 
+  test("tryAcquire takes a free slot but never queues", async () => {
+    const semaphore = new AbortableSemaphore(1)
+    const lease = semaphore.tryAcquire()
+    expect(lease).toBeDefined()
+    expect(semaphore.tryAcquire()).toBeUndefined()
+    const waiting = semaphore.acquire()
+    expect(semaphore.snapshot).toEqual({ active: 1, queued: 1, limit: 1 })
+    lease!.release()
+    const next = await waiting
+    // A queued waiter goes first even once capacity frees up.
+    expect(semaphore.tryAcquire()).toBeUndefined()
+    next.release()
+    expect(semaphore.snapshot).toEqual({ active: 0, queued: 0, limit: 1 })
+  })
+
+  test("tryAcquire refuses while a waiter is queued, even with a free slot", async () => {
+    const semaphore = new AbortableSemaphore(2)
+    const first = await semaphore.acquire()
+    const second = await semaphore.acquire()
+    const third = semaphore.acquire()
+    second.release()
+    const granted = await third
+    first.release()
+    expect(semaphore.snapshot).toEqual({ active: 1, queued: 0, limit: 2 })
+    expect(semaphore.tryAcquire()).toBeDefined()
+    granted.release()
+  })
+
   test("release is idempotent", async () => {
     const semaphore = new AbortableSemaphore(1)
     const lease = await semaphore.acquire()
