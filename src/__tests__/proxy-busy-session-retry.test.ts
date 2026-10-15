@@ -127,8 +127,8 @@ const priorMessages = [
   { role: "assistant", content: "hi there" },
 ]
 
-function seed(sessionId: string) {
-  storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test", [null, "uuid-1"])
+async function seed(sessionId: string) {
+  await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test", [null, "uuid-1"])
 }
 
 function continuation() {
@@ -136,8 +136,8 @@ function continuation() {
 }
 
 describe("Busy-session resume retry (#630)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     queryCallCount = 0
     busyFailCount = 0
@@ -145,7 +145,7 @@ describe("Busy-session resume retry (#630)", () => {
 
   it("retries the same resume after a transient busy refusal (non-streaming)", async () => {
     const app = createTestApp()
-    seed("sess-busy-1")
+    await seed("sess-busy-1")
     busyFailCount = 1
 
     const response = await post(
@@ -169,7 +169,7 @@ describe("Busy-session resume retry (#630)", () => {
 
   it("falls back to forkSession when the session stays busy (non-streaming)", async () => {
     const app = createTestApp()
-    seed("sess-busy-2")
+    await seed("sess-busy-2")
     // Every resume is already isolated; retries retain one preallocated fork.
     busyFailCount = 4
 
@@ -192,7 +192,7 @@ describe("Busy-session resume retry (#630)", () => {
 
   it("retries the same resume after a transient busy refusal (streaming)", async () => {
     const app = createTestApp()
-    seed("sess-busy-3")
+    await seed("sess-busy-3")
     busyFailCount = 1
 
     const response = await post(
@@ -216,7 +216,7 @@ describe("Busy-session resume retry (#630)", () => {
 
   it("falls back to forkSession when the session stays busy (streaming)", async () => {
     const app = createTestApp()
-    seed("sess-busy-4")
+    await seed("sess-busy-4")
     busyFailCount = 4
 
     const response = await post(

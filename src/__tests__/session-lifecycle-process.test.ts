@@ -9,6 +9,7 @@ import { captureProcessIncarnation, probeProcessIncarnation } from "../proxy/ses
 import {
   getTranscriptResourceKey,
   prepareFork,
+  readSessionGcSnapshot,
   reconcile,
   runGc,
   type TranscriptLocator,
@@ -228,7 +229,7 @@ async function expectExit(worker: WorkerHandle, timeoutMs = 5_000): Promise<void
 }
 
 function readSidecar(storeDir: string): StoredSidecar {
-  return JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8")) as StoredSidecar
+  return readSessionGcSnapshot(storeDir) as StoredSidecar
 }
 
 async function makeFixture(sessionId: string): Promise<{

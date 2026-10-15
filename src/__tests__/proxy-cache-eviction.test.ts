@@ -91,10 +91,10 @@ async function sendContinuation(app: TestApp, session: string, firstMessage: str
   await response.json()
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
-  clearSessionCache()
+  await clearSessionCache()
 })
 
 afterAll(() => {
@@ -144,7 +144,7 @@ describe("Session cache LRU eviction", () => {
     await send(app, undefined, "alpha")
     expect(capturedQueryParams?.options?.resume).toBeUndefined()
 
-    clearSessionCache()
+    await clearSessionCache()
 
     await send(app, "oc-A", "alpha")
     await send(app, undefined, "fp-X")

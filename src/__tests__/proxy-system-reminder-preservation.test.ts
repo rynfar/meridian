@@ -83,10 +83,10 @@ function getPromptText(): string {
 }
 
 describe("issue #368: <system-reminder> preservation by adapter", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })

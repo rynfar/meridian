@@ -15,6 +15,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, parseSSE, resolveMockSdkSessionId } from "./helpers"
+import { commitRawSession } from "./storeDatabaseHelpers"
 
 interface LifecycleResourceSnapshot {
   locator: { sessionId: string }
@@ -26,7 +27,7 @@ let yieldedCount = 0
 let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
-let mockBeforeTerminalError: (() => void) | undefined
+let mockBeforeTerminalError: (() => void | Promise<void>) | undefined
 let mockLogObserver: ((event: string) => void) | undefined
 /** What each PostToolBatch hook returned for a `test_post_tool_batch` step. */
 let postToolBatchResults: Array<{ ids: string[]; result: unknown }> = []
@@ -103,7 +104,7 @@ installSdkMock(() => ({
         }
       }
       if (terminalError) {
-        mockBeforeTerminalError?.()
+        await mockBeforeTerminalError?.()
         throw terminalError
       }
       // Real SDK queries terminate with a result, and that boundary is the only
@@ -140,7 +141,8 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer } = await import("../proxy/server")
 const { clearSessionCache } = await import("../proxy/session/cache")
-const { evictSharedSession, lookupSharedSession, storeSharedSession, setSessionStoreDir } = await import("../proxy/sessionStore")
+const { evictSharedSession, lookupSharedSession, readSessionStoreSnapshot, storeSharedSession, setSessionStoreDir } = await import("../proxy/sessionStore")
+const { readSessionGcSnapshot } = await import("../proxy/sessionLifecycle")
 const { diagnosticLog, telemetryStore } = await import("../telemetry")
 
 function userDenyMessage(toolUseId: string) {
@@ -181,7 +183,7 @@ const usedSessionKeys = new Set<string>()
 async function waitForLifecycleState(sessionId: string, state: string): Promise<void> {
   const deadline = Date.now() + 1_000
   while (Date.now() < deadline) {
-    const sidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const sidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const resource = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
       .find((candidate) => candidate.locator.sessionId === sessionId)
     if (resource?.state === state) return
@@ -285,10 +287,10 @@ describe("Integration: passthrough early stop", () => {
     mockOmitReturnedSessionId = false
   })
 
-  afterEach(() => {
-    for (const key of usedSessionKeys) evictSharedSession(key)
+  afterEach(async () => {
+    for (const key of usedSessionKeys) await evictSharedSession(key)
     usedSessionKeys.clear()
-    clearSessionCache()
+    await clearSessionCache()
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
     if (savedEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = savedEarlyStop
@@ -302,17 +304,18 @@ describe("Integration: passthrough early stop", () => {
     const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
     usedSessionKeys.add(sessionKey)
     const now = Date.now()
-    writeFileSync(join(TEST_SESSION_DIR, "sessions.json"), JSON.stringify({
-      [sessionKey]: {
-        claudeSessionId: "legacy-sdk-session",
-        revision: 1,
-        createdAt: now,
-        lastUsedAt: now,
-        messageCount: 1,
-        lineageHash: "legacy-lineage",
-        passthroughResumeUuid: "legacy-user-denial-uuid",
-      },
-    }))
+    // Opens the store, so the row below lands in a database that exists.
+    expect(lookupSharedSession(sessionKey)).toBeUndefined()
+    commitRawSession(TEST_SESSION_DIR, sessionKey, {
+      claudeSessionId: "legacy-sdk-session",
+      revision: 1,
+      createdAt: now,
+      lastUsedAt: now,
+      messageCount: 1,
+      lineageHash: "legacy-lineage",
+      passthroughResumeUuid: "legacy-user-denial-uuid",
+    })
+    expect(readSessionStoreSnapshot()[sessionKey]).toMatchObject({ passthroughResumeUuid: "legacy-user-denial-uuid" })
     mockMessages = [assistantMessage([{ type: "text", text: "fresh replay" }])]
 
     const response = await post(app, {
@@ -650,7 +653,7 @@ describe("Integration: passthrough early stop", () => {
     expect(storedSecond?.previousClaudeSessionId).toBe(initialManagedSessionId())
     expect(storedSecond?.currentTranscript?.sessionId).toBe(secondQuery.options.sessionId)
     expect(storedSecond?.previousTranscript?.sessionId).toBe(initialManagedSessionId())
-    const secondSidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const secondSidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const targetResource = Object.values(secondSidecar.resources as Record<string, any>)
       .find((resource) => resource.locator.sessionId === secondQuery.options.sessionId)
     expect(targetResource?.state).toBe("live")
@@ -735,7 +738,7 @@ describe("Integration: passthrough early stop", () => {
     const targetId = capturedQueryParamsAll[0]?.options?.sessionId
     expect(targetId).toMatch(/^[0-9a-f-]{36}$/)
     expect(lookupSharedSession(`es-fresh-id-mismatch-${TEST_RUN_ID}`)).toBeUndefined()
-    const sidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const sidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const resources = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
     expect(resources.find((resource) => resource.locator.sessionId === targetId)?.state).toBe("retired")
     expect(resources.find((resource) => resource.locator.sessionId === wrongSessionId)?.state).toBe("retired")
@@ -760,7 +763,7 @@ describe("Integration: passthrough early stop", () => {
 
     const targetId = capturedQueryParamsAll[0]?.options?.sessionId
     await waitForLifecycleState(targetId, "retired")
-    const sidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const sidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const resources = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
     expect(resources.find((resource) => resource.locator.sessionId === targetId)?.state).toBe("retired")
     expect(resources.find((resource) => resource.locator.sessionId === wrongSessionId)?.state).toBe("retired")
@@ -835,7 +838,7 @@ describe("Integration: passthrough early stop", () => {
     const stored = lookupSharedSession(`es-managed-id-mismatch-${TEST_RUN_ID}`)
     expect(stored?.claudeSessionId).toBe(initialManagedSessionId())
     expect(stored?.previousClaudeSessionId).toBeUndefined()
-    const sidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const sidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const resources = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
     const target = resources.find((resource) => resource.locator.sessionId === targetId)
     const unexpected = resources.find((resource) => resource.locator.sessionId === wrongSessionId)
@@ -895,7 +898,7 @@ describe("Integration: passthrough early stop", () => {
     expect(lookupSharedSession(`es-stream-managed-id-missing-${TEST_RUN_ID}`)?.claudeSessionId).toBe(initialManagedSessionId())
     const targetId = capturedQueryParamsAll[1].options.sessionId
     await waitForLifecycleState(targetId, "retired")
-    const sidecar = JSON.parse(readFileSync(join(TEST_SESSION_DIR, "session-gc.json"), "utf8"))
+    const sidecar = readSessionGcSnapshot(TEST_SESSION_DIR)
     const target = Object.values(sidecar.resources as Record<string, any>)
       .find((resource) => resource.locator.sessionId === targetId)
     expect(target == null || target.state === "retired" || target.state === "tombstoned").toBe(true)
@@ -2465,8 +2468,8 @@ describe("Integration: passthrough early stop", () => {
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
     // Another publisher wins after this request read its generation. Recovery
     // must preserve that winner and report failure before authorizing tools.
-    mockBeforeTerminalError = () => {
-      expect(storeSharedSession(sessionKey, "concurrent-winner")).toBeTruthy()
+    mockBeforeTerminalError = async () => {
+      expect(await storeSharedSession(sessionKey, "concurrent-winner")).toBeTruthy()
     }
     const requestId = `recovery-loss-${streamed}-${operation}-${TEST_RUN_ID}`
     const response = await post(app, {
@@ -2542,8 +2545,8 @@ describe("Integration: passthrough early stop", () => {
       { type: "result", subtype: "error_max_turns", is_error: true },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
-    mockBeforeTerminalError = () => {
-      expect(storeSharedSession(sessionKey, "concurrent-observer-winner")).toBeTruthy()
+    mockBeforeTerminalError = async () => {
+      expect(await storeSharedSession(sessionKey, "concurrent-observer-winner")).toBeTruthy()
     }
     const requestId = `recovery-failed-observer-${TEST_RUN_ID}`
     let logFailures = 0

@@ -2,7 +2,7 @@
 /** Real SDK/HTTP requests with a competing process sweeping the publication gap. */
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, readFileSync, realpathSync } from "node:fs"
+import { mkdtempSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -30,7 +30,7 @@ const release = lifecycle.releaseActiveTranscriptLease
 const sweeps = []
 const releaseSpy = spyOn(lifecycle, "releaseActiveTranscriptLease").mockImplementation(async (lease, settings) => {
   await release(lease, settings)
-  const sidecar = JSON.parse(readFileSync(join(options.storeDir, "session-gc.json"), "utf8"))
+  const sidecar = lifecycle.readSessionGcSnapshot(options.storeDir)
   const activePins = lease.resourceKeys.map(key => {
     const resource = sidecar.resources[key]
     assert(resource, "active request resource disappeared")

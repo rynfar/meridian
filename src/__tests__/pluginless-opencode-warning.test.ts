@@ -170,7 +170,7 @@ describe("plugin-less warning through the HTTP path", () => {
 
     const { createProxyServer, clearSessionCache } = await import("../proxy/server")
     const { diagnosticLog } = await import("../telemetry")
-    clearSessionCache()
+    await clearSessionCache()
     clearPluginlessWarnings()
     diagnosticLog.clear()
 

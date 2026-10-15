@@ -4,11 +4,12 @@
 // failover or distinct subscriptions. Never inspect private SDK transcripts.
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { spyOn } from 'bun:test'
+import Database from 'libsql'
 import * as sdk from '@anthropic-ai/claude-agent-sdk'
 import { observeSdkModels } from './lib/observe-sdk-models.mjs'
 const auth = JSON.parse(readFileSync(process.env.E2E_AUTH_FILE, 'utf8'))
@@ -97,10 +98,22 @@ try {
   const unrelated = await run('unrelated', 'personal', 'Reply with a short acknowledgement. Do not use tools.')
   assert(unrelated.session && unrelated.session !== id)
   // Age only Meridian's own isolated mappings, never SDK transcript files.
-  const path = join(store, 'sessions.json'), document = JSON.parse(readFileSync(path, 'utf8'))
-  document[`personal:${id}`].lastUsedAt = Date.now() - 25 * 60 * 60_000
-  document[`personal:${unrelated.session}`].lastUsedAt = Date.now() - 25 * 60 * 60_000
-  const temporary = path + '.age'; writeFileSync(temporary, JSON.stringify(document), { mode: 0o600 }); renameSync(temporary, path)
+  // Committed as another process would, so the proxy's cache picks the rows up by sequence number.
+  const database = new Database(join(store, 'sessions.db'))
+  try {
+    database.exec('PRAGMA busy_timeout = 10000')
+    database.exec('BEGIN IMMEDIATE')
+    const seq = database.prepare('SELECT seq FROM store_info WHERE id = 1').get().seq + 1
+    for (const key of [`personal:${id}`, `personal:${unrelated.session}`]) {
+      const entry = JSON.parse(database.prepare('SELECT entry FROM sessions WHERE key = ?').get(key).entry)
+      entry.lastUsedAt = Date.now() - 25 * 60 * 60_000
+      database.prepare('UPDATE sessions SET seq = ?, entry = ? WHERE key = ?').run(seq, JSON.stringify(entry), key)
+    }
+    database.prepare('UPDATE store_info SET seq = ? WHERE id = 1').run(seq)
+    database.exec('COMMIT')
+  } finally {
+    database.close()
+  }
   setSessionStoreDir(store)
   const deadline = Date.now() + 10000
   while (enabled && mapping('personal', id) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50))

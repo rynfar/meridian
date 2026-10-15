@@ -277,7 +277,7 @@ describe("terminal publication under a stalled lifecycle lock", () => {
       const key = `publication-winner-${stream}`
       expect((await app.fetch(turn(key, FIRST_TURN, false))).status).toBe(200)
       const spy = spyOn(lifecycle, "publishPinnedTranscript").mockImplementation(async () => {
-        expect(sessionStore.storeSharedSession(`personal:${key}`, "concurrent-winner")).toBeTruthy()
+        expect(await sessionStore.storeSharedSession(`personal:${key}`, "concurrent-winner")).toBeTruthy()
         throw stalled()
       })
       try {
@@ -345,7 +345,7 @@ describe("terminal publication under a stalled lifecycle lock", () => {
         let admissionError: unknown
         const original = lifecycle.publishPinnedTranscript
         const publication = spyOn(lifecycle, "publishPinnedTranscript").mockImplementation(async <T extends boolean | string>(
-          locator: lifecycle.TranscriptLocator, publish: () => T, options: lifecycle.SessionLifecycleOptions = {},
+          locator: lifecycle.TranscriptLocator, publish: () => T | Promise<T>, options: lifecycle.SessionLifecycleOptions = {},
         ): Promise<T> => {
           try {
             if (rejection === "queue") {

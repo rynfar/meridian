@@ -116,8 +116,8 @@ function post(app: any, body: any, headers: Record<string, string> = {}) {
 }
 
 describe("Rate-limit retry with backoff", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     queryCallCount = 0
     mockBehavior = "succeed"

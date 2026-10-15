@@ -48,7 +48,7 @@ async function request(app: App, session: string | undefined, stream: boolean, t
 }
 
 describe("HTTP idle retry ceiling", () => {
-  beforeEach(() => { stalled = true; queries = 0; clearSessionCache() })
+  beforeEach(async () => { stalled = true; queries = 0; await clearSessionCache() })
 
   it.each([false, true])("rejects a repeated terminal request before invoking the SDK, stream=%s", async (stream) => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })

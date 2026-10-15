@@ -84,10 +84,10 @@ const BASIC_REQUEST = {
 describe("MCP server per-request lifecycle", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mcpServerCreateCount = 0
     capturedMcpServers = []
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })
@@ -180,10 +180,10 @@ describe("MCP server per-request lifecycle", () => {
 })
 
 describe("MCP server in passthrough mode", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mcpServerCreateCount = 0
     capturedMcpServers = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("should NOT create opencode MCP server in passthrough mode", async () => {

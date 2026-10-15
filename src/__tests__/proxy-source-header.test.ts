@@ -66,14 +66,14 @@ const BASE_BODY = {
 }
 
 describe("x-meridian-source header", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
-  afterEach(() => {
-    clearSessionCache()
+  afterEach(async () => {
+    await clearSessionCache()
   })
 
   function getProxyLogLine(spy: ReturnType<typeof spyOn>): string | undefined {

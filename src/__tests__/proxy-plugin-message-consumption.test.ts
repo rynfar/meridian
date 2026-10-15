@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { installSdkMock } from "./sdkMock"
+import { commitRawSession, readCommittedSession } from "./storeDatabaseHelpers"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, withMockSdkSessionId } from "./helpers"
@@ -14,7 +15,7 @@ let calls: Array<{ payload: unknown[]; options: Input["options"] }> = []
 let overrides: Array<{ mockRestore(): void }> = []
 let failures: string[] = []
 const lineagePaths = new WeakMap<object, string>()
-const storePaths = new WeakMap<object, string>()
+const storeDirectories = new WeakMap<object, string>()
 
 installSdkMock(() => ({
   query: (input: Input) => (async function* () {
@@ -41,11 +42,11 @@ const { computeMessageHashes } = await import("../proxy/session/lineage")
 const { storeSession } = await import("../proxy/session/cache")
 const ownedDirectories: string[] = []
 
-beforeEach(() => {
+beforeEach(async () => {
   calls = []
   failures = []
-  clearSessionCache()
-  clearSharedSessions()
+  await clearSessionCache()
+  await clearSharedSessions()
   overrides = [
     spyOn(models, "getClaudeAuthStatusAsync").mockResolvedValue({ loggedIn: true, subscriptionType: "max" }),
     spyOn(models, "resolveClaudeExecutableAsync").mockResolvedValue("fixture-claude-not-executed"),
@@ -86,7 +87,7 @@ async function appWithPlugin() {
   const server = createProxyServer({ silent: true, host: "127.0.0.1", port: 0, pluginDir: directory, pluginConfigPath: config, profiles: [{ id: "default", type: "api", apiKey: "fixture-only-no-network" }] })
   await server.initPlugins?.()
   lineagePaths.set(server.app, witness)
-  storePaths.set(server.app, join(storeDirectory, "sessions.json"))
+  storeDirectories.set(server.app, storeDirectory)
   return server.app
 }
 
@@ -219,7 +220,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
       it(`checkpoint proof and tool pairing (stream=${stream}, modified=${modify})`, async () => {
         const app = await appWithPlugin()
         const prior: Message[] = [{ role: "user", content: "REMOVE_FROM_EXECUTION original objective" }]
-        storeSession("fixture-checkpoint", prior, "fixture-sdk-checkpoint", undefined, [null, "fixture-tool-uuid"], undefined, "fixture-tool-uuid", ["fixture-tool-id"])
+        await storeSession("fixture-checkpoint", prior, "fixture-sdk-checkpoint", undefined, [null, "fixture-tool-uuid"], undefined, "fixture-tool-uuid", ["fixture-tool-id"])
         const call = { type: "tool_use", id: "fixture-tool-id", name: "read", input: { path: "fixture.txt" } }
         await post(app, [...prior, { role: "assistant", content: [call] }, { role: "user", content: [{ type: "tool_result", tool_use_id: call.id, content: "EXACT_CHECKPOINT_RESULT" }] }], modify ? "modify" : "noop", stream, "fixture-checkpoint")
         if (modify) {
@@ -247,12 +248,12 @@ describe("documented plugin message transforms at SDK ingress", () => {
         const firstId = calls[0]?.options?.sessionId
         if (!firstId) throw new Error("fixture SDK session ID missing")
         if (changedNamespace) {
-          const file = storePaths.get(app)
-          if (!file) throw new Error("fixture store path missing")
-          const document = JSON.parse(readFileSync(file, "utf8"))
+          const storeDirectory = storeDirectories.get(app)
+          if (!storeDirectory) throw new Error("fixture store directory missing")
+          const entry = readCommittedSession(storeDirectory, key) as { currentTranscript: Record<string, unknown> } | undefined
+          if (!entry) throw new Error("fixture mapping missing")
           const changedConfigDir = join(tmpdir(), "different-fixture-transcript-config")
-          document[key].currentTranscript.configDir = changedConfigDir
-          writeFileSync(file, JSON.stringify(document))
+          commitRawSession(storeDirectory, key, { ...entry, currentTranscript: { ...entry.currentTranscript, configDir: changedConfigDir } })
           expect(lookupSharedSession(key)?.currentTranscript?.configDir).toBe(changedConfigDir)
         }
         await post(app, [...prior, { role: "assistant", content: "fixture answer" }, { role: "user", content: "next question" }], "modify", stream, key)
@@ -265,7 +266,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
     it(`transformed undo cannot inherit a raw rollback UUID (stream=${stream})`, async () => {
       const app = await appWithPlugin()
       const cached: Message[] = [{ role: "user", content: "REMOVE_FROM_EXECUTION first instruction" }, { role: "assistant", content: "prior answer" }, { role: "user", content: "old question" }]
-      storeSession("fixture-undo", cached, "fixture-sdk-undo", undefined, [null, "fixture-old-uuid", null])
+      await storeSession("fixture-undo", cached, "fixture-sdk-undo", undefined, [null, "fixture-old-uuid", null])
       await post(app, [...cached.slice(0, 2), { role: "user", content: "replacement question" }], "modify", stream, "fixture-undo")
       expect(lineages(app).at(-1)?.lineage).toBe("undo")
       expect(calls[0]?.options?.resume).toBeUndefined()
@@ -325,7 +326,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
     it(`a simulated resume refusal cannot reintroduce omitted history (stream=${stream})`, async () => {
       const app = await appWithPlugin()
       failures = ["Missing message UUID in session"]
-      storeSession("fixture-resume-refusal", [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }], "fixture-sdk-refused")
+      await storeSession("fixture-resume-refusal", [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }], "fixture-sdk-refused")
       const response = await post(app, [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }, { role: "assistant", content: "fixture answer" }, { role: "user", content: "new question" }], "modify", stream, "fixture-resume-refusal", true)
       if (!stream) expect(response.status).not.toBe(200)
       expect(calls).toHaveLength(1)

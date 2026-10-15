@@ -105,7 +105,7 @@ let fingerprintCache = createFingerprintCache(activeMaxSessions)
 
 /** Clear all session caches (used in tests).
  *  Re-reads MERIDIAN_MAX_SESSIONS / CLAUDE_PROXY_MAX_SESSIONS so tests can override the limit. */
-export function clearSessionCache() {
+export async function clearSessionCache(): Promise<void> {
   const configuredLimit = getMaxSessionsLimit()
   if (configuredLimit !== activeMaxSessions) {
     activeMaxSessions = configuredLimit
@@ -116,17 +116,17 @@ export function clearSessionCache() {
     fingerprintCache.clear()
   }
   // Also clear shared file store
-  try { clearSharedSessions() } catch {}
+  await clearSharedSessions().catch(() => undefined)
 }
 
 /** Evict a stale session from all caches and the shared store.
  *  Used when a resume/undo fails because the upstream Claude session is gone. */
-export function evictSession(
+export async function evictSession(
   sessionId: string | undefined,
   workingDirectory?: string,
   messages?: Array<{ role: string; content: any }>,
   expectedGeneration?: StoredSessionGeneration,
-): boolean {
+): Promise<boolean> {
   if (sessionId) {
     const cached = sessionCache.get(sessionId)
     if (cached) {
@@ -135,7 +135,7 @@ export function evictSession(
     }
     // Store failures are safety-significant: callers must not release a turn
     // after claiming cleanup succeeded while the durable mapping remains.
-    const evicted = evictSharedSession(sessionId, expectedGeneration)
+    const evicted = await evictSharedSession(sessionId, expectedGeneration)
     // Header-keyed and fingerprint-keyed conversations are independent durable
     // keys. Never apply one key's generation token to the other key.
     return evicted
@@ -183,12 +183,12 @@ function stateFromSharedSession(
 }
 
 /** Drop rollback authority only after the response terminal is irrevocable. */
-export function finalizePrioritySessionPublication(
+export async function finalizePrioritySessionPublication(
   publication: PrioritySessionPublication,
-): boolean {
+): Promise<boolean> {
   const rollback = publication.rollback
   if (!rollback) return true
-  const finalized = finalizeSharedSessionAndPriorityAssignment({
+  const finalized = await finalizeSharedSessionAndPriorityAssignment({
     key: rollback.key,
     routeKey: publication.routeKey,
     expectedMappingGeneration: rollback.publishedMappingGeneration,
@@ -204,15 +204,15 @@ export function finalizePrioritySessionPublication(
 }
 
 /** Revoke a late atomic route+mapping publication and restore pre-request authority. */
-export function rollbackPrioritySessionPublication(
+export async function rollbackPrioritySessionPublication(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: unknown }>,
   workingDirectory: string | undefined,
   publication: PrioritySessionPublication,
-): StoredSessionGeneration | false {
+): Promise<StoredSessionGeneration | false> {
   const rollback = publication.rollback
   if (!rollback) return false
-  const restored = rollbackSharedSessionAndPriorityAssignment({
+  const restored = await rollbackSharedSessionAndPriorityAssignment({
     key: rollback.key,
     routeKey: publication.routeKey,
     expectedMappingGeneration: rollback.publishedMappingGeneration,
@@ -438,7 +438,7 @@ export function getSessionByClaudeId(claudeSessionId: string): SessionState | un
  *  @param sdkMessageUuids — per-message SDK assistant UUIDs (null for user messages).
  *    If provided, merged with any previously stored UUIDs to build a complete map.
  *  @param contextUsage — optional last observed token usage to attach to the session. */
-export function storeSession(
+export async function storeSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: unknown }>,
   claudeSessionId: string,
@@ -452,7 +452,7 @@ export function storeSession(
   expectedGeneration?: StoredSessionGeneration | null,
   priorityPublication?: PrioritySessionPublication,
   sdkPrefixMatchesClient = true,
-): StoredSessionGeneration | false {
+): Promise<StoredSessionGeneration | false> {
   if (!claudeSessionId) return false
   const rawLineageHash = computeLineageHash(messages)
   const lineageHash = sdkPrefixMatchesClient ? rawLineageHash : ""
@@ -489,7 +489,7 @@ export function storeSession(
     if (rollback && rollback.key !== key) {
       throw new Error("priority publication changed mapping keys within one request")
     }
-    const published = storeSharedSessionAndPriorityAssignment({
+    const published = await storeSharedSessionAndPriorityAssignment({
       key,
       claudeSessionId,
       messageCount: state.messageCount,
@@ -525,7 +525,7 @@ export function storeSession(
     priorityPublication.expectedAssignmentGeneration = published.assignmentGeneration
     storedGeneration = published.mappingGeneration
   } else {
-    storedGeneration = storeSharedSession(
+    storedGeneration = await storeSharedSession(
       key,
       claudeSessionId,
       state.messageCount,

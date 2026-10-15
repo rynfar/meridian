@@ -66,7 +66,7 @@ async function request(app: App, stream: boolean) {
 }
 
 describe("upstream idle guard and the SDK slot queue", () => {
-  beforeEach(() => { queries = 0; clearSessionCache() })
+  beforeEach(async () => { queries = 0; await clearSessionCache() })
 
   it.each([false, true])("does not count the wait for an SDK slot as upstream silence, stream=%s", async (stream) => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true, maxConcurrent: 1 })

@@ -29,12 +29,12 @@ const original = Array.from({ length: 9 }, (_, index) => ({
 }))
 
 describe("undo gap delivery over HTTP (#817)", () => {
-  beforeEach(() => { captured = []; clearSessionCache(); diagnosticLog.clear() })
+  beforeEach(async () => { captured = []; await clearSessionCache(); diagnosticLog.clear() })
   for (const stream of [false, true]) {
     for (const gap of [false, true]) {
       it(`${gap ? "replays the edited intermediate turns" : "keeps ordinary rollback tail-only"} (stream=${stream})`, async () => {
         const key = `undo-gap-${crypto.randomUUID()}`
-        storeSession(key, original, "sdk-source", undefined,
+        await storeSession(key, original, "sdk-source", undefined,
           original.map((message, index) => message.role === "assistant" ? `uuid-${index}` : null))
         const tail = { role: "user", content: "What is the marker?" }
         const messages = gap

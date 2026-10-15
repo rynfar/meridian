@@ -174,10 +174,10 @@ describe("Phase 2: SDK should not use internal tools", () => {
 describe("Phase 2: Message format preservation", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })

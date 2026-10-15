@@ -10,13 +10,12 @@
 
 import { describe, it, expect, mock, beforeAll, afterAll, beforeEach, afterEach } from "bun:test"
 import { AsyncLocalStorage } from "node:async_hooks"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { getSessionStoreDir, readSessionStoreSnapshot } from "../proxy/sessionStore"
+import { readSessionGcSnapshot } from "../proxy/sessionLifecycle"
 import { computeLineageHash } from "../proxy/session/lineage"
 import {
   messageStart,
@@ -346,7 +345,6 @@ describe("Integration: Concurrent independent headerless requests", () => {
       const finished: number[] = []
       let activeQueries = 0
       concurrentLogs = []
-      const lifecyclePath = join(getSessionStoreDir(), "session-gc.json")
       type OwnedResource = {
         state: string
         locator: { sessionId: string }
@@ -354,7 +352,7 @@ describe("Integration: Concurrent independent headerless requests", () => {
       }
       const ownership: Array<{ stage: string; resources: OwnedResource[] }> = []
       const resourcesForFixture = (): OwnedResource[] => {
-        const sidecar = JSON.parse(readFileSync(lifecyclePath, "utf8")) as {
+        const sidecar = readSessionGcSnapshot(getSessionStoreDir()) as {
           resources: Record<string, OwnedResource>
         }
         return Object.values(sidecar.resources).filter(resource =>

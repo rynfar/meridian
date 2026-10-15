@@ -88,10 +88,10 @@ const BASE_BODY = {
 }
 
 describe("Advisor tool — SDK option passthrough", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedOptions = {}
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("passes advisorModel to SDK when advisor tool is in request", async () => {
@@ -139,10 +139,10 @@ describe("Advisor tool — SDK option passthrough", () => {
 })
 
 describe("Advisor response — stop_reason preservation", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedOptions = {}
     mockMessages = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("preserves pause_turn stop_reason in non-streaming response", async () => {

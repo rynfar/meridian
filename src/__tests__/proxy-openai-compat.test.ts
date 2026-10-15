@@ -96,10 +96,10 @@ async function postChatCompletion(
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/chat/completions — non-streaming", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedPromptMessages = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("returns OpenAI completion shape for a simple message", async () => {
@@ -405,12 +405,12 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
     ],
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedPromptMessages = []
     capturedOptions = null
     capturedOptionHistory = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("resumes the same SDK session for two turns with one verified Jcode key", async () => {
@@ -514,12 +514,12 @@ describe("POST /v1/chat/completions — session-keyed continuity for the generic
     return innerRequests
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedPromptMessages = []
     capturedOptions = null
     capturedOptionHistory = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   for (const [headerName, keyValue] of [
@@ -642,10 +642,10 @@ describe("POST /v1/chat/completions — session-keyed continuity for the generic
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/chat/completions — streaming", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedPromptMessages = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   async function readStream(res: Response): Promise<string> {
@@ -1104,9 +1104,9 @@ describe("GET /v1/models", () => {
 // ---------------------------------------------------------------------------
 
 describe("Regression: /v1/messages unaffected", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("still returns Anthropic format from /v1/messages", async () => {
@@ -1151,12 +1151,12 @@ describe("POST /v1/chat/completions — MERIDIAN_API_KEY auth forwarding (#415)"
   const TEST_KEY = "test-key-415"
   let savedKey: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     savedKey = process.env.MERIDIAN_API_KEY
     process.env.MERIDIAN_API_KEY = TEST_KEY
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedPromptMessages = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   // Manual restore — bun:test's afterEach isn't imported in this file's other suites,

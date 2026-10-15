@@ -40,7 +40,7 @@ import {
 let queryCalls: Array<Record<string, any>> = []
 let queryParams: any[] = []
 let queryCallCount = 0
-let queryMutation: ((options: Record<string, any>) => void) | undefined
+let queryMutation: ((options: Record<string, any>) => void | Promise<void>) | undefined
 let forcedQueryError: Error | undefined
 let forcedQueryDelayMs = 0
 
@@ -53,7 +53,7 @@ installSdkMock(() => ({
     const isStreaming = opts.options?.includePartialMessages === true
 
     return (async function* () {
-      queryMutation?.(opts.options || {})
+      await queryMutation?.(opts.options || {})
       if (forcedQueryError) {
         if (forcedQueryDelayMs > 0) await Bun.sleep(forcedQueryDelayMs)
         throw forcedQueryError
@@ -121,8 +121,8 @@ function post(app: any, body: any, headers: Record<string, string> = {}) {
 }
 
 describe("Stale UUID retry", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     queryParams = []
     queryCallCount = 0
@@ -142,7 +142,7 @@ describe("Stale UUID retry", () => {
       { role: "user", content: "do something" },
       { role: "assistant", content: "done" },
     ]
-    storeSession(sessionId, messages, "sdk-original", "/tmp/test", [
+    await storeSession(sessionId, messages, "sdk-original", "/tmp/test", [
       null,
       "uuid-assistant-1",
       null,
@@ -193,7 +193,7 @@ describe("Stale UUID retry", () => {
       { role: "user", content: "do something" },
       { role: "assistant", content: "done" },
     ]
-    storeSession(
+    await storeSession(
       sessionId,
       messages,
       "sdk-old-project",
@@ -236,7 +236,7 @@ describe("Stale UUID retry", () => {
       { role: "user", content: "do something" },
       { role: "assistant", content: "done" },
     ]
-    storeSession(sessionId, messages, "sdk-original-stream", "/tmp/test", [
+    await storeSession(sessionId, messages, "sdk-original-stream", "/tmp/test", [
       null,
       "uuid-assistant-1",
       null,
@@ -278,7 +278,7 @@ describe("Stale UUID retry", () => {
       { role: "user", content: "do something" },
       { role: "assistant", content: "done" },
     ]
-    storeSession(sessionId, messages, "sdk-stale", "/tmp/test", [
+    await storeSession(sessionId, messages, "sdk-stale", "/tmp/test", [
       null,
       "uuid-assistant-1",
       null,
@@ -327,13 +327,13 @@ describe("Stale UUID retry", () => {
     const app = createTestApp()
     const sessionId = `eviction-cas-${crypto.randomUUID()}`
     const originalMessages = [{ role: "user", content: "hello" }]
-    storeSession(sessionId, originalMessages, "sdk-source", "/tmp/test", [null])
+    await storeSession(sessionId, originalMessages, "sdk-source", "/tmp/test", [null])
 
-    queryMutation = () => {
+    queryMutation = async () => {
       queryMutation = undefined
       // Simulate another proxy advancing this exact durable key after this
       // process opened the source transcript but before mandatory invalidation.
-      storeSharedSession(sessionId, "sdk-successor", 1, "successor", ["successor"])
+      await storeSharedSession(sessionId, "sdk-successor", 1, "successor", ["successor"])
     }
     forcedQueryError = new Error("terminal resumed query failure")
     const continuation = [

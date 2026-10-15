@@ -256,13 +256,13 @@ describe("parseDrainOptions", () => {
 describe("POST /drain", () => {
   let sessionDir = ""
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.MERIDIAN_CREDENTIALS_READONLY = "1"
     sessionDir = mkdtempSync(join(tmpdir(), "meridian-drain-test-"))
     setSessionStoreDir(sessionDir)
     queryCalls = 0
     controls = []
-    clearSessionCache()
+    await clearSessionCache()
     processSessionTree.clear()
   })
 

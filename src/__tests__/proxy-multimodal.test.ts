@@ -63,11 +63,11 @@ async function post(app: any, body: any) {
 }
 
 describe("Multimodal content", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

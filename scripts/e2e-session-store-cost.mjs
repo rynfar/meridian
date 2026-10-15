@@ -3,7 +3,7 @@
 // script/runtime/filesystem on unchanged main and the corrected delivery tree.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const root = mkdtempSync(join(tmpdir(), 'meridian-store-cost-'))
@@ -11,7 +11,7 @@ for (const key of Object.keys(process.env)) {
   if (key.startsWith('MERIDIAN_') || key.startsWith('CLAUDE_PROXY_')) delete process.env[key]
 }
 process.env.MERIDIAN_SESSION_DIR = root
-const { storeSharedSession, lookupSharedSession, readSessionStoreSnapshot } = await import('../src/proxy/sessionStore.ts')
+const { storeSharedSession, lookupSharedSession, readSessionStoreSnapshot, readSessionStoreDocument } = await import('../src/proxy/sessionStore.ts')
 const entries = 856
 const count = 250
 const hash = '0123456789abcdef0123456789abcdef'
@@ -44,7 +44,7 @@ assert(first)
 const coldReadMs = performance.now() - coldStarted
 const coldFreeze = { calls: freezeCalls, ms: freezeMs }
 Object.freeze = realFreeze
-storeSharedSession('fixture-0', first.claudeSessionId, count)
+await storeSharedSession('fixture-0', first.claudeSessionId, count)
 const samples = []
 for (let i = 0; i < 30; i++) {
   await new Promise(resolve => setImmediate(resolve))
@@ -53,11 +53,12 @@ for (let i = 0; i < 30; i++) {
   assert(session)
   const started = performance.now()
   const timer = new Promise(resolve => setTimeout(() => resolve(performance.now() - started), 0))
-  storeSharedSession(key, session.claudeSessionId, count)
+  const write = storeSharedSession(key, session.claudeSessionId, count)
   samples.push(await timer)
+  await write
 }
 assert.equal(Object.keys(readSessionStoreSnapshot()).length, entries)
-const final = JSON.parse(readFileSync(path, 'utf8'))
+const final = readSessionStoreDocument()
 assert.deepEqual(final['fixture-0'].messageBlockHashes, document['fixture-0'].messageBlockHashes)
 const sorted = samples.toSorted((a, b) => a - b)
 console.log(JSON.stringify({ result: 'PASS', platform: `${process.platform}/${process.arch}`,

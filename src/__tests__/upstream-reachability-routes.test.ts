@@ -143,9 +143,9 @@ function override(app: App, body: unknown, env: unknown = LOOPBACK, headers: Rec
 }
 
 describe("upstream reachability through real requests", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetProcessSdkSemaphoreForTests()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     now = T0
     behaviourByDir = { "meridian-reach-down": "dns-dead" }
