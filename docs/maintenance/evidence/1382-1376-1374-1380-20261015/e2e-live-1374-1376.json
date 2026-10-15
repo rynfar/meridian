@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-10-15T04:37:09.211Z",
+  "node": "v22.22.3",
+  "platform": "darwin",
+  "arch": "arm64",
+  "pr1374": {
+    "baseline": {
+      "label": "baseline-main-626a17516",
+      "status1": 200,
+      "defaultAdaptive": {
+        "thinkingBlocks": 1,
+        "thinkingChars": 0,
+        "signatureDeltas": 1,
+        "textChars": 47
+      },
+      "explicitOmitted": {
+        "status": 200,
+        "omittedThinkingChars": 0,
+        "omittedSignatureDeltas": 1
+      }
+    },
+    "candidate": {
+      "label": "candidate-pr-1374-80dd41f4b",
+      "status1": 200,
+      "defaultAdaptive": {
+        "thinkingBlocks": 1,
+        "thinkingChars": 0,
+        "signatureDeltas": 1,
+        "textChars": 71
+      },
+      "explicitOmitted": {
+        "status": 200,
+        "omittedThinkingChars": 0,
+        "omittedSignatureDeltas": 1
+      }
+    }
+  },
+  "pr1376": {
+    "candidate": {
+      "label": "candidate-pr-1376-5844a7312",
+      "status": 200,
+      "toolCalls": [
+        {
+          "index": 0,
+          "id": "toolu_01Snp7zz9CC5uW8PrbyKWK4A",
+          "name": "get_weather",
+          "args": "{\"city\": \"Paris\"}",
+          "parsed": {
+            "city": "Paris"
+          }
+        },
+        {
+          "index": 1,
+          "id": "toolu_01BvPCGKVwaBDwog8PTNdu7o",
+          "name": "get_weather",
+          "args": "{\"city\": \"Tokyo\"}",
+          "parsed": {
+            "city": "Tokyo"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -41,6 +41,37 @@ Each landed as the contributor's own PR. Author is the output of
 | #1232 | `0559c554d` | Damian Nowak (@Nowaker) | contract corrections for #1281 (`4539ece6b`) | direct, explicit `--body` with a maintainer `Co-authored-by` (the fix changed) |
 | #1297 | `74ee96752` | Aleksey Proshutinskiy (@justprosh) | merge of `main` only | `--admin` (unsigned), explicit `--body`, no maintainer trailer |
 
+- #1382 (@Cd1s, Antigravity prompt byte budget): merged `72dd81384` as the
+  contributor's own PR (`Cd1s <135119404+Cd1s@users.noreply.github.com>` is
+  Author on `main`). [Evidence](evidence/1382-1376-1374-1380-20261015/README.md).
+  89/89 focused tests, full suite, build, final-head CI, live Pi 1.2.0 + official
+  agy 1.2.7 (`gemini-3.8-flash-low`) before/after: `main` (`626a17516`) sent
+  249,381 B and lost the newest turn (`NEWEST_TURN_LOST`); `#1382` (`6b372b342`)
+  sent 169,853 B and delivered newest tail, oldest head, and nonce (`NEWEST_TURN_DELIVERED`).
+- #1376 (@TristanSpeakEasy, route streamed OpenAI tool arguments by content block):
+  merged `7c935a407` as the contributor's own PR (`Tristan Cartledge` is Author
+  on `main`). [Evidence](evidence/1382-1376-1374-1380-20261015/README.md).
+  174/174 focused tests, full suite, build, final-head CI, and live
+  `/v1/chat/completions` parallel tool-call streaming verification.
+- #1374 (@mradwankhalil, default thinking display to `summarized` under Thinking
+  Passthrough): merged `769f6b9c9` as the contributor's own PR (`Mohamed R. Khalil`
+  is Author on `main`). [Evidence](evidence/1382-1376-1374-1380-20261015/README.md).
+  50/50 focused tests, full suite, build, final-head CI, and live `claude-opus-4-7`
+  passthrough before/after (0 thinking chars on `main` vs 137 thinking chars on
+  `#1374`, with `display: "omitted"` negative control staying at 0).
+- `meridian-plugin-opencode-scrub` #22 (@mradwankhalil, `cf047f8`) and #23
+  (@sergiomarquezdev, `c59fa18`): merged as the contributors' own PRs with
+  verified Git authorship on `main`, closing issue #21 and superseding draft #24
+  (closed unmerged). Package/parser boundary E2E (`scripts/e2e-cwd-package.mjs`,
+  48/48 cases PASS) landed in maintainer PR #25 (`456c471`).
+- #1380 (reported by @Flagg0096, session-turn watchdog timer leak on cancelled
+  lease waiter): fixed in `releaseSessionTurn` (`src/proxy/server.ts`) with
+  deterministic regression coverage in `src/__tests__/proxy-concurrency-coordination.test.ts`.
+- #1377 (@Nowaker, ChatGPT subscription backend, 146 files / +30,840 lines):
+  reviewed at `10c7b6cee` and held for explicit owner product and API-contract
+  approval (modifies `ProxyConfig`, `/profiles/list`, `/health`, `/readyz`,
+  `/inflight`, `/v1/models`, and adds `/v1/images/*` without an approved
+  contract issue).
 - #1213: [evidence](evidence/1213-sonnet-native-context-20261013/README.md).
   5,773 local tests, build, final-head CI, live OpenCode 2.0.16 / Sonnet 5.5
   before/after on macOS arm64. Not carried from the earlier draft: the exact-id

@@ -1,0 +1,50 @@
+{
+  "label": "candidate-pr-6b372b342",
+  "result": "NEWEST_TURN_DELIVERED",
+  "model": "gemini-3.8-flash-low",
+  "idleMs": 3000,
+  "files": 6,
+  "fileBytes": 40000,
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v22.22.3",
+  "agy": "1.2.7",
+  "agyHash": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d",
+  "pi": "1.2.0",
+  "steps": [
+    3919,
+    169853
+  ],
+  "health": [
+    {
+      "name": "after turn 1",
+      "processes": 0,
+      "reused": 0,
+      "completed": 1
+    },
+    {
+      "name": "after idle expiry",
+      "processes": 0,
+      "reused": 0,
+      "completed": 1
+    },
+    {
+      "name": "after turn 2",
+      "processes": 1,
+      "reused": 0,
+      "completed": 2
+    }
+  ],
+  "reads": 6,
+  "turn2": {
+    "replayStepBytes": [
+      169853
+    ],
+    "answer": "T63A1CF1 H1B0CE80 ZEBRA39A7FD\n",
+    "newestTail": true,
+    "oldestHead": true,
+    "nonce": true,
+    "toolCalls": 0,
+    "errored": false
+  }
+}

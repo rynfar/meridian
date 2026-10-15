@@ -8259,3 +8259,18 @@ tool result holding a fresh nonce: the follow-up must resume the same SDK
 session at its checkpoint and return the nonce. `--expect-digest` inverts the
 deferred count for a build without the fix. Unchanged `main` before #1370 made
 three model requests per deferred hand-off. Costs a few cents of real tokens.
+
+## Antigravity prompt byte budget (#1382)
+
+`node scripts/e2e-antigravity-prompt-limit.mjs <dist/server.js> <pi cli.js> <official agy> <report.json> <label>`
+runs actual Pi in RPC mode against a built Meridian and official `agy`
+(`gemini-3.8-flash-low`). Turn 1 reads six 40 KB files with Pi's `read` tool
+so the conversation exceeds `agy`'s ~192,000-byte single-step input cap. After
+the live `agy` process expires (`idleConversationMs: 3000`), Turn 2 asks
+without tools for the code at the end of the newest file, the code at the top of
+the oldest file, and a nonce from the question.
+
+Run once against an unbudgeted baseline (which sends ~249 KB in the replayed step
+and reports `NEWEST_TURN_LOST`) and once against the candidate (which shrinks
+the oldest tool results first to ~170 KB and reports `NEWEST_TURN_DELIVERED`
+with `newestTail: true`, `oldestHead: true`, `nonce: true`, and `toolCalls: 0`).

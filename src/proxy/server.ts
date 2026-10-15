@@ -8445,9 +8445,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // the watchdog must be able to unblock the session without also corrupting
     // the in-flight count that the shutdown drain reads.
     const releaseSessionTurn = (forced: boolean) => {
+      if (leaseWatchdog) {
+        clearTimeout(leaseWatchdog)
+        leaseWatchdog = undefined
+      }
       if (leaseReleased || (!sessionTurnLease && !crossProcessTurnLease)) return
       leaseReleased = true
-      if (leaseWatchdog) clearTimeout(leaseWatchdog)
       if (forced) {
         claudeLog("session.turn_lease_forced", { requestId, heldMs: SESSION_TURN_MAX_HOLD_MS })
         plog(`[PROXY] ${requestId} session turn lease force-released after ${SESSION_TURN_MAX_HOLD_MS}ms`)

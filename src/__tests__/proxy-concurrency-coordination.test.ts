@@ -28,6 +28,7 @@ let queryCalls = 0
 let controls: AttemptControl[] = []
 let capturedParams: Array<{ prompt?: unknown; options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
+let loggedEvents: Array<{ event: string; fields?: Record<string, unknown> }> = []
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
   let release = () => {}
@@ -71,7 +72,9 @@ installSdkMock(() => ({
 }), "proxy-concurrency-coordination.test.ts")
 
 installLoggerMock(() => ({
-  claudeLog: () => {},
+  claudeLog: (event: string, fields?: Record<string, unknown>) => {
+    loggedEvents.push({ event, fields })
+  },
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
@@ -323,6 +326,7 @@ describe("SDK and Session concurrency coordination", () => {
     controls = []
     capturedParams = []
     rateLimitWorkQueries = false
+    loggedEvents = []
     clearSessionCache()
     resetProcessSdkSemaphoreForTests()
     telemetryStore.clear()
@@ -1408,4 +1412,36 @@ describe("SDK and Session concurrency coordination", () => {
     wedgedControl.release()
     await wedged.body?.cancel()
   }, 10_000)
+
+  it("clears the session-turn watchdog timer when a queued waiter cancels before acquiring the lease (#1380)", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = "150"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+
+    const firstP = app.fetch(request([{ role: "user", content: "one" }], "cancel-waiter-1380"))
+    const firstControl = await waitForControl(0)
+
+    const waiterAbort = new AbortController()
+    const secondP = app.fetch(request(
+      [{ role: "user", content: "two" }],
+      "cancel-waiter-1380",
+      false,
+      {},
+      waiterAbort.signal,
+    ))
+
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    waiterAbort.abort()
+    expect((await secondP).status).toBe(499)
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+
+    // Wait past SESSION_TURN_MAX_HOLD_MS: neither the finished turn nor the
+    // cancelled waiter should fire session.turn_watchdog_abort.
+    await new Promise((resolve) => setTimeout(resolve, 220))
+    const watchdogEvents = loggedEvents.filter((e) => e.event === "session.turn_watchdog_abort")
+    expect(watchdogEvents).toEqual([])
+  })
 })
