@@ -307,10 +307,10 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "Do you remember the word?" },
     ], "sdk-new")
 
-    // No durable rollback UUID is available, so replay from fresh state.
-    expect(getCaptured()?.options?.resume).toBeUndefined()
-    expect(getCaptured()?.options?.forkSession).toBeUndefined()
-    expect(getCaptured()?.options?.resumeSessionAt).toBeUndefined()
+    // Inherited rollback UUID survives the managed fork (#1371), so undo forks at the checkpoint.
+    expect(getCaptured()?.options?.resume).toBeDefined()
+    expect(getCaptured()?.options?.forkSession).toBe(true)
+    expect(getCaptured()?.options?.resumeSessionAt).toBeDefined()
   })
 
   it("forks session on multi-undo (fewer messages)", async () => {
@@ -334,15 +334,16 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "step 3" },
     ], "sdk-1")
 
-    // Multi-undo back to turn 1 → fork
+    // Multi-undo back to turn 1 → fork at turn 1 assistant UUID (#1371)
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
       { role: "user", content: "completely different" },
     ], "sdk-new")
 
-    expect(getCaptured()?.options?.resume).toBeUndefined()
-    expect(getCaptured()?.options?.forkSession).toBeUndefined()
+    expect(getCaptured()?.options?.resume).toBeDefined()
+    expect(getCaptured()?.options?.forkSession).toBe(true)
+    expect(getCaptured()?.options?.resumeSessionAt).toBeDefined()
   })
 
   it("does NOT resume when earlier message is edited", async () => {
@@ -390,9 +391,10 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "forget about X" },
     ], "ignored-managed-fork-id")
 
-    // Should fork from original session using the durable journaled target.
-    expect(getCaptured()?.options?.resume).toBeUndefined()
-    expect(getCaptured()?.options?.forkSession).toBeUndefined()
+    // Should fork from the previous managed fork using the durable journaled target (#1371).
+    expect(getCaptured()?.options?.resume).toBeDefined()
+    expect(getCaptured()?.options?.forkSession).toBe(true)
+    expect(getCaptured()?.options?.resumeSessionAt).toBeDefined()
     const forkSessionId = getCaptured()?.options?.sessionId
     expect(forkSessionId).toMatch(/^[0-9a-f-]{36}$/)
 

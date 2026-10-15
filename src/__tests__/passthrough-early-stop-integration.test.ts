@@ -2595,7 +2595,7 @@ describe("Integration: passthrough early stop", () => {
     }
   })
 
-  it("stream: a capped checkpoint fork does not store parent rollback UUIDs", async () => {
+  it("stream: a capped checkpoint fork retains parent rollback UUIDs across managed forks (#1371)", async () => {
     const parentToolTurn = assistantMessage([
       { type: "tool_use", id: "capped-fork-parent", name: "read", input: { file_path: "parent" } },
     ])
@@ -2661,9 +2661,9 @@ describe("Integration: passthrough early stop", () => {
         ] },
       ],
     }, "es-capped-fork-map")).status).toBe(200)
-    expect(capturedQueryParamsAll[2].options.resume).toBeUndefined()
-    expect(capturedQueryParamsAll[2].options.resumeSessionAt).toBeUndefined()
-    expect(capturedQueryParamsAll[2].options.forkSession).toBeUndefined()
+    expect(capturedQueryParamsAll[2].options.resume).toBe(capturedQueryParamsAll[1].options.sessionId)
+    expect(capturedQueryParamsAll[2].options.resumeSessionAt).toBe(parentToolTurn.uuid)
+    expect(capturedQueryParamsAll[2].options.forkSession).toBe(true)
   })
 
   it("non-stream: stores the checkpoint at the capped stop so the next turn resumes", async () => {
