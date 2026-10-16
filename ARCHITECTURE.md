@@ -489,6 +489,13 @@ failing over, and a pool exhausted after headers emits one SSE error frame.
 The relay is bounded: the outer queue holds 64 KiB, and an incomplete prelude
 reaching 64 KiB ends sniffing and relays the attempt unchanged.
 
+Every priority attempt adopts the request's one abort link, which carries the
+client going away, the session-turn watchdog, subtree cancellation and
+shutdown to the SDK child. `handleMessages` detaches only a link it made
+itself; the admission owner detaches the request's link once the request is
+over. The dispatch returns from the handler while its attempts are still
+running, so a detach on return would leave them deaf to all four.
+
 **A `[1m]` bench is scoped to whatever actually failed.** Extra Usage exhaustion
 is an entitlement fact about the account, so it benches the whole profile. A
 plain rate limit benches only the session that hit it (`models.ts`,
