@@ -151,9 +151,15 @@ export interface AgentIdentity {
 
   /**
    * Remove request-scoped client metadata before lineage hashing while keeping
-   * the original request body untouched for model execution. Implementations
-   * must preserve message count and order because SDK UUIDs and resume indexes
-   * are aligned by message position.
+   * the original request body untouched for model execution.
+   *
+   * SDK UUIDs and resume indexes are aligned by message position, so
+   * implementations must keep the order and the index of every message they
+   * return. The only messages they may drop are trailing ones the client will
+   * not send again (a turn that lives for this one request); a message dropped
+   * from anywhere else shifts every later index. The server records the
+   * reply's SDK UUID at the returned array's length (`replyPosition`), which is
+   * where the client puts the reply in its next request.
    */
   canonicalizeMessagesForLineage?(
     messages: Array<{ role: string; content: unknown }>,

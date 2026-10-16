@@ -397,6 +397,47 @@ describe("silent-turn recovery", () => {
     expect(queryCalls[2].options.resume).toBe(queryCalls[1].options.sessionId)
   })
 
+  // NOTE: agent-specific (claude-code). A trailing system turn holding only the
+  // batching reminder is left out of the lineage, so the reply sits one index
+  // earlier than the request's last message. The recovery fork's UUID map must
+  // end there too, or the stored map runs past the stored message count.
+  it("sizes the recovery fork's UUID map to the lineage, not the request, after a reminder-only system turn", async () => {
+    const sessionId = `silent-recovery-reminder-only-${crypto.randomUUID()}`
+    const batching = "First privately list what you need next; then request every item that doesn't depend on another's result in this one response."
+    scripted = [
+      [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
+      [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } }),
+       ...forkTextBlock(0, "Recovered after the reminder."), ...forkMsgEnd()],
+    ]
+
+    const body = await read(await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": "dummy",
+        "user-agent": "claude-cli/2.1.259",
+        "x-meridian-agent": "claude-code",
+        "x-opencode-session": sessionId,
+      },
+      body: JSON.stringify({
+        ...REQUEST,
+        model: "claude-fable-5-1",
+        metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+        messages: [
+          { role: "user", content: "summarise the tool output" },
+          { role: "system", content: [{ type: "text", text: batching }] },
+        ],
+      }),
+    })))
+
+    expect(queryCalls.length).toBe(2)
+    expect(body).toContain("Recovered after the reminder.")
+    const stored = lookupSharedSession(sessionId)
+    expect(stored?.claudeSessionId).toBe(queryCalls[1].options.sessionId)
+    expect(stored?.messageCount).toBe(1)
+    expect(stored?.sdkMessageUuids).toEqual([null])
+  })
+
   it("classifies a message envelope without content blocks as no_blocks", async () => {
     process.env.MERIDIAN_SILENT_TURN_RECOVERY = "0"
     scripted = [[msgStart()]]
