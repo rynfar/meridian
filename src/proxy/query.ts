@@ -652,6 +652,17 @@ function resolveSystemPrompt(
   return { systemPrompt: { type: "preset", preset: "claude_code", append: tailNotes } }
 }
 
+/**
+ * Permission mode for the SDK subprocess (#1390). `bypassPermissions` stays
+ * the default; `MERIDIAN_SDK_PERMISSION_MODE=auto` opts into Claude Code's
+ * auto mode. Any other value keeps the default. In passthrough, client tools
+ * are still captured and denied by the PreToolUse hook before any permission
+ * check, so the client's own permission rules keep deciding what executes.
+ */
+export function resolveSdkPermissionMode(value = env("SDK_PERMISSION_MODE")): "auto" | "bypassPermissions" {
+  return value?.trim().toLowerCase() === "auto" ? "auto" : "bypassPermissions"
+}
+
 export function buildQueryOptions(ctx: QueryContext, abortController?: AbortController): BuildQueryResult {
   const {
     prompt, model, workingDirectory, clientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
@@ -720,8 +731,9 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       // message and freezes the checkpoint there, so a parallel turn hands the
       // client the first call and silently drops the rest (measured 1 of 3).
       ...(stream || passthrough ? { includePartialMessages: true } : {}),
-      permissionMode: "bypassPermissions" as const,
-      allowDangerouslySkipPermissions: true,
+      ...(resolveSdkPermissionMode() === "auto"
+        ? { permissionMode: "auto" as const }
+        : { permissionMode: "bypassPermissions" as const, allowDangerouslySkipPermissions: true }),
       ...resolveSystemPrompt(
         systemContext,
         passthrough,
