@@ -9,16 +9,59 @@
  * moves conversations already under way - plus the refusal surfaces that make
  * a spent account visible in EVERY mode.
  */
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, mock, setSystemTime, beforeEach, afterEach } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
-import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
+import { assistantMessage, blockStop, messageDelta, messageStart, messageStop, resolveMockSdkSessionId, streamEvent, textBlockStart, textDelta } from "./helpers"
 
 let capturedEnvs: string[] = []
 let failingDirs = new Set<string>()
 const DEFAULT_FAILURE = "Claude Code returned an error result: You've hit your session limit · resets 12:30am (America/Chicago)"
 let failureMessage = DEFAULT_FAILURE
+// Verbatim from the live proxy, 2026-10-05: what a Claude Max profile whose 7d
+// Fable window is spent answers a Fable request with, while it goes on
+// serving every other model.
+const FABLE_LIMIT = "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."
+/** The same account once its usage credits are gone as well: no window is named. */
+const OUT_OF_CREDITS = "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."
+const SONNET_LIMIT = "Claude Code returned an error result: You've reached your Sonnet limit. Switch to another model to continue."
+/** A throttled request: a 429 that names nothing. */
+const THROTTLED = "API Error: 429 rate limited"
+/** Config dirs whose account has no Fable allowance left. */
+let fableSpentDirs = new Set<string>()
+/** What such an account answers a Fable request with. */
+let fableRefusal = FABLE_LIMIT
+/** Config dirs whose account has no Sonnet allowance left. */
+let sonnetSpentDirs = new Set<string>()
+/** A rate-limit event the SDK emits with any request it is not out of allowance for, by config dir. */
+let servedEvents = new Map<string, Record<string, unknown>>()
+/**
+ * The model the request in flight asked for. The mock goes by this and not by
+ * the model option it is handed: other suites replace the model-mapping module
+ * for the whole process, and under them every request reaches the SDK as
+ * Sonnet.
+ */
+let requestedModel = ""
+/** Config dirs whose Fable refusal arrives behind an SDK keepalive ping. */
+let fablePingFirstDirs = new Set<string>()
+/** The rate-limit event the SDK emits ahead of that refusal, by config dir. */
+let fableLimitEvents = new Map<string, Record<string, unknown>>()
+/**
+ * Config dirs whose Fable refusal is recorded on a clock running behind the
+ * attempt, by how far: what the attempt then finds on record is older than it.
+ */
+let fableRecordLagDirs = new Map<string, number>()
+/** Puts the clock right again once a lagged refusal's request has returned. */
+let restoreClock = (): void => {}
+/** That event as the SDK gave it on 2026-10-05: seconds, and this type. */
+const fableLimitEvent = (resetsAtMs: number): Record<string, unknown> => ({
+  status: "rejected",
+  rateLimitType: "seven_day_overage_included",
+  resetsAt: Math.round(resetsAtMs / 1000),
+  overageStatus: "rejected",
+  overageDisabledReason: "org_level_disabled",
+})
 
 installSdkMock(() => ({
   query: (params: any) => {
@@ -26,7 +69,30 @@ installSdkMock(() => ({
     capturedEnvs.push(dir)
     const sessionId = resolveMockSdkSessionId(params.options, "test-session")
     return (async function* () {
+      const served = [...servedEvents].find(([f]) => dir.includes(f))?.[1]
+      if (served) yield { type: "rate_limit_event", rate_limit_info: served, session_id: sessionId }
       if ([...failingDirs].some((f) => dir.includes(f))) throw new Error(failureMessage)
+      // The tier the proxy runs a request as: Sonnet for a model it does not know.
+      const tier = /fable|mythos/.test(requestedModel) ? "fable" : /opus|haiku/.test(requestedModel) ? "other" : "sonnet"
+      if (tier === "fable" && [...fableSpentDirs].some((f) => dir.includes(f))) {
+        if ([...fablePingFirstDirs].some((f) => dir.includes(f))) {
+          yield { ...streamEvent({ type: "ping" }), session_id: sessionId }
+        }
+        const event = [...fableLimitEvents].find(([f]) => dir.includes(f))?.[1]
+        if (event) yield { type: "rate_limit_event", rate_limit_info: event, session_id: sessionId }
+        const lag = [...fableRecordLagDirs].find(([f]) => dir.includes(f))?.[1]
+        if (lag !== undefined) {
+          setSystemTime(new Date(Date.now() - lag))
+          restoreClock = () => setSystemTime()
+        }
+        throw new Error(fableRefusal)
+      }
+      if (tier === "sonnet" && [...sonnetSpentDirs].some((f) => dir.includes(f))) throw new Error(SONNET_LIMIT)
+      if (params.options?.includePartialMessages === true) {
+        for (const event of [messageStart("msg-1"), textBlockStart(0), textDelta(0, "ok from " + dir), blockStop(0), messageDelta("end_turn"), messageStop()]) {
+          yield { ...event, session_id: sessionId }
+        }
+      }
       yield { ...assistantMessage([{ type: "text", text: "ok from " + dir }]), session_id: sessionId }
     })()
   },
@@ -45,7 +111,8 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
-const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
+const { __setFetchOAuthUsageOverride, fetchOAuthUsage, resetOAuthUsageCache } = await import("../proxy/oauthUsage")
+type CredentialStore = import("../proxy/tokenRefresh").CredentialStore
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 const { telemetryStore } = await import("../telemetry")
 type TelemetryRow = import("../telemetry").RequestMetric
@@ -63,14 +130,15 @@ function createTestApp(): TestApp {
   return app
 }
 
-async function post(app: TestApp, headers: Record<string, string> = {}, content = "hello") {
+async function post(app: TestApp, headers: Record<string, string> = {}, content = "hello", model = "claude-sonnet-4-5", stream = false) {
+  requestedModel = model
   return app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5",
+      model,
       max_tokens: 128,
-      stream: false,
+      stream,
       messages: [{ role: "user", content }],
     }),
   }))
@@ -103,6 +171,7 @@ async function health(app: TestApp) {
     activeProfile?: string
     spent: Array<{ profileId: string; until: number | null; diagnosis: { bucket: string | null } }>
     exhausted: Array<{ id: string; until: number; reason: string }>
+    exhaustedModels: Array<{ id: string; model: string; until: number; reason: string }>
   }
 }
 
@@ -124,6 +193,15 @@ beforeEach(() => {
   capturedEnvs = []
   failingDirs = new Set()
   failureMessage = DEFAULT_FAILURE
+  fableSpentDirs = new Set()
+  fableRefusal = FABLE_LIMIT
+  sonnetSpentDirs = new Set()
+  servedEvents = new Map()
+  fableLimitEvents = new Map()
+  fablePingFirstDirs = new Set()
+  fableRecordLagDirs = new Map()
+  resetOAuthUsageCache()
+  requestedModel = ""
   clearSessionCache()
   resetActiveProfile()
   rateLimitStore.clear()
@@ -138,6 +216,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  restoreClock()
+  restoreClock = () => {}
   for (const [k, v] of Object.entries(savedEnv)) {
     if (v === undefined) delete process.env[k]
     else process.env[k] = v
@@ -225,6 +305,432 @@ describe("active+priority routing", () => {
     expect(res.status).toBe(429)
     expect(capturedEnvs.every(e => e.includes("ap-work"))).toBe(true)
   }, 20_000)
+})
+
+describe("an allowance spent for one model", () => {
+  const FABLE = "claude-fable-5-1"
+  const servedBy = async (res: Response) => (await res.json() as { content: Array<{ text: string }> }).content[0]?.text ?? ""
+
+  it("serves a Fable request from the next account when the active one has no Fable allowance left", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    const res = await post(app, {}, "a subagent's first turn", FABLE)
+    expect(res.status).toBe(200)
+    expect(await servedBy(res)).toContain("ap-personal")
+  }, 20_000)
+
+  it("moves a streamed Fable request before the client has seen anything of the refusal", async () => {
+    // How the Claude Code client asks, and the path where the refusal is a
+    // frame in a stream rather than a status.
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    const res = await post(app, { "x-opencode-session": "sub" }, "a subagent's first turn", FABLE, true)
+    expect(res.status).toBe(200)
+    const stream = await res.text()
+    expect(stream).toContain("ok from /tmp/meridian-ap-personal")
+    expect(stream).not.toContain("event: error")
+    expect(stream).not.toContain("ap-work")
+
+    const state = await health(app)
+    expect(state.exhausted).toEqual([])
+    expect(state.exhaustedModels.map(e => [e.id, e.model])).toEqual([["work", "fable"]])
+  }, 20_000)
+
+  it("benches only Fable when the streamed refusal arrives behind a keepalive ping", async () => {
+    // The stream's headers are already out when the refusal comes, so the
+    // next account is tried inside the client's stream: the mark it leaves
+    // must still be the model's own, and the account keep serving the rest.
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    fablePingFirstDirs.add("ap-work")
+    fableLimitEvents.set("ap-work", fableLimitEvent(Date.now() + 2 * 24 * 60 * 60_000))
+    const res = await post(app, { "x-opencode-session": "sub" }, "a subagent's first turn", FABLE, true)
+    expect(res.status).toBe(200)
+    const stream = await res.text()
+    expect(stream).toContain("ok from /tmp/meridian-ap-personal")
+    expect(stream).not.toContain("event: error")
+
+    const state = await health(app)
+    expect(state.exhausted).toEqual([])
+    expect(state.exhaustedModels.map(e => [e.id, e.model])).toEqual([["work", "fable"]])
+    expect(state.exhaustedModels[0]!.until).toBeGreaterThan(Date.now() + 24 * 60 * 60_000)
+
+    capturedEnvs = []
+    const other = await post(app, { "x-opencode-session": "main" }, "the main thread's next turn", "claude-sonnet-4-5", true)
+    expect(await other.text()).toContain("ok from /tmp/meridian-ap-work")
+    expect(capturedEnvs).toEqual(["/tmp/meridian-ap-work"])
+  }, 20_000)
+
+  it("keeps every other model on the account that refused Fable", async () => {
+    // The account is not out: benching it whole would move each conversation
+    // it holds to another account, and back when the bench ran out.
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    expect((await post(app, { "x-opencode-session": "sub" }, "a subagent's first turn", FABLE)).status).toBe(200)
+
+    capturedEnvs = []
+    const res = await post(app, { "x-opencode-session": "main" }, "the main thread's next turn")
+    expect(res.status).toBe(200)
+    expect(await servedBy(res)).toContain("ap-work")
+    expect(capturedEnvs).toHaveLength(1)
+  }, 20_000)
+
+  it("sends the next Fable request straight to the fallback", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    expect((await post(app, { "x-opencode-session": "sub-1" }, "first", FABLE)).status).toBe(200)
+
+    capturedEnvs = []
+    const res = await post(app, { "x-opencode-session": "sub-2" }, "another subagent", FABLE)
+    expect(res.status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("ap-personal")
+  }, 20_000)
+
+  it("reports the account as serving, and names the model it is out for", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    await post(app, {}, "first", FABLE)
+
+    const state = await health(app)
+    expect(state.exhausted.map(e => e.id)).not.toContain("work")
+    expect(state.exhaustedModels.map(e => [e.id, e.model])).toEqual([["work", "fable"]])
+    expect(state.spent.find(s => s.profileId === "work")?.diagnosis.bucket).toBe("seven_day_fable")
+    expect((await profilesList(app)).exhausted?.map(e => e.id) ?? []).not.toContain("work")
+  }, 20_000)
+
+  it("keeps Fable off the account until the reset the SDK reported for that allowance", async () => {
+    const reset = Date.now() + 5 * 24 * 60 * 60_000
+    fableLimitEvents.set("ap-work", fableLimitEvent(reset))
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    expect((await post(app, {}, "first", FABLE)).status).toBe(200)
+
+    const [mark] = (await health(app)).exhaustedModels
+    expect(mark?.id).toBe("work")
+    expect(Math.abs((mark?.until ?? 0) - reset)).toBeLessThan(2_000)
+  }, 20_000)
+
+  it("looks again after ten minutes when nothing says when the allowance returns", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    const before = Date.now()
+    await post(app, {}, "first", FABLE)
+
+    const [mark] = (await health(app)).exhaustedModels
+    expect(mark?.until).toBeGreaterThanOrEqual(before + 10 * 60_000)
+    expect(mark?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  it("extends the bench to the window's own reset once a fresh usage read shows it spent", async () => {
+    const reset = Date.now() + 3 * 24 * 60 * 60_000
+    __setFetchOAuthUsageOverride(async () => ({
+      windows: [
+        { type: "five_hour", utilization: 0.08, resetsAt: Date.now() + 60 * 60_000 },
+        { type: "seven_day", utilization: 0.85, resetsAt: reset },
+        { type: "seven_day_fable", utilization: 1, resetsAt: reset },
+      ],
+      extraUsage: null,
+      fetchedAt: Date.now(),
+    }))
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    await post(app, {}, "first", FABLE)
+    await Bun.sleep(20)
+
+    const state = await health(app)
+    expect(state.exhaustedModels.map(e => [e.id, e.model, e.until])).toEqual([["work", "fable", reset]])
+    // The account-wide windows have room, so the account itself stays in.
+    expect(state.exhausted).toEqual([])
+  }, 20_000)
+
+  it("leaves the ten-minute bench standing when the fresh read does not show that window spent", async () => {
+    __setFetchOAuthUsageOverride(async () => ({
+      windows: [{ type: "seven_day_fable", utilization: 0.4, resetsAt: Date.now() + 3 * 24 * 60 * 60_000 }],
+      extraUsage: null,
+      fetchedAt: Date.now(),
+    }))
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    await post(app, {}, "first", FABLE)
+    await Bun.sleep(20)
+
+    const [mark] = (await health(app)).exhaustedModels
+    expect(mark?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  /**
+   * Put a usage snapshot in the cache the refusal's diagnosis reads, the way a
+   * `/v1/usage/quota/all` poll does: the real reader, with its store and its
+   * fetch supplied here.
+   */
+  async function warmUsage(profileId: string, fablePercent: number, resetsAt: number) {
+    const store: CredentialStore = {
+      read: async () => ({ claudeAiOauth: { accessToken: "token", refreshToken: "refresh", expiresAt: Date.now() + 60 * 60_000 } }),
+      write: async () => true,
+    }
+    const reset = new Date(resetsAt).toISOString()
+    const snapshot = await fetchOAuthUsage({
+      profileId,
+      store,
+      fetchImpl: async () => new Response(JSON.stringify({
+        five_hour: { utilization: 8, resets_at: new Date(Date.now() + 60 * 60_000).toISOString() },
+        seven_day: { utilization: 30, resets_at: reset },
+        limits: [{ kind: "weekly_scoped", group: "g", percent: fablePercent, resets_at: reset, severity: "ok", is_active: true, scope: { model: { id: null, display_name: "Fable" }, surface: null } }],
+      }), { status: 200, headers: { "content-type": "application/json" } }),
+    })
+    expect(snapshot?.windows.find(w => w.type === "seven_day_fable")?.utilization).toBe(fablePercent / 100)
+  }
+
+  it("does not take a reset from a usage snapshot in which that window is not spent", async () => {
+    // The wording names the window and nothing reports its reset; the cached
+    // snapshot has one for it, at 20% used. That is when the window turns
+    // over, not when a refusal for some other reason ends.
+    await warmUsage("work", 20, Date.now() + 6 * 24 * 60 * 60_000)
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    await post(app, {}, "first", FABLE)
+
+    const [mark] = (await health(app)).exhaustedModels
+    expect(mark?.id).toBe("work")
+    expect(mark?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  it("takes it from a snapshot that shows the window spent", async () => {
+    const reset = Date.now() + 6 * 24 * 60 * 60_000
+    await warmUsage("work", 100, reset)
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    await post(app, {}, "first", FABLE)
+
+    const [mark] = (await health(app)).exhaustedModels
+    expect(Math.abs((mark?.until ?? 0) - reset)).toBeLessThan(2_000)
+  }, 20_000)
+
+  it("benches the account as before when the SDK's word on that allowance is from an earlier request", async () => {
+    // A request held to the account is refused for Fable. That is outside the
+    // pool, so nothing is benched, and the SDK's event stays on record: recent
+    // enough for the next diagnosis to read, and not what the next request,
+    // which is only throttled, was answered with.
+    fableLimitEvents.set("ap-work", fableLimitEvent(Date.now() + 5 * 24 * 60 * 60_000))
+    fableSpentDirs.add("ap-work")
+    const app = createTestApp()
+    await setActive(app, "work")
+    expect((await post(app, { "x-meridian-profile": "work" }, "held to the account", FABLE)).status).toBe(429)
+    expect((await health(app)).exhaustedModels).toEqual([])
+    await Bun.sleep(5)
+
+    failureMessage = THROTTLED
+    failingDirs.add("ap-work")
+    expect((await post(app, {}, "throttled", FABLE)).status).toBe(200)
+
+    const state = await health(app)
+    expect(state.exhaustedModels).toEqual([])
+    expect(state.exhausted.map(e => e.id)).toEqual(["work"])
+    expect(state.exhausted[0]?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  it("benches the account as before when the refusal on record is older than the attempt", async () => {
+    // The wording names the Fable allowance and needs no SDK event, so only
+    // the record's age says whether this attempt was the one refused for it.
+    // A record that predates the attempt is some other request's word.
+    fableRecordLagDirs.set("ap-work", 60_000)
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    const res = await post(app, {}, "first", FABLE)
+    restoreClock()
+    expect(await servedBy(res)).toContain("ap-personal")
+
+    const state = await health(app)
+    expect(state.spent.find(s => s.profileId === "work")?.diagnosis.bucket).toBe("seven_day_fable")
+    expect(state.exhaustedModels).toEqual([])
+    expect(state.exhausted.map(e => e.id)).toEqual(["work"])
+  }, 20_000)
+
+  it("does not keep Fable off an account that serves it on usage credits because one request was throttled", async () => {
+    // What CLI 2.1.284 reports with a request it serves past the allowance,
+    // here with the request that is then throttled.
+    servedEvents.set("ap-work", { ...fableLimitEvent(Date.now() + 5 * 24 * 60 * 60_000), isUsingOverage: true, overageStatus: "allowed", overageDisabledReason: undefined })
+    failureMessage = THROTTLED
+    failingDirs.add("ap-work")
+    const app = createTestApp()
+    await setActive(app, "work")
+    expect(await servedBy(await post(app, {}, "throttled", FABLE))).toContain("ap-personal")
+
+    const state = await health(app)
+    expect(state.exhaustedModels).toEqual([])
+    expect(state.exhausted.map(e => e.id)).toEqual(["work"])
+    expect(state.exhausted[0]?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  it("keeps only Fable off an account that is out of usage credits", async () => {
+    fableRefusal = OUT_OF_CREDITS
+    // The fresh usage read that follows a refusal shows the Fable window
+    // spent as well, days from its reset.
+    __setFetchOAuthUsageOverride(async () => ({
+      windows: [{ type: "seven_day_fable", utilization: 1, resetsAt: Date.now() + 3 * 24 * 60 * 60_000 }],
+      extraUsage: null,
+      fetchedAt: Date.now(),
+    }))
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    const res = await post(app, { "x-opencode-session": "sub" }, "a subagent's first turn", FABLE)
+    expect(await servedBy(res)).toContain("ap-personal")
+    await Bun.sleep(20)
+
+    capturedEnvs = []
+    expect(await servedBy(await post(app, { "x-opencode-session": "main" }, "the main thread's next turn"))).toContain("ap-work")
+    expect(capturedEnvs).toHaveLength(1)
+    const state = await health(app)
+    expect(state.exhausted).toEqual([])
+    expect(state.exhaustedModels.map(e => [e.id, e.model])).toEqual([["work", "fable"]])
+    // Credits return when someone buys them: look again, do not wait a week.
+    expect(state.exhaustedModels[0]?.until).toBeLessThanOrEqual(Date.now() + 10 * 60_000)
+  }, 20_000)
+
+  it("goes by the tier a request is run as when it names no model the proxy knows", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    sonnetSpentDirs.add("ap-work")
+    expect(await servedBy(await post(app, { "x-opencode-session": "s1" }, "first"))).toContain("ap-personal")
+
+    capturedEnvs = []
+    const res = await post(app, { "x-opencode-session": "s2" }, "from a client with its own model names", "gpt-4o")
+    expect(await servedBy(res)).toContain("ap-personal")
+    expect(capturedEnvs).toHaveLength(1)
+    expect((await health(app)).exhausted).toEqual([])
+  }, 20_000)
+
+  it("gives a streaming client the same wait, in the frame it gets instead of a header", async () => {
+    const soon = Date.now() + 20 * 60_000
+    fableLimitEvents.set("ap-work", fableLimitEvent(Date.now() + 5 * 24 * 60 * 60_000))
+    fableLimitEvents.set("ap-personal", fableLimitEvent(soon))
+    fableLimitEvents.set("ap-spare", fableLimitEvent(Date.now() + 3 * 24 * 60 * 60_000))
+    const app = createTestApp()
+    await setActive(app, "work")
+    for (const dir of ["ap-work", "ap-personal", "ap-spare"]) fableSpentDirs.add(dir)
+    const waits: number[] = []
+    for (const content of ["first", "a retry"]) {
+      const frame = await (await post(app, {}, content, FABLE, true)).text()
+      expect(frame).toContain("event: error")
+      const payload = JSON.parse(frame.split("\n").find(line => line.startsWith("data: "))?.slice(6) ?? "{}") as { error?: { type?: string; retry_after?: number } }
+      expect(payload.error?.type).toBe("rate_limit_error")
+      waits.push(payload.error?.retry_after ?? 0)
+    }
+    for (const wait of waits) {
+      expect(wait).toBeGreaterThan(18 * 60)
+      expect(wait).toBeLessThanOrEqual(20 * 60 + 2)
+    }
+  }, 40_000)
+
+  it("steps around an account that is out altogether on the way to one with Fable left", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    failingDirs.add("ap-personal")
+    const res = await post(app, {}, "first", FABLE)
+    expect(res.status).toBe(200)
+    expect(await servedBy(res)).toContain("ap-spare")
+
+    const state = await health(app)
+    expect(state.exhausted.map(e => e.id)).toEqual(["personal"])
+    expect(state.exhaustedModels.map(e => e.id)).toEqual(["work"])
+  }, 30_000)
+
+  it("tells the client to wait for the first account that gets Fable back, not the one tried last", async () => {
+    // With every account benched only the active one is tried again, and its
+    // own allowance may be days from returning while another's is minutes.
+    const soon = Date.now() + 20 * 60_000
+    fableLimitEvents.set("ap-work", fableLimitEvent(Date.now() + 5 * 24 * 60 * 60_000))
+    fableLimitEvents.set("ap-personal", fableLimitEvent(soon))
+    fableLimitEvents.set("ap-spare", fableLimitEvent(Date.now() + 3 * 24 * 60 * 60_000))
+    const app = createTestApp()
+    await setActive(app, "work")
+    for (const dir of ["ap-work", "ap-personal", "ap-spare"]) fableSpentDirs.add(dir)
+    expect((await post(app, {}, "first", FABLE)).status).toBe(429)
+
+    capturedEnvs = []
+    const again = await post(app, {}, "a retry", FABLE)
+    expect(again.status).toBe(429)
+    expect(capturedEnvs).toHaveLength(1)
+    const wait = Number(again.headers.get("retry-after"))
+    expect(wait).toBeGreaterThan(18 * 60)
+    expect(wait).toBeLessThanOrEqual(Math.ceil((soon - Date.now()) / 1000) + 2)
+    // The body carries the same wait as the header, not the tried account's.
+    expect((await again.json() as { error: { retry_after?: number } }).error.retry_after).toBe(wait)
+  }, 40_000)
+
+  it("counts the active account toward the wait once it is skipped as benched", async () => {
+    // The order puts the active account last. It is tried first all the
+    // same, and once benched is skipped, and may still be the first to get
+    // Fable back.
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,spare"
+    const soon = Date.now() + 20 * 60_000
+    fableLimitEvents.set("ap-work", fableLimitEvent(soon))
+    fableLimitEvents.set("ap-personal", fableLimitEvent(Date.now() + 5 * 24 * 60 * 60_000))
+    fableLimitEvents.set("ap-spare", fableLimitEvent(Date.now() + 3 * 24 * 60 * 60_000))
+    const app = createTestApp()
+    await setActive(app, "work")
+    fableSpentDirs.add("ap-work")
+    fableSpentDirs.add("ap-personal")
+    expect(await servedBy(await post(app, {}, "first", FABLE))).toContain("ap-spare")
+
+    fableSpentDirs.add("ap-spare")
+    capturedEnvs = []
+    const refused = await post(app, {}, "the next Fable request", FABLE)
+    expect(refused.status).toBe(429)
+    expect(capturedEnvs).toEqual(["/tmp/meridian-ap-spare"])
+    const wait = Number(refused.headers.get("retry-after"))
+    expect(wait).toBeGreaterThan(18 * 60)
+    expect(wait).toBeLessThanOrEqual(Math.ceil((soon - Date.now()) / 1000) + 2)
+  }, 40_000)
+
+  it("answers 429 when no account has Fable allowance left, and still serves the other models", async () => {
+    const app = createTestApp()
+    await setActive(app, "work")
+    for (const dir of ["ap-work", "ap-personal", "ap-spare"]) fableSpentDirs.add(dir)
+    const refused = await post(app, {}, "first", FABLE)
+    expect(refused.status).toBe(429)
+    expect((await refused.json() as { error: { type: string } }).error.type).toBe("rate_limit_error")
+
+    const res = await post(app, {}, "the main thread's next turn")
+    expect(res.status).toBe(200)
+    expect(await servedBy(res)).toContain("ap-work")
+  }, 40_000)
+
+  it("holds in plain priority routing, where a conversation goes with its own request", async () => {
+    // No active profile outranks an assignment there: the conversation whose
+    // Fable request was moved stays on the account that served it, and the
+    // ones that never asked for Fable stay where they were.
+    process.env.MERIDIAN_ROUTING = "priority"
+    const app = createTestApp()
+    fableSpentDirs.add("ap-work")
+    expect(await servedBy(await post(app, { "x-opencode-session": "main" }, "the main thread"))).toContain("ap-work")
+    expect(await servedBy(await post(app, { "x-opencode-session": "sub" }, "a subagent's first turn", FABLE))).toContain("ap-personal")
+
+    capturedEnvs = []
+    expect(await servedBy(await post(app, { "x-opencode-session": "main" }, "the main thread's next turn"))).toContain("ap-work")
+    expect(await servedBy(await post(app, { "x-opencode-session": "sub-2" }, "another subagent", FABLE))).toContain("ap-personal")
+    expect(await servedBy(await post(app, { "x-opencode-session": "sub" }, "the first subagent, on another model"))).toContain("ap-personal")
+    expect(capturedEnvs).toHaveLength(3)
+    const state = await health(app)
+    expect(state.exhausted).toEqual([])
+    expect(state.exhaustedModels.map(e => [e.id, e.model])).toEqual([["work", "fable"]])
+  }, 30_000)
 })
 
 describe("refusal reporting", () => {

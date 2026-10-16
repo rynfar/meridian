@@ -8,6 +8,7 @@ import {
   retryAfterSeconds,
   retryAfterHeaders,
   retryAfterBodyFields,
+  withRetryAfter,
   OVERLOADED_RETRY_AFTER_SECONDS,
   RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS,
   RETRY_AFTER_MIN_SECONDS,
@@ -140,5 +141,32 @@ describe("header and body helpers", () => {
   it("emit the same number on both channels", () => {
     expect(retryAfterHeaders(30)).toEqual({ "Retry-After": "30" })
     expect(retryAfterBodyFields(30)).toEqual({ retry_after: 30 })
+  })
+})
+
+describe("withRetryAfter", () => {
+  const refused = { type: "error", error: { type: "rate_limit_error", message: "Claude Max rate limit reached", retry_after: 60 } }
+
+  it("puts another wait in the body of an error passed on from elsewhere", () => {
+    expect(withRetryAfter(refused, 1200)).toEqual({
+      type: "error",
+      error: { type: "rate_limit_error", message: "Claude Max rate limit reached", retry_after: 1200 },
+    })
+    expect(refused.error.retry_after).toBe(60)
+  })
+
+  it("gives one to an error that came with none", () => {
+    expect(withRetryAfter({ type: "error", error: { type: "rate_limit_error", message: "m" } }, 30))
+      .toEqual({ type: "error", error: { type: "rate_limit_error", message: "m", retry_after: 30 } })
+  })
+
+  it("leaves the error as it came when there is no wait to give", () => {
+    expect(withRetryAfter(refused, null)).toBe(refused)
+  })
+
+  it("leaves alone what is not an error envelope", () => {
+    expect(withRetryAfter(null, 30)).toBeNull()
+    expect(withRetryAfter("refused", 30)).toBe("refused")
+    expect(withRetryAfter({ type: "error", error: "refused" }, 30)).toEqual({ type: "error", error: "refused" })
   })
 })

@@ -255,45 +255,98 @@ export interface ExhaustionEntry {
   reason: string
 }
 
+/** A profile out for one model, and serving everything else. */
+export interface ModelExhaustionEntry extends ExhaustionEntry {
+  model: string
+}
+
+interface ExhaustionMark { until: number; reason: string }
+
 /**
  * In-memory per-profile exhaustion marks with expiry. Deliberately not
  * persisted: this is routing hygiene, not durable truth — after a restart
  * the first failing request re-marks. A later mark may extend an entry but
  * an earlier one never shortens it (two concurrent failures shouldn't
  * un-learn the longer reset).
+ *
+ * A mark is for the whole account unless it names a model. An account whose
+ * allowance for one model is spent goes on serving the others, so a mark for
+ * that model keeps only requests for it away (see `limitModelScope`).
  */
 export class ProfileExhaustion {
-  private readonly marks = new Map<string, { until: number; reason: string }>()
+  private readonly marks = new Map<string, ExhaustionMark>()
+  private readonly modelMarks = new Map<string, Map<string, ExhaustionMark>>()
   constructor(private readonly now: () => number = Date.now) {}
 
-  mark(id: string, until: number, reason: string): void {
-    const existing = this.marks.get(id)
+  mark(id: string, until: number, reason: string, model?: string): void {
+    const marks = model === undefined ? this.marks : this.modelMarksOf(id)
+    const key = model ?? id
+    const existing = marks.get(key)
     if (existing && existing.until >= until) return
-    this.marks.set(id, { until, reason })
+    marks.set(key, { until, reason })
   }
 
-  isExhausted(id: string): boolean {
-    const entry = this.marks.get(id)
+  /** Whether a request should avoid the profile: every request under an
+   *  account-wide mark, and a request for `model` under that model's own. */
+  isExhausted(id: string, model?: string): boolean {
+    return this.benchedUntil(id, model) !== null
+  }
+
+  /** When a request for `model` could use the profile again: once both of the
+   *  marks that keep it away have run out. Null when nothing does. */
+  benchedUntil(id: string, model?: string): number | null {
+    const account = this.live(this.marks, id) ? this.marks.get(id)?.until : undefined
+    const marks = model === undefined ? undefined : this.modelMarks.get(id)
+    const own = marks && model !== undefined && this.live(marks, model) ? marks.get(model)?.until : undefined
+    if (account === undefined) return own ?? null
+    return own === undefined ? account : Math.max(account, own)
+  }
+
+  /** Account-wide entries only, live ones — expired marks are dropped on read. */
+  snapshot(): ExhaustionEntry[] {
+    const out: ExhaustionEntry[] = []
+    for (const id of [...this.marks.keys()]) {
+      const entry = this.marks.get(id)
+      if (entry && this.live(this.marks, id)) out.push({ id, until: entry.until, reason: entry.reason })
+    }
+    return out
+  }
+
+  /** The marks that name a model, live ones. */
+  modelSnapshot(): ModelExhaustionEntry[] {
+    const out: ModelExhaustionEntry[] = []
+    for (const [id, marks] of this.modelMarks) {
+      for (const model of [...marks.keys()]) {
+        const entry = marks.get(model)
+        if (entry && this.live(marks, model)) out.push({ id, model, until: entry.until, reason: entry.reason })
+      }
+    }
+    return out
+  }
+
+  private modelMarksOf(id: string): Map<string, ExhaustionMark> {
+    let marks = this.modelMarks.get(id)
+    if (!marks) {
+      marks = new Map()
+      this.modelMarks.set(id, marks)
+    }
+    return marks
+  }
+
+  private live(marks: Map<string, ExhaustionMark>, key: string): boolean {
+    const entry = marks.get(key)
     if (!entry) return false
     if (entry.until <= this.now()) {
-      this.marks.delete(id)
+      marks.delete(key)
       return false
     }
     return true
   }
 
+  /** Drop every mark the profile has, account-wide and per-model alike. */
   forget(id: string): void {
     this.marks.delete(id)
-  }
-
-  /** Live entries only — expired marks are dropped on read. */
-  snapshot(): ExhaustionEntry[] {
-    const out: ExhaustionEntry[] = []
-    for (const [id, entry] of this.marks) {
-      if (entry.until <= this.now()) { this.marks.delete(id); continue }
-      out.push({ id, until: entry.until, reason: entry.reason })
-    }
-    return out
+    this.modelMarks.delete(id)
   }
 }
 

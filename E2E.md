@@ -5276,6 +5276,227 @@ OpenCode executable or naturally exhausted-account evidence. Real affected-clien
 acceptance, actual model identity and four-mode E41 remain separate gates. Do not
 use fixtures as substitutes or enable paid usage to manufacture a refusal.
 
+## An allowance spent for one model (source E78)
+
+**What it proves:** when an account has spent its weekly allowance for one
+model, a request for that model is served by the next account in the pool,
+and every other model stays on the account that refused.
+
+**Status on this build: not live-verified.** The runs under *Verified* below
+were made on the contributor's source branch (macOS, Claude CLI
+2.1.284–2.1.294) before it was rebased. They were **not re-run against this
+build**, which differs from what they ran: priority dispatch now fails over a
+streamed request inside the client's stream once headers are out (see
+*Delayed refusal after an SSE heartbeat* above), and the model scope and the
+pool-wide wait were moved into that dispatcher's shared failure and terminal
+paths. Live evidence owed before this counts as verified:
+
+- The gate below, all parts including `ALSO_SPENT`, against this build with a
+  Claude Max account whose Fable allowance is spent while its account-wide
+  windows and other models still have room, and a second account with Fable
+  allowance left. Nothing but such an account produces the refusal.
+- The streamed part with a refusal that arrives after the proxy's SSE
+  heartbeat, so the failover happens inside an already-open stream.
+- The real Claude Code client as the caller, Fable subagent rounds failing
+  over while the main thread stays on the refusing account.
+- Linux, and the Claude CLI version this build ships with.
+
+A Claude Max account whose 7d Fable window is at 100% goes on serving Opus,
+Sonnet and Haiku. A Fable request it answers, through CLI 2.1.284 and 2.1.289
+in a headless session, with:
+
+```
+Claude Code returned an error result: You've reached your Fable limit. Switch
+to another model, or manage usage credits at
+claude.ai/settings/usage?from=cc_cli_limit_message, to continue.
+```
+
+The SDK reports a `rate_limit_event` beside it: `rejected`, of type
+`seven_day_overage_included`, carrying the Fable window's reset.
+
+Two things went wrong with that. The closing words were new: the CLI's
+refusal builder splices the credits page into the prose suffix when the
+account can buy usage credits, and `classifyError` enumerates suffixes. So the
+refusal was an `api_error`, a 500, and nothing failed over. On a working
+proxy, 2026-10-05 18:16–18:23Z, 57 Fable requests went to the active profile
+and every one came back a 500 within a second or so, while another profile in
+the pool had Fable allowance left; they stopped when the active profile was
+switched by hand. (That proxy's telemetry is private and not in the
+repository.)
+
+And a quota refusal benched the whole account. With the wording recognised
+and nothing else changed, the account would have been out for ten minutes at
+a time for Opus as well: each conversation it held moved to another account
+and, the active profile outranking an assignment, back when the bench ran
+out, rewriting that conversation's prompt cache both ways.
+
+So a refusal has a scope now. `limitModelScope` (`src/proxy/limitDetection.ts`)
+confines it to the refused request's model when the window Anthropic named is
+that model's own: `seven_day_fable` from the wording, or the SDK's
+`seven_day_overage_included` on a Fable request. An account that is out of
+usage credits is out for the models billed to them. `ProfileExhaustion`
+(`src/proxy/routing.ts`) holds such a mark apart from the account-wide ones,
+and a request is kept away from an account by an account-wide mark or by its
+own model's; a request naming no model the proxy knows goes by the tier it is
+run as. An account-wide window (`five_hour`, `seven_day`) benches the account
+as before, and so does a window that was guessed rather than named.
+
+The scope is decided on what the refused attempt itself was told. The SDK's
+events are read for fifteen minutes, so three kinds of leftover evidence bench
+the account as before and confine nothing: an event for another model's
+window, an event from an earlier request (the request in hand may only have
+been throttled), and the event of a request served past its allowance on usage
+credits, which CLI 2.1.284 reports as `rejected` too.
+
+The mark lasts until the reset the SDK gave with the refusal. A refusal known
+only by its wording has no reset of its own: `spentAllowanceResetAt` takes
+that model's window's from the last usage read when the read shows the window
+spent, and otherwise the mark is ten minutes, extended by the forced usage
+read that follows on the same condition. Out of usage credits is ten minutes
+every time: credits come back when they are bought.
+
+When every account refuses, the `Retry-After` is the wait until the first
+account in the pool can serve that model again. It was the wait for the
+accounts tried on the request, and with everything benched only the active
+one is tried: its Fable allowance was five days away, an account behind it
+reopened in four minutes, and the client was told to wait a day. The
+`retry_after` in the body is the same number, which is all a streamed refusal
+carries; it was the last attempt's own, 60.
+
+### Run it
+
+```bash
+SPENT=<profile> ROOM=<profile> bun scripts/e2e-model-allowance-failover-live.mjs
+```
+
+`SPENT` is a profile of the installed proxy whose window for the model is at
+100% with the account-wide windows open, `ROOM` one with allowance left; see
+`GET /v1/usage/quota/all`. `MODEL` is the model (default `claude-fable-5-1`)
+and `OTHER_MODEL` one the spent account still serves (default
+`claude-haiku-4-5`). `ALSO_SPENT`, optional, is a second profile that refuses
+the model, for the part where every account does. The proxy is this
+checkout's, started in the gate's process on a port of its own, with a config
+directory, session store and working directory of its own, so a proxy already
+running is not touched. Each part starts a fresh one, since what an account is
+out for is kept by the proxy that learned it. The gate is answered four
+one-word requests: three of the model on `ROOM`, one of the other model on
+`SPENT`. Not in CI: nothing but an account in that state produces the refusal.
+
+### Pass criteria
+
+- A streamed request for the model is the answer of `ROOM`, tried on `SPENT`
+  (`429`) first, with no error frame in the stream.
+- The same request not streamed is `200`, tried on `SPENT` (`429`) and then on
+  `ROOM` (`200`).
+- `/profiles/health` lists `SPENT` under `exhaustedModels` for that model and
+  not under `exhausted`; the refusal it records names a window Anthropic
+  reported.
+- The mark runs past the ten-minute default, to the reset Anthropic gave.
+- A request for the other model is served by `SPENT`, in one attempt.
+- The next request for the model is tried on `ROOM` only.
+- With `ALSO_SPENT` behind `SPENT` and nothing else: a streamed request ends
+  in a `rate_limit_error` frame whose `retry_after` is the pool's wait, and one
+  not streamed is a `429` with that wait in its header and its body.
+
+### Verified on the source branch, not this build
+
+2026-10-05, macOS arm64, CLI 2.1.284 under the SDK, Claude Max profiles: the
+active one with its 7d Fable window at 100% (7d 87%, 5h 15%), a second with
+Fable at 32%, and for the last row a third whose 7d window is at 100%.
+
+| Proxy | Fable request | Other model | Result |
+|---|---|---|---|
+| Running build, before | `500 api_error` in 1.2s, the active profile only; nothing recorded as refused or benched | not sent | the failure |
+| This change, streamed | `200` and the second profile's answer, active profile `429` first; no error frame | | PASS |
+| This change, not streamed | `200`, active profile `429` then the second profile `200`; active profile out for `fable` until 2026-10-11T04:00Z and not out altogether; window `seven_day_overage_included`, from the SDK event | `200` from the active profile | PASS (5 checks) |
+| This change, a second Fable request | `200`, the second profile only | | PASS |
+| This change, the active profile and one whose weekly window is spent | streamed: an error frame, `rate_limit_error`, `retry_after` 86400, both tried. Not streamed: `429`, `Retry-After: 86400` and the same in the body, the active profile the only one tried | | PASS (2 checks) |
+
+86400 is the cap on a wait: the nearer of the two resets was 80 hours off.
+With the second profile's five-hour window spent, in an earlier run: `429`
+with `Retry-After: 222`, that window's reset, and the second profile out
+altogether until then. A retry in that state found only the active profile to
+try and said `Retry-After: 86400`, which is the case the pool-wide wait is
+for. It is held by the mocked-SDK suite and was not run live again, the window
+having reopened.
+
+`src/__tests__/active-priority-integration.test.ts` ("an allowance spent for
+one model") holds the routing through the mocked SDK, twenty-three cases,
+three of them streamed as the Claude Code client asks (one with the refusal
+behind a keepalive ping) and one in `priority` routing. On the source branch,
+with the mark left unscoped, thirteen of them failed. On this build, with the
+model left out of the in-stream failure path, the three streamed cases fail;
+with the pool-wide wait left out of the in-stream terminal frame, the streamed
+whole-pool case fails; with a refusal on record that predates the attempt read
+as this attempt's, the case that holds the freshness check fails; with the
+wait taken from the tried accounts only, the case whose benched active account
+was skipped fails. `src/__tests__/priority-routing-integration.test.ts` holds
+a turn kept on its retained account to that account's own wait: given the
+whole pool's, it was told ten minutes for an account out for three hours.
+`errors.test.ts`, `limit-detection.test.ts`,
+`routing.test.ts` and `retry-after-unit.test.ts` hold the wording, the scope
+rule, the marks and the wait.
+
+### Review
+
+An independent review of the first version, which had passed the gate above,
+found the cases below. Each is held by a test that fails with its rule taken
+out; sixteen rules of the change were taken out one at a time, and every one
+was caught.
+
+- A streamed refusal of the whole pool still said `retry_after: 60`.
+- A request that was only throttled could be read against an SDK rejection
+  from minutes earlier, or against the event of a request served on usage
+  credits, and keep the model off the account for days.
+- "You're out of usage credits" benched the whole account.
+- A refusal known by its wording took its window's reset from a usage read in
+  which that window was a fifth used.
+- A model id the proxy does not know was routed, and benched, as no model.
+- In `priority` routing a conversation whose own request was moved goes with
+  it; `docs/profiles.md` said otherwise.
+
+The gate's own first streamed check failed for a reason that is not the
+change's: it constructed the proxy with `createProxyServer` and never started
+it, which leaves the CLI path unresolved until the first request that is not
+streamed. The SDK then runs the CLI it carries (2.1.141), and that one answers
+a Fable request on the spent account with "There's an issue with the selected
+model (fable[1m]). It may not exist or you may not have access to it." A
+started proxy resolves the path first; the gate starts one now.
+
+### Not covered
+
+- The real Claude Code client as the caller. The gate sends plain Messages
+  requests; a subagent's Fable rounds failing over through the Claude Code
+  adapter have only the mocked suite behind them.
+- What a client does with the refusal frame of a streamed request.
+- An account pinned or alone. Outside the pool a refusal of one model's
+  allowance is a `429` now, with the 60-second default for a wait: the reset
+  it reads is that of the account-wide windows, and none of those is spent.
+- The builder's other headless banners. "<Model> requires usage credits." and
+  "You've hit your team's shared budget." are still `api_error`: neither was
+  seen, and nothing is known of the rate-limit event either arrives with.
+- `seven_day_opus` and `seven_day_sonnet`. The rule is the same; no account
+  was in that state. Nor Mythos: a refused Mythos request is kept away under
+  its own name, at the cost of one refused request if it shares Fable's
+  allowance, which was not seen.
+- An account that is out of usage credits. The wording is read from the CLI,
+  not seen from an account, and so is the event of a request served on
+  credits. If such a refusal arrives with an SDK event carrying a reset, the
+  mark runs to that reset and not ten minutes.
+- An allowance that returns early, with credits bought or a limit raised. The
+  model stays off the account until the reset it was given, or a restart: the
+  marks are in memory. The account is still asked when it is the active one
+  and nothing else has the model left.
+- A refusal that names a model while the only SDK event on record is from an
+  earlier request. It benches the account, for ten minutes unless an
+  account-wide window is spent. No refusal was seen to arrive without its
+  event.
+- The wait when the first account back was benched on a guess. A mark with no
+  reset behind it is ten minutes, and the pool's wait is its earliest mark.
+- `priority` routing live. It shares the rule and the marks; the live run was
+  `active+priority`.
+- Linux and Windows.
+
 ## E45: Codex auto-defer
 
 **What it proves:** a Codex request past the auto-defer threshold keeps its

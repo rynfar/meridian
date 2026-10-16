@@ -1197,6 +1197,43 @@ describe("priority routing", () => {
     expect(retained.mappingGeneration).toBe(mapping.generation)
   }, 20_000)
 
+  it("tells a retained turn that its own account refused to wait for that account, not another", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const sessionId = "retained-own-account-wait"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    rateLimitStore.clear()
+    try {
+      // Another conversation benches work on the ten-minute default.
+      failingDirs.add("prof-work")
+      expect((await post(app, {}, "another conversation")).status).toBe(200)
+      failingDirs.delete("prof-work")
+      expect((await exhaustedMarks(app)).map(m => m.id)).toEqual(["work"])
+
+      // The retained route's own account is out for hours.
+      const personalReset = Date.now() + 3 * 60 * 60_000
+      rateLimitStore.record("personal", {
+        status: "rejected",
+        rateLimitType: "five_hour",
+        utilization: 1,
+        resetsAt: personalReset,
+      })
+      failingDirs.add("prof-personal")
+      capturedEnvs = []
+      const refused = await post(app, unauthenticatedOpenCodeHeaders(sessionId), CONTINUED_AFTER_PERSONAL)
+      expect(refused.status).toBe(429)
+      expect(capturedEnvs.length).toBeGreaterThan(0)
+      expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+      // The turn can only go back to personal: work's earlier opening is no
+      // use to it.
+      const wait = Number(refused.headers.get("retry-after"))
+      expect(wait).toBeGreaterThan(2 * 60 * 60)
+      expect(wait).toBeLessThanOrEqual(Math.ceil((personalReset - Date.now()) / 1000) + 2)
+    } finally {
+      rateLimitStore.clear()
+    }
+  }, 30_000)
+
   it("atomically refreshes a same-human tool continuation before the next human promotes", async () => {
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const sessionId = "same-human-atomic-refresh-session"

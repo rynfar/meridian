@@ -51,6 +51,10 @@ export interface LimitDiagnosis {
   resetsAt: number | null
   /** One line explaining the verdict, rendered as the badge's tooltip. */
   rationale: string
+  /** When the SDK event behind an `sdk_event` verdict was observed: evidence
+   *  can be minutes older than the refusal it is read for, and a caller that
+   *  acts on the verdict for one request needs to know which it has. */
+  observedAt?: number
 }
 
 /**
@@ -82,6 +86,22 @@ const MODEL_BUCKETS: Record<string, string> = {
  * free to change without moving the line between 429 and 500.
  */
 const LIMIT_WORDING = /hit your ((?:[\w-]+ ){0,2})limit/i
+/**
+ * The credits-era banner, "You've reached your Fable limit.", names the model
+ * whose weekly allowance ran out and gives no clock. The same tiers
+ * `classifyError` accepts, with the "Claude" and the version it allows around
+ * them, for the models that have a window here.
+ */
+const TIER_LIMIT_WORDING = /reached your (?:claude )?(opus|sonnet|fable)(?: \d+(?:\.\d+)*)? limit/i
+/** "You're out of usage credits.": no window ran out, the credits did. */
+const OUT_OF_CREDITS_WORDING = /you(?:'|’)re out of usage credits/i
+/**
+ * Not a window: the account's usage credits, which pay for a model's use past
+ * its allowance. The CLI's refusal builder (2.1.284, 2.1.289) words a refusal
+ * this way only for a model it sells credits for, so the models the plan
+ * includes are not what was refused.
+ */
+const USAGE_CREDITS_BUCKET = "usage_credits"
 const RESET_WORDING = /resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm)?|midnight|noon)\s*(?:\(([^)]+)\))?/i
 
 export interface ParsedLimitWording {
@@ -99,7 +119,7 @@ export interface ParsedLimitWording {
  * the CLI's wording has changed three times already (#764, #787).
  */
 export function parseLimitWording(errMsg: string): ParsedLimitWording {
-  const wording = LIMIT_WORDING.exec(errMsg)
+  const wording = LIMIT_WORDING.exec(errMsg) ?? TIER_LIMIT_WORDING.exec(errMsg)
   const words = (wording?.[1] ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
 
   let bucket: string | null = null
@@ -107,11 +127,13 @@ export function parseLimitWording(errMsg: string): ParsedLimitWording {
   const qualifierWord = words.find(w => QUALIFIER_BUCKETS[w])
   if (model) bucket = MODEL_BUCKETS[model]!
   else if (qualifierWord) bucket = QUALIFIER_BUCKETS[qualifierWord]!
+  const outOfCredits = !wording && OUT_OF_CREDITS_WORDING.test(errMsg)
+  if (outOfCredits) bucket = USAGE_CREDITS_BUCKET
 
   const reset = RESET_WORDING.exec(errMsg)
   return {
     bucket,
-    qualifier: words.length > 0 ? words.join(" ") : null,
+    qualifier: words.length > 0 ? words.join(" ") : outOfCredits ? "usage credits" : null,
     clock: reset?.[1]?.trim() ?? null,
     zone: reset?.[2]?.trim() ?? null,
   }
@@ -212,6 +234,9 @@ export interface SdkLimitEvidence {
   status?: string
   utilization?: number | null
   resetsAt?: number | null
+  /** The request went through on usage credits: the window is spent and
+   *  nothing was refused. CLI 2.1.284 reports that as `rejected` as well. */
+  isUsingOverage?: boolean
   observedAt: number
 }
 
@@ -250,6 +275,7 @@ export function diagnoseLimit(input: DiagnoseLimitInput): LimitDiagnosis {
   const rejected = sdkEntries
     ?.filter(e => e.rateLimitType
       && (e.status === "rejected" || (e.utilization ?? 0) >= 1)
+      && e.isUsingOverage !== true
       && now - e.observedAt <= SDK_EVIDENCE_MAX_AGE_MS)
     .sort((a, b) => b.observedAt - a.observedAt)[0]
   if (rejected?.rateLimitType) {
@@ -259,6 +285,7 @@ export function diagnoseLimit(input: DiagnoseLimitInput): LimitDiagnosis {
       source: "sdk_event",
       resetsAt: rejected.resetsAt ?? windowResetsAt(windows, rejected.rateLimitType),
       rationale: `the SDK reported this window rejected`,
+      observedAt: rejected.observedAt,
     }
   }
 
@@ -308,4 +335,83 @@ export function diagnoseLimit(input: DiagnoseLimitInput): LimitDiagnosis {
       ? `Anthropic said "${wording.qualifier} limit", which is not a window we know`
       : `Anthropic refused without naming a window`,
   }
+}
+
+/**
+ * How the SDK names the weekly allowance of a model whose use beyond it is
+ * billed as usage credits. Measured 2026-10-05 on a Claude Max profile whose
+ * `seven_day_fable` window was spent: the refused Fable request's
+ * `rate_limit_event` was `rejected` under this type and carried that window's
+ * reset, while Opus requests on the same account went on being served.
+ */
+const OVERAGE_INCLUDED_BUCKET = "seven_day_overage_included"
+/**
+ * The models the CLI sells usage credits for, which that allowance and those
+ * credits belong to. Fable is the one observed. Mythos is the other, and goes
+ * upstream as itself, so a refusal of one says nothing here about the other:
+ * each is kept away by its own.
+ */
+const CREDIT_MODELS: ReadonlySet<string> = new Set(["fable", "mythos"])
+
+/** The model word of a model id or alias ("claude-fable-5-1", "opus[1m]"), for the models with an allowance of their own. */
+export function windowedModel(model: string | undefined): string | undefined {
+  const lower = (model ?? "").toLowerCase()
+  return [...Object.keys(MODEL_BUCKETS), ...CREDIT_MODELS].find(word => lower.includes(word))
+}
+
+/** That model's own weekly window, as the usage endpoint names it, when it has a name here. */
+function modelWindow(model: string): string | undefined {
+  return MODEL_BUCKETS[model]
+}
+
+/**
+ * The model a refusal is confined to: the refused request's own, when the
+ * window Anthropic named is that model's and nobody else's. Undefined when
+ * the refusal speaks for the whole account, or when nothing says.
+ *
+ * It decides how much of an account routing steps around. An account whose
+ * Fable allowance is spent still serves Opus, so benching it whole moves
+ * every conversation it holds onto another account and back again when the
+ * bench runs out, each move rewriting that conversation's prompt cache.
+ *
+ * Both conditions are needed. The named window alone is not enough: the SDK
+ * evidence `diagnoseLimit` reads can be fifteen minutes old, so an Opus
+ * request refused for the five-hour window can be diagnosed from a Fable
+ * rejection before it, and that must stay an account-wide refusal. And a
+ * guessed window is never enough.
+ *
+ * `since` is when the refused request was started, for the same reason: a
+ * Fable request that was only throttled can be diagnosed from a Fable
+ * rejection before it too, and would keep Fable off the account until that
+ * allowance's reset, days away. An SDK event counts when it came with this
+ * request. The refusal's own wording always did.
+ */
+export function limitModelScope(diagnosis: LimitDiagnosis | null | undefined, requestModel: string | undefined, since = 0): string | undefined {
+  const model = windowedModel(requestModel)
+  if (!model || !diagnosis?.reported || !diagnosis.bucket) return undefined
+  if (diagnosis.source === "sdk_event" && (diagnosis.observedAt ?? 0) < since) return undefined
+  if (diagnosis.bucket === modelWindow(model)) return model
+  const ofCreditModels = diagnosis.bucket === OVERAGE_INCLUDED_BUCKET || diagnosis.bucket === USAGE_CREDITS_BUCKET
+  return ofCreditModels && CREDIT_MODELS.has(model) ? model : undefined
+}
+
+/**
+ * When the allowance behind a refusal confined to `model` returns, as far as
+ * a usage snapshot says: the reset of that model's own window, and only when
+ * the snapshot shows the window spent.
+ *
+ * A window's reset is when it turns over, whatever was used of it, so it says
+ * when a refusal ends only for a refusal that window caused. The CLI words a
+ * zero credit cap the same as a spent allowance, and a snapshot can be older
+ * than the refusal it is read against. Taken from a snapshot with the window
+ * at 20%, the reset would keep the model off the account for most of a week.
+ *
+ * Null for an account that is out of usage credits. Those come back when
+ * someone buys them, which no window's reset says anything about.
+ */
+export function spentAllowanceResetAt(diagnosis: LimitDiagnosis, model: string, windows: readonly CachedWindow[] | undefined): number | null {
+  if (diagnosis.bucket === USAGE_CREDITS_BUCKET) return null
+  const own = modelWindow(model)
+  if (own === undefined) return null
+  return windows?.find(w => w.type === own && (w.utilization ?? 0) >= 1)?.resetsAt ?? null
 }

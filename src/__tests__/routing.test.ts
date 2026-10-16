@@ -223,6 +223,76 @@ describe("ProfileExhaustion tracker", () => {
     ex.mark("work", T0 + 30_000, "rate_limit_error")
     expect(ex.snapshot()[0]!.until).toBe(T0 + 120_000)
   })
+
+  it("keeps a mark for one model away from requests for any other", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 60_000, "rate_limit_error", "fable")
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+    expect(ex.isExhausted("work", "opus")).toBe(false)
+    expect(ex.isExhausted("work")).toBe(false)
+  })
+
+  it("applies an account-wide mark to requests for every model", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+    expect(ex.isExhausted("work", "opus")).toBe(true)
+  })
+
+  it("expires a model's mark on its own clock", () => {
+    let now = T0
+    const ex = new ProfileExhaustion(() => now)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    ex.mark("work", T0 + 600_000, "rate_limit_error", "fable")
+    now = T0 + 60_001
+    expect(ex.isExhausted("work", "opus")).toBe(false)
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+    now = T0 + 600_001
+    expect(ex.isExhausted("work", "fable")).toBe(false)
+    expect(ex.modelSnapshot()).toEqual([])
+  })
+
+  it("extends a model's mark but never shortens it", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 120_000, "rate_limit_error", "fable")
+    ex.mark("work", T0 + 30_000, "rate_limit_error", "fable")
+    expect(ex.modelSnapshot()).toEqual([{ id: "work", model: "fable", until: T0 + 120_000, reason: "rate_limit_error" }])
+  })
+
+  it("says when a request for a model could use the profile again", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    expect(ex.benchedUntil("work", "fable")).toBeNull()
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    expect(ex.benchedUntil("work", "fable")).toBe(T0 + 60_000)
+    expect(ex.benchedUntil("work")).toBe(T0 + 60_000)
+    // Both marks have to run out before a Fable request can go there.
+    ex.mark("work", T0 + 600_000, "rate_limit_error", "fable")
+    expect(ex.benchedUntil("work", "fable")).toBe(T0 + 600_000)
+    expect(ex.benchedUntil("work", "opus")).toBe(T0 + 60_000)
+    ex.mark("spare", T0 + 30_000, "rate_limit_error", "fable")
+    ex.mark("spare", T0 + 90_000, "rate_limit_error")
+    expect(ex.benchedUntil("spare", "fable")).toBe(T0 + 90_000)
+  })
+
+  it("reports a model's mark apart from the accounts that are out altogether", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 120_000, "rate_limit_error", "fable")
+    ex.mark("spare", T0 + 60_000, "rate_limit_error")
+    expect(ex.snapshot()).toEqual([{ id: "spare", until: T0 + 60_000, reason: "rate_limit_error" }])
+    expect(ex.modelSnapshot()).toEqual([{ id: "work", model: "fable", until: T0 + 120_000, reason: "rate_limit_error" }])
+  })
+
+  it("forgets a profile's model marks along with its account-wide one", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    ex.mark("work", T0 + 600_000, "rate_limit_error", "fable")
+    ex.mark("spare", T0 + 600_000, "rate_limit_error", "fable")
+    ex.forget("work")
+    expect(ex.isExhausted("work", "fable")).toBe(false)
+    expect(ex.benchedUntil("work", "fable")).toBeNull()
+    expect(ex.snapshot()).toEqual([])
+    expect(ex.modelSnapshot()).toEqual([{ id: "spare", model: "fable", until: T0 + 600_000, reason: "rate_limit_error" }])
+  })
 })
 
 describe("AssignmentStore", () => {
