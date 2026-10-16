@@ -250,6 +250,8 @@ Each profile stores its credentials in its configured `CLAUDE_CONFIG_DIR`. CLI-c
 
 Session state is scoped per profile — switching accounts won't cross-contaminate conversation history.
 
+A conversation that comes back to a profile after turns on another is not resumed from the copy it left there. That copy ends where the conversation was when it left, and a resume would send it the turns taken elsewhere without the replies given there. When another profile's copy holds more of the history the client sends, the history is replayed into a fresh session instead (`diverged=moved-on-elsewhere` in the request log). The profile's own copy is still resumed when nothing elsewhere holds more, for example after a rewind to a point it holds.
+
 ### Environment variable configuration
 
 For advanced setups (CI, Docker), profiles can also be provided via environment variable:

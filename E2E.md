@@ -7970,6 +7970,69 @@ return. Both aliases deliberately share a grant, so this is lifecycle proof.
 Run all four E41 modes for affected session/history/cache continuity as well.
 Production pruning is opt-in through `MERIDIAN_SESSION_PROFILE_COPY_PRUNE=1`.
 
+### Stale account copy after a move (source E85)
+
+**What it proves:** a conversation that comes back to an account after taking
+turns on another is not resumed from the copy it left there. That copy ends
+where the conversation was when it left; resumed, it would be sent the turns
+taken elsewhere as a delta of the user's side only, and the model would answer
+without the replies it gave on the other account. When another account's copy,
+used since, holds more of the raw client history, the turn is replayed instead
+and the request log shows `diverged=moved-on-elsewhere`. The account's own copy
+still resumes when nothing elsewhere holds more, as after a rewind to a point
+it holds.
+
+Offline, mocked SDK (no model calls):
+
+```bash
+bun test src/__tests__/account-return-trip.test.ts src/__tests__/session-copy-held.test.ts
+```
+
+`account-return-trip.test.ts` runs a turn on `work`, two on `backup` and one
+back on `work`, keyed by `x-opencode-session` and, for ForgeCode, by
+fingerprint: the way back is a full replay holding both `backup` answers. A
+control removes `backup`'s mapping first: `work` then resumes its stale copy
+and the `backup` answers are missing from what the model is sent. With the
+guard's `if` disabled, the keyed and fingerprint trips fail the same way.
+
+Live procedure, two owned profiles `<profile-a>` and `<profile-b>`, `active`
+routing:
+
+1. In a new client conversation, turn 1 on `<profile-a>`. Switch to
+   `<profile-b>`; turns 2 and 3, asking the model to state a random token in
+   each answer.
+2. Switch back to `<profile-a>`; turn 4 asks for both tokens.
+3. Pass: turn 4's request line shows `profile=<profile-a>`, `lineage=new` and
+   `diverged=moved-on-elsewhere`, one SDK query, and the answer gives both
+   tokens. Turn 3 (still on `<profile-b>`) shows `lineage=continuation`.
+4. Rewind control, as its own conversation: steps 1-3 above replace
+   `<profile-a>`'s copy with the replay, so the copy this control keeps no
+   longer exists there and an edit would test undo on the replayed session
+   (`lineage=undo`). Start a second new conversation: turn 1 on `<profile-a>`,
+   turns 2 and 3 on `<profile-b>`, switch back to `<profile-a>`, and make the
+   first request there an edit of turn 2's question in the client. Pass: the
+   request resumes `<profile-a>`'s original session from turn 1
+   (`lineage=continuation`, same session id as turn 1), with no
+   `moved-on-elsewhere`.
+5. Repeat steps 1-3 with a client that sends no session key (ForgeCode or a
+   headerless Pi) to cover the fingerprint lookup.
+
+**Limit:** the guard depends on the other account's newer mapping being present
+and readable. If that mapping is explicitly evicted (as the offline control
+does) or its read fails (a read error counts as no copy), the stale resume
+comes back. Pruning (`MERIDIAN_SESSION_PROFILE_COPY_PRUNE`) and expiry remove
+the older copy, which is the stale one, first, so they lead to a replay rather
+than a stale resume. Do not use eviction, pruning or expiry as a pass path in
+the steps above.
+
+**Evidence status:** the source author's runs (macOS, Claude CLI
+2.1.284–2.1.294) exercised this guard together with a transcript carry that is
+not part of this build; they were not re-run against this build and do not
+stand in for it. Owed before release: steps 1-5 on Linux with the affected
+client (OpenCode with the Meridian plugin for the keyed path; ForgeCode or Pi
+for the fingerprint path), the actual model and Claude CLI version in use,
+recording request lines and the turn-4 answer.
+
 ### Asynchronous SDK launch gate (#1221)
 
 After build, run `scripts/e2e-sdk-gate-client.mjs` with
