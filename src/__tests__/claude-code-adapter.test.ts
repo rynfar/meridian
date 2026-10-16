@@ -199,6 +199,79 @@ describe("claudeCodeAdapter.extractClientWorkingDirectory", () => {
     ).toBeUndefined()
   })
 
+  // Where Claude Code 2.1.290 sends its environment: a system turn among the
+  // messages, or a reminder block opening the first user message.
+  const environment = (cwd: string) =>
+    `# Environment\nYou have been invoked in the following environment: \n - Primary working directory: ${cwd}\n - Is a git repository: false\n - Platform: darwin`
+  const reminder = (text: string) => ({ type: "text", text: `<system-reminder>\n${text}\n</system-reminder>` })
+  const cwdOf = (body: unknown) => claudeCodeAdapter.extractClientWorkingDirectory!(body)
+
+  it("extracts CWD from a system turn among the messages", () => {
+    expect(cwdOf({
+      system: [{ type: "text", text: "You are an interactive agent." }],
+      messages: [
+        { role: "user", content: [{ type: "text", text: "hi" }] },
+        { role: "system", content: [{ type: "text", text: environment("/Users/alice/projects/app"), cache_control: { type: "ephemeral" } }] },
+      ],
+    })).toBe("/Users/alice/projects/app")
+  })
+
+  it("extracts CWD from a system turn whose content is a string", () => {
+    expect(cwdOf({ messages: [{ role: "user", content: "hi" }, { role: "system", content: environment("/srv/app") }] })).toBe("/srv/app")
+  })
+
+  it("extracts CWD from a reminder block opening the first user message", () => {
+    expect(cwdOf({
+      system: [{ type: "text", text: "You are an interactive agent." }],
+      messages: [{ role: "user", content: [reminder(environment("/Users/alice/projects/app")), reminder("Today's date is 2026-10-05."), { type: "text", text: "hi" }] }],
+    })).toBe("/Users/alice/projects/app")
+  })
+
+  it("keeps the directory the conversation started in when a later system turn names another", () => {
+    // The SDK session is filed under the directory it was created in: a
+    // conversation that changed it mid-way could not be resumed.
+    expect(cwdOf({
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "system", content: environment("/Users/alice/projects/app") },
+        { role: "assistant", content: [{ type: "text", text: "ok" }] },
+        { role: "user", content: "go on" },
+        { role: "system", content: environment("/Users/alice/projects/app/.claude/worktrees/feature") },
+      ],
+    })).toBe("/Users/alice/projects/app")
+  })
+
+  it("prefers the system prompt's directory, where an older client sends it", () => {
+    expect(cwdOf({
+      system: "Primary working directory: /from/system/prompt",
+      messages: [{ role: "user", content: "hi" }, { role: "system", content: environment("/from/system/turn") }],
+    })).toBe("/from/system/prompt")
+  })
+
+  it("takes no directory from what the user wrote", () => {
+    expect(cwdOf({ messages: [{ role: "user", content: environment("/etc") }] })).toBeUndefined()
+    expect(cwdOf({ messages: [{ role: "user", content: [{ type: "text", text: environment("/etc") }] }] })).toBeUndefined()
+  })
+
+  it("takes none from a reminder-looking block the user typed after their own text", () => {
+    expect(cwdOf({
+      messages: [{
+        role: "user",
+        content: [reminder("Today's date is 2026-10-05."), { type: "text", text: "hi" }, reminder(environment("/from/user/text"))],
+      }],
+    })).toBeUndefined()
+  })
+
+  it("takes none from a later user message, an assistant message or a tool result", () => {
+    expect(cwdOf({
+      messages: [
+        { role: "user", content: [reminder("Today's date is 2026-10-05."), { type: "text", text: "hi" }] },
+        { role: "assistant", content: [{ type: "text", text: environment("/from/assistant") }, { type: "tool_use", id: "t1", name: "Read", input: {} }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: [reminder(environment("/from/tool/result"))] }, reminder(environment("/from/later/user"))] },
+      ],
+    })).toBeUndefined()
+  })
+
   it("returns undefined when the label is absent", () => {
     expect(
       claudeCodeAdapter.extractClientWorkingDirectory!({

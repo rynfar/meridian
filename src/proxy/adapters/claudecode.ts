@@ -5,9 +5,10 @@
  *   1. It typically runs on a different machine than the proxy (pointing at
  *      ANTHROPIC_BASE_URL over the network), so its CWD doesn't exist on the
  *      proxy host.
- *   2. Its system prompt embeds working-directory info using the
- *      `Primary working directory: <path>` format inside a `# Environment`
- *      block — different from OpenCode's `<env>Working directory: <path></env>`.
+ *   2. It states its working directory as `Primary working directory: <path>`
+ *      inside a `# Environment` block — different from OpenCode's
+ *      `<env>Working directory: <path></env>` — which older clients put in the
+ *      system prompt and 2.1.290 sends among the messages.
  *
  * Consequently this adapter:
  *   - Returns `undefined` from extractWorkingDirectory so the SDK subprocess
@@ -26,30 +27,90 @@ import { resolvePassthrough } from "../../env"
 import { isClaudeCodeProgressSummary } from "./claudecodeProgress"
 
 /**
- * Extract Claude Code's client-local working directory from the request's
- * system prompt. Claude Code injects a block like:
+ * Extract Claude Code's client-local working directory from the request.
+ * Claude Code states it in a block like:
  *
  *   # Environment
  *   You have been invoked in the following environment:
  *    - Primary working directory: /Users/alice/projects/myapp
  *    - ...
  *
+ * NOTE: agent-specific (claude-code). Where the block is has moved. Older
+ * clients put it in the system prompt. 2.1.290 sends it as a `system` message
+ * after the first user message for a model that takes system turns, and as a
+ * `<system-reminder>` block opening the first user message for one that does
+ * not (Haiku 4.5). Read from the system prompt alone, no request of that
+ * client had a directory: the SDK subprocess ran in the proxy's own, and the
+ * prompt told the model the client's was unknown, so the model composed paths
+ * against the proxy's tree.
+ *
+ * The first block of the conversation is the one. The SDK session is filed
+ * under the directory it was created in, so a conversation whose directory
+ * changed part-way could not be resumed. Among the messages only the client's
+ * own framing is read: `system` turns, and the run of reminder blocks that
+ * opens the first user message. Nothing the user typed, the assistant said or
+ * a tool returned is read.
+ *
  * Returns the path if found, or undefined to fall back to the SDK CWD.
  */
 function extractClaudeCodeClientCwd(body: any): string | undefined {
   let systemText = ""
-  if (typeof body.system === "string") {
+  if (typeof body?.system === "string") {
     systemText = body.system
-  } else if (Array.isArray(body.system)) {
+  } else if (Array.isArray(body?.system)) {
     systemText = body.system
       .filter((b: any) => b.type === "text" && b.text)
       .map((b: any) => b.text)
       .join("\n")
   }
-  if (!systemText) return undefined
+  const fromSystemPrompt = systemText.match(/Primary working directory:\s*([^\n<]+)/i)?.[1]?.trim()
+  if (fromSystemPrompt) return fromSystemPrompt
 
-  const match = systemText.match(/Primary working directory:\s*([^\n<]+)/i)
-  return match?.[1]?.trim() || undefined
+  if (!Array.isArray(body?.messages)) return undefined
+  let firstUserMessageSeen = false
+  for (const message of body.messages) {
+    let texts: string[] = []
+    if (message?.role === "system") {
+      texts = textBlocksOf(message.content)
+    } else if (message?.role === "user" && !firstUserMessageSeen) {
+      firstUserMessageSeen = true
+      texts = Array.isArray(message.content) ? leadingReminderTexts(message.content) : []
+    }
+    for (const text of texts) {
+      const found = text.match(ENVIRONMENT_BLOCK_CWD)?.[1]?.trim()
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+/** The environment block as the client writes it among the messages. */
+const ENVIRONMENT_BLOCK_CWD =
+  /(?:^|\n)# Environment\nYou have been invoked in the following environment:[ \t]*\n[ \t]*- Primary working directory:[ \t]*([^\n<]+)/
+const SYSTEM_REMINDER_OPEN = "<system-reminder>"
+
+/**
+ * The reminder blocks the client opens a user message with: text blocks up to
+ * the first text block that is not a reminder. What follows is what the user
+ * typed, even when it looks like a reminder.
+ */
+function leadingReminderTexts(content: unknown[]): string[] {
+  const reminders: string[] = []
+  for (const text of textBlocksOf(content)) {
+    if (!text.startsWith(SYSTEM_REMINDER_OPEN)) break
+    reminders.push(text)
+  }
+  return reminders
+}
+
+/** The text of a message's content: the string itself, or its top-level text blocks. */
+function textBlocksOf(content: unknown): string[] {
+  if (typeof content === "string") return [content]
+  if (!Array.isArray(content)) return []
+  return content.flatMap((block: unknown) => {
+    const candidate = block as { type?: unknown; text?: unknown } | null
+    return candidate?.type === "text" && typeof candidate.text === "string" ? [candidate.text] : []
+  })
 }
 
 /**

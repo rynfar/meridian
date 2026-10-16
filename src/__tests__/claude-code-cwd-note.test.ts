@@ -77,6 +77,44 @@ describe("claude-code client CWD extraction (#744)", () => {
   })
 })
 
+/**
+ * Claude Code 2.1.290 no longer puts its environment in the system prompt. For
+ * a model that takes system turns (Opus 5.5 here) it is a `system` message
+ * after the first user message; for one that does not (Haiku 4.5) it opens the
+ * first user message as a reminder block. With neither read, the chain above
+ * was broken for every request of that client: the SDK subprocess ran in the
+ * proxy's own directory and the note called the client's unknown.
+ *
+ * Both fixtures are requests of that client (`claude -p` against a scripted
+ * API, 2026-10-05) with the tools left out and the run's temp directory
+ * renamed.
+ */
+describe.each([
+  ["a system turn after the first user message", "claude-code-request-2.1.290-system-turn.json", ["user", "system"]],
+  ["a reminder block opening the first user message", "claude-code-request-2.1.290-user-reminder.json", ["user"]],
+])("claude-code client CWD sent as %s", (_label, file, roles) => {
+  const request = JSON.parse(readFileSync(join(import.meta.dir, "fixtures", file as string), "utf8"))
+  const SENT_CWD = "/private/tmp/claude-code-capture/work"
+
+  it("the fixture is the shape it is named for, with no directory in its system prompt", () => {
+    // Guards the instrument: with the directory in the system prompt as well,
+    // the test below would pass on the old code.
+    expect(request.messages.map((message: { role: string }) => message.role)).toEqual(roles)
+    expect(JSON.stringify(request.system)).not.toContain("Primary working directory")
+  })
+
+  it("extracts the client's working directory", () => {
+    expect(claudeCodeAdapter.extractClientWorkingDirectory?.(request)).toBe(SENT_CWD)
+  })
+
+  it("builds a note naming the client's directory, not the proxy's", () => {
+    const note = cwdNote(PROXY_CWD, claudeCodeAdapter.extractClientWorkingDirectory?.(request))
+    const envBlock = note.slice(note.indexOf("<env>"), note.indexOf("</env>"))
+    expect(envBlock).toContain(SENT_CWD)
+    expect(note).not.toContain("did not declare a working directory")
+  })
+})
+
 describe("SDK working directory for a claude-code client (#744)", () => {
   const clientCwd = () => claudeCodeAdapter.extractClientWorkingDirectory?.(body)
 

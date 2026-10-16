@@ -217,6 +217,39 @@ describe("SDK cwd for a claude-code client (#744)", () => {
     })
   })
 
+  // Claude Code 2.1.290 sends its environment as a system turn among the
+  // messages, or as a reminder block opening the first user message.
+  const environmentOf = (cwd: string) =>
+    `# Environment\nYou have been invoked in the following environment: \n - Primary working directory: ${cwd}\n - Is a git repository: false\n`
+  const PLAIN_SYSTEM = [{ type: "text", text: "You are a Claude agent, built on Anthropic's Claude Agent SDK." }]
+
+  async function postMessages(messages: any[]) {
+    capturedQueryParams = null
+    const res = await createTestApp().fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "user-agent": "claude-cli/2.1.290 (external, cli)" },
+      body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 64, stream: false, system: PLAIN_SYSTEM, messages }),
+    }))
+    await res.json()
+    return capturedQueryParams
+  }
+
+  it("uses the client's directory when it comes as a system turn among the messages", async () => {
+    const params = await postMessages([
+      { role: "user", content: [{ type: "text", text: "hi" }] },
+      { role: "system", content: [{ type: "text", text: environmentOf(clientDir), cache_control: { type: "ephemeral" } }] },
+    ])
+    expect(params?.options?.cwd).toBe(clientDir)
+  })
+
+  it("uses the client's directory when it comes as a reminder in the first user message", async () => {
+    const params = await postMessages([{ role: "user", content: [
+      { type: "text", text: `<system-reminder>\n${environmentOf(clientDir)}</system-reminder>` },
+      { type: "text", text: "hi" },
+    ] }])
+    expect(params?.options?.cwd).toBe(clientDir)
+  })
+
   it("falls back to a valid server path when the client directory does not exist (#381)", () => {
     // Remote client: its filesystem layout is absent here, and chdiring into it
     // would fail the SDK spawn with a misleading error.

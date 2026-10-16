@@ -6749,6 +6749,20 @@ Both response modes must preserve OpenCode-shaped Windows client paths, execute 
 
 Also run the E42 actual OpenCode gate with `--live --extended --separate-proxy-cwd` and the pinned `E2E_OPENCODE_BIN`. The harness isolates the client HOME/PWD as well as XDG state, while the proxy retains its normal Claude authentication. It asserts the client directory from actual request bodies and stable client system prompts before comparing cache reuse. The manually invoked hidden-summary probe runs in a disposable client fork: this checks stripped headers without switching the primary client agent or injecting its tool-catalog update into primary history. A marker assertion rejects any leak into primary requests. This keeps the client project and configured SDK workdir distinct through tool use, restart, undo, fork, compaction and concurrent children. Run all four E41 modes after CWD/session-identity changes.
 
+## Claude Code working directory sent among the messages
+
+**What it proves:** a Claude Code client that sends its `# Environment` block among the messages, not in the system prompt, has its SDK child run in the client's directory and its prompt name that directory. From 2.1.290 the client sends the block as a `system` turn after the first user message for models that take system turns (Opus, Sonnet, Fable), and for Haiku as a `<system-reminder>` block in the run of reminder blocks that opens the first user message. Only that leading run is read, so a reminder-looking block the user types after their own text is ignored.
+
+Offline gate: `bun test src/__tests__/claude-code-adapter.test.ts src/__tests__/claude-code-cwd-note.test.ts src/__tests__/proxy-tool-blocking.test.ts src/__tests__/claude-code-cwd-upgrade.test.ts`. The two `claude-code-request-2.1.290-*.json` fixtures are real requests of that client (`claude -p` against a scripted local endpoint), tools dropped and the temporary path renamed.
+
+Live gate, on the proxy host, with the client in a disposable directory that exists there and `MERIDIAN_WORKDIR` unset:
+
+1. Run the current Claude Code CLI through Meridian once with a model that takes system turns and once with Haiku. Ask it to report `pwd` with its Bash tool.
+2. Require, for both, the SDK child's `cwd` to be the client's directory in the proxy log or query observer, the prompt's `<env>` block to name it, and no "did not declare a working directory" note.
+3. Upgrade check: start a conversation on the previous Meridian build, then continue it on this one. On the first continued turn, require exactly one `session.transcript_locator_changed` log event whose `toProjectDir` is the client's directory, and no `session.resume_retry` events. On the turn after, require a plain resume: no `session.transcript_locator_changed` and no `session.resume_retry`.
+
+Evidence: the source runs were on macOS with Claude CLI 2.1.284–2.1.294 (fixtures captured from 2.1.290). They were not re-run against this build. The live gate above is owed on the current CLI before merge.
+
 ## Polytoken native client loop
 
 **What it proves:** a real Polytoken binary is detected as `polytoken`, keeps its
