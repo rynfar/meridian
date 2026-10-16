@@ -64,6 +64,59 @@ Windows uses a separate wrapper/cancellation contract; these POSIX fixtures
 explicitly skip it. See [durable proof, receipts, baseline reproduction and
 limits](docs/maintenance/evidence/sdk-process-close-join.md).
 
+## SDK wrapper process probe off the event loop (E84)
+
+**What it should prove:** a request that opens its SDK process gate captures
+the wrapper's process incarnation without holding every other request while
+the probe runs, and the probe waits up to 10 s instead of failing at 2 s.
+Whether that is enough at a load average near 40 has not been shown on this
+build.
+
+The SDK gate captures each request's wrapper process before the SDK command
+opens. On macOS and Windows that capture is a child process (`ps -o lstart=` or
+PowerShell). Run synchronously it held the event loop for every other streaming
+request, and under heavy load it outran its 2 s timeout, so the request failed
+before any Messages call with `cannot capture SDK writer process incarnation`.
+`createSdkProcessGate` now awaits `captureProcessIncarnationAsync`, which runs
+the same probe with `execFile` and a 10 s timeout and returns the same identity
+as the synchronous capture. Linux still reads `/proc` directly. A probe that
+ignores execFile's SIGTERM is force-killed at an outer deadline 2 s later, and
+the request fails with the same error instead of waiting on it indefinitely.
+Because the event loop runs during the probe, a wrapper that exits meanwhile
+could be reaped and its pid reused, so a capture that finishes after its
+wrapper exited is refused with the same error.
+
+**Unit coverage:** `process-incarnation.test.ts` drives the darwin `ps` and
+win32 PowerShell probes on any host, with `process.platform` and `execFile`
+stubbed: the probe is awaited while timers keep firing, `spawnSync` is never
+called, and success and failure answers parse as the synchronous capture does.
+It also checks that a probe ignoring its timeout is answered by the outer
+deadline and killed. `sdk-process-gate.test.ts` drives the gate's awaited
+darwin probe the same way, and refuses a capture that finished after its
+wrapper exited. On a Linux host the unstubbed "without `spawnSync`" checks
+pass either way, because Linux never spawns a probe.
+
+**Source evidence, not re-run against this build:** recorded on the
+contributor's fork on macOS with Claude CLI 2.1.284–2.1.294, through a parallel
+background-subagent gate that is not part of this change, on a scripted API
+with no model calls.
+
+- Before: 12 subagents at a load average near 40 on 10 cores, 12 runs. In 5,
+  one request failed before any Messages call with `cannot capture SDK writer
+  process incarnation`, the 2 s `ps` probe of a new SDK child timing out.
+- After: 4 subagents at a load average near 11: PASS, 28 of 28 requests
+  dispatched, no replay. Not repeated at a load near 40.
+
+**Owed for this build:**
+
+- macOS: Claude Code with parallel background subagents through the proxy, at
+  a moderate load and at a load average near 40.
+- macOS: a hung `ps` probe answered by the outer deadline.
+- Windows: any run of the PowerShell probe through the gate.
+
+A probe that outlasts 10 s still fails its request before any Messages call,
+and the client asks again.
+
 ## Shared header separator hover (#1262)
 
 Run `E2E_HEADER_PORT=42231 bun scripts/e2e-build-header-fixture.ts` and use the

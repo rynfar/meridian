@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test"
+import * as childProcess from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { open, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, isAbsolute, join } from "node:path"
 import { createSdkProcessGate, getSdkGateNodeExecutable } from "../proxy/session/sdkProcessGate"
-import type { ProcessIncarnation } from "../proxy/session/processIncarnation"
+import * as processIncarnation from "../proxy/session/processIncarnation"
+import { captureProcessIncarnation, type ProcessIncarnation } from "../proxy/session/processIncarnation"
+import { onPlatform, stubProbeExecFile } from "./processProbeStubs"
 
 describe("SDK process gate", () => {
   const roots: string[] = []
@@ -41,6 +44,89 @@ describe("SDK process gate", () => {
     child.stdin.end()
     expect(await gate.closeAndJoin()).toBe(true)
   })
+
+  // Every request opens a gate. A synchronous probe of the wrapper held every
+  // other request while it ran, and gave up after 2 s: on a host loaded near
+  // 40, a request failed before any call with "cannot capture SDK writer
+  // process incarnation".
+  it("captures the wrapper's incarnation without holding the event loop", async () => {
+    const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
+    roots.push(root)
+    // What a running proxy captured of its host at start.
+    expect(captureProcessIncarnation()).toBeDefined()
+    const synchronous = spyOn(childProcess, "spawnSync")
+    let gate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
+    try {
+      gate = await createSdkProcessGate(root, async () => undefined)
+      expect(synchronous).not.toHaveBeenCalled()
+    } finally {
+      synchronous.mockRestore()
+    }
+    expect(gate.executor.pid).toBeGreaterThan(0)
+    expect(await gate.closeAndJoin()).toBe(true)
+  })
+
+  // CI runs this suite on Linux, where the capture reads /proc. This drives
+  // the darwin capture, a ps child process, with execFile stubbed.
+  it("awaits the wrapper's ps probe on darwin while the event loop runs", async () => {
+    // The wrapper itself is spawned for the stubbed platform: POSIX only.
+    if (process.platform === "win32") return
+    const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
+    roots.push(root)
+    expect(captureProcessIncarnation()).toBeDefined()
+    const darwinStart = "Mon Jan  5 03:04:05 2026"
+    const probe = stubProbeExecFile()
+    const synchronous = spyOn(childProcess, "spawnSync")
+    let gate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
+    try {
+      gate = await onPlatform("darwin", async () => {
+        let settled = false
+        const opening = createSdkProcessGate(root, async () => undefined).finally(() => { settled = true })
+        await new Promise(resolve => setTimeout(resolve, 20))
+        expect(settled).toBe(false)
+        expect(probe.calls).toHaveLength(1)
+        const call = probe.calls[0]!
+        expect(call.file).toBe("/bin/ps")
+        expect(call.args.slice(2)).toEqual(["-o", "lstart="])
+        call.answer(0, `${darwinStart}\n`)
+        return opening
+      })
+      expect(synchronous).not.toHaveBeenCalled()
+    } finally {
+      synchronous.mockRestore()
+      probe.restore()
+    }
+    expect(probe.calls[0]!.args.slice(0, 2)).toEqual(["-p", String(gate.executor.pid)])
+    expect(gate.executor).toMatchObject({ startId: darwinStart, startIdKind: "darwin-ps-lstart" })
+    expect(await gate.closeAndJoin()).toBe(true)
+  })
+
+  // The capture is awaited, so the wrapper can die and be reaped while it runs,
+  // and its pid can be reused: the capture may then describe another process.
+  it("refuses a capture that finished after its wrapper exited", async () => {
+    const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
+    roots.push(root)
+    const host = captureProcessIncarnation()
+    expect(host).toBeDefined()
+    const capture = spyOn(processIncarnation, "captureProcessIncarnationAsync")
+      .mockImplementation(async (pid) => {
+        process.kill(pid, "SIGKILL")
+        await waitUntilReaped(pid, 5_000)
+        // What a probe of a reused pid would answer.
+        return { ...host!, pid }
+      })
+    const attached: ProcessIncarnation[] = []
+    try {
+      await expect(createSdkProcessGate(root, async (executor) => { attached.push(executor) }))
+        .rejects.toThrow("cannot capture SDK writer process incarnation")
+      expect(capture).toHaveBeenCalledTimes(1)
+    } finally {
+      capture.mockRestore()
+    }
+    expect(attached).toEqual([])
+    expect(readdirSync(root)).toEqual([])
+  })
+
   it("drains large stderr output and forwards it without stalling stdout", async () => {
     const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
     roots.push(root)
@@ -235,4 +321,23 @@ async function replaceFileHandleSync(
     return replacement(() => sync.call(this))
   }
   return () => { prototype.sync = sync }
+}
+
+/** True once the pid is gone, which on POSIX means its parent reaped it. */
+async function waitUntilReaped(pid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = performance.now() + timeoutMs
+  while (performance.now() < deadline) {
+    try {
+      process.kill(pid, 0)
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ESRCH") {
+        // Let the runtime deliver the exit it recorded while reaping.
+        await new Promise(resolve => setTimeout(resolve, 50))
+        return true
+      }
+      throw error
+    }
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  return false
 }

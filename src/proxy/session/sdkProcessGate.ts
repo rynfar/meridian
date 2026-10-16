@@ -15,7 +15,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk"
 import { syncDirectoryDurably } from "./durableFileSystem"
 import {
-  captureProcessIncarnation,
+  captureProcessIncarnationAsync,
   type ProcessIncarnation,
 } from "./processIncarnation"
 
@@ -244,8 +244,13 @@ export async function createSdkProcessGate(
   let publication: Promise<void> = Promise.resolve()
   try {
     if (!child.pid) throw new Error("SDK gate process has no PID")
-    const executor = captureProcessIncarnation(child.pid)
-    if (!executor) throw new Error("cannot capture SDK writer process incarnation")
+    // Awaited: other requests stream while the wrapper is probed.
+    const executor = await captureProcessIncarnationAsync(child.pid)
+    // The event loop ran during the probe, so a wrapper that died meanwhile
+    // may already be reaped and its pid reused: the capture could then
+    // describe another process. Node records the exit when it reaps.
+    const wrapperExited = hasClosed || child.exitCode !== null || child.signalCode !== null
+    if (!executor || wrapperExited) throw new Error("cannot capture SDK writer process incarnation")
     await attachExecutor(executor, recoverableAfterCrash)
     attached = true
 
