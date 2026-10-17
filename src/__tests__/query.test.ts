@@ -524,17 +524,14 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).settingSources).toEqual([])
   })
 
-  it("settingSources from caller still wins in passthrough when claudeMd is project/full", () => {
-    // server.ts resolves claudeMd="project" → settingSources=["project"];
-    // the later spread block in buildQueryOptions overwrites the
-    // passthrough default of `[]` because object spread keeps the last
-    // assignment. This preserves the user's explicit opt-in to load
-    // their project CLAUDE.md.
+  it("keeps passthrough isolated even when the profile selects project/full context", () => {
+    // Loading these files also loads executable hooks and plugin MCP tools.
+    // In passthrough, context and tools must come from the client instead.
     const result = buildQueryOptions(makeContext({
       passthrough: true,
       settingSources: ["project"] as any,
     }))
-    expect((result.options as any).settingSources).toEqual(["project"])
+    expect(result.options.settingSources).toEqual([])
   })
 
   // ─── resolveSystemPrompt defensive empty-string ───────────────────────
@@ -971,7 +968,7 @@ describe("buildQueryOptions", () => {
     expect(result.options.systemPrompt).toBe("Agent instructions" + REPLAY_PROVENANCE_NOTE + SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 
-  it("all three controls work together: preset + client + settingSources", () => {
+  it("retains preset and client context while isolating passthrough filesystem settings", () => {
     const result = buildQueryOptions(makeContext({
       passthrough: true,
       systemContext: "Agent instructions",
@@ -985,7 +982,7 @@ describe("buildQueryOptions", () => {
     // Every preset request also carries the gitStatus provenance note (#694).
     expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
     const opts = result.options as any
-    expect(opts.settingSources).toEqual(["user", "project"])
+    expect(opts.settingSources).toEqual([])
   })
 
   it("disabling both prompts keeps only transport provenance", () => {

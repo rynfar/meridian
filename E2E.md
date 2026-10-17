@@ -18,6 +18,39 @@ See [before/after receipts, retained timing failure and limits](docs/maintenance
 
 # End-to-End Testing
 
+## Client-owned tool isolation: model-facing request gate
+
+```sh
+bun scripts/e2e-passthrough-tool-isolation.mjs --baseline --claude-executable=<real-native-claude>
+bun scripts/e2e-passthrough-tool-isolation.mjs --claude-executable=<real-native-claude>
+```
+
+The baseline must fail: it restores the former filesystem-setting/MCP-discovery
+options. A disposable user SessionStart hook advertises a foreign context-mode
+name, and a disposable project MCP server declares that same name. The actual
+Agent SDK and native Claude CLI serialize their **model-facing HTTP request**
+to a loopback responder. Assertions reject either foreign guidance or foreign
+tool declarations and require the client-owned tool and client context to remain.
+This catches contamination even if a model happens to choose the right tool.
+
+The candidate must pass with only `mcp__oc__context-mode_ctx_execute` advertised.
+Reports retain the tool-name list, relevant injected guidance and cleanup result;
+credentials, raw unrelated prompts and the owner's configuration are not copied.
+The source checkout can contain a non-executable CLI fixture: explicitly choose
+the real native binary for this gate. The SDK query has a 60-second bound and
+owned processes/listener are closed before returning.
+
+This is real SDK/CLI **request construction** E2E with a fixture model responder,
+not real model-choice or native OpenCode child acceptance. After activation, run
+an unguided native OpenCode child through the implicated Claude-family route,
+assert its emitted client tool name, and inspect the SDK SessionStart context.
+An isolated hook invocation or one successful tool choice is insufficient.
+
+Passthrough intentionally ignores proxy-host `claudeMd` filesystem sources:
+those sources load executable hooks/plugins as well as markdown. Client-owned
+instructions must arrive in the client system context. Explicit SDK hooks,
+memory settings, preset selection and non-passthrough source selection remain.
+
 ## Overlapping passthrough queries
 
 ```sh

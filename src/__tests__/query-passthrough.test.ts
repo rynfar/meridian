@@ -27,6 +27,31 @@ function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
 }
 
 describe("buildQueryOptions — SDK parameter passthrough", () => {
+  it("isolates client-owned tools from proxy-host settings, hooks and MCP discovery", () => {
+    const sdkHooks = { PreToolUse: [{ hooks: [async () => ({})] }] }
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      settingSources: ["user", "project", "local"],
+      systemContext: "CLIENT_CONTEXT_MUST_REMAIN",
+      memory: true,
+      codeSystemPrompt: false,
+      sdkHooks,
+    }))
+    expect(result.options.settingSources).toEqual([])
+    expect(result.options.strictMcpConfig).toBe(true)
+    expect(result.options.systemPrompt).toContain("CLIENT_CONTEXT_MUST_REMAIN")
+    expect(result.options.settings).toMatchObject({ autoMemoryEnabled: true })
+    expect(result.options.tools).toEqual([])
+    expect(result.options.hooks).toBe(sdkHooks)
+  })
+
+  it("retains selected filesystem sources for SDK-owned tool execution", () => {
+    const sources = ["user", "project"] as const
+    const result = buildQueryOptions(makeContext({ passthrough: false, settingSources: [...sources] }))
+    expect(result.options.settingSources).toEqual([...sources])
+    expect(result.options.strictMcpConfig).toBeUndefined()
+  })
+
   it("passes effort to SDK options when provided", () => {
     const result = buildQueryOptions(makeContext({ effort: "high" }))
     expect(result.options.effort).toBe("high")
