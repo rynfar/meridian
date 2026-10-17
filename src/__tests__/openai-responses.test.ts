@@ -737,3 +737,61 @@ describe("resolveCodexThreadIdentity", () => {
     expect(identity).toEqual({ sessionKey: "t1:memory-extract", requestSource: "fork-codex-memory-extract" })
   })
 })
+
+describe("translateResponsesToAnthropic — input_file PDFs", () => {
+  const pdf = "data:application/pdf;base64,JVBERi0xLjQK"
+  const documentBlock: AnthropicContentBlock = {
+    type: "document",
+    title: "report.pdf",
+    source: { type: "base64", media_type: "application/pdf", data: "JVBERi0xLjQK" },
+  }
+
+  it("maps a PDF message part to a document block", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "summarize" },
+            { type: "input_file", file_data: pdf, filename: "report.pdf" },
+          ],
+        },
+      ],
+    })!
+    expect(r.messages[0]!.content).toEqual([{ type: "text", text: "summarize" }, documentBlock])
+  })
+
+  it("maps a PDF in a function_call_output to a document in the tool_result", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { type: "function_call", name: "read_pdf", arguments: "{}", call_id: "c1" },
+        {
+          type: "function_call_output",
+          call_id: "c1",
+          output: [{ type: "input_file", file_data: pdf, filename: "report.pdf" }],
+        },
+      ],
+    })!
+    const toolResult = (r.messages[1]!.content as AnthropicContentBlock[])[0]
+    expect(toolResult).toEqual({ type: "tool_result", tool_use_id: "c1", content: [documentBlock] })
+  })
+
+  it("replaces a non-PDF file with an omission note", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_file", file_data: "data:text/csv;base64,YSxi", filename: "a.csv" }],
+        },
+      ],
+    })!
+    expect(r.messages[0]!.content).toEqual([
+      { type: "text", text: "[Unsupported input_file omitted: only base64 PDF data URLs are currently supported]" },
+    ])
+  })
+})

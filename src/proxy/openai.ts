@@ -117,6 +117,16 @@ export interface AnthropicImageBlock {
   }
 }
 
+export interface AnthropicDocumentBlock {
+  type: "document"
+  title?: string
+  source: {
+    type: "base64"
+    media_type: "application/pdf"
+    data: string
+  }
+}
+
 export interface AnthropicMessage {
   role: "user" | "assistant"
   content: string | AnthropicContentBlock[]
@@ -205,6 +215,7 @@ export interface AnthropicThinkingBlock {
 export type AnthropicContentBlock =
   AnthropicTextBlock |
   AnthropicImageBlock |
+  AnthropicDocumentBlock |
   AnthropicThinkingBlock |
   AnthropicToolResultBlock |
   AnthropicToolUseBlock
@@ -425,6 +436,18 @@ export function parseDataUrlImage(url: string): AnthropicImageBlock | null {
       media_type: mediaType,
       data,
     },
+  }
+}
+
+/** A base64 PDF data URL as an Anthropic document block; null for anything else. */
+export function parseDataUrlPdf(url: string, title?: string): AnthropicDocumentBlock | null {
+  const match = /^data:application\/pdf;base64,(.+)$/is.exec(url)
+  const data = match?.[1]
+  if (!data) return null
+  return {
+    type: "document",
+    ...(title ? { title } : {}),
+    source: { type: "base64", media_type: "application/pdf", data },
   }
 }
 

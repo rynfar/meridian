@@ -113,3 +113,39 @@ describe("/v1/responses image input reaches the SDK", () => {
     expectImageDelivered(await sdkUserContent())
   })
 })
+
+describe("/v1/responses PDF input reaches the SDK", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedPrompt = null
+  })
+
+  it("delivers an input_file PDF as a document block", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await app.fetch(
+      new Request("http://localhost/v1/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-5",
+          input: [{
+            type: "message",
+            role: "user",
+            content: [
+              { type: "input_text", text: "Summarize this PDF." },
+              { type: "input_file", file_data: "data:application/pdf;base64,JVBERi0xLjQK", filename: "report.pdf" },
+            ],
+          }],
+          stream: false,
+        }),
+      })
+    )
+    expect(res.status).toBe(200)
+    const content = await sdkUserContent()
+    expect(content.find((b) => b?.type === "document")).toEqual({
+      type: "document",
+      title: "report.pdf",
+      source: { type: "base64", media_type: "application/pdf", data: "JVBERi0xLjQK" },
+    })
+  })
+})

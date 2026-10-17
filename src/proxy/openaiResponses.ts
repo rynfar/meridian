@@ -25,7 +25,7 @@ import type {
   AnthropicTool,
   AnthropicUsage,
 } from "./openai"
-import { mergeAnthropicUsage, parseDataUrlImage, totalAnthropicInputTokens } from "./openai"
+import { mergeAnthropicUsage, parseDataUrlImage, parseDataUrlPdf, totalAnthropicInputTokens } from "./openai"
 import { createHash } from "node:crypto"
 
 // ---------------------------------------------------------------------------
@@ -33,9 +33,11 @@ import { createHash } from "node:crypto"
 // ---------------------------------------------------------------------------
 
 interface ResponsesContentPart {
-  type: "input_text" | "output_text" | "input_image" | string
+  type: "input_text" | "output_text" | "input_image" | "input_file" | string
   text?: string
   image_url?: string
+  file_data?: string
+  filename?: string
 }
 
 interface ResponsesMessageItem {
@@ -59,9 +61,11 @@ interface ResponsesFunctionCallItem {
  * untagged Text | ContentItems); custom tool outputs are always strings.
  */
 interface ResponsesOutputContentItem {
-  type: "input_text" | "input_image" | "input_audio" | "encrypted_content" | string
+  type: "input_text" | "input_image" | "input_file" | "input_audio" | "encrypted_content" | string
   text?: string
   image_url?: string
+  file_data?: string
+  filename?: string
 }
 interface ResponsesFunctionCallOutputItem {
   type: "function_call_output"
@@ -414,22 +418,38 @@ function partsToText(content: ResponsesContentPart[] | string | undefined): stri
 }
 
 /**
- * Content blocks for a message with image parts. Returns null when there are
- * no images so the caller keeps the plain-text path. Remote (non-data-URL)
+ * Anthropic block for a data-URL `input_image` or PDF `input_file` part, or an
+ * omission note when the media can't be inlined. Null for non-media parts.
+ */
+function mediaPartToBlock(part: ResponsesContentPart): AnthropicContentBlock | null {
+  if (part.type === "input_image") {
+    const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
+    return image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" }
+  }
+  if (part.type === "input_file") {
+    const document = typeof part.file_data === "string" ? parseDataUrlPdf(part.file_data, part.filename) : null
+    return document ?? { type: "text", text: "[Unsupported input_file omitted: only base64 PDF data URLs are currently supported]" }
+  }
+  return null
+}
+
+/**
+ * Content blocks for a message with image or file parts. Returns null when
+ * there are none so the caller keeps the plain-text path. Remote (non-data-URL)
  * images become an omission note, matching the chat-completions adapter.
  */
 function partsToBlocks(content: ResponsesContentPart[] | string | undefined): AnthropicContentBlock[] | null {
   if (content === undefined || typeof content === "string") return null
-  const hasImage = content.some((p) => p.type === "input_image")
-  if (!hasImage) return null
+  const hasMedia = content.some((p) => p.type === "input_image" || p.type === "input_file")
+  if (!hasMedia) return null
 
   const blocks: AnthropicContentBlock[] = []
   for (const part of content) {
     if (typeof part.text === "string") {
       blocks.push({ type: "text", text: part.text })
-    } else if (part.type === "input_image") {
-      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
-      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
+    } else {
+      const media = mediaPartToBlock(part)
+      if (media) blocks.push(media)
     }
   }
   return blocks
@@ -438,7 +458,7 @@ function partsToBlocks(content: ResponsesContentPart[] | string | undefined): An
 /**
  * Anthropic `tool_result.content` for a Responses tool output. Content items
  * are mapped part by part — `input_text` → text, data-URL `input_image` →
- * image — and anything else becomes an omission note, so an MCP tool that
+ * image, PDF `input_file` → document — and anything else becomes an omission note, so an MCP tool that
  * answered with structured content never reaches the API as an unknown tag.
  */
 function toolOutputToContent(output: string | ResponsesOutputContentItem[] | undefined): string | AnthropicContentBlock[] {
@@ -450,11 +470,8 @@ function toolOutputToContent(output: string | ResponsesOutputContentItem[] | und
     if (!part || typeof part !== "object") continue
     if (typeof part.text === "string") {
       blocks.push({ type: "text", text: part.text })
-    } else if (part.type === "input_image") {
-      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
-      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
     } else {
-      blocks.push({ type: "text", text: `[Unsupported ${String(part.type)} tool output part omitted]` })
+      blocks.push(mediaPartToBlock(part) ?? { type: "text", text: `[Unsupported ${String(part.type)} tool output part omitted]` })
     }
   }
   // Anthropic rejects an empty content array; an empty string is fine.
@@ -554,9 +571,9 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         }
         conversationStarted = true
         const role = msg.role === "assistant" ? "assistant" : "user"
-        const imageBlocks = partsToBlocks(msg.content)
-        if (imageBlocks) {
-          for (const block of imageBlocks) pushBlock(role, block)
+        const mediaBlocks = partsToBlocks(msg.content)
+        if (mediaBlocks) {
+          for (const block of mediaBlocks) pushBlock(role, block)
           break
         }
         const text = partsToText(msg.content)
