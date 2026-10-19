@@ -1,8 +1,8 @@
 /**
  * Tests for the SDK query options builder.
  */
-import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
+import { afterEach, describe, it, expect } from "bun:test"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, resolveQueryConfigDir, resolveSdkPermissionMode, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
 import { createPassthroughMcpServer } from "../proxy/passthroughTools"
@@ -79,6 +79,37 @@ describe("buildQueryOptions", () => {
     expect(result.options.maxTurns).toBe(200)
     expect(result.options.permissionMode).toBe("bypassPermissions")
     expect((result.options as any).includePartialMessages).toBeUndefined()
+  })
+
+  describe("SDK permission mode", () => {
+    const saved = process.env.MERIDIAN_SDK_PERMISSION_MODE
+    afterEach(() => {
+      if (saved === undefined) delete process.env.MERIDIAN_SDK_PERMISSION_MODE
+      else process.env.MERIDIAN_SDK_PERMISSION_MODE = saved
+    })
+
+    it("keeps bypassPermissions by default", () => {
+      delete process.env.MERIDIAN_SDK_PERMISSION_MODE
+      const { options } = buildQueryOptions(makeContext())
+      expect(options.permissionMode).toBe("bypassPermissions")
+      expect(options.allowDangerouslySkipPermissions).toBe(true)
+    })
+
+    it("selects auto without the bypass escape hatch when opted in", () => {
+      process.env.MERIDIAN_SDK_PERMISSION_MODE = "auto"
+      for (const passthrough of [false, true]) {
+        const { options } = buildQueryOptions(makeContext({ passthrough }))
+        expect(options.permissionMode).toBe("auto")
+        expect(options.allowDangerouslySkipPermissions).toBeUndefined()
+      }
+    })
+
+    it("keeps the default for values other than auto", () => {
+      expect(resolveSdkPermissionMode(" Auto ")).toBe("auto")
+      for (const value of [undefined, "", "default", "plan", "dontAsk", "acceptEdits", "bypassPermissions"]) {
+        expect(resolveSdkPermissionMode(value)).toBe("bypassPermissions")
+      }
+    })
   })
 
   // The subprocess runs headless behind the proxy — its metrics, crash
