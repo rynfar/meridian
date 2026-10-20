@@ -86,6 +86,7 @@ import { parseToolInputObject } from "./toolInputJson"
 import { createPassthroughMcpServer, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, autoDeferDecision, getAutoDeferThreshold } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
+import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
@@ -2810,13 +2811,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
         // SDK feature toggles — resolved once per request for use in thinking
         // defaults, settingSources, and buildQueryOptions below.
-        const { getFeaturesForAdapter, getExplicitThinking, getSourceFeatureOverrides } = require("./sdkFeatures") as typeof import("./sdkFeatures")
-        // Instances (#476): base-resolved features with the instance's own
-        // overrides layered on top, then per-request source overrides.
+        const { getFeaturesForAdapter, getExplicitThinking } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+        // Instances (#476): base-resolved features with instance overrides.
+        const adapterFeatures = { ...getFeaturesForAdapter(adapterBase), ...(adapter.instanceFeatures ?? {}) }
         const sdkFeatures = {
-          ...getFeaturesForAdapter(adapterBase),
-          ...(adapter.instanceFeatures ?? {}),
-          ...getSourceFeatureOverrides(requestSource),
+          ...adapterFeatures,
+          ...(adapterBase === "opencode"
+            ? getOpenCodeSourceFeatureOverrides(requestSource, adapterFeatures.clientSystemPrompt !== false)
+            : {}),
         }
         const transcriptConfigDir = resolveQueryConfigDir(
           profileEnv,

@@ -369,6 +369,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 ### Current Adapters
 
 - **`adapters/opencode.ts`** — OpenCode agent (session headers, `<env>` block parsing, tool mappings, and recognized transient hook envelopes for lineage)
+- **`adapters/opencodeSourceFeatures.ts`** — One-shot OpenCode title/summary prompts replace the coding preset when client prompts are enabled; compaction, other adapters and client-prompt opt-outs keep their configured behavior.
 - **`adapters/forgecode.ts`** — ForgeCode agent (fingerprint sessions, `<current_working_directory>` parsing, `patch`/`shell` tool mappings)
 
 ### Adding a New Agent

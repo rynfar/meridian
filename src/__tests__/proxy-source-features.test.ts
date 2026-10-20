@@ -4,7 +4,10 @@
  * Under the preset, OpenCode's title prompt is only appended context and the
  * model answers the user's message, which OpenCode then stores as the title.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -36,7 +39,8 @@ installMcpToolsMock(() => ({
 }))
 
 const { createProxyServer } = await import("../proxy/server")
-const { getSourceFeatureOverrides } = await import("../proxy/sdkFeatures")
+const { updateAdapterFeatures } = await import("../proxy/sdkFeatures")
+const { getOpenCodeSourceFeatureOverrides } = await import("../proxy/adapters/opencodeSourceFeatures")
 
 const TITLE_PROMPT = "You are a title generator. You output ONLY a thread title. Nothing else."
 
@@ -58,32 +62,48 @@ async function post(app: any, headers: Record<string, string> = {}) {
 
 const isPreset = (sp: any) => !!sp && typeof sp === "object" && sp.preset === "claude_code"
 
-describe("getSourceFeatureOverrides", () => {
+describe("getOpenCodeSourceFeatureOverrides", () => {
   it("turns the preset off only for one-shot title and summary sources", () => {
-    expect(getSourceFeatureOverrides("subagent-title")).toEqual({ codeSystemPrompt: false })
-    expect(getSourceFeatureOverrides("subagent-summary")).toEqual({ codeSystemPrompt: false })
-    expect(getSourceFeatureOverrides("subagent-compaction")).toEqual({})
-    expect(getSourceFeatureOverrides("subagent-explore")).toEqual({})
-    expect(getSourceFeatureOverrides(undefined)).toEqual({})
+    expect(getOpenCodeSourceFeatureOverrides("subagent-title")).toEqual({ codeSystemPrompt: false })
+    expect(getOpenCodeSourceFeatureOverrides("subagent-summary")).toEqual({ codeSystemPrompt: false })
+    expect(getOpenCodeSourceFeatureOverrides("subagent-compaction")).toEqual({})
+    expect(getOpenCodeSourceFeatureOverrides("subagent-explore")).toEqual({})
+    expect(getOpenCodeSourceFeatureOverrides(undefined)).toEqual({})
+    expect(getOpenCodeSourceFeatureOverrides("subagent-title", false)).toEqual({})
   })
 })
 
 describe("Integration: x-meridian-source feature overrides", () => {
   let app: any
+  let proxy: ReturnType<typeof createProxyServer>
   let savedPassthrough: string | undefined
-
-  beforeAll(() => {
-    app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
-  })
+  let savedConfigDir: string | undefined
+  let featureRoot = ""
 
   beforeEach(() => {
+    savedConfigDir = process.env.MERIDIAN_CONFIG_DIR
+    featureRoot = mkdtempSync(join(tmpdir(), "meridian-title-features-"))
+    process.env.MERIDIAN_CONFIG_DIR = featureRoot
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
     mockMessages = [assistantMessage([{ type: "text", text: "Session name summaries" }])]
     capturedQueryParams = null
+    proxy = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    app = proxy.app
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    proxy.beginDrain?.()
+    const deadline = Date.now() + 5000
+    while ((proxy.getInFlightCount?.() ?? 0) > 0 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect((proxy.getInFlightCount?.() ?? 0)).toBe(0)
+    await proxy.sweepSessionGc?.()
+    await proxy.closeBackend?.()
+    if (savedConfigDir === undefined) delete process.env.MERIDIAN_CONFIG_DIR
+    else process.env.MERIDIAN_CONFIG_DIR = savedConfigDir
+    rmSync(featureRoot, { recursive: true, force: true })
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
   })
@@ -96,6 +116,19 @@ describe("Integration: x-meridian-source feature overrides", () => {
     })
     expect(isPreset(params.options.systemPrompt)).toBe(false)
     expect(params.options.systemPrompt).toContain(TITLE_PROMPT)
+  })
+
+  it("retains the preset when client prompts are explicitly disabled", async () => {
+    updateAdapterFeatures("opencode", { codeSystemPrompt: true, clientSystemPrompt: false })
+    const params = await post(app, { "x-meridian-source": "subagent-title" })
+    expect(isPreset(params.options.systemPrompt)).toBe(true)
+    expect(JSON.stringify(params.options.systemPrompt)).not.toContain(TITLE_PROMPT)
+  })
+
+  it("retains another adapter's explicit preset for the same source tag", async () => {
+    updateAdapterFeatures("claude-code", { codeSystemPrompt: true, clientSystemPrompt: true })
+    const params = await post(app, { "x-meridian-agent": "claude-code", "x-meridian-source": "subagent-title" })
+    expect(isPreset(params.options.systemPrompt)).toBe(true)
   })
 
   it("keeps the preset for an ordinary OpenCode turn", async () => {
