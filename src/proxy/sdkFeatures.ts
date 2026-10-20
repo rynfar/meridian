@@ -217,6 +217,20 @@ export function getFeaturesForAdapter(adapterName: string): AdapterFeatures {
 }
 
 /**
+ * Per-request feature overrides derived from the `x-meridian-source` header.
+ *
+ * One-shot generators (OpenCode's hidden title and summary agents) carry their
+ * whole contract in the client system prompt. Under the Claude Code preset the
+ * model treats that prompt as appended context and answers the user's message
+ * instead, so the client stores the first line of an answer as the title.
+ */
+export function getSourceFeatureOverrides(requestSource: string | undefined): Partial<AdapterFeatures> {
+  return requestSource === "subagent-title" || requestSource === "subagent-summary"
+    ? { codeSystemPrompt: false }
+    : {}
+}
+
+/**
  * Returns the thinking value the user has *explicitly* configured for an
  * adapter, or undefined when none is set (i.e. it falls back to defaults).
  *

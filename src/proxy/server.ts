@@ -2809,10 +2809,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
         // SDK feature toggles — resolved once per request for use in thinking
         // defaults, settingSources, and buildQueryOptions below.
-        const { getFeaturesForAdapter, getExplicitThinking } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+        const { getFeaturesForAdapter, getExplicitThinking, getSourceFeatureOverrides } = require("./sdkFeatures") as typeof import("./sdkFeatures")
         // Instances (#476): base-resolved features with the instance's own
-        // overrides layered on top.
-        const sdkFeatures = { ...getFeaturesForAdapter(adapterBase), ...(adapter.instanceFeatures ?? {}) }
+        // overrides layered on top, then per-request source overrides.
+        const sdkFeatures = {
+          ...getFeaturesForAdapter(adapterBase),
+          ...(adapter.instanceFeatures ?? {}),
+          ...getSourceFeatureOverrides(requestSource),
+        }
         const transcriptConfigDir = resolveQueryConfigDir(
           profileEnv,
           sdkFeatures.sharedMemory,
