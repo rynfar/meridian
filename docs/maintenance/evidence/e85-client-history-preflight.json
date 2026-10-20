@@ -1,0 +1,114 @@
+{
+  "sourceSHA256": "3a1380d29bda284d51ab0446c1f47381f4707e2565f56b8f2c61115776a2b7b3",
+  "baseline": "90e934976d760e9c3af68c2c0eccffdb8a6fd061",
+  "candidate": "71ab157fd73099de627fc8ecccc2940e803cc26e",
+  "scope": "Actual installed Linux clients/SDK/native; scripted loopback API, zero real models",
+  "versions": {
+    "node": "24.20.0",
+    "platform": "Linux arm64 Debian",
+    "sdk": "0.2.141",
+    "native": "2.1.301",
+    "OpenCode": "2.0.31",
+    "scrub": "0.2.3",
+    "Pi": "1.3.0"
+  },
+  "cases": [
+    {
+      "flow": "keyed",
+      "label": "baseline",
+      "result": "EXPECTED_BASELINE_FAILURE",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        false,
+        false
+      ],
+      "clientFinalReplyRecalls": [
+        false,
+        false
+      ],
+      "providerNativeStoredCorrelated": true
+    },
+    {
+      "flow": "keyed",
+      "label": "candidate",
+      "result": "PASS",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        true,
+        true
+      ],
+      "clientFinalReplyRecalls": [
+        true,
+        true
+      ],
+      "providerNativeStoredCorrelated": true
+    },
+    {
+      "flow": "rewind",
+      "label": "baseline",
+      "result": "PASS",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        false,
+        false
+      ],
+      "clientFinalReplyRecalls": [
+        false,
+        false
+      ],
+      "providerNativeStoredCorrelated": true
+    },
+    {
+      "flow": "rewind",
+      "label": "candidate",
+      "result": "PASS",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        false,
+        false
+      ],
+      "clientFinalReplyRecalls": [
+        false,
+        false
+      ],
+      "providerNativeStoredCorrelated": true
+    },
+    {
+      "flow": "pi",
+      "label": "baseline",
+      "result": "EXPECTED_BASELINE_FAILURE",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        false,
+        false
+      ],
+      "clientFinalReplyRecalls": [
+        false,
+        false
+      ],
+      "providerNativeStoredCorrelated": true
+    },
+    {
+      "flow": "pi",
+      "label": "candidate",
+      "result": "PASS",
+      "joined": true,
+      "foreignAnswersOnReturn": [
+        true,
+        true
+      ],
+      "clientFinalReplyRecalls": [
+        true,
+        true
+      ],
+      "providerNativeStoredCorrelated": true
+    }
+  ],
+  "missing": "Actual-model acceptance, E41 and supported-client gates on final product combination remain with PR1401.",
+  "admissionHelperSHA256": "f31f294161348dc2763015670d54d86b160c71e79ad0af855e4db2d46140c78c",
+  "admissionBoundaryControls": {
+    "pass": 18,
+    "fail": 0,
+    "scope": "Pure known-capacity versus truthful bounded unknown-capacity, paid status, timestamp, credential side effects and generation limits"
+  }
+}

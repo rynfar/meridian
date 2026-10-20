@@ -183,6 +183,9 @@ export type LineageDivergenceReason =
   | "not-found"
   | "independent-request"
   | "priority-failback"
+  /** Another account's copy, used since this one, holds more of the history:
+   *  resuming this one would drop the replies given there. */
+  | "moved-on-elsewhere"
   | "missing-session-header"
   | "concurrent-race"
   | "compaction"

@@ -108,8 +108,9 @@ export const crushAdapter: AgentAdapter = {
    * Passthrough mode — Crush is a full GUI for Claude Code.
    *
    * Claude generates tool_use blocks, Crush executes them locally with
-   * full visibility (diffs, bash output, file reads). CLAUDE.md and
-   * memory are loaded via settingSources. Memory writes happen through
+   * full visibility (diffs, bash output, file reads). Instructions come from
+   * the client context; passthrough does not load proxy-host setting sources.
+   * Explicit memory settings remain, and memory writes happen through
    * Crush's own write tool targeting the memory directory.
    */
 

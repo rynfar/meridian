@@ -6,7 +6,15 @@ const [mode, root, name] = process.argv.slice(2)
 if (!mode || !root || !name) throw new Error("mode, root and worker name required")
 const actual = { ...fs }
 const lockPath = join(root, "writer.lock")
-const report = (value: string) => actual.writeFileSync(join(root, `${name}.result`), value)
+// Existence is the parent's completion signal. Publish only complete bytes:
+// open/write on the canonical name lets a polling parent observe an empty file.
+const publishReceipt = (suffix: string, value: string) => {
+  const target = join(root, `${name}.${suffix}`)
+  const pending = `${target}.pending-${process.pid}`
+  actual.writeFileSync(pending, value)
+  actual.renameSync(pending, target)
+}
+const report = (value: string) => publishReceipt("result", value)
 let intercepted = false
 mock.module("node:fs", () => ({
   ...actual,
@@ -16,7 +24,7 @@ mock.module("node:fs", () => ({
       && String(to).includes(".orphan-")
     if (!intercepted && ((canonical && mode === "pause-writer") || (claim && mode === "pause-claim"))) {
       intercepted = true
-      actual.writeFileSync(join(root, `${name}.paused`), "ready")
+      publishReceipt("paused", "ready")
       const deadline = Date.now() + 30_000
       while (!actual.existsSync(join(root, `${name}.resume`))) {
         if (Date.now() > deadline) throw new Error("schedule controller did not resume worker")
@@ -42,7 +50,7 @@ try {
     }
     if (actual.existsSync(join(root, `${name}.validate`))) {
       lease.assertValid()
-      actual.writeFileSync(join(root, `${name}.validated`), "still-valid")
+      publishReceipt("validated", "still-valid")
       actual.unlinkSync(join(root, `${name}.validate`))
     }
   }, 10)

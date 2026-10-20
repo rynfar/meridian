@@ -94,7 +94,7 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .feature-select {
     background: var(--surface); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;
-    min-width: 0; max-width: 100%;
+    min-width: 0; max-width: 100%; flex-shrink: 0;
   }
 
   .save-indicator {
@@ -169,9 +169,9 @@ ${profileBarHtml}
 
   <h1 style="margin-top:40px">SDK Features <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(210,153,34,0.15);color:var(--yellow);vertical-align:middle;margin-left:8px">Experimental</span></h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
-    Unlock Claude Code features for any connected agent. Capabilities like auto-memory, dreaming, and CLAUDE.md — normally
-    exclusive to Claude Code — become available to OpenCode, Crush, Droid, and any other harness routed through Meridian.
-    Each agent keeps its own toolchain while gaining access to these additional features.<br><br>
+    Choose SDK features for each connected agent. In passthrough, tools and project instructions come from the client;
+    Meridian does not load proxy-host CLAUDE.md, hooks, or MCP integrations. SDK-owned tool execution can use the host
+    instruction sources selected below. Memory and dreaming remain separate opt-ins.<br><br>
     <strong style="color:var(--text)">System prompts:</strong> For these features to work correctly, both the Claude Code prompt and your client prompt
     should be enabled. When both are active, they are appended together — Claude Code's base instructions come first,
     followed by your agent's specific instructions.
@@ -292,7 +292,7 @@ ${profileBarHtml}
 const FEATURES = [
   { key: 'codeSystemPrompt', label: 'Claude Code Prompt', desc: 'Include the built-in Claude Code system prompt (tool usage rules, safety guidelines, coding best practices)', type: 'toggle' },
   { key: 'clientSystemPrompt', label: 'Client Prompt', desc: 'Include the system prompt sent by the connecting agent (e.g. OpenCode or Crush instructions)', type: 'toggle' },
-  { key: 'claudeMd', label: 'CLAUDE.md', desc: 'Load CLAUDE.md instruction files — Off: none, Project: ./CLAUDE.md only, Full: ~/.claude/CLAUDE.md + ./CLAUDE.md', type: 'select', options: ['off', 'project', 'full'] },
+  { key: 'claudeMd', label: 'CLAUDE.md', desc: 'Load host instruction files for SDK-owned tool execution — Off: none, Project: ./CLAUDE.md, Full: user + project. Passthrough ignores this setting and uses client context.', type: 'select', options: ['off', 'project', 'full'] },
   { key: 'memory', label: 'Memory', desc: 'Read and write memories across sessions', type: 'toggle' },
   { key: 'dreaming', label: 'Auto-Dream', desc: 'Background memory consolidation', type: 'toggle' },
   { key: 'thinking', label: 'Thinking', desc: 'Extended thinking mode', type: 'select', options: ['disabled', 'adaptive', 'enabled'] },

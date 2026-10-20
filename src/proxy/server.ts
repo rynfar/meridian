@@ -208,6 +208,8 @@ import { getConversationFingerprint, getPriorityAssignmentKey } from "./session/
 
 import {
   lookupSession,
+  copyElsewhereHoldingMore,
+  messagesHeld,
   storeSession,
   rollbackPrioritySessionPublication,
   finalizePrioritySessionPublication,
@@ -791,6 +793,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // The env name predates the wider refusal set and stays as it is: renaming it
   // would silently drop anyone's existing override.
   const RESUME_REFUSAL_RETRY_DELAY_MS = parseInt(process.env.MERIDIAN_BUSY_RETRY_DELAY_MS ?? "500", 10)
+  /** A conversation's copy on an account is kept under the client's key scoped to that account. */
+  const mappingKeyOn = (profileId: string, sessionId: string): string =>
+    profileId !== "default" ? `${profileId}:${sessionId}` : sessionId
 
   // Hard ceiling on how long one turn may hold its session lease. The lease is
   // released when the request finishes, which for a stream means when the body
@@ -3126,6 +3131,46 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // prevent leaking the old session's conversation history.
         if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
           lineageResult = { type: "diverged", reason: "missing-session-header" }
+        }
+        // A copy of this conversation on another account holding more of
+        // this history than the one here, which would be resumed: copies are
+        // kept per account and outlive a move, so the one here can be behind
+        // the conversation (copyElsewhereHoldingMore). Kept under its session
+        // key, or, for a client that sends none, its fingerprint, scoped to
+        // each account as this account's is above. Looked for only when the
+        // copy here would be resumed, so a new or replayed conversation reads
+        // no other account's mapping.
+        //
+        // Both copies are measured against the raw client lineage, which
+        // decides ownership: a copy elsewhere published from a plugin-rewritten
+        // history keeps only its raw-client proof (clientLineageHash) and still
+        // counts. The replay this forces runs the execution history, and its
+        // publication keeps the SDK-prefix proof rules of any other replay.
+        const ownCopy = durableMappingAtTurn.status === "found" ? durableMappingAtTurn.session : undefined
+        const keyOn = (profileId: string): string | undefined => agentSessionId
+          ? mappingKeyOn(profileId, agentSessionId)
+          : getConversationFingerprint(lineageMessages, profileId !== "default" ? `${clientWorkingDirectory}::profile=${profileId}` : clientWorkingDirectory)
+        const elsewhere = durableMappingKey && !isIndependentSession
+          && lineageResult.type !== "diverged" && ownCopy
+          ? copyElsewhereHoldingMore(
+              getEffectiveProfiles(finalConfig.profiles)
+                .filter(other => other.id !== profile.id)
+                .flatMap(other => {
+                  const key = keyOn(other.id)
+                  return key ? [{ profileId: other.id, key }] : []
+                }),
+              lineageMessages,
+              { lastUsedAt: ownCopy?.lastUsedAt ?? 0, held: messagesHeld(lineageResult, lineageMessages) },
+            )
+          : undefined
+        // A conversation that comes back to this account after turns on
+        // another finds the copy it left here: a session that ends where the
+        // conversation was then. Resumed, it would be sent the turns taken
+        // elsewhere as a delta, which keeps only the user's side of them, so
+        // the model would answer without the replies it gave there.
+        if (lineageResult.type !== "diverged" && ownCopy && elsewhere) {
+          diagnosticLog.lineage(`${requestMeta.requestId} the copy of this conversation on ${profile.id} holds less of it than the one on ${elsewhere.profileId}: it took turns there since.`)
+          lineageResult = { type: "diverged", reason: "moved-on-elsewhere" }
         }
         // Clients that declare a concurrent flow (a fork source or either
         // subagent signal) knowingly run parallel turns under one session key — see

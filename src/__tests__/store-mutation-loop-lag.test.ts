@@ -9,15 +9,18 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
 import { randomUUID } from "node:crypto"
 import {
   closeSync,
+  fchmodSync,
   fsyncSync,
+  linkSync,
   mkdtempSync,
   openSync,
   readFileSync,
   renameSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs"
-import { tmpdir } from "node:os"
+import { hostname, tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   attachSharedTranscriptLocator,
@@ -26,6 +29,9 @@ import {
   setSessionStoreDir,
   storeSharedSession,
 } from "../proxy/sessionStore"
+
+import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
+import { syncDirectoryDurablySync } from "../proxy/session/durableFileSystem"
 
 const META_KEY = "\u0000meridian-session-store"
 
@@ -60,6 +66,46 @@ function publishForeign(dir: string, document: Record<string, unknown>): string 
   closeSync(fd)
   renameSync(temp, join(dir, "sessions.json"))
   return text
+}
+
+/**
+ * The old full-document writer already fsynced its initialized lock, data and
+ * parent directory. Keep that durable publication work in the reference: a
+ * direct write with one fsync is not comparable to a real locked mutation.
+ * This isolated reference never publishes over the production store.
+ */
+function fullDocumentReference(dir: string, label: string): void {
+  const path = join(dir, `baseline-${label}`)
+  const lockPath = `${path}.lock`
+  const staging = `${lockPath}.candidate-${randomUUID()}`
+  const temp = `${path}.tmp-${randomUUID()}`
+  const owner = JSON.stringify({ pid: process.pid, hostname: hostname(), token: randomUUID(), incarnation: captureProcessIncarnation() })
+  let fd: number | undefined
+  try {
+    fd = openSync(staging, "wx", 0o600)
+    fchmodSync(fd, 0o600)
+    writeFileSync(fd, owner)
+    fsyncSync(fd)
+    closeSync(fd)
+    fd = undefined
+    linkSync(staging, lockPath)
+    unlinkSync(staging)
+
+    const parsed: unknown = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
+    fd = openSync(temp, "wx", 0o600)
+    fchmodSync(fd, 0o600)
+    writeFileSync(fd, JSON.stringify(parsed))
+    fsyncSync(fd)
+    closeSync(fd)
+    fd = undefined
+    renameSync(temp, path)
+    syncDirectoryDurablySync(dir)
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+    rmSync(staging, { force: true })
+    rmSync(temp, { force: true })
+    rmSync(lockPath, { force: true })
+  }
 }
 
 function buildFixture(dir: string, entries: number, messagesPerEntry: number): { keys: string[]; text: string } {
@@ -111,27 +157,24 @@ describe("session store mutation cost on a large store", () => {
     const { keys, text } = buildFixture(dir, 400, 180)
     expect(text.length).toBeGreaterThan(5_000_000)
 
-    // What every mutation used to do on the loop: parse, serialize, write, fsync.
     const baselines: number[] = []
-    for (let run = 0; run < 3; run++) {
-      baselines.push(await loopLagOf(`baseline-${run}`, () => {
-        const parsed = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
-        const fd = openSync(join(dir, `baseline-${run}`), "w", 0o600)
-        writeFileSync(fd, JSON.stringify(parsed))
-        fsyncSync(fd)
-        closeSync(fd)
-      }))
-    }
 
     // The first mutation after a foreign write parses once and encodes every entry once.
     storeSharedSession(keys[0]!, randomUUID(), 3, hash(), [hash(), hash(), hash()])
     const lags: number[] = []
     for (let index = 1; index <= 5; index++) {
-      lags.push(await loopLagOf(`warm-${index}`, () => {
+      const reference = async () => baselines.push(await loopLagOf(`baseline-${index}`, () => fullDocumentReference(dir, String(index))))
+      const warm = async () => lags.push(await loopLagOf(`warm-${index}`, () => {
         storeSharedSession(keys[index]!, randomUUID(), 3, hash(), [hash(), hash(), hash()])
       }))
+      // Counterbalance which writer follows the preceding durable publication.
+      // Always running warm second charges periodic flush/queue latency only
+      // to that arm, even though both writers retain the same three barriers.
+      if (index % 2 === 0) { await warm(); await reference() }
+      else { await reference(); await warm() }
     }
     const entry = lookupSharedSession(keys[6]!)!
+    // Sixth pair completes three reference-first and three warm-first pairs.
     lags.push(await loopLagOf("warm-locator", () => {
       attachSharedTranscriptLocator(keys[6]!, entry.claudeSessionId, {
         sessionId: entry.claudeSessionId,
@@ -139,6 +182,7 @@ describe("session store mutation cost on a large store", () => {
         projectDir: "/home/user/.claude/projects/other",
       })
     }))
+    baselines.push(await loopLagOf("baseline-locator", () => fullDocumentReference(dir, "locator")))
 
     console.log(`[loop-lag] ${(text.length / 1e6).toFixed(1)} MB store: warm mutation median ${median(lags).toFixed(1)} ms, max ${Math.max(...lags).toFixed(1)} ms; full-document baseline median ${median(baselines).toFixed(1)} ms`)
     expect(median(lags)).toBeLessThan(median(baselines) * 0.75)

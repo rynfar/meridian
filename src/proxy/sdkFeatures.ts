@@ -14,7 +14,7 @@ export interface AdapterFeatures {
   codeSystemPrompt: boolean
   /** Include the client agent's system prompt (e.g. OpenCode/Crush instructions) */
   clientSystemPrompt: boolean
-  /** Load CLAUDE.md instruction files (off, project, full) */
+  /** Load host CLAUDE.md files for SDK-owned tools; ignored in client-owned passthrough. */
   claudeMd: "off" | "project" | "full"
   /** Enable auto-memory (read + write across sessions) */
   memory: boolean

@@ -661,6 +661,11 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
     effort, thinking, taskBudget, outputFormat, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, maxOutputTokens, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
+  // Passthrough tool execution belongs to the client. Loading proxy-host
+  // settings also loads native plugins and SessionStart hooks: plugins: []
+  // does not disable installed plugins, and their names are not client tools.
+  // Keep client-provided instructions and explicit SDK settings/hooks instead.
+  const sdkSettingSources = passthrough ? [] : (settingSources ?? [])
   const resolvedModel = model === "haiku"
     ? ctx.envOverrides?.ANTHROPIC_DEFAULT_HAIKU_MODEL ?? cleanEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL ?? "claude-haiku-5-5"
     : model
@@ -760,6 +765,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
             // `--tools`, sending every deferred MCP tool with its full schema
             // on every turn even when `ENABLE_TOOL_SEARCH=true`.
             tools: hasDeferredTools ? ["ToolSearch"] : [],
+            strictMcpConfig: true,
             disallowedTools: [...allBlockedTools],
             ...(passthroughMcp ? {
               allowedTools: [...passthroughMcp.toolNames],
@@ -794,9 +800,9 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       // `--setting-sources=` → subprocess loads nothing. Omitting the key
       // makes claude-code fall back to its built-in default (user + project
       // + local) and slurp CLAUDE.md from the PROXY HOST's cwd into the
-      // system prompt regardless of claudeMd:"off" — #490 fixed this for
-      // passthrough; this extends the same guarantee to every adapter.
-      settingSources: settingSources ?? [],
+      // system prompt regardless of claudeMd:"off". Client-owned passthrough
+      // always stays isolated; SDK-owned tools retain the selected sources.
+      settingSources: sdkSettingSources,
       ...(onStderr ? { stderr: onStderr } : {}),
       env: {
         // First, so an operator-set value of any kind overrides it.

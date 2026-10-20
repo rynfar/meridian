@@ -18,6 +18,66 @@ See [before/after receipts, retained timing failure and limits](docs/maintenance
 
 # End-to-End Testing
 
+## Client-owned tool isolation: model-facing request gate
+
+```sh
+bun scripts/e2e-passthrough-tool-isolation.mjs --baseline --claude-executable=<real-native-claude>
+bun scripts/e2e-passthrough-tool-isolation.mjs --claude-executable=<real-native-claude>
+```
+
+The baseline must fail: it restores the former filesystem-setting/MCP-discovery
+options. A disposable user SessionStart hook advertises a foreign context-mode
+name, and a disposable project MCP server declares that same name. The actual
+Agent SDK and native Claude CLI serialize their **model-facing HTTP request**
+to a loopback responder. Assertions reject either foreign guidance or foreign
+tool declarations and require the client-owned tool and client context to remain.
+This catches contamination even if a model happens to choose the right tool.
+
+The candidate must pass with only `mcp__oc__context-mode_ctx_execute` advertised.
+Reports retain the tool-name list, relevant injected guidance and cleanup result;
+credentials, raw unrelated prompts and the owner's configuration are not copied.
+The source checkout can contain a non-executable CLI fixture: explicitly choose
+the real native binary for this gate. The SDK query has a 60-second bound and
+owned processes/listener are closed before returning.
+
+This is real SDK/CLI **request construction** E2E with a fixture model responder,
+not real model-choice or native OpenCode child acceptance. After activation, run
+an unguided native OpenCode child through the implicated Claude-family route,
+assert its emitted client tool name, and inspect the SDK SessionStart context.
+An isolated hook invocation or one successful tool choice is insufficient.
+
+Passthrough intentionally ignores proxy-host `claudeMd` filesystem sources:
+those sources load executable hooks/plugins as well as markdown. Client-owned
+instructions must arrive in the client system context. Explicit SDK hooks,
+memory settings, preset selection and non-passthrough source selection remain.
+
+Existing native sessions can retain SessionStart guidance injected before this
+isolation policy. Removing a discovery source does not erase saved guidance.
+A fresh client conversation is required to establish an uncontaminated native
+session; do not treat successful resumed tool filtering as proof of clean
+instructions. The owned resumed-session probe in the maintenance evidence
+records this limitation separately from the fresh-session gate.
+
+The actual OpenCode check is `node scripts/e2e-opencode-host-isolation.mjs`.
+Build first. Set absolute `E2E_OPENCODE_BIN` (2.0.31 by default),
+`E2E_NATIVE_BIN`, installed server scrub `E2E_PLUGIN_PATH`, and an owned
+`E2E_EVIDENCE_DIR`; `E2E_MERIDIAN_ROOT` selects the built source or installed
+package. It installs that package's matching V2 client plugin and verifies the
+server scrub before and after the run. Client and proxy projects are distinct.
+The proxy's disposable full instruction sources contain a CLAUDE.md marker,
+SessionStart hook and HTTP MCP server. The client's actual file-read/result
+round must succeed while all three host sources are absent from its native
+model request. `--expect-baseline` requires all three leaks on unchanged main.
+The default upstream is scripted and spends no model requests.
+
+For actual model acceptance, add `--live`, `E2E_ALLOW_LIVE_MODEL=1`, private
+access-only `E2E_LIVE_PROFILE_FILE`, and a fresh read-only
+`E2E_USAGE_GUARD_FILE` establishing included capacity and disabled Extra Usage.
+This gate pins Haiku 5.5, rejects refusal/model changes before another request,
+bounds generations, joins original child/pipe handles, and correlates provider,
+native and public-SDK stored message IDs. It does not inspect private SDK
+transcripts. Run all four E41 modes and affected E42 hosts separately.
+
 ## Overlapping passthrough queries
 
 ```sh
@@ -63,6 +123,59 @@ SDK `query()`, Claude/model inference or the reported #1326 affected client.
 Windows uses a separate wrapper/cancellation contract; these POSIX fixtures
 explicitly skip it. See [durable proof, receipts, baseline reproduction and
 limits](docs/maintenance/evidence/sdk-process-close-join.md).
+
+## SDK wrapper process probe off the event loop (E84)
+
+**What it should prove:** a request that opens its SDK process gate captures
+the wrapper's process incarnation without holding every other request while
+the probe runs, and the probe waits up to 10 s instead of failing at 2 s.
+Whether that is enough at a load average near 40 has not been shown on this
+build.
+
+The SDK gate captures each request's wrapper process before the SDK command
+opens. On macOS and Windows that capture is a child process (`ps -o lstart=` or
+PowerShell). Run synchronously it held the event loop for every other streaming
+request, and under heavy load it outran its 2 s timeout, so the request failed
+before any Messages call with `cannot capture SDK writer process incarnation`.
+`createSdkProcessGate` now awaits `captureProcessIncarnationAsync`, which runs
+the same probe with `execFile` and a 10 s timeout and returns the same identity
+as the synchronous capture. Linux still reads `/proc` directly. A probe that
+ignores execFile's SIGTERM is force-killed at an outer deadline 2 s later, and
+the request fails with the same error instead of waiting on it indefinitely.
+Because the event loop runs during the probe, a wrapper that exits meanwhile
+could be reaped and its pid reused, so a capture that finishes after its
+wrapper exited is refused with the same error.
+
+**Unit coverage:** `process-incarnation.test.ts` drives the darwin `ps` and
+win32 PowerShell probes on any host, with `process.platform` and `execFile`
+stubbed: the probe is awaited while timers keep firing, `spawnSync` is never
+called, and success and failure answers parse as the synchronous capture does.
+It also checks that a probe ignoring its timeout is answered by the outer
+deadline and killed. `sdk-process-gate.test.ts` drives the gate's awaited
+darwin probe the same way, and refuses a capture that finished after its
+wrapper exited. On a Linux host the unstubbed "without `spawnSync`" checks
+pass either way, because Linux never spawns a probe.
+
+**Source evidence, not re-run against this build:** recorded on the
+contributor's fork on macOS with Claude CLI 2.1.284–2.1.294, through a parallel
+background-subagent gate that is not part of this change, on a scripted API
+with no model calls.
+
+- Before: 12 subagents at a load average near 40 on 10 cores, 12 runs. In 5,
+  one request failed before any Messages call with `cannot capture SDK writer
+  process incarnation`, the 2 s `ps` probe of a new SDK child timing out.
+- After: 4 subagents at a load average near 11: PASS, 28 of 28 requests
+  dispatched, no replay. Not repeated at a load near 40.
+
+**Owed for this build:**
+
+- macOS: Claude Code with parallel background subagents through the proxy, at
+  a moderate load and at a load average near 40.
+- macOS: a hung `ps` probe answered by the outer deadline.
+- Windows: any run of the PowerShell probe through the gate.
+
+A probe that outlasts 10 s still fails its request before any Messages call,
+and the client asks again.
 
 ## Shared header separator hover (#1262)
 
@@ -8065,6 +8178,70 @@ return. Both aliases deliberately share a grant, so this is lifecycle proof.
 Run all four E41 modes for affected session/history/cache continuity as well.
 Production pruning is opt-in through `MERIDIAN_SESSION_PROFILE_COPY_PRUNE=1`.
 
+### Stale account copy after a move (source E85)
+
+**What it proves:** a conversation that comes back to an account after taking
+turns on another is not resumed from the copy it left there. That copy ends
+where the conversation was when it left; resumed, it would be sent the turns
+taken elsewhere as a delta of the user's side only, and the model would answer
+without the replies it gave on the other account. When another account's copy,
+used since, holds more of the raw client history, the turn is replayed instead
+and the request log shows `diverged=moved-on-elsewhere`. The account's own copy
+still resumes when nothing elsewhere holds more, as after a rewind to a point
+it holds.
+
+Offline, mocked SDK (no model calls):
+
+```bash
+bun test src/__tests__/account-return-trip.test.ts src/__tests__/session-copy-held.test.ts
+```
+
+`account-return-trip.test.ts` runs a turn on `work`, two on `backup` and one
+back on `work`, keyed by `x-opencode-session` and, for ForgeCode, by
+fingerprint: the way back is a full replay holding both `backup` answers. A
+control removes `backup`'s mapping first: `work` then resumes its stale copy
+and the `backup` answers are missing from what the model is sent. With the
+guard's `if` disabled, the keyed and fingerprint trips fail the same way.
+
+Live procedure, two owned profiles `<profile-a>` and `<profile-b>`, `active`
+routing:
+
+1. In a new client conversation, turn 1 on `<profile-a>`. Switch to
+   `<profile-b>`; turns 2 and 3, asking the model to state a random token in
+   each answer.
+2. Switch back to `<profile-a>`; turn 4 asks for both tokens.
+3. Pass: turn 4's request line shows `profile=<profile-a>`, `lineage=new` and
+   `diverged=moved-on-elsewhere`, one SDK query, and the answer gives both
+   tokens. Turn 3 (still on `<profile-b>`) shows `lineage=continuation`.
+4. Rewind control, as its own conversation: steps 1-3 above replace
+   `<profile-a>`'s copy with the replay, so the copy this control keeps no
+   longer exists there and an edit would test undo on the replayed session
+   (`lineage=undo`). Start a second new conversation: turn 1 on `<profile-a>`,
+   turns 2 and 3 on `<profile-b>`, switch back to `<profile-a>`, and make the
+   first request there an edit of turn 2's question in the client. Pass: the
+   request resumes `<profile-a>`'s original session from turn 1
+   (`lineage=continuation`, same session id as turn 1), with no
+   `moved-on-elsewhere`.
+5. Repeat steps 1-3 with a client that sends no session key (ForgeCode or a
+   headerless Pi) to cover the fingerprint lookup.
+
+**Limit:** the guard depends on the other account's newer mapping being present.
+If that mapping is explicitly evicted (as the offline control does), the stale
+resume comes back. A shared-store read failure rejects the request before SDK
+execution; it must not be treated as a missing copy. Pruning
+(`MERIDIAN_SESSION_PROFILE_COPY_PRUNE`) and expiry remove
+the older copy, which is the stale one, first, so they lead to a replay rather
+than a stale resume. Do not use eviction, pruning or expiry as a pass path in
+the steps above.
+
+**Evidence status:** the source author's runs (macOS, Claude CLI
+2.1.284–2.1.294) exercised this guard together with a transcript carry that is
+not part of this build; they were not re-run against this build and do not
+stand in for it. Owed before release: steps 1-5 on Linux with the affected
+client (OpenCode with the Meridian plugin for the keyed path; ForgeCode or Pi
+for the fingerprint path), the actual model and Claude CLI version in use,
+recording request lines and the turn-4 answer.
+
 ### Asynchronous SDK launch gate (#1221)
 
 After build, run `scripts/e2e-sdk-gate-client.mjs` with
@@ -8422,3 +8599,11 @@ Run once against an unbudgeted baseline (which sends ~249 KB in the replayed ste
 and reports `NEWEST_TURN_LOST`) and once against the candidate (which shrinks
 the oldest tool results first to ~170 KB and reports `NEWEST_TURN_DELIVERED`
 with `newestTail: true`, `oldestHead: true`, `nonce: true`, and `toolCalls: 0`).
+
+
+## Maintained actual-client profile history probe
+
+The [E85 client history harness](docs/maintenance/evidence/e85-client-history-harness.md)
+checks keyed return, a separate actual OpenCode rewind and keyless Pi with
+retained profile mappings and exact native namespaces. Its scripted upstream
+preflight does not replace the actual-model acceptance required by #1401.
