@@ -1,8 +1,9 @@
 /**
- * Verify and provision OpenCode priority-failback attestations.
+ * Verify and provision priority-failback attestations.
  *
- * The OpenCode plugin signs a bounded positive assertion at its final outbound
- * hook. Meridian verifies it before treating a request as a new human turn.
+ * The OpenCode plugin and the Pi extension sign a bounded positive assertion at
+ * their final outbound hook. Meridian verifies it before treating a request as
+ * a new human turn. Each adapter accepts only its own client's generations.
  * Missing or invalid attestations fail closed to normal profile affinity.
  */
 
@@ -25,9 +26,10 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 const TURN_DIGEST_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
 export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314" | "oc2v2016"
+export type AttestationGeneration = OpenCodeAttestationGeneration | "pi1"
 
 export interface VerifiedPriorityAttestation {
-  readonly generation: OpenCodeAttestationGeneration
+  readonly generation: AttestationGeneration
   readonly sessionId: string
   readonly agentId: string
   readonly turnId: string
@@ -147,7 +149,7 @@ function parseCanonicalPayload(raw: string): VerifiedPriorityAttestation | undef
   if (!isRecord(value)) return undefined
   if (Object.keys(value).join(",") !== "v,g,s,a,t,iat") return undefined
   if (value.v !== 1) return undefined
-  if (value.g !== "oc1" && value.g !== "oc2b18314" && value.g !== "oc2v2016") return undefined
+  if (value.g !== "oc1" && value.g !== "oc2b18314" && value.g !== "oc2v2016" && value.g !== "pi1") return undefined
   if (typeof value.s !== "string" || !SAFE_ID_PATTERN.test(value.s)) return undefined
   if (typeof value.a !== "string" || !isSafeAgentId(value.a)) return undefined
   if (typeof value.t !== "string" || !TURN_DIGEST_PATTERN.test(value.t)) return undefined

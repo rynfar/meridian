@@ -4,14 +4,17 @@
  * Provides pi-specific behavior for session tracking, working directory
  * extraction, content normalization, and tool configuration.
  *
- * Pi (@mariozechner/pi-coding-agent) is a CLI coding agent that makes
- * standard Anthropic Messages API calls. When using a custom baseUrl
- * (pointing at Meridian), pi operates in non-OAuth mode with lowercase
- * tool names and its own tool execution loop.
+ * Pi (@earendil-works/pi-coding-agent, formerly @mariozechner/pi-coding-agent)
+ * is a CLI coding agent that makes standard Anthropic Messages API calls. When
+ * using a custom baseUrl (pointing at Meridian), pi operates in non-OAuth mode
+ * with lowercase tool names and its own tool execution loop.
  *
  * Key characteristics:
  * - User-Agent: claude-cli/<version> (mimics Claude Code) or default SDK UA
- * - No session header: relies on fingerprint-based session cache
+ * - With the Meridian Pi extension (plugin/pi): `x-session-affinity` from Pi's
+ *   session ID, `x-meridian-source: subagent-*` for side calls and delegated
+ *   children, and signed human-turn attestations. Without it: no session
+ *   header, so continuity relies on the fingerprint-based session cache
  * - CWD in system prompt: "Current working directory: /path/to/project"
  * - 7 lowercase tools: read, write, edit, bash, grep, find, ls
  * - Always streams (stream: true)
@@ -25,10 +28,11 @@
  */
 
 import type { Context } from "hono"
-import type { AgentAdapter } from "../adapter"
+import type { AgentAdapter, RoutingTurnIdentity } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { PRIORITY_ATTESTATION_HEADER, verifyPriorityAttestation } from "../priorityAttestation"
 import { resolvePassthrough } from "../../env"
 import { extractClaudeCodeSessionId } from "./claudecode"
 
@@ -112,6 +116,36 @@ export const piAdapter: AgentAdapter = {
    */
   getSessionId(c: Context, body?: unknown): string | undefined {
     return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
+  },
+
+  /**
+   * NOTE: agent-specific (pi) — only the Meridian Pi extension's final-hook
+   * HMAC assertion can authorize a user-turn routing change. It must name the
+   * request's own session key, and a request marked as a side call or child
+   * (`x-meridian-source`) or pinned to a profile is never eligible, whatever it
+   * carries. OpenCode generations are rejected here, as `pi1` is in the
+   * OpenCode adapter.
+   */
+  getRoutingTurnIdentity(c: Context): RoutingTurnIdentity | undefined {
+    if (c.req.header("x-meridian-profile") !== undefined) return undefined
+    if (c.req.header("x-meridian-source") !== undefined) return undefined
+    const sessionId = c.req.header("x-session-affinity")
+    if (!sessionId) return undefined
+    const attestation = verifyPriorityAttestation(c.req.header(PRIORITY_ATTESTATION_HEADER))
+    if (
+      !attestation
+      || attestation.generation !== "pi1"
+      || attestation.sessionId !== sessionId
+      || attestation.agentId !== "pi"
+    ) {
+      return undefined
+    }
+    return {
+      kind: "human",
+      turnId: attestation.turnId,
+      issuedAt: attestation.issuedAt,
+      generation: "pi-1",
+    }
   },
 
   extractWorkingDirectory(body: any): string | undefined {

@@ -18,6 +18,27 @@ See [before/after receipts, retained timing failure and limits](docs/maintenance
 
 # End-to-End Testing
 
+## Pi extension
+
+```sh
+bun scripts/e2e-pi-extension.mjs --pi=/path/to/pi
+```
+
+Runs `meridian setup --client pi` into a scratch Pi agent directory, starts
+Meridian in-process on scratch state, and runs real Pi in print mode through a
+loopback recorder: a Haiku 5.5 tool-loop turn, a delegated child with
+`MERIDIAN_SOURCE=subagent-e2e`, and an Opus 5.5 turn at high effort. It asserts
+model discovery and, for every request, the wire identity (`x-meridian-agent:
+pi`, Pi's session ID as `x-session-affinity`, no foreign identity headers),
+a verified `pi1` attestation on primary turns and none on the child, and
+Meridian's `pi` adapter in telemetry. Generation outcomes are reported; the exit
+status is 1 when any did not succeed.
+
+**Run 2026-10-19:** macOS arm64, Pi 1.3.0, Claude Max. Every identity check
+passed. Every generation was refused upstream with `402 billing_error`
+("Third-party apps now draw from your extra usage"), so the tool loop and
+successful responses are not live-verified on an account without Extra Usage.
+
 ## Overlapping passthrough queries
 
 ```sh

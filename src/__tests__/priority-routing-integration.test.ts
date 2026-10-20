@@ -17,6 +17,8 @@ import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId, streamEvent } from "./helpers"
 import { createPriorityAttestation } from "../../plugin/priority-attestation"
+import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript"
+import { requestOptions } from "../../plugin/pi/headers"
 import type { PriorityFailbackPolicy } from "../proxy/routing"
 import type { DurablePriorityAssignment } from "../proxy/sessionStore"
 
@@ -313,6 +315,46 @@ function trustedOpenCodeTurnHeaders(
     "x-opencode-agent-mode": "primary",
     "x-meridian-opencode-turn": token,
   }
+}
+
+/**
+ * Headers the Meridian Pi extension sends for a turn of a root Pi session,
+ * produced by the extension's own request shaping and final-hook signer.
+ */
+function trustedPiTurnHeaders(
+  sessionId: string,
+  humanMessageId: string,
+  source?: string,
+): Record<string, string> {
+  const clockKey = `pi:${sessionId}`
+  const previous = testTurnClock.get(clockKey)
+  const issuedAt = previous?.humanMessageId === humanMessageId
+    ? previous.issuedAt
+    : Math.max(Math.floor(Date.now() / 1000), (previous?.issuedAt ?? 0) + 1)
+  testTurnClock.set(clockKey, { humanMessageId, issuedAt })
+  const session = {
+    getSessionId: () => sessionId,
+    getHeader: () => null,
+    getBranch: () => [{ type: "message", id: humanMessageId, message: { role: "user", timestamp: issuedAt * 1000 } }],
+  }
+  const shaped = requestOptions(
+    normalizeContext({ messages: [] }),
+    { sessionId, headers: source ? { "x-meridian-source": source } : {} },
+    { session },
+    PRIORITY_ATTESTATION_TEST_KEY,
+  ).headers ?? {}
+  const headers: Record<string, string> = {}
+  for (const [name, value] of Object.entries(shaped)) if (value !== null) headers[name] = value
+  return headers
+}
+
+async function assignPiToFallback(app: TestApp, sessionId: string): Promise<void> {
+  process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+  const response = await post(app, trustedPiTurnHeaders(sessionId, "a1b2c3d4"), OPENING_MESSAGE)
+  await response.json()
+  process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+  capturedEnvs = []
+  capturedSdkCalls = []
 }
 
 function durableRoute(sessionId: string): DurablePriorityAssignment {
@@ -833,6 +875,95 @@ describe("priority routing", () => {
 
     // Then
     expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("promotes a Pi conversation on a newer human turn signed by the Pi extension", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignPiToFallback(app, "pi-promotion-session")
+
+    // When
+    const response = await post(app, trustedPiTurnHeaders("pi-promotion-session", "e5f6a7b8"), CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-work")
+    expect(capturedEnvs[0]).toContain("prof-work")
+    expect(lookupPriorityAssignmentResult("pi:pi-promotion-session").status).toBe("found")
+  })
+
+  it("keeps a Pi tool continuation of the same human turn on its fallback", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignPiToFallback(app, "pi-tool-session")
+
+    // When
+    const response = await post(app, trustedPiTurnHeaders("pi-tool-session", "a1b2c3d4"), TOOL_CONTINUATION)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("never promotes a Pi request marked as a side call or subagent", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignPiToFallback(app, "pi-source-session")
+    const headers = {
+      ...trustedPiTurnHeaders("pi-source-session", "e5f6a7b8"),
+      "x-meridian-source": "subagent-generate",
+    }
+
+    // When
+    const response = await post(app, headers, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("does not accept a Pi attestation for an OpenCode session, or the reverse", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "cross-opencode-session")
+    await assignPiToFallback(app, "cross-pi-session")
+    // Everything but the generation matches what each adapter would accept.
+    const issuedAt = Math.floor(Date.now() / 1000) + 5
+    const piTokenForOpenCode = createPriorityAttestation({
+      generation: "pi1",
+      sessionId: "cross-opencode-session",
+      agentId: "build",
+      humanMessageId: "request-2",
+      issuedAt,
+    }, PRIORITY_ATTESTATION_TEST_KEY)!
+    const openCodeTokenForPi = createPriorityAttestation({
+      generation: "oc1",
+      sessionId: "cross-pi-session",
+      agentId: "pi",
+      humanMessageId: "e5f6a7b8",
+      issuedAt,
+    }, PRIORITY_ATTESTATION_TEST_KEY)!
+
+    // When
+    const openCode = await post(app, {
+      ...trustedOpenCodeTurnHeaders("cross-opencode-session", "request-2"),
+      "x-meridian-opencode-turn": piTokenForOpenCode,
+    }, CONTINUED_AFTER_PERSONAL)
+    const pi = await post(app, {
+      ...trustedPiTurnHeaders("cross-pi-session", "e5f6a7b8"),
+      "x-meridian-opencode-turn": openCodeTokenForPi,
+    }, CONTINUED_AFTER_PERSONAL)
+
+    // Then
+    expect(await openCode.text()).toContain("prof-personal")
+    expect(await pi.text()).toContain("prof-personal")
     expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
   })
 

@@ -34,6 +34,7 @@ Commands:
   test-error-report  Crash with a test error to check error reporting reaches the collector
 
 Setup options:
+  --client pi                  Install the Meridian Pi extension (Claude)
   --antigravity                Configure Pi or OpenCode V1 for Antigravity
   --client <pi|opencode>       Client to configure with --antigravity
   --url <base URL>             Antigravity URL (include /antigravity in combined mode)
@@ -115,6 +116,36 @@ if (args[0] === "setup" && args.includes("--antigravity")) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
   }
+}
+
+if (args[0] === "setup" && args.includes("--client") && args[args.indexOf("--client") + 1] === "pi") {
+  const {
+    assertSupportedPiVersion,
+    detectPiVersion,
+    findPluginRoot,
+    installPiExtension,
+    UnsupportedPiVersionError,
+  } = await import("../src/proxy/piSetup")
+  const piVersion = detectPiVersion()
+  try {
+    assertSupportedPiVersion(piVersion)
+  } catch (err) {
+    if (err instanceof UnsupportedPiVersionError) {
+      console.error(`\x1b[31m✗ ${err.message}\x1b[0m`)
+      console.error("  Upgrade with: npm install -g @earendil-works/pi-coding-agent")
+      console.error("  Older Pi releases can still use the models.json setup in docs/agents.md.")
+      process.exit(1)
+    }
+    throw err
+  }
+  if (!piVersion) {
+    console.error("\x1b[33m⚠ Could not run 'pi --version'; installing anyway. The extension requires Pi 1.0 or newer.\x1b[0m")
+  }
+  const result = installPiExtension(findPluginRoot(import.meta.url))
+  console.log(`\x1b[32m✓ Meridian extension ${result.replaced ? "updated" : "installed"} for Pi${piVersion ? ` ${piVersion}` : ""}\x1b[0m`)
+  console.log(`  Extension: ${result.extensionPath}`)
+  console.log("\nRestart Pi or run /reload, then pick a model under the meridian provider with /model.")
+  process.exit(0)
 }
 
 if (args[0] === "setup") {
@@ -346,6 +377,18 @@ export async function runCli(
         console.error("\x1b[33m⚠ Meridian plugin not found in OpenCode config.\x1b[0m")
         console.error("  Session tracking and subagent model selection won\'t work.")
         console.error(`  Fix: meridian setup`)
+        console.error("")
+      }
+    } catch { /* non-fatal */ }
+
+    // Pi check — warn if Pi is installed but the Meridian extension is missing or stale
+    try {
+      const { findPluginRoot, piStartupWarning } = await import("../src/proxy/piSetup")
+      const warning = piStartupWarning(findPluginRoot(import.meta.url))
+      if (warning) {
+        const [headline, ...details] = warning
+        console.error(`\x1b[33m${headline}\x1b[0m`)
+        for (const line of details) console.error(line)
         console.error("")
       }
     } catch { /* non-fatal */ }
