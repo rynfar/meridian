@@ -140,6 +140,7 @@ export const SUPPORTED_OPENCODE_V2_VERSIONS = new Set([
   "0.0.0-beta-19271",
   "2.0.16",
   "2.0.21",
+  "2.0.31",
 ])
 
 /** Check our package manifest and entry without executing plugin code during setup. */

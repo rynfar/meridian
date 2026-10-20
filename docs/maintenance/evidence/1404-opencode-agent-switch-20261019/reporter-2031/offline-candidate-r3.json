@@ -1,0 +1,332 @@
+{
+  "scope": "actual OpenCode/SDK/native, loopback model responder only",
+  "expected": "candidate",
+  "diagnose": false,
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v24.20.0",
+  "model": "claude-haiku-5-5",
+  "requests": [
+    {
+      "requestId": "agent-switch-db079a1b-abce-4828-9241-8e869f9db425",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-39f8bf89-d9d0-46b9-a9a7-4c1e996f83a0",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_ea7b66d8fffeWGhfQsJvVh0Hdn",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-90b2031f-8de9-4985-a321-9c74e62de0e4",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-5a55f778-4796-4552-b0b5-ba9d18e07ed7",
+      "agent": "reviewer",
+      "mode": "primary",
+      "session": "ses_ea7b66d8fffeWGhfQsJvVh0Hdn",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true
+    },
+    {
+      "requestId": "agent-switch-67aa2bc3-3ada-495f-a825-7bfe9dc7e318",
+      "agent": "reviewer",
+      "mode": "primary",
+      "session": "ses_ea7b66d8fffeWGhfQsJvVh0Hdn",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true
+    },
+    {
+      "requestId": "agent-switch-11a16c4b-fb85-4931-bf08-63a1c2a021c2",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_ea7b66d8fffeWGhfQsJvVh0Hdn",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    }
+  ],
+  "upstreamRequests": [
+    {
+      "method": "HEAD",
+      "path": "/api/hello"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages"
+    }
+  ],
+  "provider": [
+    {
+      "turn": 0,
+      "primary": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "responseId": "msg_4719bf5b-20c0-48ab-8219-615d62ba851d",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 0,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "responseId": "msg_2b6f1857-f2be-439a-973a-bce1da32394b",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 1,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "responseId": "msg_a9499186-0917-489e-9db9-562dce32298e",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 2,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "responseId": "msg_81d8da85-73cc-454c-b5f9-134c424eba1a",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 3,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "responseId": "msg_5a18f017-303f-4a08-b94d-8c361a11c2ab",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    }
+  ],
+  "nativeModels": [],
+  "actors": [
+    {
+      "pid": 21,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 30,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 35,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 52,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 130,
+      "signal": null
+    },
+    {
+      "pid": 88,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 92,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 176,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 220,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 264,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "responseId": "msg_2b6f1857-f2be-439a-973a-bce1da32394b",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 1,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "responseId": "msg_a9499186-0917-489e-9db9-562dce32298e",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 2,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "responseId": "msg_81d8da85-73cc-454c-b5f9-134c424eba1a",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    },
+    {
+      "turn": 3,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "responseId": "msg_5a18f017-303f-4a08-b94d-8c361a11c2ab",
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn"
+    }
+  ],
+  "discovery": 1,
+  "refusal": false,
+  "client": "opencode v2.0.31",
+  "native": "2.1.301 (Claude Code)",
+  "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+  "scrubPreflight": {
+    "path": "/runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 0,
+    "errors": 0
+  },
+  "plugin": "/artifact/node_modules/@rynfar/meridian/dist/meridian-v2",
+  "adoptedCatalog": {
+    "id": "claude-haiku-5-5",
+    "variants": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "session": "ses_ea7b66d8fffeWGhfQsJvVh0Hdn",
+  "telemetry": [
+    [
+      {
+        "isResume": false,
+        "lineageType": "new",
+        "status": 200,
+        "sdkSessionId": "7b5ca011-4648-4c18-8e8b-57510c29616a"
+      }
+    ],
+    [
+      {
+        "isResume": false,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "3915f457-2ddb-4332-b74a-348e2c554621"
+      }
+    ],
+    [
+      {
+        "isResume": true,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "2e569f59-6ed3-4406-81aa-d01d39e62ccf"
+      }
+    ],
+    [
+      {
+        "isResume": false,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "1aaab4cb-95a4-4103-952a-9faa1b76f096"
+      }
+    ]
+  ],
+  "scrubFinal": {
+    "path": "/runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 6,
+    "errors": 0
+  },
+  "storedModels": [],
+  "result": "FAIL",
+  "failure": "AssertionError [ERR_ASSERTION]: Model correlation requires owned SDK history",
+  "joined": true
+}

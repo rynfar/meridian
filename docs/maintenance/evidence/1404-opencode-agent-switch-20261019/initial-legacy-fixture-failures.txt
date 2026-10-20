@@ -1,0 +1,925 @@
+[PROXY] c0928c73-db94-4cf8-b990-05229c28fa7d adapter=opencode model=sonnet stream=false tools=0 lineage=undo session=new sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] c0928c73-db94-4cf8-b990-05229c28fa7d usage: input=10 output=5 cache=0%
+167 |     const body = await response.json()
+168 |     expect(body.content).toBeDefined()
+169 |     expect(body.content.some((b: any) => b.type === "text")).toBe(true)
+170 | 
+171 |     // First call should have had resumeSessionAt (the undo attempt)
+172 |     expect(queryCalls[0]!.resumeSessionAt).toBe("uuid-assistant-1")
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "uuid-assistant-1"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-stale-uuid-retry.test.ts:172:44)
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+
+[PROXY] 8896f789-873c-4fd1-83dd-901ad4f3eddf adapter=opencode model=sonnet stream=true tools=0 lineage=undo session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 8896f789-873c-4fd1-83dd-901ad4f3eddf usage: input=10 output=50 cache=0%
+260 |     // Should contain SSE events from the retry (not an error)
+261 |     expect(text).toContain("event: message_start")
+262 |     expect(text).not.toContain("No message found with message.uuid")
+263 | 
+264 |     // Verify retry happened: first call with resumeSessionAt, second without
+265 |     expect(queryCalls[0]!.resumeSessionAt).toBe("uuid-assistant-1")
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "uuid-assistant-1"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-stale-uuid-retry.test.ts:265:44)
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+
+[PROXY] 476284ec-fbc0-44d1-bf05-bfb5e821ebd6 session unusable (missing-message), evicting and replaying as fresh session
+[PROXY] 476284ec-fbc0-44d1-bf05-bfb5e821ebd6 usage: input=5 output=2 cache=0%
+211 |       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+212 |       const res = await post(app, [...prior, { role: "user", content: "continue" }], { "x-opencode-session": "sess-budget-refusal" }, streaming)
+213 |       await res.text()
+214 |       expect(res.status).toBe(200)
+215 |       expect(capturedPrompts).toHaveLength(2)
+216 |       expect(capturedOptions[0].resume).toBe("sdk-budget-refusal")
+                                              ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-budget-refusal"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-replay-envelope.test.ts:216:41)
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+
+- "follow up"
++ "<conversation_history>
++ hello
++ 
++ [Assistant: hi there]
++ </conversation_history>
++ 
++ The above is a replay of your prior conversation with this user — the original session could not be resumed. It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, and never invent tool output — use your actual tools when action is needed. Respond only as the assistant to the user's message below.
++ 
++ follow up"
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-replay-envelope.test.ts:257:34)
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+
+[PROXY] 362a6c87-d772-45cb-9181-e0fd5fc05224 session unusable (missing-message), evicting and replaying as fresh session
+[PROXY] 362a6c87-d772-45cb-9181-e0fd5fc05224 usage: input=5 output=2 cache=0%
+211 |       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+212 |       const res = await post(app, [...prior, { role: "user", content: "continue" }], { "x-opencode-session": "sess-budget-refusal" }, streaming)
+213 |       await res.text()
+214 |       expect(res.status).toBe(200)
+215 |       expect(capturedPrompts).toHaveLength(2)
+216 |       expect(capturedOptions[0].resume).toBe("sdk-budget-refusal")
+                                              ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-budget-refusal"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-replay-envelope.test.ts:216:41)
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+
+- "follow up"
++ "<conversation_history>
++ hello
++ 
++ [Assistant: hi there]
++ </conversation_history>
++ 
++ The above is a replay of your prior conversation with this user — the original session could not be resumed. It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, and never invent tool output — use your actual tools when action is needed. Respond only as the assistant to the user's message below.
++ 
++ follow up"
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-replay-envelope.test.ts:257:34)
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+
+[PROXY] 0412ce95-8b9f-43ab-8000-aedb040eee2f adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=6ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 0412ce95-8b9f-43ab-8000-aedb040eee2f usage: input=5 output=2 cache=0%
+347 |       [...prior, { role: "user", content: "follow up" }],
+348 |       { "x-opencode-session": "sess-env-1" }
+349 |     )
+350 |     expect(res.status).toBe(200)
+351 |     const prompt = capturedPrompts[0] as string
+352 |     expect(prompt).not.toContain("<conversation_history>")
+                             ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "<conversation_history>"
+Received: "<conversation_history>\nhello\n\n[Assistant: hi there]\n</conversation_history>\n\nThe above is a replay of your prior conversation with this user — the original session could not be resumed. It is context only: do not continue or imitate its transcript format, do not write \"[Assistant: ...]\" markers, and never invent tool output — use your actual tools when action is needed. Respond only as the assistant to the user's message below.\n\nfollow up"
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-replay-envelope.test.ts:352:24)
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+
+src/__tests__/proxy-undo-gap.test.ts:
+[PROXY] Undo detected (key=undo-gap…): prefix overlap 4/9, rollback UUID: uuid-3.
+62 |           expect(captured[0]!.prompt).toContain("original 0")
+63 |           const diagnostics = diagnosticLog.getRecent().map(entry => entry.message).join("\n")
+64 |           expect(diagnostics).toContain("reason=undo-gap")
+65 |           expect(diagnostics).not.toContain("INDIGO_817")
+66 |         } else {
+67 |           expect(captured[0]!.options?.resume).toBe("sdk-source")
+                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-undo-gap.test.ts:67:48)
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+
+(pass) undo gap delivery over HTTP (#817) > replays the edited intermediate turns (stream=false) [36.18ms]
+[PROXY] Undo detected (key=undo-gap…): prefix overlap 4/9, rollback UUID: uuid-3.
+62 |           expect(captured[0]!.prompt).toContain("original 0")
+63 |           const diagnostics = diagnosticLog.getRecent().map(entry => entry.message).join("\n")
+64 |           expect(diagnostics).toContain("reason=undo-gap")
+65 |           expect(diagnostics).not.toContain("INDIGO_817")
+66 |         } else {
+67 |           expect(captured[0]!.options?.resume).toBe("sdk-source")
+                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-undo-gap.test.ts:67:48)
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+
+(pass) SDK and Session concurrency coordination > preserves a subagent's working mapping across a streaming progress summary [53.44ms]
+(pass) SDK and Session concurrency coordination > resumes the subagent session after a caption sent as its own user message [59.59ms]
+821 |       { role: "assistant", content: "ok" },
+822 |       { role: "user", content: "continue" },
+823 |     ], ordinarySessionId))
+824 |     ;(await waitForControl(4)).release()
+825 |     expect((await ordinaryTurn2P).status).toBe(200)
+826 |     expect(capturedParams[4]?.options?.resume).toBe(capturedParams[3]?.options?.sessionId)
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "baaa610f-d721-4ffa-a86d-62bc7e9c8b3c"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-concurrency-coordination.test.ts:826:48)
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+
+(pass) SDK and Session concurrency coordination > replays a declared-flow loser instead of rewinding the turn it lost to (#870) [24.85ms]
+[PROXY] Undo detected (key=omp-fork…): prefix overlap 2/3, rollback UUID: winner-uuid-2.
+1204 |     lease.release()
+1205 | 
+1206 |     const forkControl = await waitForControl(0)
+1207 |     forkControl.release()
+1208 |     expect((await forkP).status).toBe(200)
+1209 |     expect(capturedParams[0]?.options?.resume).toBe("winner-sdk")
+                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: "winner-sdk"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-concurrency-coordination.test.ts:1209:48)
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+
+[PROXY] 9c505f64-797c-4525-9ca6-47c826044f04 adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=5 msgs=user[string] → assistant[string] → user[string] → assistant[string] → user[string]
+[PROXY] 9c505f64-797c-4525-9ca6-47c826044f04 usage: input=10 output=5 cache=0%
+154 |     expect(response.status).toBe(200)
+155 |     const body = await response.json()
+156 |     expect(body.content.some((b: any) => b.type === "text")).toBe(true)
+157 | 
+158 |     // The first call was the refused resume.
+159 |     expect(queryCalls[0]!.resume).toBe("sdk-original")
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-original"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-resume-refusal.test.ts:159:35)
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+
+[PROXY] d6362a1a-34fa-4164-8300-bd7c40b79d87 adapter=opencode model=sonnet stream=true tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=5 msgs=user[string] → assistant[string] → user[string] → assistant[string] → user[string]
+[PROXY] d6362a1a-34fa-4164-8300-bd7c40b79d87 usage: input=10 output=50 cache=0%
+169 | 
+170 |     const response = await post(app, { model: "sonnet", stream: true, messages: continuation }, { "x-opencode-session": sessionId })
+171 |     expect(response.status).toBe(200)
+172 |     await response.text()
+173 | 
+174 |     expect(queryCalls[0]!.resume).toBe("sdk-original")
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-original"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-resume-refusal.test.ts:174:35)
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+
+[PROXY] 6b398ce4-5cb7-482a-8b92-9d7bc6d017d7 adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=5 msgs=user[string] → assistant[string] → user[string] → assistant[string] → user[string]
+[PROXY] 6b398ce4-5cb7-482a-8b92-9d7bc6d017d7 usage: input=10 output=5 cache=0%
+189 |     // Every attempt that carried a resume was refused, so the session cannot
+190 |     // serve this turn and the last attempt must be a fresh full-history query.
+191 |     // The resume is attempted once plus every retry, and never beyond that.
+192 |     const last = queryCalls[queryCalls.length - 1]!
+193 |     expect(last.resume).toBeUndefined()
+194 |     expect(queryCalls.filter(c => c.resume === "sdk-original").length).toBe(4)
+                                                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-resume-refusal.test.ts:194:72)
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+
+[PROXY] a97f69eb-9455-4ee3-95c4-7eea749822af adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=5 msgs=user[string] → assistant[string] → user[string] → assistant[string] → user[string]
+[PROXY] a97f69eb-9455-4ee3-95c4-7eea749822af usage: input=10 output=5 cache=0%
+223 |     expect(response.status).toBe(200)
+224 |     await response.json()
+225 | 
+226 |     // The session provably no longer holds a message the resume needs, so the
+227 |     // refusal is answered by one fresh replay — not by repeating the attempt.
+228 |     expect(queryCalls[0]!.resume).toBe("sdk-original")
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "sdk-original"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-resume-refusal.test.ts:228:35)
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+
+src/__tests__/proxy-block-continuations.test.ts:
+[PROXY] Parallel tool-result continuation (key=acb8a2de…): resume from message 0, content block 1.
+47 |         const key = crypto.randomUUID()
+48 |         expect(storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
+49 |         const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }
+50 |         const { app } = createProxyServer({ silent: true })
+51 |         await post(app, key, [{ role: "user", content: [result, hook({ continue: true }), text("APPENDED_TEXT"), ...(image ? [media] : [])] }])
+52 |         expect(captured[0]!.options?.resume).toBe("source")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:52:46)
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+[PROXY] Parallel tool-result continuation (key=c979e7b4…): resume from message 0, content block 1.
+47 |         const key = crypto.randomUUID()
+48 |         expect(storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
+49 |         const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }
+50 |         const { app } = createProxyServer({ silent: true })
+51 |         await post(app, key, [{ role: "user", content: [result, hook({ continue: true }), text("APPENDED_TEXT"), ...(image ? [media] : [])] }])
+52 |         expect(captured[0]!.options?.resume).toBe("source")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:52:46)
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+[PROXY] Parallel tool-result continuation (key=5d26b14a…): resume from message 0, content block 1.
+62 |       storeSession(key, [{ role: "user", content: [result] }], "source")
+63 |       const { app } = createProxyServer({ silent: true })
+64 |       await post(app, key, [{ role: "user", content: [result, text("APPENDED_TEXT"),
+65 |         { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }] },
+66 |         { role: "assistant", content: "prior reply" }, { role: "user", content: "LATEST_QUESTION" }])
+67 |       expect(captured[0]!.options?.resume).toBe("source")
+                                                ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:67:44)
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+
+(pass) block continuations through HTTP > handles other-adapter hook history with adapter-scoped rules (stream=false) [62.12ms]
+[PROXY] Parallel tool-result continuation (key=f35f0d04…): resume from message 0, content block 1.
+47 |         const key = crypto.randomUUID()
+48 |         expect(storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
+49 |         const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }
+50 |         const { app } = createProxyServer({ silent: true })
+51 |         await post(app, key, [{ role: "user", content: [result, hook({ continue: true }), text("APPENDED_TEXT"), ...(image ? [media] : [])] }])
+52 |         expect(captured[0]!.options?.resume).toBe("source")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:52:46)
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+[PROXY] Parallel tool-result continuation (key=8228cea9…): resume from message 0, content block 1.
+47 |         const key = crypto.randomUUID()
+48 |         expect(storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
+49 |         const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }
+50 |         const { app } = createProxyServer({ silent: true })
+51 |         await post(app, key, [{ role: "user", content: [result, hook({ continue: true }), text("APPENDED_TEXT"), ...(image ? [media] : [])] }])
+52 |         expect(captured[0]!.options?.resume).toBe("source")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:52:46)
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+[PROXY] Parallel tool-result continuation (key=ed6dc353…): resume from message 0, content block 1.
+62 |       storeSession(key, [{ role: "user", content: [result] }], "source")
+63 |       const { app } = createProxyServer({ silent: true })
+64 |       await post(app, key, [{ role: "user", content: [result, text("APPENDED_TEXT"),
+65 |         { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }] },
+66 |         { role: "assistant", content: "prior reply" }, { role: "user", content: "LATEST_QUESTION" }])
+67 |       expect(captured[0]!.options?.resume).toBe("source")
+                                                ^
+error: expect(received).toBe(expected)
+
+Expected: "source"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-block-continuations.test.ts:67:44)
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+
+[PROXY] 3a38d942-cd09-484a-89b6-12a23986848b adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 3a38d942-cd09-484a-89b6-12a23986848b usage: input=10 output=5 cache=0%
+157 |     expect(response.status).toBe(200)
+158 |     const body = await response.json()
+159 |     expect(body.content.some((b: any) => b.type === "text")).toBe(true)
+160 | 
+161 |     // Attempt 1 and the retry use the same preallocated isolated fork.
+162 |     expect(queryCalls.length).toBe(2)
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 1
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-busy-session-retry.test.ts:162:31)
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+
+[PROXY] e4c60abc-1bcd-4f89-9aae-f46543c38683 adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] e4c60abc-1bcd-4f89-9aae-f46543c38683 usage: input=10 output=5 cache=0%
+178 |       { model: "sonnet", stream: false, messages: continuation() },
+179 |       { "x-opencode-session": "sess-busy-2" }
+180 |     )
+181 | 
+182 |     expect(response.status).toBe(200)
+183 |     expect(queryCalls.length).toBe(5)
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 5
+Received: 1
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-busy-session-retry.test.ts:183:31)
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+
+[PROXY] 890fa8b7-08ff-4623-b038-db4a98348543 adapter=opencode model=sonnet stream=true tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 890fa8b7-08ff-4623-b038-db4a98348543 usage: input=10 output=50 cache=0%
+204 |     expect(response.status).toBe(200)
+205 |     const text = await response.text()
+206 |     expect(text).toContain("event: message_start")
+207 |     expect(text).not.toContain("process exited with code 1")
+208 | 
+209 |     expect(queryCalls.length).toBe(2)
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 1
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-busy-session-retry.test.ts:209:31)
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (streaming) [57.57ms]
+
+[PROXY] 9057f287-7ba1-4385-b182-f7cd83dc07a8 adapter=opencode model=sonnet stream=true tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 9057f287-7ba1-4385-b182-f7cd83dc07a8 usage: input=10 output=50 cache=0%
+227 | 
+228 |     expect(response.status).toBe(200)
+229 |     const text = await response.text()
+230 |     expect(text).toContain("event: message_start")
+231 | 
+232 |     expect(queryCalls.length).toBe(5)
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 5
+Received: 1
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-busy-session-retry.test.ts:232:31)
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (streaming) [54.39ms]
+
+(pass) documented plugin message transforms at SDK ingress > a transformed transcript cannot prove a later raw SDK resume (stream=false) [156.81ms]
+(pass) documented plugin message transforms at SDK ingress > transformed growing history remains a raw continuation (stream=false) [118.42ms]
+227 |           expect(calls[0]?.options?.resumeSessionAt).toBeUndefined()
+228 |           expect(capturedText(0)).toContain(call.id)
+229 |           expect(capturedText(0)).toContain("EXACT_CHECKPOINT_RESULT")
+230 |           expect(lookupSharedSession("fixture-checkpoint")?.passthroughToolCallAssistantUuid).toBeUndefined()
+231 |         } else {
+232 |           expect(calls[0]?.options?.resume).toBe("fixture-sdk-checkpoint")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "fixture-sdk-checkpoint"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-plugin-message-consumption.test.ts:232:45)
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=false, modified=false) [77.07ms]
+
+(pass) documented plugin message transforms at SDK ingress > a transformed transcript cannot prove a later raw SDK resume (stream=true) [118.15ms]
+(pass) documented plugin message transforms at SDK ingress > transformed growing history remains a raw continuation (stream=true) [93.51ms]
+227 |           expect(calls[0]?.options?.resumeSessionAt).toBeUndefined()
+228 |           expect(capturedText(0)).toContain(call.id)
+229 |           expect(capturedText(0)).toContain("EXACT_CHECKPOINT_RESULT")
+230 |           expect(lookupSharedSession("fixture-checkpoint")?.passthroughToolCallAssistantUuid).toBeUndefined()
+231 |         } else {
+232 |           expect(calls[0]?.options?.resume).toBe("fixture-sdk-checkpoint")
+                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "fixture-sdk-checkpoint"
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/proxy-plugin-message-consumption.test.ts:232:45)
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=true, modified=false) [56.47ms]
+
+(skip) never steals from a SIGSTOPed admitted writer with an expired heartbeat
+(skip) session GC deletes retired transcripts on every platform > reconcile recovers a deleting claim whose executor pid was reused by a live process
+(skip) profile login routes > completes a login from a bare code and writes the profile's credentials
+(skip) profile login routes > completes a login from the pasted callback URL
+(skip) profile login routes > 410s a replayed completion
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+
+(skip) session GC deletes retired transcripts on every platform > reconcile recovers a deleting claim whose executor pid was reused by a live process
+(skip) profile login routes > completes a login from a bare code and writes the profile's credentials
+(skip) profile login routes > completes a login from the pasted callback URL
+(skip) profile login routes > 410s a replayed completion
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+
+(skip) profile login routes > completes a login from a bare code and writes the profile's credentials
+(skip) profile login routes > completes a login from the pasted callback URL
+(skip) profile login routes > 410s a replayed completion
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+
+(skip) profile login routes > completes a login from the pasted callback URL
+(skip) profile login routes > 410s a replayed completion
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+
+(skip) profile login routes > 410s a replayed completion
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+
+(skip) profile login routes > browser redirect flow > completes a login presented by a client that never initiated it
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+
+(skip) profile login routes > browser redirect flow > completes the login when Claude redirects back, and says so on the page
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+
+(skip) profile add routes > creates the profile from a bare code
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+
+(skip) profile add routes > creates the profile from the pasted callback URL
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+
+(skip) profile add routes > 410s a replayed completion
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+
+27 tests failed:
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (non-streaming) [68.14ms]
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+
+(fail) Stale UUID retry > retries as fresh session when undo hits stale UUID (streaming) [60.88ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=false) [74.80ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+
+(fail) bounded fresh replay > does not retry resumed overflow (stream=false) [32.97ms]
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+
+(fail) bounded fresh replay > budgets the fresh fallback after a refused resume (stream=true) [96.86ms]
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+
+(fail) bounded fresh replay > does not retry resumed overflow (stream=true) [38.47ms]
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+
+(fail) fresh-session replay envelope (#619) > keeps resume deltas bare — no envelope on continuation [69.70ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=false) [34.77ms]
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+
+(fail) undo gap delivery over HTTP (#817) > keeps ordinary rollback tail-only (stream=true) [32.09ms]
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (streaming) [57.57ms]
+
+(fail) SDK and Session concurrency coordination > isolates the interactive session-title side call from the conversation mapping and lease, while keeping ordinary streamed tool-less turns on the session [117.91ms]
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (streaming) [57.57ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (streaming) [54.39ms]
+
+(fail) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [23.70ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (streaming) [57.57ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (streaming) [54.39ms]
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=false, modified=false) [77.07ms]
+
+(fail) Resume refusal > retries the same resume instead of evicting the session (non-streaming) [51.22ms]
+(fail) Resume refusal > retries the same resume instead of evicting the session (streaming) [70.52ms]
+(fail) Resume refusal > falls back to a fresh replay when every resume attempt is refused [53.00ms]
+(fail) Resume refusal > does not retry a refusal that names a lost message inside the session [49.02ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=false) [34.48ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=false, image=true) [44.79ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=false) [30.75ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=false) [38.59ms]
+(fail) block continuations through HTTP > sends only appended content despite an intervening hook (stream=true, image=true) [35.54ms]
+(fail) block continuations through HTTP > delivers appended media and a later user question in one SDK input (stream=true) [26.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (non-streaming) [49.00ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (non-streaming) [53.83ms]
+(fail) Busy-session resume retry (#630) > retries the same resume after a transient busy refusal (streaming) [57.57ms]
+(fail) Busy-session resume retry (#630) > falls back to forkSession when the session stays busy (streaming) [54.39ms]
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=false, modified=false) [77.07ms]
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=true, modified=false) [56.47ms]
+
+(fail) documented plugin message transforms at SDK ingress > checkpoint proof and tool pairing (stream=true, modified=false) [56.47ms]
+
+ 6490 pass
+ 36 skip
+ 27 fail
+ 31407 expect() calls
+Ran 6553 tests across 385 files. [349.34s]

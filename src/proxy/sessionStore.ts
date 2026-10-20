@@ -73,6 +73,8 @@ export interface StoredSession {
   lineageHash?: string
   /** Raw client proof when lineageHash cannot certify the SDK execution prefix. */
   clientLineageHash?: string
+  /** Adapter-owned stable context digest, never prompt text. */
+  resumeContextHash?: string
   /** Per-message content hashes for precise diff-based compaction detection */
   messageHashes?: string[]
   /** Per-message hashes of individual content blocks for append-only tool results */
@@ -715,6 +717,9 @@ function validateStoredSession(key: string, value: unknown): asserts value is St
   if (entry.clientLineageHash !== undefined && typeof entry.clientLineageHash !== "string") {
     throw new Error(`session store entry ${JSON.stringify(key)} has invalid clientLineageHash`)
   }
+  if (entry.resumeContextHash !== undefined && (
+    typeof entry.resumeContextHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.resumeContextHash)
+  )) throw new Error(`session store entry ${JSON.stringify(key)} has invalid resumeContextHash`)
   const stringArrays = ["messageHashes", "passthroughToolCallIds"] as const
   for (const field of stringArrays) {
     const item = entry[field]
@@ -1364,6 +1369,7 @@ export function storeSharedSession(
   sourceTranscript?: TranscriptLocator,
   expectedGeneration?: StoredSessionGeneration | null,
   clientLineageHash?: string | null,
+  resumeContextHash?: string | null,
 ): StoredSessionGeneration | false {
   if (currentTranscript !== undefined) {
     validateTranscriptLocator(currentTranscript, claudeSessionId)
@@ -1418,6 +1424,9 @@ export function storeSharedSession(
       clientLineageHash: clientLineageHash === undefined
         ? existing?.clientLineageHash
         : clientLineageHash ?? undefined,
+      resumeContextHash: resumeContextHash === undefined
+        ? sessionIdChanged ? undefined : existing?.resumeContextHash
+        : resumeContextHash ?? undefined,
       messageHashes: messageHashes ?? existing?.messageHashes,
       messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
@@ -1629,6 +1638,7 @@ export interface SharedSessionAndPriorityAssignmentOptions {
   messageCount: number
   lineageHash: string
   clientLineageHash?: string
+  resumeContextHash?: string
   messageHashes: string[]
   sdkMessageUuids?: Array<string | null>
   contextUsage?: TokenUsage
@@ -1751,6 +1761,7 @@ export function storeSharedSessionAndPriorityAssignment(
       messageCount: options.messageCount,
       lineageHash: options.lineageHash,
       clientLineageHash: options.clientLineageHash,
+      resumeContextHash: options.resumeContextHash,
       messageHashes: options.messageHashes,
       messageBlockHashes: options.messageBlockHashes,
       sdkMessageUuids: options.sdkMessageUuids,

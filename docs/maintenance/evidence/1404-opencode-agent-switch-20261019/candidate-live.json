@@ -1,0 +1,348 @@
+{
+  "scope": "actual OpenCode/SDK/native/model",
+  "expected": "candidate",
+  "diagnose": false,
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v24.20.0",
+  "model": "claude-haiku-5-5",
+  "requests": [
+    {
+      "requestId": "agent-switch-b87b2a46-0d30-458c-bf7c-11c7a50e943d",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-86822240-f654-4265-9606-d5eb6d07e725",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eaafdf216ffeVJf9GH9C18q56R",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-7d1a9abe-033d-46b4-ba60-46893aa10c46",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-d1a6270f-e950-4a0c-b73a-ac8edad8740a",
+      "agent": "reviewer",
+      "mode": "primary",
+      "session": "ses_eaafdf216ffeVJf9GH9C18q56R",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true
+    },
+    {
+      "requestId": "agent-switch-a5adc35b-a307-46ce-8ef6-f759fbcf07a3",
+      "agent": "reviewer",
+      "mode": "primary",
+      "session": "ses_eaafdf216ffeVJf9GH9C18q56R",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true
+    },
+    {
+      "requestId": "agent-switch-66ee4647-00d4-4be9-9d40-7df38febface",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eaafdf216ffeVJf9GH9C18q56R",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    }
+  ],
+  "upstreamRequests": [
+    {
+      "method": "HEAD",
+      "path": "/api/hello",
+      "clientCancelled": true
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages",
+      "status": 200
+    }
+  ],
+  "provider": [
+    {
+      "turn": 0,
+      "primary": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": false
+    },
+    {
+      "turn": 0,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": false
+    },
+    {
+      "turn": 1,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": true
+    },
+    {
+      "turn": 2,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": true
+    },
+    {
+      "turn": 3,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": false
+    }
+  ],
+  "actors": [
+    {
+      "pid": 14,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 22,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 27,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 44,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 130,
+      "signal": null
+    },
+    {
+      "pid": 79,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 88,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 165,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 207,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 252,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": false
+    },
+    {
+      "turn": 1,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": true
+    },
+    {
+      "turn": 2,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": true,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": true
+    },
+    {
+      "turn": 3,
+      "primary": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false,
+      "historyPresent": true,
+      "status": 200,
+      "responseModel": "claude-haiku-5-5",
+      "stopReason": "end_turn",
+      "answerHasCanary": false
+    }
+  ],
+  "discovery": 1,
+  "refusal": false,
+  "usageGuard": {
+    "extraUsageEnabled": false,
+    "note": "Included-usage guard passed; detailed personal usage omitted."
+  },
+  "client": "opencode v2.0.21",
+  "native": "2.1.301 (Claude Code)",
+  "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+  "scrubPreflight": {
+    "path": "/evidence/linux-runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 0,
+    "errors": 0
+  },
+  "plugin": "/evidence/linux-final/node_modules/@rynfar/meridian/dist/meridian-v2",
+  "adoptedCatalog": {
+    "id": "claude-haiku-5-5",
+    "variants": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "session": "ses_eaafdf216ffeVJf9GH9C18q56R",
+  "telemetry": [
+    [
+      {
+        "isResume": false,
+        "lineageType": "new",
+        "status": 200,
+        "sdkSessionId": "502ea1e9-cdee-43a2-b2a3-c9c101b24894"
+      }
+    ],
+    [
+      {
+        "isResume": false,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "dc1e980e-98a9-4d43-ac2e-ab774d9e1772"
+      }
+    ],
+    [
+      {
+        "isResume": true,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "0b99b985-be11-485f-b497-655c35160d30"
+      }
+    ],
+    [
+      {
+        "isResume": false,
+        "lineageType": "continuation",
+        "status": 200,
+        "sdkSessionId": "aebc5176-1aea-4760-8217-ba77e9c6ed55"
+      }
+    ]
+  ],
+  "scrubFinal": {
+    "path": "/evidence/linux-runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 6,
+    "errors": 0
+  },
+  "result": "PASS",
+  "joined": true
+}

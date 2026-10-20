@@ -47,6 +47,8 @@ export interface SessionState {
   /** Raw client ancestry when the SDK transcript does not contain that prefix.
    * Empty lineageHash deliberately withholds SDK reuse proof from old readers. */
   clientLineageHash?: string
+  /** Adapter-owned proof of the stable context used to create this SDK session. */
+  resumeContextHash?: string
   /** Per-message content hashes from the last stored request.
    *  Used for precise diff-based mutation classification when the aggregate
    *  lineageHash mismatches. */

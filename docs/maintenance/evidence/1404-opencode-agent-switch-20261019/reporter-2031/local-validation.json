@@ -1,0 +1,22 @@
+{
+  "productHead": "b409e105b6416f1424669eef040806fd461af530",
+  "npmTest": {
+    "pass": 7042,
+    "skip": 36,
+    "fail": 0,
+    "isolatedInvocations": 25,
+    "pretestTypecheck": true
+  },
+  "standaloneTypecheck": true,
+  "build": true,
+  "focused": {
+    "pass": 80,
+    "fail": 0,
+    "assertions": 175
+  },
+  "bun": "1.3.11",
+  "limitations": [
+    "Earlier failed evidence recorder used Readable.read, but the native pipe emits data without that path. r3 observed no native rows and correctly failed correlation. r4 observes emit in place without adding a listener; assertions unchanged.",
+    "Earlier unexplained Opus load-task refusal/cache failures remain scoped to that separate task; this batch uses the exact reported Haiku 5.5 model and does not retry it."
+  ]
+}

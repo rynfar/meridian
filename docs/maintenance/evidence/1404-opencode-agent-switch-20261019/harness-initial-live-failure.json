@@ -1,0 +1,292 @@
+{
+  "scope": "actual OpenCode/SDK/native/model",
+  "expected": "baseline",
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v24.20.0",
+  "model": "claude-haiku-5-5",
+  "requests": [
+    {
+      "requestId": "agent-switch-6aa4e51e-62ac-48c7-861f-efbf536638fa",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-6460a4b5-1727-43f8-bde8-e21090680ca6",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-227cd7cf-6acd-4f87-ba40-625920b50d6b",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-7cc6831e-737c-43bc-9bf8-64c475d49a1d",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-6d9a3105-bbfb-46c5-9c33-90e7202cce53",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-b739046d-da04-4be3-902f-ae01e9658897",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-46978dd5-5d71-4e86-8984-282834aa89a5",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-07f53ba3-7747-4770-a724-1e07a793af43",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-264e5fa7-7765-4c7a-87f0-8f3caa4dbde5",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-a8924ed4-18fa-44e1-91fe-236b77cb16e3",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-578f9435-1cda-4d76-8bc7-22f28d620173",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-ed3ab2f9-4a55-4d36-b26d-f8d448f20bcf",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-f136d5c1-5253-4f97-bca4-4981916a73ae",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    }
+  ],
+  "provider": [],
+  "actors": [
+    {
+      "pid": 14,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 23,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 28,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 44,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 130,
+      "signal": null
+    },
+    {
+      "pid": 88,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 93,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 309,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 363,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 454,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 493,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 633,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 742,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 780,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 878,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 979,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "pid": 1128,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 143,
+      "signal": null
+    }
+  ],
+  "turns": [],
+  "discovery": 1,
+  "refusal": false,
+  "usageGuard": {
+    "extraUsageEnabled": false,
+    "note": "Included-usage guard passed; detailed personal usage omitted."
+  },
+  "client": "opencode v2.0.21",
+  "native": "2.1.301 (Claude Code)",
+  "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+  "scrubPreflight": {
+    "path": "/evidence/linux-runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 0,
+    "errors": 0
+  },
+  "plugin": "/evidence/linux-baseline/node_modules/@rynfar/meridian/dist/meridian-v2",
+  "adoptedCatalog": {
+    "id": "claude-haiku-5-5",
+    "variants": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "session": "ses_eab09ae0effeQ5mSdrlOHompMw",
+  "upstreamFailure": "TypeError",
+  "result": "FAIL",
+  "failure": "TimeoutError: The operation was aborted due to timeout",
+  "joined": true
+}

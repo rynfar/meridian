@@ -1,0 +1,30 @@
+{
+  "candidateSourceHead": "4e90948a22b6436ed1f4c2b7148f454984f04549",
+  "sourceHash": "3fbb33a77b0959ed7031237c927ead8338a49a3dd68f58852e3460a7fb3e8315",
+  "cleanBuild": true,
+  "buildCertification": "verified",
+  "candidateTarballSha256": "35db5dd3c1c7befc1366b7b3822e078e0af9453fa2706cc99a8a098af61565dd",
+  "baselineMain": "d0326e28255d84a8df70e6d2629fb1e2478c79ae",
+  "baselineTarballSha256": "e55e3bca6fd8ef2d04b9f9662a4f9c3ce56b22839a401201bf93f5b7d5512d6b",
+  "harness": "scripts/e2e-opencode-agent-switch.mjs",
+  "harnessSha256": "89fabef4c65cc1327c06456b2d829714123b0f0bb357fd6b9a4c589337b417e2",
+  "sdk": "0.2.141",
+  "client": "2.0.21",
+  "native": "2.1.301",
+  "runtime": "Node 24.20.0, Debian bookworm Linux arm64 container",
+  "bunLocalGates": "1.3.11+af24e281",
+  "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+  "credentialCustody": {
+    "privateAccessOnlyGrantRemoved": true,
+    "refreshCalls": 0,
+    "credentialWrites": 0,
+    "extraUsageEnabled": false
+  },
+  "baselineBuild": {
+    "sha": "d0326e28255d84a8df70e6d2629fb1e2478c79ae",
+    "dirty": false,
+    "sourceHash": "caf72d6e847b4c1881d2281f9044be5ca295918448bf61495d8e6d6660f21df7",
+    "certification": "verified"
+  },
+  "installedSdkVersion": "0.2.141"
+}

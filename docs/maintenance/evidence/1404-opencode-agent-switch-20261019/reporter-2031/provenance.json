@@ -1,0 +1,37 @@
+{
+  "candidateProductHead": "b409e105b6416f1424669eef040806fd461af530",
+  "harnessHead": "1c35ae877858b353fff43cb8f374387bbba1f3e2",
+  "baselineMain": "30cc1d2d446a16de0add548fc108ace0932814ae",
+  "baselineCompatibilityControl": "600095b55508fe418c141d66e2115a28df4ad5ef",
+  "baselineControlDiff": "Only adds OpenCode 2.0.31 to setup allowlist, keeping normal setup/preflight enabled; no session/agent fix.",
+  "client": {
+    "version": "2.0.31",
+    "officialNpmPackage": "@opencode/cli",
+    "officialFormula": "https://github.com/anomalyco/homebrew-tap/blob/c0945d387f5af410fbf1f93eb7a27612156f7b8a/opencode-v2.rb",
+    "archiveUrl": "https://opencode.ai/files/bin/2.0.31/opencode-linux-arm64.tar.gz",
+    "archiveSha256": "861623e0d158e9e2d284a52dfb42af6153c312a94edd6128c8cd7a59c955729a",
+    "binarySha256": "b9391f661e61e0e18629fc19b433fc3a5ff8eb4b045fd49f1f3074bc22e49352",
+    "npmPlatformBinaryMatchesOfficialArchive": true,
+    "credentiallessDockerVersion": "opencode v2.0.31",
+    "native": "2.1.301",
+    "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+    "baselineControlHead": "600095b55508fe418c141d66e2115a28df4ad5ef",
+    "baselineControlOnlyDiff": "One version allowlist entry for2.0.31; primary-agent/session behavior stays identical to main30cc1d2d4. Required normal setup--v2 with exact actual binary remains enabled."
+  },
+  "packages": {
+    "candidate": {
+      "sha256": "afb36d02d6ba119f1304e600687c19bee7a1321ba914c2d0a14fb27bb9f6abf7",
+      "freshLinuxInstall": true,
+      "platform": "Debian bookworm arm64",
+      "node": "24.20.0",
+      "sdk": "0.2.141"
+    },
+    "baseline": {
+      "sha256": "e965a33e3bfd51691445bd1b2a001964de3300ca1f19a7ffb13089ea5082cbc2",
+      "freshLinuxInstall": true,
+      "platform": "Debian bookworm arm64",
+      "node": "24.20.0",
+      "sdk": "0.2.141"
+    }
+  }
+}

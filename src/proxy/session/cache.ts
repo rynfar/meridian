@@ -171,6 +171,7 @@ function stateFromSharedSession(
     messageCount: shared.messageCount || 0,
     lineageHash: shared.lineageHash || "",
     clientLineageHash: shared.clientLineageHash,
+    resumeContextHash: shared.resumeContextHash,
     messageHashes: shared.messageHashes,
     messageBlockHashes: shared.messageBlockHashes,
     sdkMessageUuids: shared.sdkMessageUuids,
@@ -452,6 +453,7 @@ export function storeSession(
   expectedGeneration?: StoredSessionGeneration | null,
   priorityPublication?: PrioritySessionPublication,
   sdkPrefixMatchesClient = true,
+  resumeContextHash?: string,
 ): StoredSessionGeneration | false {
   if (!claudeSessionId) return false
   const rawLineageHash = computeLineageHash(messages)
@@ -468,6 +470,7 @@ export function storeSession(
     messageCount: messages?.length || 0,
     lineageHash,
     ...(clientLineageHash ? { clientLineageHash } : {}),
+    resumeContextHash,
     messageHashes,
     messageBlockHashes,
     sdkMessageUuids: publishedUuids,
@@ -495,6 +498,7 @@ export function storeSession(
       messageCount: state.messageCount,
       lineageHash,
       clientLineageHash,
+      resumeContextHash,
       messageHashes,
       sdkMessageUuids: publishedUuids,
       contextUsage,
@@ -541,6 +545,7 @@ export function storeSession(
       sourceTranscript,
       expectedGeneration,
       clientLineageHash ?? null,
+      resumeContextHash ?? null,
     )
   }
   if (!storedGeneration) return false

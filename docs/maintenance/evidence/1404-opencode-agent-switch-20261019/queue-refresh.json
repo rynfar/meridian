@@ -1,0 +1,32 @@
+{
+  "visibleRepositoryCount": 165,
+  "managedRepositoryCount": 6,
+  "coverageGapCount": 0,
+  "queues": {
+    "rynfar/meridian-plugin-hermes-scrub": {
+      "openPullRequests": 0,
+      "openIssues": 0
+    },
+    "rynfar/hudscrub": {
+      "openPullRequests": 0,
+      "openIssues": 0
+    },
+    "rynfar/meridian-plugin-openclaw-scrub": {
+      "openPullRequests": 0,
+      "openIssues": 0
+    },
+    "rynfar/meridian-plugin-pi-scrub": {
+      "openPullRequests": 1,
+      "openIssues": 0
+    },
+    "rynfar/meridian-plugin-opencode-scrub": {
+      "openPullRequests": 1,
+      "openIssues": 0
+    },
+    "rynfar/meridian": {
+      "openPullRequests": 26,
+      "openIssues": 18
+    }
+  },
+  "scope": "Fresh paginated discovery at batch start; public managed repositories only. Mac notarization remains owner-deferred; no release work authorized in this batch."
+}

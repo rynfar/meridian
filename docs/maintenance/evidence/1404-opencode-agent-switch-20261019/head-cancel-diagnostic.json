@@ -1,0 +1,109 @@
+{
+  "scope": "actual OpenCode/SDK/native/model",
+  "expected": "baseline",
+  "diagnose": true,
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v24.20.0",
+  "model": "claude-haiku-5-5",
+  "requests": [
+    {
+      "requestId": "agent-switch-e3e0b101-80d3-4b54-9410-571b1e63031e",
+      "agent": "title",
+      "mode": "subagent",
+      "attested": false,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    },
+    {
+      "requestId": "agent-switch-eed63d01-0f81-4181-9149-ac7fa7edc612",
+      "agent": "build",
+      "mode": "primary",
+      "session": "ses_eab04bd6dffe2QXMDcVtSeRlq0",
+      "attested": true,
+      "model": "claude-haiku-5-5",
+      "systemHasCanary": false
+    }
+  ],
+  "upstreamRequests": [
+    {
+      "method": "HEAD",
+      "path": "/api/hello",
+      "failed": true
+    }
+  ],
+  "provider": [],
+  "actors": [
+    {
+      "pid": 14,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 23,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 28,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 45,
+      "closed": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "code": 130,
+      "signal": null
+    }
+  ],
+  "turns": [],
+  "discovery": 1,
+  "refusal": false,
+  "usageGuard": {
+    "extraUsageEnabled": false,
+    "note": "Included-usage guard passed; detailed personal usage omitted."
+  },
+  "client": "opencode v2.0.21",
+  "native": "2.1.301 (Claude Code)",
+  "nativeSha256": "1e119036a802d359ba5f9886428e031586e8796f7a858d5a8ee179ac7b8604f0",
+  "scrubPreflight": {
+    "path": "/evidence/linux-runtime/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.2.3",
+    "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+    "runtimeVersion": "0.2.3",
+    "invocations": 0,
+    "errors": 0
+  },
+  "plugin": "/evidence/linux-baseline/node_modules/@rynfar/meridian/dist/meridian-v2",
+  "adoptedCatalog": {
+    "id": "claude-haiku-5-5",
+    "variants": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "session": "ses_eab04bd6dffe2QXMDcVtSeRlq0",
+  "upstreamFailure": {
+    "name": "AbortError",
+    "code": 20
+  },
+  "result": "FAIL",
+  "failure": "TypeError: fetch failed",
+  "joined": true
+}

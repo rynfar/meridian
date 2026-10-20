@@ -1,0 +1,37 @@
+{
+  "sourceHead": "4e90948a22b6436ed1f4c2b7148f454984f04549",
+  "npmTest": {
+    "exitCode": 0,
+    "invocations": 24,
+    "pass": 6992,
+    "skip": 36,
+    "fail": 0,
+    "pretestTypecheck": true
+  },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "build": {
+    "exitCode": 0
+  },
+  "focused": {
+    "pass": 26,
+    "fail": 0
+  },
+  "tooling": {
+    "bun": "1.3.11+af24e281",
+    "node": "22.22.3",
+    "platform": "Darwin arm64"
+  },
+  "ci": "Pending final evidence head; never bypass checks.",
+  "acceptanceHolds": [
+    "Reported OpenCode 2.0.31 is not setup-qualified",
+    "Four live E41 modes and existing unexplained Opus model/cache holds remain open"
+  ],
+  "logSha256": {
+    "npm-test-final.log": "28ef05b1c67568695a4700113b7388d60819ff9c48f0eed40087de018a965fd4",
+    "agent-context-final-typecheck.log": "add106bc00b9edd763bf031ee275ea1b35cc8c5e0f06692dd75d6abab9d31062",
+    "agent-context-final-build.log": "345d96d45bc3d353600103cbc6044dd79eefe8ce3f4c93d5ec4124d5be501e35",
+    "agent-context-focused-final.log": "a792b7b144dde37225522accac9e7a3148b7691300d4d140f8784f4462a61c59"
+  }
+}

@@ -1,0 +1,928 @@
+{
+  "productHead": "b409e105b6416f1424669eef040806fd461af530",
+  "passed": true,
+  "modes": [
+    {
+      "mode": "parallel-json",
+      "result": "PASS",
+      "joined": true,
+      "generations": 3,
+      "correlations": [
+        {
+          "id": "msg_011CgD8oWZFAg7UHe9vF5KG2",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8ouGjLgo2U2KpUuJLN",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8p95Sb6159ciPYhD5c",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        }
+      ],
+      "qualifiedReport": {
+        "clientPlugin": {
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian/index.js",
+          "packageName": "@rynfar/meridian",
+          "packageVersion": "1.84.0",
+          "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+          "invocations": 3,
+          "errors": 0,
+          "preflight": true
+        },
+        "scope": "Real SDK/model E41 with installed client hook and server scrub; protocol host, not OpenCode executable",
+        "model": "claude-haiku-5-5",
+        "stream": false,
+        "root": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-probe-proxy-qJTjNl",
+        "result": "PASS",
+        "setup": {
+          "exit": 0,
+          "generation": "v1",
+          "field": "plugin",
+          "entries": 1,
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian"
+        },
+        "runtimeRequests": [
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-35380",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": []
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-35380",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_013WcexFrxhr8ykxNBtHraHP",
+              "toolu_01BSQY8A1RpNEhxix6diTjos",
+              "toolu_01KFv64zWi32mikXP8FGdw3m"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-35380",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_013WcexFrxhr8ykxNBtHraHP",
+              "toolu_01BSQY8A1RpNEhxix6diTjos",
+              "toolu_01KFv64zWi32mikXP8FGdw3m"
+            ]
+          }
+        ],
+        "phase": "model requests",
+        "serverPreflightHTTP": {
+          "status": 200,
+          "body": {
+            "plugins": [
+              {
+                "name": "opencode-scrub",
+                "description": "Strip opencode-identifying fingerprints from the system prompt before it reaches Claude",
+                "version": "0.2.3",
+                "adapters": [
+                  "opencode",
+                  "passthrough"
+                ],
+                "hooks": [
+                  "onRequest"
+                ],
+                "status": "active",
+                "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+                "stats": {
+                  "hooks": {}
+                }
+              }
+            ]
+          }
+        },
+        "scrubPreflight": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 0,
+          "errors": 0
+        },
+        "cacheMisses": [],
+        "observedModels": [
+          "claude-haiku-5-5"
+        ],
+        "modelOk": true,
+        "scrubFinal": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 3,
+          "errors": 0
+        },
+        "sourceSnapshots": 2,
+        "continuationPrefixes": [
+          "7307b36f",
+          "671f4457"
+        ],
+        "activeSessionId": "5b1102bb-4516-4d2a-8459-426a7af43a85",
+        "parallel": true,
+        "toolCallBatchSizes": [
+          3
+        ],
+        "delivered": 3,
+        "sourceHistoryOk": true,
+        "followUpOk": true,
+        "activeAnswerProblems": [],
+        "forkShapeOk": true,
+        "toolShapeOk": true,
+        "children": [
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          }
+        ],
+        "modelWitness": "/tmp/meridian-resume-20261020/1423-e41/parallel-json/model-witness.json",
+        "joined": true
+      }
+    },
+    {
+      "mode": "chain-stream",
+      "result": "PASS",
+      "joined": true,
+      "generations": 5,
+      "correlations": [
+        {
+          "id": "msg_011CgD8n2x3MQTuE39ms8Ae7",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8nQ8zp7jfP44qGPpUk",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8ngUGMmrz61LhWeZX1",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8nv8HrR5HiE52Y358F",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8o92gtJYkD7HcGeFRY",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        }
+      ],
+      "qualifiedReport": {
+        "clientPlugin": {
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian/index.js",
+          "packageName": "@rynfar/meridian",
+          "packageVersion": "1.84.0",
+          "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+          "invocations": 5,
+          "errors": 0,
+          "preflight": true
+        },
+        "scope": "Real SDK/model E41 with installed client hook and server scrub; protocol host, not OpenCode executable",
+        "model": "claude-haiku-5-5",
+        "stream": true,
+        "root": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-probe-proxy-ZPmF2T",
+        "result": "PASS",
+        "setup": {
+          "exit": 0,
+          "generation": "v1",
+          "field": "plugin",
+          "entries": 1,
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian"
+        },
+        "runtimeRequests": [
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-34338",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": []
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-34338",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01MqqvFEgNowEajaGYRAd5cU"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-34338",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01MqqvFEgNowEajaGYRAd5cU",
+              "toolu_01J7Niu5KnfFTRyfENAWapi9"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-34338",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01MqqvFEgNowEajaGYRAd5cU",
+              "toolu_01J7Niu5KnfFTRyfENAWapi9",
+              "toolu_01QouevngAgADEE8mHYBvm4w"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-34338",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01MqqvFEgNowEajaGYRAd5cU",
+              "toolu_01J7Niu5KnfFTRyfENAWapi9",
+              "toolu_01QouevngAgADEE8mHYBvm4w"
+            ]
+          }
+        ],
+        "phase": "model requests",
+        "serverPreflightHTTP": {
+          "status": 200,
+          "body": {
+            "plugins": [
+              {
+                "name": "opencode-scrub",
+                "description": "Strip opencode-identifying fingerprints from the system prompt before it reaches Claude",
+                "version": "0.2.3",
+                "adapters": [
+                  "opencode",
+                  "passthrough"
+                ],
+                "hooks": [
+                  "onRequest"
+                ],
+                "status": "active",
+                "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+                "stats": {
+                  "hooks": {}
+                }
+              }
+            ]
+          }
+        },
+        "scrubPreflight": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 0,
+          "errors": 0
+        },
+        "cacheMisses": [],
+        "observedModels": [
+          "claude-haiku-5-5"
+        ],
+        "modelOk": true,
+        "scrubFinal": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 5,
+          "errors": 0
+        },
+        "sourceSnapshots": 4,
+        "continuationPrefixes": [
+          "e8dfaa31",
+          "1e6c9c9a",
+          "9514ca56",
+          "439d6ce6"
+        ],
+        "activeSessionId": "3e12fade-c3c2-4312-b551-80087cfbf4ff",
+        "parallel": false,
+        "toolCallBatchSizes": [
+          1,
+          1,
+          1
+        ],
+        "delivered": 3,
+        "sourceHistoryOk": true,
+        "followUpOk": true,
+        "activeAnswerProblems": [],
+        "forkShapeOk": true,
+        "toolShapeOk": true,
+        "children": [
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          }
+        ],
+        "modelWitness": "/tmp/meridian-resume-20261020/1423-e41/chain-stream/model-witness.json",
+        "joined": true
+      }
+    },
+    {
+      "mode": "chain-json",
+      "result": "PASS",
+      "joined": true,
+      "generations": 5,
+      "correlations": [
+        {
+          "id": "msg_011CgD8khaBLGmEdHcjAfH1E",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8m2r4jGvmfY1pHU4gF",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8mHJDcsnqYTEFoDcpb",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8mbAkhFSJdbwoxEnGs",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8mnj2R4YkAe254F25o",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        }
+      ],
+      "qualifiedReport": {
+        "clientPlugin": {
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian/index.js",
+          "packageName": "@rynfar/meridian",
+          "packageVersion": "1.84.0",
+          "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+          "invocations": 5,
+          "errors": 0,
+          "preflight": true
+        },
+        "scope": "Real SDK/model E41 with installed client hook and server scrub; protocol host, not OpenCode executable",
+        "model": "claude-haiku-5-5",
+        "stream": false,
+        "root": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-probe-proxy-cksZ6O",
+        "result": "PASS",
+        "setup": {
+          "exit": 0,
+          "generation": "v1",
+          "field": "plugin",
+          "entries": 1,
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian"
+        },
+        "runtimeRequests": [
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-17166",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": []
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-17166",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01RFirwz1HFm9jv6HHacKqSu"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-17166",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01RFirwz1HFm9jv6HHacKqSu",
+              "toolu_01TaMZHtSpfdoT4tLQz6Epgc"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-17166",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01RFirwz1HFm9jv6HHacKqSu",
+              "toolu_01TaMZHtSpfdoT4tLQz6Epgc",
+              "toolu_01DxKjNzYgqyqq8oCekR9dKt"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-nonstream-17166",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_01RFirwz1HFm9jv6HHacKqSu",
+              "toolu_01TaMZHtSpfdoT4tLQz6Epgc",
+              "toolu_01DxKjNzYgqyqq8oCekR9dKt"
+            ]
+          }
+        ],
+        "phase": "model requests",
+        "serverPreflightHTTP": {
+          "status": 200,
+          "body": {
+            "plugins": [
+              {
+                "name": "opencode-scrub",
+                "description": "Strip opencode-identifying fingerprints from the system prompt before it reaches Claude",
+                "version": "0.2.3",
+                "adapters": [
+                  "opencode",
+                  "passthrough"
+                ],
+                "hooks": [
+                  "onRequest"
+                ],
+                "status": "active",
+                "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+                "stats": {
+                  "hooks": {}
+                }
+              }
+            ]
+          }
+        },
+        "scrubPreflight": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 0,
+          "errors": 0
+        },
+        "cacheMisses": [],
+        "observedModels": [
+          "claude-haiku-5-5"
+        ],
+        "modelOk": true,
+        "scrubFinal": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 5,
+          "errors": 0
+        },
+        "sourceSnapshots": 4,
+        "continuationPrefixes": [
+          "3430fe4a",
+          "f0c540ad",
+          "44860a68",
+          "1bb6b807"
+        ],
+        "activeSessionId": "d69e4c65-31c6-4e28-bdf5-cfa3f22d618f",
+        "parallel": false,
+        "toolCallBatchSizes": [
+          1,
+          1,
+          1
+        ],
+        "delivered": 3,
+        "sourceHistoryOk": true,
+        "followUpOk": true,
+        "activeAnswerProblems": [],
+        "forkShapeOk": true,
+        "toolShapeOk": true,
+        "children": [
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          }
+        ],
+        "modelWitness": "/tmp/meridian-resume-20261020/1423-e41/chain-json/model-witness.json",
+        "joined": true
+      }
+    },
+    {
+      "mode": "parallel-stream",
+      "result": "PASS",
+      "joined": true,
+      "generations": 3,
+      "correlations": [
+        {
+          "id": "msg_011CgD8pXDTVY2FvyguUfzKu",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8psfmarWUU2zTY2A6V",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        },
+        {
+          "id": "msg_011CgD8q7qYsT5F3RVWDYau4",
+          "model": "claude-haiku-5-5",
+          "providerNativeStoredCorrelated": true
+        }
+      ],
+      "qualifiedReport": {
+        "clientPlugin": {
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian/index.js",
+          "packageName": "@rynfar/meridian",
+          "packageVersion": "1.84.0",
+          "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+          "invocations": 3,
+          "errors": 0,
+          "preflight": true
+        },
+        "scope": "Real SDK/model E41 with installed client hook and server scrub; protocol host, not OpenCode executable",
+        "model": "claude-haiku-5-5",
+        "stream": true,
+        "root": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-probe-proxy-quyqxY",
+        "result": "PASS",
+        "setup": {
+          "exit": 0,
+          "generation": "v1",
+          "field": "plugin",
+          "entries": 1,
+          "path": "/private/tmp/meridian-issues-20261019-r2/dist/meridian"
+        },
+        "runtimeRequests": [
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-36945",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": []
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-36945",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_014neAVpHrxuaeu4iNJYEvHC",
+              "toolu_0135Th5UjCWWYjibADLE8Q32",
+              "toolu_015FtH5ZnwggcrqymxFZD6RM"
+            ]
+          },
+          {
+            "route": "/v1/messages",
+            "session": "probe-turns-stream-36945",
+            "agent": "build",
+            "mode": "primary",
+            "attested": true,
+            "resultIds": [
+              "toolu_014neAVpHrxuaeu4iNJYEvHC",
+              "toolu_0135Th5UjCWWYjibADLE8Q32",
+              "toolu_015FtH5ZnwggcrqymxFZD6RM"
+            ]
+          }
+        ],
+        "phase": "model requests",
+        "serverPreflightHTTP": {
+          "status": 200,
+          "body": {
+            "plugins": [
+              {
+                "name": "opencode-scrub",
+                "description": "Strip opencode-identifying fingerprints from the system prompt before it reaches Claude",
+                "version": "0.2.3",
+                "adapters": [
+                  "opencode",
+                  "passthrough"
+                ],
+                "hooks": [
+                  "onRequest"
+                ],
+                "status": "active",
+                "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+                "stats": {
+                  "hooks": {}
+                }
+              }
+            ]
+          }
+        },
+        "scrubPreflight": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 0,
+          "errors": 0
+        },
+        "cacheMisses": [],
+        "observedModels": [
+          "claude-haiku-5-5"
+        ],
+        "modelOk": true,
+        "scrubFinal": {
+          "path": "/private/tmp/meridian-resume-20261020/scrub-tooling/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+          "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+          "packageVersion": "0.2.3",
+          "sha256": "4ab89412e6a59fad812a3f6e5500c84f3bdfc41863320bc794f5274a251da656",
+          "runtimeVersion": "0.2.3",
+          "invocations": 3,
+          "errors": 0
+        },
+        "sourceSnapshots": 2,
+        "continuationPrefixes": [
+          "ef3473d6",
+          "c61dfbcc"
+        ],
+        "activeSessionId": "29c3eabc-d9be-47e8-ba23-5a6ca45c9523",
+        "parallel": true,
+        "toolCallBatchSizes": [
+          3
+        ],
+        "delivered": 3,
+        "sourceHistoryOk": true,
+        "followUpOk": true,
+        "activeAnswerProblems": [],
+        "forkShapeOk": true,
+        "toolShapeOk": true,
+        "children": [
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 1,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          },
+          {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": false,
+            "killSent": false,
+            "signalFailure": null
+          }
+        ],
+        "modelWitness": "/tmp/meridian-resume-20261020/1423-e41/parallel-stream/model-witness.json",
+        "joined": true
+      }
+    }
+  ]
+}

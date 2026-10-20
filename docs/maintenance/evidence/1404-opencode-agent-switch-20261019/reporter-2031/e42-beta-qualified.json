@@ -1,0 +1,1301 @@
+[
+  {
+    "case": "1423-live-beta-18314-package",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-18314",
+    "source": false,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "61d9d862-1921-4897-a599-daa91b2da49c",
+        "current": "0a7a64f0-0907-4eb7-976f-3fc9f0cc39ee",
+        "cached": 10372,
+        "cacheRead": 10372
+      },
+      {
+        "label": "process restart",
+        "prior": "0a7a64f0-0907-4eb7-976f-3fc9f0cc39ee",
+        "current": "ae9f0f9b-529d-4512-b3f5-32e690bf298c",
+        "cached": 10430,
+        "cacheRead": 10430
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-69685.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD8y2zpZA97vjuWdFzd5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8y2yamyPhjxSdoSysu",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8yH98QYPZzPHiySXrf",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8ySCpnqwYnZNzwRUDd",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "d1ff0f4de1f1706ad2fe5b455d1ec7a4516cf3f1e4df2f683b83f036a0d51ad6"
+      },
+      {
+        "worker": "proxy-71832.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 18,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD8ydisWbHjUMmAYaLTc",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8yn9shKtKAzLnMcp5n",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8ynGaYL4vaQEX3jxik",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8yxykEsLQzZ5SGVtPe",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8yyUmSgfEMw5sJqx9P",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8z6xUe8N4EjcVDityi",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8zMwcrerFvgQxorn9N",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8zYZqXFEwz2keG6fip",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8ze8DFAHMQj2K5HPcC",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8zjySpucxXQH1wQ21i",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8zrqSob4RjxPNgbSPZ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8zy4Ec8EJAzeHtQGX5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD919ERDaLQndd127Do4",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD91AnSHfeTUDGpsPD3C",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD91HMq8uobbNkWmSbYZ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD91QSy512y27NoQPc33",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD91VQNZyjt2YR2qovYV",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD91xjBGPpnW2C9oiUpY",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "7ff59e93ace5a4603f5e72d1fdf8651f12997ac2b15b7cf7f42a6f9898d98ea2"
+      }
+    ],
+    "gateLogSha256": "10b87331a8a79a678b28e1e5ac373b6dde4bc46b67857ea0f8a835ada669c815"
+  },
+  {
+    "case": "1423-live-beta-18314-source",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-18314",
+    "source": true,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "97e04927-76a8-479a-8b0d-8ce0b3589632",
+        "current": "12bfa4bf-d526-4c4b-b2a2-49301ef57605",
+        "cached": 10386,
+        "cacheRead": 10386
+      },
+      {
+        "label": "process restart",
+        "prior": "12bfa4bf-d526-4c4b-b2a2-49301ef57605",
+        "current": "cc69dc4d-1dd9-48e5-83b3-cb046c7337e2",
+        "cached": 10448,
+        "cacheRead": 10448
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-65074.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD8ucsuQJB7kEv6MwMfJ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8ucsutBYZ12T7mrCiM",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8us3hSUXDg3o2HTXpc",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8v29PfukHiqpcTNHTV",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "912dda1085d7174494f659db3e7d0a9de593656ce616af8f3bce0beef87e9fdb"
+      },
+      {
+        "worker": "proxy-65459.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 18,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD8vDynWvhebxfsLSstQ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8vZGtg6AQ52Xg4BoEY",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8vZQpykyYKDHFn4vnh",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8voF2xYDnJcpGkHE5S",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8vodqoEFPSeLh7krUv",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8vvQ8uL46LerQXRTSW",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wBtoJFWbjHnu1eDBY",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wQ7WxyvYKXMJx6uap",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wY7ECfmrq8w9zaCge",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wfPmb2MpkjHEQSVtv",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wntjGD9yu4cwtHpW4",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8wtKeJQqwCVeeP61qY",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8x4eWdNGRVbLPC1EtL",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8x684pLMKncpPcDHa2",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8xAeAXMwZho187gqXp",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8xH39StSz8XdRQAAap",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8xMyJVwkqfgrhBjQz6",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD8xjrCQ8538jtkekpSR",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "f975c4ca001725e2c06a6a14b8d06ba3f369849d6a80f786be1fa2866d88cd0d"
+      }
+    ],
+    "gateLogSha256": "9ebbfc5bbad8710846d451ca973989cf9ccd3020076388f35a19f29a794bacd7"
+  },
+  {
+    "case": "1423-live-beta-18866-package",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-18866",
+    "source": false,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "74508ece-46e7-4d2a-a1c9-1ac34f718998",
+        "current": "69a9e900-4006-4c3d-a6aa-5c86b8628cad",
+        "cached": 10465,
+        "cacheRead": 10465
+      },
+      {
+        "label": "process restart",
+        "prior": "69a9e900-4006-4c3d-a6aa-5c86b8628cad",
+        "current": "9ca0266f-2486-40c6-b35c-5909a7b5584a",
+        "cached": 10524,
+        "cacheRead": 10524
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-23556.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD9BQ3gN8q6mCWwfhiCf",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9BQ9PGxwWtRp5pUBB5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9BcyJgWzr3Ru1sTiyS",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9BmLqj3t1kH8SwYYiR",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "ae0343cdcafc5098c58e5e26fb4d0309f296c5866bc3823e3b1324374d834f86"
+      },
+      {
+        "worker": "proxy-31764.json",
+        "originalResult": "FAIL",
+        "originalFailure": "AssertionError [ERR_ASSERTION]: Owned SDK project namespace missing",
+        "providerNativeStoredCorrelated": true,
+        "generations": 18,
+        "joined": true,
+        "posthocQualification": {
+          "result": "PASS",
+          "scope": "Original worker public-SDK qualification, zero new model calls",
+          "originalWorker": "proxy-31764.json",
+          "originalFailure": "AssertionError [ERR_ASSERTION]: Owned SDK project namespace missing",
+          "correction": "The SDK conversation projection omitted auxiliary session metadata. Public importSessionToStore into an in-memory metadata sink exposes those stored assistant records. All response ID/model assertions retained; no direct transcript-file access.",
+          "joined": true,
+          "correlations": [
+            {
+              "id": "msg_011CgD9BwsrthaSX1BHZ7unT",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9C6Dusaxf4pFJtCxtz",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9C6N613hmyQbHgRbH4",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9CGCvyVvR5kfk2uatA",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9CF3j8GjPnyfaACBui",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9CMr1Fqb87abXcRCCR",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9CYWxE2A5sdF4XxgK1",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9Cko95aaMtMYFdAAB8",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9Cuo7u4MQhDX88Wkwj",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9D49fjZj2U7RDLFntf",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9DQG8jwBNWbzVzMVz6",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9DYNJjwFqRyBf4xgDK",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9DfuyKrgB4a3DxQcN6",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9DhS1dNiMh3DYJwcMr",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9DpDHtcasjtdGFEh1f",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9Dzq1kSWuDFckMcJwR",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9E9p1pj94e77DN5iAq",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9ET9YNyukGHD5mqVGw",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            }
+          ]
+        },
+        "correlations": [
+          {
+            "id": "msg_011CgD9BwsrthaSX1BHZ7unT",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9C6Dusaxf4pFJtCxtz",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9C6N613hmyQbHgRbH4",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9CGCvyVvR5kfk2uatA",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9CF3j8GjPnyfaACBui",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9CMr1Fqb87abXcRCCR",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9CYWxE2A5sdF4XxgK1",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Cko95aaMtMYFdAAB8",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Cuo7u4MQhDX88Wkwj",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9D49fjZj2U7RDLFntf",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9DQG8jwBNWbzVzMVz6",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9DYNJjwFqRyBf4xgDK",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9DfuyKrgB4a3DxQcN6",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9DhS1dNiMh3DYJwcMr",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9DpDHtcasjtdGFEh1f",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Dzq1kSWuDFckMcJwR",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9E9p1pj94e77DN5iAq",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9ET9YNyukGHD5mqVGw",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "a3bfe2a7e9167ce1c567d17295127f75e76910d16d1633ca41d1125c169998cc"
+      }
+    ],
+    "gateLogSha256": "d2401f708ccfd99fd6521700d686dc98f648c6bfb37fe3edb090c0289a908b82"
+  },
+  {
+    "case": "1423-live-beta-18866-source",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-18866",
+    "source": true,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "44ec8bc2-442a-43f3-9ea9-56be41b13eb9",
+        "current": "5a54811e-a194-4564-a55e-b2595f50ea7a",
+        "cached": 10464,
+        "cacheRead": 10464
+      },
+      {
+        "label": "process restart",
+        "prior": "5a54811e-a194-4564-a55e-b2595f50ea7a",
+        "current": "a6621a67-07f6-4ed7-be38-5d65defeabe1",
+        "cached": 10522,
+        "cacheRead": 10522
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-93336.json",
+        "originalResult": "FAIL",
+        "originalFailure": "AssertionError",
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": {
+          "result": "PASS",
+          "scope": "Posthoc public-SDK qualification of the original worker; zero new model calls",
+          "originalWorker": "proxy-93336.json",
+          "originalFailure": "Recorder used only current locator project directories, omitting the original session project after client-cwd adoption",
+          "correction": "Public SDK getSessionInfo(ownedObservedId).cwd selects the exact existing project namespace; getSessionMessages reads that owned ID there",
+          "correlations": [
+            {
+              "id": "msg_011CgD92MDGjRVvRMtqTaL7N",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD92MKUjBC8Ncc4xRwyh",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD92advCnXvE3kJUxW1t",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD92k4hcYyVZQYge6WJX",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            }
+          ]
+        },
+        "correlations": [
+          {
+            "id": "msg_011CgD92MDGjRVvRMtqTaL7N",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD92MKUjBC8Ncc4xRwyh",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD92advCnXvE3kJUxW1t",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD92k4hcYyVZQYge6WJX",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "0b6d040bb9dbeb3107e4454e857997a7c62d6bc905ad572494366ca42b87b8e3"
+      },
+      {
+        "worker": "proxy-95063.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 19,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD9383J2wTXUKL9L39ho",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9389zXaYaUShsUdJ8i",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93H7zkSUtSgSPiFwzT",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93HK9k44BRNn2WtVU8",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93SbW68dRorWtL9vWe",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93SiCNM3MjbbW1Z5gj",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93ZqKvm8wjdJ3MtweF",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93kvpQ7xokRixWdEjm",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD93u3Ut41p6bqzHb299",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD943YCNYLFzABL5zoPX",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94CHKAHbMMXeYz6wUb",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94KZcwtG3hQkqkMw7Q",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94ShEBMSLyKgt3hxgu",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94aaziogo3RzK1qVe1",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94bt8u8JZJX6G6jEYG",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94ntR1Ttb4TKMf78Lw",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94u21ngL4VFRuaP1U5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD94zgb8k4s7xTbsmUTg",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD95UwhDSyBFeDp5JAoW",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "64e94e0fc0bac40c46273c1c8a8faea03cc306f1409a00d66fed51e5bd74a3ea"
+      }
+    ],
+    "gateLogSha256": "a8846d230cdb68ed01ec7477ff53f1e55b0f7116d8819dd37c66acdce1818b42"
+  },
+  {
+    "case": "1423-live-beta-19271-package",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-19271",
+    "source": false,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "a6161628-616f-48aa-91d9-92ff839886fb",
+        "current": "a5934390-bd14-4917-87f6-b1e6c258ab12",
+        "cached": 13167,
+        "cacheRead": 13167
+      },
+      {
+        "label": "process restart",
+        "prior": "a5934390-bd14-4917-87f6-b1e6c258ab12",
+        "current": "32c15d60-06ac-44d4-acf6-6e145bc6011c",
+        "cached": 13225,
+        "cacheRead": 13225
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-59077.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD9UfWb6cmnHZ9uKADXP",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9UfWb1LM5M5MTpSuuj",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9UurY7NdpGF7HKQxqr",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9V52SQUmMNw45yixFZ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "53dae7f9958037da5fe5e55a7d50ac79bcc5f1f84bd7263d9a218da1e4410c3a"
+      },
+      {
+        "worker": "proxy-65180.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 18,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD9VK7n322h1gNDfcFTw",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9VUWKpWPJWLdos6iN4",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9VUkDSoHuY2F8nhcM1",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Vg9ZrY9iyds7QP8wj",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Vg8osi1uBFD8xrHEf",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Vo6GTv8wJxHCbJE1r",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9W2FYFGzGMQ4uxKkS2",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9WEN3nKDrJNRyQRnCq",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9WNfryMCNwdGbSvY1h",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Wgmnvi4chgirNyLdM",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9WvrdPrpVwshJz53xs",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9X3SFn1MHaf3K3E3YY",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XCFqA15Xx8Zfe8a8d",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XDr5FN9bQrPPxpGyV",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XKqjXZBTPdmYe4WLq",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XSzbwp9tNRhKk9NrX",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XfShQCDtk1LTKHeZ5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9XxCX4gQNmLdtAceha",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "496e375d718623cfe7856854a0eb20fd68903d13db208299ef2b3ddd7ad4a113"
+      }
+    ],
+    "gateLogSha256": "a1cec2a35e417d4d168b140f5e68ce5544f5a8ad131c82829a4d8bb8ae277269"
+  },
+  {
+    "case": "1423-live-beta-19271-source",
+    "gateResult": "PASS",
+    "version": "opencode2 v0.0.0-beta-19271",
+    "source": true,
+    "extended": true,
+    "separateProxyCwd": true,
+    "resumeEvidence": [
+      {
+        "label": "ordinary continuation",
+        "prior": "82ce8d81-570c-432f-8f2e-043bcffc178f",
+        "current": "f4c9b928-c20b-4da2-8649-cc39322cd715",
+        "cached": 13171,
+        "cacheRead": 13171
+      },
+      {
+        "label": "process restart",
+        "prior": "f4c9b928-c20b-4da2-8649-cc39322cd715",
+        "current": "9c2fab41-cb5e-4a27-b0fd-d5df3d4034b1",
+        "cached": 13233,
+        "cacheRead": 13233
+      }
+    ],
+    "variantProbe": {
+      "model": "anthropic/claude-haiku-5-5#xhigh",
+      "selected": true,
+      "errors": [],
+      "efforts": [
+        "xhigh"
+      ],
+      "completed": true,
+      "answered": true
+    },
+    "coldStartProbe": {
+      "errors": [],
+      "efforts": [
+        "low",
+        "xhigh"
+      ]
+    },
+    "workers": [
+      {
+        "worker": "proxy-62677.json",
+        "originalResult": "PASS",
+        "originalFailure": null,
+        "providerNativeStoredCorrelated": true,
+        "generations": 4,
+        "joined": true,
+        "posthocQualification": null,
+        "correlations": [
+          {
+            "id": "msg_011CgD9J2Rch2ME4NkxPHST1",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9J2X5aSXVY971ALc3M",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JFXRP3LhuZ4hQJQVo",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JPmm2pcec5eRgAd5S",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "27b6d909f5bf86a6d456574d57eb18f4d6b01457b3aa131ada6d770e74795b62"
+      },
+      {
+        "worker": "proxy-63110.json",
+        "originalResult": "FAIL",
+        "originalFailure": "AssertionError [ERR_ASSERTION]: Owned SDK project namespace missing",
+        "providerNativeStoredCorrelated": true,
+        "generations": 18,
+        "joined": true,
+        "posthocQualification": {
+          "result": "PASS",
+          "scope": "Original worker public-SDK qualification, zero new model calls",
+          "originalWorker": "proxy-63110.json",
+          "originalFailure": "AssertionError [ERR_ASSERTION]: Owned SDK project namespace missing",
+          "correction": "The SDK conversation projection omitted auxiliary session metadata. Public importSessionToStore into an in-memory metadata sink exposes those stored assistant records. All response ID/model assertions retained; no direct transcript-file access.",
+          "joined": true,
+          "correlations": [
+            {
+              "id": "msg_011CgD9JaNyygUnKrP4znyhC",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9JiCn5sM1UVkxwCjSy",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9JiYsHHRBeiwMEukQz",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9JtA52ba8QA7xTKsKG",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9JtH1rNLwK52z13VqD",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9JyWY83LJYg4LgtgTD",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9KEgLf4HrzFcAtkc4V",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9KSJLZWiAXNH3YSzA5",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9Kad9PQfXuukKVGXxX",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9KiNUpaMmCHJgj9CrB",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9Kr3Lze7Q7L6sep6pQ",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9KyCT2LCiqG9obnuwo",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9L7bDtUnFK4zqm6Tm4",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9L8vrRGNDhEiBkifyf",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9LG6Tb59byYNJdbpRX",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9LMPwMJWpswU3Viock",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9LUeFcWG7ZqYn5mp87",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            },
+            {
+              "id": "msg_011CgD9LjH5ET7Mrc7S9H1Uo",
+              "model": "claude-haiku-5-5",
+              "providerNativeStoredCorrelated": true
+            }
+          ]
+        },
+        "correlations": [
+          {
+            "id": "msg_011CgD9JaNyygUnKrP4znyhC",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JiCn5sM1UVkxwCjSy",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JiYsHHRBeiwMEukQz",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JtA52ba8QA7xTKsKG",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JtH1rNLwK52z13VqD",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9JyWY83LJYg4LgtgTD",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9KEgLf4HrzFcAtkc4V",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9KSJLZWiAXNH3YSzA5",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Kad9PQfXuukKVGXxX",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9KiNUpaMmCHJgj9CrB",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9Kr3Lze7Q7L6sep6pQ",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9KyCT2LCiqG9obnuwo",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9L7bDtUnFK4zqm6Tm4",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9L8vrRGNDhEiBkifyf",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9LG6Tb59byYNJdbpRX",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9LMPwMJWpswU3Viock",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9LUeFcWG7ZqYn5mp87",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          },
+          {
+            "id": "msg_011CgD9LjH5ET7Mrc7S9H1Uo",
+            "model": "claude-haiku-5-5",
+            "providerNativeStoredCorrelated": true
+          }
+        ],
+        "witnessSha256": "7b121860d24b1bb0ecec3a61244a51681b660fbed1fc012f739e5defb26947ff"
+      }
+    ],
+    "gateLogSha256": "162a25faf2e6e5d08b47da813272a617eac0c60892c1fe5585c61e729d791256"
+  }
+]

@@ -23,6 +23,72 @@ the contributor's PR is what merges:
 Corrections to past PRs (reopening, comment edits, release notes, any rewrite of
 `main`) are the owner's decisions in #1363. Do not start them from this note.
 
+## Continued backlog work (2026-10-20)
+
+The backlog goal remains active. Three existing contributor PRs have landed;
+these are removals from the original queue, with no replacement PR created:
+
+- [#1419](https://github.com/rynfar/meridian/pull/1419), reminder framing:
+  reviewed `b55d569615ad92b58195d39865b041a8d8c553fb`, signed squash
+  `a2c19dfa23d9d8586a1d9f286c5467a381052595`. Actual Author is
+  Suyeo2025; substantive maintainer correction has its coauthor trailer.
+  Published DSH/pi-ai and real Haiku 5.5, adjacent tool/reminder flow, four
+  live E41 modes, full local gates and final-head CI passed. The baseline
+  reproduced malformed framing but answered the nonce, so omitted-answer
+  reproduction is not claimed. Exact sanitized drivers and receipts are in
+  the PR body.
+- [#1403](https://github.com/rynfar/meridian/pull/1403), Responses PDF input:
+  reviewed `2886e0000d9bd08301889e80a4e51b8a04d31efd`, signed squash
+  `acb8d390e4d764e5d2e7a9b7c60fb17df47c25dd`. Actual Author is
+  jmuz / XInTheDark; substantive maintainer correction has its coauthor
+  trailer. Published OpenAI JS SDK 7.39.0 against real Meridian/Claude SDK,
+  native 2.1.302 and Haiku 5.5 proves JSON/SSE PDF and actual tool-result
+  document receipts. A real strict-client failure exposed empty terminal
+  tool arguments; the separate signed correction, red/green controls and
+  actual SDK parser proof are retained. All four E41 modes and final local/CI
+  gates passed. The earlier unrelated turn-lock owner-incarnation failure
+  remains unexplained and is not claimed fixed. Codex's credentialless
+  preflight sent resource JSON as text, so it is excluded from PDF acceptance.
+- [#1395](https://github.com/rynfar/meridian/pull/1395), native client cwd:
+  reviewed `ea4c6a6f494b5a8897f31f76033bd60a8ec343a6`, signed neutral merge
+  `30cc1d2d446a16de0add548fc108ace0932814ae`. All eight reviewed introduced
+  objects remain reachable unchanged. The owner-approved #1413 forwarded
+  route was used without admin. Actual native frontend/backend Sonnet 5.5
+  and the source's Haiku 4.5, with one client conversation surviving proxy
+  upgrade, prove client cwd, one locator replay and normal subsequent resume.
+  Two leading-reminder scanner controls caught a boundary bug; the signed
+  correction stops at non-text blocks. Four E41 modes, full local and CI
+  gates passed. The forwarded =DEX object preserves Author/AuthorDate and
+  substantive lines, but differs from earlier unsigned source `03f025a5` in
+  parent/committer/SHA and one blank-line placement. It does not restore that
+  original object. Full provenance, signatures and parent/tree receipts are
+  in the PR body.
+
+The aggregate attribution audit still has 137 legacy maintainer re-lands;
+no historical repair is claimed. For mixed-author forwarded #1395, the exact
+per-commit custody manifest is authoritative, not an inferred PR-opener email.
+Release Please [#1427](https://github.com/rynfar/meridian/pull/1427) was inspected
+only. Its current generated notes omit the original client-cwd feature while
+including its later boundary correction; reconcile complete ancestry/notes
+before a separately authorized release. No release or Mac notarization ran.
+
+Fresh paginated discovery after the three merges covers 165 visible repos and
+all six managed queues, without a coverage gap: Meridian has 26 open PRs and
+17 issues; the scrub queues contain only their two existing release PRs.
+Issue #1363 closed externally; that is not an attribution repair by this batch.
+The original 12 dirty checkout files remain untouched. [#1401](https://github.com/rynfar/meridian/pull/1401)
+retains its full-run performance failure and missing actual E85/E41 gates;
+there is no claim that a later green diagnostic clears that failure.
+
+[#1423](https://github.com/rynfar/meridian/pull/1423) now qualifies the reporter's
+actual OpenCode 2.0.31 distribution and native 2.1.301 on Debian Linux arm64,
+using real Haiku 5.5, matching installed V2 plugin and active server scrub.
+Its [reporter-version evidence](evidence/1404-opencode-agent-switch-20261019/reporter-2031/README.md)
+records current source/pack hashes, original failed recorders, provider/native/
+stored model correlations, all four E41 modes and V2 compatibility results.
+The earlier Opus refusal/cache task remains separate; this does not retry or
+clear it. Continue independent queue work after this PR's final gates.
+
 ## Renewed issue goal (2026-10-19 MDT)
 
 The owner requested more issue work after release 1.84.0 and deferred Mac
@@ -99,9 +165,9 @@ Meridian has 28 open PRs (including this PR and draft 1423) and 18 issues; the
 scrub queues still contain only their two held release PRs.
 
 Other source-author, draft/no-review, public API/SQLite, native platform and
-naturally exhausted allowance gates below remain in force. Issue 1390 has a
-source-author fork branch but no source-author PR; no code was copied into a
-maintainer PR, and permission/classifier/client-denial qualification remains.
+naturally exhausted allowance gates below remain in force. Issue 1390 has draft source PR #1402, whose explicit do-not-review request
+remains in force. No code was copied into a maintainer PR; permission/classifier/
+client-denial qualification remains.
 Mac notarization is deferred; the two scrub release PRs remain held. Refresh live
 heads and this checkpoint before continuing; do not treat a green CI rollup as
 product acceptance.

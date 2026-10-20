@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { lookupSession, rollbackPrioritySessionPublication, storeSession, type PrioritySessionPublication } from "../proxy/session/cache"
 import { computeLineageHash } from "../proxy/session/lineage"
+import { openCodePrimaryAgentContextHash } from "../proxy/adapters/opencodeAgentContext"
 import { claimPriorityAttempt, lookupPriorityAssignmentResult, lookupSharedSession, lookupSharedSessionResult, setSessionStoreDir } from "../proxy/sessionStore"
 
 const messages = [{ role: "user", content: "raw original objective" }]
@@ -55,13 +56,16 @@ describe("durable raw proof and execution reuse proof", () => {
   })
 
   it("priority atomic publication, reload and rollback retain distinct proofs", () => {
+    const originalSystem = openCodePrimaryAgentContextHash("primary", "build")
+    const revisedSystem = openCodePrimaryAgentContextHash("primary", "reviewer")
     storeSession("work:priority", messages, "sdk-transformed", undefined, [null, "current-only"], undefined,
-      undefined, undefined, undefined, undefined, undefined, undefined, false)
+      undefined, undefined, undefined, undefined, undefined, undefined, false, originalSystem)
     const before = lookupSharedSessionResult("work:priority")
     if (before.status !== "found") throw new Error("fixture mapping missing")
     const publication = priorityPublication("priority")
     expect(storeSession("work:priority", continuation, "sdk-full-replay", undefined, undefined, undefined,
-      undefined, undefined, undefined, undefined, before.generation, publication)).not.toBe(false)
+      undefined, undefined, undefined, undefined, before.generation, publication, true, revisedSystem)).not.toBe(false)
+    expect(lookupSharedSession("work:priority")?.resumeContextHash).toBe(revisedSystem)
     expect(lookupSharedSession("work:priority")?.clientLineageHash).toBeUndefined()
     expect(lookupSharedSession("work:priority")?.lineageHash).toBe(computeLineageHash(continuation))
     expect(rollbackPrioritySessionPublication("work:priority", continuation, undefined, publication)).not.toBe(false)
@@ -69,9 +73,13 @@ describe("durable raw proof and execution reuse proof", () => {
     expect(restored?.lineageHash).toBe("")
     expect(restored?.clientLineageHash).toBe(computeLineageHash(messages))
     expect(restored?.sdkMessageUuids).toEqual([null, "current-only"])
+    expect(restored?.resumeContextHash).toBe(originalSystem)
     setSessionStoreDir(null)
     setSessionStoreDir(directory)
-    expect(lookupSession("work:priority", continuation).type).toBe("continuation")
+    const reloaded = lookupSession("work:priority", continuation)
+    expect(reloaded.type).toBe("continuation")
+    if (reloaded.type === "diverged") throw new Error("Expected restored mapping")
+    expect(reloaded.session.resumeContextHash).toBe(originalSystem)
   })
 
   it("priority transformed publication clears checkpoint proof in the atomic stored record", () => {
@@ -102,5 +110,16 @@ describe("durable raw proof and execution reuse proof", () => {
     try {
       expect(lookupSharedSessionResult("malformed").status).toBe("error")
     } finally { errors.mockRestore() }
+  })
+
+  it("fails closed on malformed persisted adapter context proof", () => {
+    storeSession("malformed-system", messages, "sdk-malformed-system")
+    const file = join(directory, "sessions.json")
+    const document = JSON.parse(readFileSync(file, "utf8"))
+    document["malformed-system"].resumeContextHash = "not-a-digest"
+    writeFileSync(file, JSON.stringify(document))
+    const errors = spyOn(console, "error").mockImplementation(() => {})
+    try { expect(lookupSharedSessionResult("malformed-system").status).toBe("error") }
+    finally { errors.mockRestore() }
   })
 })

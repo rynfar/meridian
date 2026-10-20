@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const expectedClientVersion = process.env.E2E_OPENCODE_VERSION ?? '2.0.16'
-assert(['2.0.16','2.0.21'].includes(expectedClientVersion), 'Pin a qualified stable host')
+assert(['2.0.16','2.0.21','2.0.31'].includes(expectedClientVersion), 'Pin a qualified stable host')
 const client = process.env.E2E_OPENCODE_BIN
 assert(client, 'Set E2E_OPENCODE_BIN to the exact OpenCode 2.0.16 executable')
 const repo = resolve(process.env.E2E_MERIDIAN_ROOT ?? '.')

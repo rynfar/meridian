@@ -1,0 +1,92 @@
+[PROXY] 58fd47a8-e5e7-40a0-9087-3b0e1f520771 usage: input=10 output=50 cache=0%
+[PROXY] a079f469-e56b-4feb-8715-7dba47fe58ab adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] a079f469-e56b-4feb-8715-7dba47fe58ab usage: input=10 output=50 cache=0%
+164 |       { role: "assistant", content: "hi" },
+165 |       { role: "user", content: "how are you?" },
+166 |     ], "sdk-1", "System v2: file tree has 15 files, 3 diagnostics")
+167 | 
+168 |     // MUST resume — fingerprint doesn't include systemContext
+169 |     expect(getCaptured()?.options?.resume).toBeDefined()
+                                                 ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/session-fingerprint-context.test.ts:169:44)
+(fail) Fingerprint resume: stable across dynamic systemContext > resumes when systemContext changes between requests (non-stream) [140.78ms]
+
+[PROXY] bfd90ce6-7779-43e5-8e7e-37d0e38f2b8a usage: input=10 output=50 cache=0%
+[PROXY] 8c6cfd2b-29d9-403e-a85e-a194a9e7b178 adapter=opencode model=sonnet stream=true tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 8c6cfd2b-29d9-403e-a85e-a194a9e7b178 usage: input=10 output=50 cache=0%
+181 |       { role: "user", content: "hello" },
+182 |       { role: "assistant", content: "hi" },
+183 |       { role: "user", content: "what can you do?" },
+184 |     ], "sdk-stream-1", "System v2 with more context", true)
+185 | 
+186 |     expect(getCaptured()?.options?.resume).toBeDefined()
+                                                 ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/session-fingerprint-context.test.ts:186:44)
+(fail) Fingerprint resume: stable across dynamic systemContext > resumes when systemContext changes between requests (stream) [74.25ms]
+
+[PROXY] 380af349-f17f-4b24-9601-6b6b1b265a30 usage: input=10 output=50 cache=0%
+[PROXY] 91eda9a8-5a04-43e9-a1c0-a7e20d3af234 adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 91eda9a8-5a04-43e9-a1c0-a7e20d3af234 usage: input=10 output=50 cache=0%
+199 |       { role: "assistant", content: "hi" },
+200 |       { role: "user", content: "help me" },
+201 |     ], "sdk-no-ctx", "You are a helpful assistant.")
+202 | 
+203 |     // MUST resume — systemContext not in fingerprint
+204 |     expect(getCaptured()?.options?.resume).toBeDefined()
+                                                 ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/session-fingerprint-context.test.ts:204:44)
+(fail) Fingerprint resume: stable across dynamic systemContext > resumes when systemContext is added where there was none [63.59ms]
+
+[PROXY] 995f186d-1884-4604-ad5b-d34b6c3aded9 usage: input=10 output=50 cache=0%
+[PROXY] 61cc1c03-983f-47b3-b7e7-c84168be765a adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] 61cc1c03-983f-47b3-b7e7-c84168be765a usage: input=10 output=50 cache=0%
+216 |       { role: "user", content: "hello" },
+217 |       { role: "assistant", content: "hi" },
+218 |       { role: "user", content: "thanks" },
+219 |     ], "sdk-ctx")
+220 | 
+221 |     expect(getCaptured()?.options?.resume).toBeDefined()
+                                                 ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/session-fingerprint-context.test.ts:221:44)
+(fail) Fingerprint resume: stable across dynamic systemContext > resumes when systemContext is removed [61.07ms]
+
+[PROXY] a4be382d-b5e4-4ed0-b6f8-a604444f68fb usage: input=10 output=50 cache=0%
+[PROXY] a620bad0-e4eb-4ef0-864a-76da0e419ee2 adapter=opencode model=sonnet stream=false tools=0 lineage=continuation session=new sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=5 msgs=user[string] → assistant[text,tool_use] → user[tool_result] → assistant[string] → user[string]
+[PROXY] a620bad0-e4eb-4ef0-864a-76da0e419ee2 usage: input=10 output=50 cache=0%
+329 |       { role: "assistant", content: "Done! File created." },
+330 |       { role: "user", content: "now read it back" },
+331 |     ], "sdk-tools", "System prompt v2 with updated file tree")
+332 | 
+333 |     // MUST resume even though system changed and history has tool blocks
+334 |     expect(getCaptured()?.options?.resume).toBeDefined()
+                                                 ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/private/tmp/meridian-issues-20261019-r2/src/__tests__/session-fingerprint-context.test.ts:334:44)
+(fail) Fingerprint resume: multi-turn with tool_use blocks > resumes correctly when history contains tool_use and tool_result [63.63ms]
+
+[PROXY] 736dcd4c-3d5c-46d2-b634-5c95f63578b5 TOKEN WARN: Cache hit rate 0% on resume — normal after proxy restart, cache will re-prime on next turn.
+(pass) Fingerprint resume: OpenCode CWD-key transition > moves once from the override key to the client key and keeps the new key across restart [264.21ms]
+
+ 7 pass
+ 5 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.24s]
