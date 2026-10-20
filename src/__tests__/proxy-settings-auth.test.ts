@@ -35,6 +35,90 @@ afterAll(() => {
 // test suite's pattern for env-sensitive imports.
 const { createProxyServer } = await import("../proxy/server")
 
+describe("quota reset boundary rejects before credential access", () => {
+  it("requires API authentication even with valid explicit IDs", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+      method: "POST", body: JSON.stringify({ profile: "default", grantId: "grant", requestId: "request" }),
+    }))
+    expect(response.status).toBe(401)
+    expect(response.headers.get("cache-control")).toBe("no-store")
+  })
+
+  it("rejects foreign and opaque browser origins despite valid authentication", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    for (const origin of ["https://foreign.example", "null"]) {
+      const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+        method: "POST", headers: { Authorization: `Bearer ${TEST_KEY}`, Origin: origin },
+        body: JSON.stringify({ profile: "default", grantId: "grant", requestId: "request" }),
+      }))
+      expect(response.status).toBe(403)
+      expect(await response.json()).toMatchObject({ code: "forbidden_origin" })
+    }
+  })
+
+  it("rejects malformed JSON, arrays, implicit selection, bad IDs and extra fields", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    for (const body of ["{", "[]", "null", "{}", JSON.stringify({ profile: "default", grantId: "grant" }),
+      JSON.stringify({ profile: "default", grantId: "BAD", requestId: "request" }),
+      JSON.stringify({ profile: "", grantId: "grant", requestId: "request" }),
+      JSON.stringify({ profile: 42, grantId: "grant", requestId: "request" }),
+      JSON.stringify({ profile: "default", grantId: "x".repeat(41), requestId: "request" }),
+      JSON.stringify({ profile: "default", grantId: "grant", requestId: "" }),
+      JSON.stringify({ profile: "default", grantId: "grant", requestId: "x".repeat(65) }),
+      JSON.stringify({ profile: "default", grantId: "grant", requestId: "not allowed" }),
+      JSON.stringify({ profile: "default", grantId: "grant", requestId: "request", organization: "caller-org" })]) {
+      const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+        method: "POST", headers: { Authorization: `Bearer ${TEST_KEY}`, Origin: "http://localhost" }, body,
+      }))
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ code: "invalid_request" })
+      expect(response.headers.get("cache-control")).toBe("no-store")
+    }
+  })
+
+  it("rejects nonexistent profiles without falling back to default credentials", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+      method: "POST", headers: { Authorization: `Bearer ${TEST_KEY}` },
+      body: JSON.stringify({ profile: "nonexistent", grantId: "grant", requestId: "request" }),
+    }))
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ code: "profile_not_found" })
+  })
+  it("rejects API profiles and does not allow implicit default beside configured profiles", async () => {
+    const { app } = createProxyServer({
+      port: 0, host: "127.0.0.1",
+      profiles: [{ id: "api-seat", type: "api", apiKey: "fake-api-key" }],
+    })
+    for (const [profile, status, code] of [["api-seat", 400, "not_oauth"], ["default", 404, "profile_not_found"]] as const) {
+      const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+        method: "POST", headers: { Authorization: `Bearer ${TEST_KEY}` },
+        body: JSON.stringify({ profile, grantId: "grant", requestId: "request" }),
+      }))
+      expect(response.status).toBe(status)
+      expect(await response.json()).toMatchObject({ code })
+    }
+  })
+  it("rejects token profiles even when their raw type is absent or claims claude-max", async () => {
+    const { app } = createProxyServer({
+      port: 0, host: "127.0.0.1",
+      profiles: [
+        { id: "inferred", oauthToken: "fake-inferred-token" },
+        { id: "mislabelled", type: "claude-max", oauthToken: "fake-mislabelled-token" },
+      ],
+    })
+    for (const profile of ["inferred", "mislabelled"]) {
+      const response = await app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+        method: "POST", headers: { Authorization: `Bearer ${TEST_KEY}` },
+        body: JSON.stringify({ profile, grantId: "grant", requestId: "request" }),
+      }))
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ code: "not_oauth" })
+    }
+  })
+})
+
 describe("MERIDIAN_API_KEY — /settings/api/* (regression for #477)", () => {
   it("rejects GET /settings/api/features without auth", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })

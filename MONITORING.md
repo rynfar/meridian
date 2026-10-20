@@ -23,7 +23,92 @@ The default URL is `http://127.0.0.1:3456`. Protected routes require `x-api-key`
 - Read utilization together with the reset time and snapshot freshness. An unavailable or stale value is **not zero usage**. `no_token`, `rate_limited`, and `upstream_error` mean different things; an API-key profile may report `not_oauth`.
 - Quota reads use a cached upstream OAuth endpoint (normally a 30-second cache), not a local conversion from tokens to subscription percentage. SDK rate-limit events provide additional information when available. Frequent polling cannot make missing upstream data authoritative.
 
+Claude profiles in `/v1/usage/quota/all` also include `bankedResets`:
+
+```json
+{
+  "bankedResets": {
+    "eligible": true,
+    "grants": [
+      {
+        "id": "example-reset-grant",
+        "resetsLeft": 1,
+        "expiresAt": 1792684800000
+      }
+    ]
+  }
+}
+```
+
+Each grant keeps its own remaining reset count and expiration date.
+`expiresAt` is Unix epoch milliseconds, or `null` when the date is unknown.
+`id` is the provider's grant identifier, or `null` when unavailable.
+The list preserves provider inventory, including exhausted, paused,
+not-yet-started and expired grants. It is not a count of resets usable now,
+and `eligible` does not establish that a particular grant can be used.
+`bankedResets: null` means reset information is unavailable, including for
+non-OAuth profiles. A valid empty `grants` list means the provider returned
+no grants. Read reset data with the profile's `fetchedAt`, `stale` and `failure`
+fields, just like its usage windows. This endpoint only lists grants; it
+does not redeem them.
+
 Subscription limits, context occupancy, and API-equivalent cost are different measures. A cache hit does not mean zero subscription usage, and a large context window does not mean that much quota remains.
+
+### Redeeming a banked reset
+
+`POST /v1/usage/quota/reset` consumes a reset if Claude accepts the request.
+It is an explicit action, not a quota poll or health check. Send a JSON object:
+
+```json
+{
+  "profile": "work",
+  "grantId": "chosen-grant-id",
+  "requestId": "client-operation-uuid"
+}
+```
+
+All three fields are required. Use the profile and grant IDs from
+`/v1/usage/quota/all`; there is no active-profile or next-grant fallback.
+Use `profile: "default"` for the single-account entry when no profiles are
+configured. API-key and static token-only profiles cannot redeem Claude grants
+and report `not_oauth`; token-only profiles also cannot read the host account's
+grant inventory under their own profile ID.
+`grantId` accepts 1–40 lowercase letters, digits, underscores or hyphens.
+`requestId` accepts 1–64 letters, digits, underscores or hyphens.
+Generate a request ID once per intentional redemption and retain it with
+that operation.
+
+The endpoint uses the selected profile's OAuth token to resolve its organization.
+It inherits API-key authentication and rejects cross-origin browser requests.
+Responses use `Cache-Control: no-store`.
+
+A parsed provider response returns HTTP 200 with the requested IDs and
+`result`, `reason`, `resetsLeft`, `cleared`, `weeklyResetsAt` and `cooldownUntil`.
+Only `result: "reset"` confirms redemption. Other results are `already_used`,
+`not_limited`, `cooldown`, `ineligible` and `unavailable`.
+Times are epoch milliseconds, or `null` when unavailable; timezone-free provider
+timestamps are UTC. Invalid optional metadata becomes unknown without hiding
+a confirmed `result: "reset"`.
+Confirmed resets and `already_used` outcomes invalidate the selected account's
+cached usage. Superseded quota polls join the current read rather than reporting
+a false upstream failure.
+
+Only a confirmed reset clears local SDK windows explicitly listed in `cleared`
+and matching reported refusal state. Uncleared weekly/model limits and independent
+overage metadata survive. Unknown, non-quota and unrelated routing exclusions
+remain conservative; an uncertain outcome never erases known refusal state.
+
+Missing upstream OAuth credentials return HTTP 503 with `code: "no_token"`.
+HTTP 401 remains the Meridian API-key authentication failure.
+
+Meridian sends one redemption POST and does not retry it automatically.
+Transport failures or invalid responses after dispatch can return
+`indeterminate: true`: the reset may have been consumed even though the response
+was lost. Re-read quota and confirm the outcome before another intentional
+attempt. Keep the original request ID if reconciling that operation; do not
+generate a new one as an automatic retry. Claude's client reuses IDs after
+uncertain outcomes, but this is not a guarantee of server-side deduplication.
+
 
 ## Reading Token and Cache Metrics
 

@@ -46,7 +46,8 @@ import { AdmissionHold, parseDrainOptions, type AdmissionReservation } from "./a
 import { DrainBodyError, readDrainBody } from "./drainBody"
 import { isGenerationSubmission, onGenerationResponseSettled } from "./generationAdmission"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
-import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage, clearOAuthUsageForProfile } from "./oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage, clearOAuthUsageForProfile, quotaResetBody, redeemOAuthQuotaReset } from "./oauthUsage"
+import { isSameOriginRequest } from "../sameOrigin"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG, resolveBackendConfig } from "./types"
@@ -1259,6 +1260,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // forgot to gate it" mistake (issue #477 was the catalyst — `/settings/*`
   // was registered without going through requireAuth, so unauthenticated
   // callers could mutate adapter SDK feature config via PATCH).
+  app.use("/v1/usage/quota/reset", async (c, next) => {
+    c.header("Cache-Control", "no-store")
+    await next()
+  })
   app.use("/v1/*", requireAuth)
   app.use("/messages", requireAuth)
   app.use("/telemetry/*", requireAuth)
@@ -1502,7 +1507,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    *  it's skipped too — the conservative default is the safer thing to
    *  leave standing. */
   function refinePriorityCooldown(profileId: string): void {
-    const target = getEffectiveProfiles(finalConfig.profiles).find(p => p.id === profileId)
+    const profiles = getEffectiveProfiles(finalConfig.profiles)
+    const target = profiles.find(p => p.id === profileId)
     // Only `claude-max` profiles have credentials this can consult. `api`
     // profiles authenticate with a key and have no usage endpoint; `oauth-token`
     // profiles carry their token in `CLAUDE_CODE_OAUTH_TOKEN` with a config dir
@@ -1513,8 +1519,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // Mirrors the `not_oauth` guard in `/v1/usage/quota/all` and
     // `credentialStoreForProfile`. Tier 3's conservative default already stands
     // when this returns early (#699).
-    if ((target?.type ?? "claude-max") !== "claude-max") return
-    void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir, force: true })
+    const resolved = target ? resolveProfile([target], target.id, target.id) : undefined
+    if (resolved && resolved.type !== "claude-max") return
+    if (!resolved && profiles.length > 0) return
+    void fetchOAuthUsage({ profileId, claudeConfigDir: resolved?.env.CLAUDE_CONFIG_DIR, force: true })
       .then(usage => {
         if (!usage || usage.stale) return
         const now = Date.now()
@@ -10496,6 +10504,24 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     clearOAuthUsageForProfile(profileId)
   }
 
+  function clearResetProfileHealth(profileId: string, cleared: readonly string[]): void {
+    rateLimitStore.clearBuckets(profileId, cleared)
+    const spent = spentProfiles.get(profileId)
+    if (!spent?.diagnosis.reported || !spent.diagnosis.bucket || !cleared.includes(spent.diagnosis.bucket)) return
+    spentProfiles.forget(profileId)
+    const now = Date.now()
+    const stillRejected = rateLimitStore.getAll(profileId).some(entry =>
+      ((entry.status === "rejected" || (entry.utilization ?? 0) >= 1) && (entry.resetsAt === undefined || entry.resetsAt > now))
+      || (entry.overageStatus === "rejected" && (entry.overageResetsAt === undefined || entry.overageResetsAt > now)))
+    if (stillRejected) return
+    const exhausted = priorityExhaustion.snapshot().find(entry => entry.id === profileId)
+    // Longer or non-quota marks may describe a different refusal we cannot identify.
+    if (exhausted && isQuotaRefusal(exhausted.reason)
+      && exhausted.until <= Math.max(spent.diagnosis.resetsAt ?? 0, now + PRIORITY_DEFAULT_COOLDOWN_MS)) {
+      priorityExhaustion.forget(profileId)
+    }
+  }
+
   app.post("/profiles/login/complete", async (c) => {
     let body: { loginId?: string; code?: string }
     try {
@@ -11110,6 +11136,43 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return c.json({ object: "list", data: [...buildModelList(extendedContext, undefined, disable1mContext), ...chatGptModels] })
   })
 
+  app.post("/v1/usage/quota/reset", async (c) => {
+    if (!isSameOriginRequest(c.req.raw)) {
+      return c.json({ code: "forbidden_origin", error: "Cross-origin reset requests are not allowed" }, 403)
+    }
+    let input: unknown
+    try {
+      input = await c.req.json()
+    } catch {
+      return c.json({ code: "invalid_request", error: "Invalid JSON request body" }, 400)
+    }
+    const parsed = quotaResetBody.safeParse(input)
+    if (!parsed.success) {
+      return c.json({ code: "invalid_request", error: "Explicit profile, grantId and requestId are required" }, 400)
+    }
+    const body = parsed.data
+    const profiles = getEffectiveProfiles(finalConfig.profiles)
+    const profile = profiles.find(p => p.id === body.profile)
+    const singleAccount = profiles.length === 0 && body.profile === "default"
+    if (!profile && !singleAccount) {
+      return c.json({ code: "profile_not_found", error: "Profile not found" }, 404)
+    }
+    const resolved = profile ? resolveProfile([profile], profile.id, profile.id) : undefined
+    if (resolved && resolved.type !== "claude-max") {
+      return c.json({ code: "not_oauth", error: "Profile does not use Claude OAuth" }, 400)
+    }
+    const result = await redeemOAuthQuotaReset(body, {
+      profileId: singleAccount ? undefined : body.profile,
+      claudeConfigDir: resolved?.env.CLAUDE_CONFIG_DIR,
+      store: resolved ? credentialStoreForProfile(resolved) : undefined,
+    })
+    if (!result.ok) {
+      return c.json({ code: result.code, error: result.message, indeterminate: result.indeterminate }, result.status)
+    }
+    if (result.outcome.result === "reset") clearResetProfileHealth(body.profile, result.outcome.cleared)
+    return c.json({ ...body, ...result.outcome })
+  })
+
   // --- Subscription Quota ---
   // Returns the most recent SDK-reported quota state for the Claude Max
   // subscription, broken down by rate-limit bucket (five_hour, seven_day,
@@ -11147,6 +11210,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       || profilesList[0]?.id
       || null
     const targetProfile = targetProfileId ? profilesList.find(p => p.id === targetProfileId) : undefined
+    const resolvedTarget = targetProfile ? resolveProfile([targetProfile], targetProfile.id, targetProfile.id) : undefined
 
     // Filter out the internal "default" bucket — it's a Meridian-side
     // fallback for SDK events missing `rateLimitType`, not a real Anthropic
@@ -11157,10 +11221,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const sdkEntries = rateLimitStore.getAll(targetProfileId ?? "default")
       .filter(entry => entry.rateLimitType !== undefined)
 
-    const oauth = await fetchOAuthUsage({
-      profileId: targetProfileId ?? undefined,
-      claudeConfigDir: targetProfile?.claudeConfigDir,
-    })
+    const oauth = (resolvedTarget?.type === "claude-max"
+      || (profilesList.length === 0 && (!targetProfileId || targetProfileId === "default")))
+      ? await fetchOAuthUsage({
+        profileId: targetProfileId ?? undefined,
+        claudeConfigDir: resolvedTarget?.env.CLAUDE_CONFIG_DIR,
+      })
+      : null
 
     type Bucket = {
       type: string
@@ -11291,15 +11358,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
     const chatgptPending = chatGptEntries()
     const results = await Promise.all(profilesList.map(async (p) => {
-      // Skip API-key profiles — OAuth usage endpoint only applies to Claude Max OAuth.
-      const type = p.type ?? "claude-max"
+      // Resolve inferred token profiles before consulting any on-disk OAuth account.
+      const resolved = resolveProfile([p], p.id, p.id)
+      const type = resolved.type
       if (type !== "claude-max") {
         return {
           id: p.id,
           isActive: p.id === activeId,
           type,
-          windows: [] as any[],
+          windows: [],
           extraUsage: null,
+          bankedResets: null,
           fetchedAt: null,
           stale: false,
           error: "not_oauth" as const,
@@ -11313,7 +11382,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         type,
         ...toUsageEntry(await fetchOAuthUsageResult({
           profileId: p.id,
-          claudeConfigDir: p.claudeConfigDir,
+          claudeConfigDir: resolved.env.CLAUDE_CONFIG_DIR,
         })),
         // Separate from `windows` on purpose: those are what we last READ, this
         // is what the API is doing right now. An account can be refusing while

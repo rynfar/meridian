@@ -11,6 +11,9 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test"
 import { createAdaptorServer } from "@hono/node-server"
 import type { AddressInfo } from "node:net"
+import { mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { fetchOAuthUsage, peekOAuthUsage, resetOAuthUsageCache } from "../proxy/oauthUsage"
 import { installSdkMock } from "./sdkMock"
 import { createOwnedCredentialStore } from "./modelsMock"
 import { installLoggerMock } from "./loggerMock"
@@ -2286,7 +2289,7 @@ describe("priority cooldown resolution", () => {
   it("refines a default-length mark with the authoritative OAuth reset", async () => {
     __setFetchOAuthUsageOverride(async (opts) => {
       if (opts?.profileId !== "work") return null
-      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, fetchedAt: Date.now() }
+      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -2339,7 +2342,7 @@ describe("priority cooldown resolution", () => {
     __setFetchOAuthUsageOverride(async (opts) => {
       attempted.push(opts?.profileId)
       if (opts?.profileId !== "work") return null
-      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, fetchedAt: Date.now() }
+      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -2360,6 +2363,7 @@ describe("priority cooldown resolution", () => {
     __setFetchOAuthUsageOverride(async () => ({
       windows: [{ type: "five_hour", utilization: 1, resetsAt: PERSONAL_RESET }],
       extraUsage: null,
+      bankedResets: null,
       fetchedAt: Date.now(),
     }))
     failingDirs.add("prof-work")
@@ -2412,7 +2416,7 @@ describe("priority cooldown resolution", () => {
     const futureReset = Date.now() + 3 * 60 * 60_000 // comfortably in the future, well under the 6h cap
     __setFetchOAuthUsageOverride(async (opts) => {
       if (opts?.profileId !== "work") return null
-      return { windows: [{ type: "five_hour", utilization: 0.2, resetsAt: futureReset }], extraUsage: null, fetchedAt: Date.now() }
+      return { windows: [{ type: "five_hour", utilization: 0.2, resetsAt: futureReset }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -2451,7 +2455,7 @@ describe("priority cooldown resolution", () => {
     const farReset = Date.now() + 12 * 60 * 60_000 // 12h out — beyond the 6h cap
     __setFetchOAuthUsageOverride(async (opts) => {
       if (opts?.profileId !== "work") return null
-      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: farReset }], extraUsage: null, fetchedAt: Date.now() }
+      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: farReset }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -2602,12 +2606,14 @@ describe("re-authenticated profile unbenching (#1385)", () => {
   let storeOverride: { mockRestore(): void }
   let tempDir = ""
   let originalFetch: typeof globalThis.fetch
+  let credentialDirs: Array<string | undefined> = []
+  let resetRequests: Array<{ url: string; authorization: string | null }> = []
 
   async function healthSnapshots(app: TestApp) {
     const res = await app.fetch(new Request("http://localhost/profiles/list"))
     const body = await res.json() as {
       exhausted?: Array<{ id: string; until: number; reason: string }>
-      spent?: Array<{ profileId: string; until: number }>
+      spent?: Array<{ profileId: string; until: number; diagnosis: { bucket: string | null } }>
     }
     return {
       exhausted: body.exhausted ?? [],
@@ -2615,13 +2621,14 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     }
   }
 
-  function stubOAuthEndpoints(status = 200) {
+  function stubOAuthEndpoints(status = 200, resetOutcome?: unknown, resetStatus = 200) {
     const syntheticFetch = Object.assign(
-      async (input: Parameters<typeof fetch>[0]) => {
+      async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
         const url = String(input)
         if (url === "https://api.anthropic.com/api/oauth/profile") {
           return Response.json({
             organization: {
+              uuid: "00000000-0000-4000-8000-000000000001",
               organization_type: "claude_max",
               rate_limit_tier: "default_claude_max_5x",
             },
@@ -2636,6 +2643,10 @@ describe("re-authenticated profile unbenching (#1385)", () => {
             refresh_token: "fresh-refresh-token",
             expires_in: 3600,
           })
+        }
+        if (url.endsWith("/reset_rate_limits") && resetOutcome !== undefined) {
+          resetRequests.push({ url, authorization: new Headers(init?.headers).get("Authorization") })
+          return Response.json(resetOutcome, { status: resetStatus })
         }
         throw new Error(`Unexpected fetch in #1385 test: ${url}`)
       },
@@ -2682,8 +2693,12 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     // newly owned directories. Keep the real file backend behind a path guard;
     // all other SDK-mocked tests retain the empty default store.
     const tokens = await import("../proxy/tokenRefresh")
-    storeOverride = spyOn(tokens, "createPlatformCredentialStore").mockImplementation(options =>
-      createOwnedCredentialStore(tempDir, options?.claudeConfigDir))
+    credentialDirs = []
+    resetRequests = []
+    storeOverride = spyOn(tokens, "createPlatformCredentialStore").mockImplementation(options => {
+      credentialDirs.push(options?.claudeConfigDir)
+      return createOwnedCredentialStore(tempDir, options?.claudeConfigDir ?? join(tempDir, "prof-default"))
+    })
     resetPendingLogins()
     resetInflightRefresh()
     stopBackgroundRefresh()
@@ -2693,6 +2708,7 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     clearSessionCache()
     resetActiveProfile()
     rateLimitStore.clear()
+    resetOAuthUsageCache()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
     savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
@@ -2720,12 +2736,255 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     stopBackgroundRefresh()
     resetProcessSdkSemaphoreForTests()
     rateLimitStore.clear()
+    resetOAuthUsageCache()
     if (tempDir) rmSync(tempDir, { recursive: true, force: true })
     for (const [k, v] of Object.entries(savedEnv)) {
       if (v !== undefined) process.env[k] = v
       else delete process.env[k]
     }
   })
+
+  async function seedResetCredentials(directory: string, token = "fake-reset-work"): Promise<void> {
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, ".credentials.json"), JSON.stringify({
+      claudeAiOauth: { accessToken: token, refreshToken: "fake-refresh", expiresAt: Date.now() + 3_600_000, subscriptionType: "max" },
+    }))
+  }
+
+  async function resetQuota(app: TestApp, profile = "work"): Promise<Response> {
+    return app.fetch(new Request("http://localhost/v1/usage/quota/reset", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, grantId: "fake-grant", requestId: "fake-request" }),
+    }))
+  }
+
+  it("rejects inferred token reset targets without consulting any credential store", async () => {
+    const { app } = createProxyServer({
+      port: 0, host: "127.0.0.1", silent: true,
+      profiles: [
+        { id: "inferred", oauthToken: "fake-token" },
+        { id: "mislabelled", type: "claude-max", oauthToken: "fake-token" },
+      ],
+    })
+    credentialDirs = []
+    for (const profile of ["inferred", "mislabelled"]) {
+      const response = await resetQuota(app, profile)
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ code: "not_oauth" })
+    }
+    expect(credentialDirs).toEqual([])
+    expect(resetRequests).toEqual([])
+  })
+
+  it("targets a named account instead of the active default and invalidates only that account's usage", async () => {
+    const { app, workDir, personalDir } = createReauthTestApp()
+    for (const [profileId, directory] of [["work", workDir], ["personal", personalDir]] as const) {
+      await seedResetCredentials(directory, `fake-${profileId}-token`)
+      await fetchOAuthUsage({
+        profileId, store: createOwnedCredentialStore(tempDir, directory),
+        fetchImpl: async () => Response.json({ five_hour: { utilization: 100 } }),
+      })
+    }
+    expect(peekOAuthUsage("work")).toBeDefined()
+    expect(peekOAuthUsage("personal")).toBeDefined()
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    credentialDirs = []
+    const response = await resetQuota(app, "personal")
+    expect(response.status).toBe(200)
+    expect(credentialDirs).toEqual([personalDir])
+    expect(resetRequests).toEqual([expect.objectContaining({ authorization: "Bearer fake-personal-token" })])
+    expect(peekOAuthUsage("personal")).toBeUndefined()
+    expect(peekOAuthUsage("work")).toBeDefined()
+  })
+
+  it("targets explicit single-account default credentials and invalidates the unscoped usage cache", async () => {
+    const directory = join(tempDir, "prof-default")
+    await seedResetCredentials(directory, "fake-default-token")
+    resetOAuthUsageCache()
+    await fetchOAuthUsage({
+      store: createOwnedCredentialStore(tempDir, directory),
+      fetchImpl: async () => Response.json({ five_hour: { utilization: 100 } }),
+    })
+    expect(peekOAuthUsage()).toBeDefined()
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    credentialDirs = []
+    const response = await resetQuota(app, "default")
+    expect(response.status).toBe(200)
+    expect(credentialDirs).toEqual([undefined])
+    expect(resetRequests).toEqual([expect.objectContaining({
+      authorization: "Bearer fake-default-token",
+      url: "https://api.anthropic.com/api/organizations/00000000-0000-4000-8000-000000000001/reset_rate_limits",
+    })])
+    expect(peekOAuthUsage()).toBeUndefined()
+    resetOAuthUsageCache()
+  })
+
+  it("retains weekly and model refusals, spent state and routing exclusion after a session-only reset", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    const observedAt = Date.now()
+    const resetsAt = observedAt + 3_600_000
+    for (const rateLimitType of ["five_hour", "seven_day", "seven_day_opus"] as const) {
+      rateLimitStore.record("work", { status: "rejected", rateLimitType, utilization: 1, resetsAt }, rateLimitType === "five_hour" ? observedAt - 1 : observedAt)
+    }
+    rateLimitStore.record("personal", { status: "allowed", rateLimitType: "five_hour", utilization: 0.2 })
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "before partial reset")).status).toBe(200)
+    const before = await healthSnapshots(app)
+    expect(before.spent.map(entry => entry.profileId)).toEqual(["work"])
+    expect(before.spent[0]?.diagnosis.bucket).toBe("seven_day")
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    const response = await resetQuota(app)
+    expect(response.status).toBe(200)
+    expect(resetRequests[0]?.authorization).toBe("Bearer fake-reset-work")
+    expect(rateLimitStore.get("work", "five_hour")).toBeUndefined()
+    expect(rateLimitStore.get("work", "seven_day")?.status).toBe("rejected")
+    expect(rateLimitStore.get("work", "seven_day_opus")?.status).toBe("rejected")
+    expect(rateLimitStore.get("personal", "five_hour")?.utilization).toBe(0.2)
+    expect(await healthSnapshots(app)).toEqual(before)
+    failingDirs.delete("prof-work")
+    capturedEnvs = []
+    expect((await post(app, {}, "after partial reset")).status).toBe(200)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  }, 20_000)
+
+  it("removes a cleared session spent label while retaining an uncleared weekly routing exclusion", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    const resetsAt = Date.now() + 3_600_000
+    rateLimitStore.record("work", { status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt })
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "session refusal before weekly evidence")).status).toBe(200)
+    const before = await healthSnapshots(app)
+    expect(before.spent[0]?.diagnosis.bucket).toBe("five_hour")
+    rateLimitStore.record("work", { status: "rejected", rateLimitType: "seven_day", utilization: 1, resetsAt })
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await healthSnapshots(app)).toEqual({ spent: [], exhausted: before.exhausted })
+    expect(rateLimitStore.get("work", "five_hour")).toBeUndefined()
+    expect(rateLimitStore.get("work", "seven_day")?.status).toBe("rejected")
+    failingDirs.delete("prof-work")
+    capturedEnvs = []
+    expect((await post(app, {}, "weekly remains after session label cleared")).status).toBe(200)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  }, 20_000)
+
+  it("retains independent overage refusal and routing exclusion after clearing the session window", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    const observedAt = Date.now()
+    const resetsAt = observedAt + 3_600_000
+    rateLimitStore.record("work", {
+      status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt,
+      overageStatus: "rejected", overageResetsAt: resetsAt, isUsingOverage: true,
+    }, observedAt)
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "session with independent overage refusal")).status).toBe(200)
+    const before = await healthSnapshots(app)
+    expect(before.spent[0]?.diagnosis.bucket).toBe("five_hour")
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour", "seven_day_overage_included"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(rateLimitStore.get("work", "five_hour")).toMatchObject({
+      status: "allowed", observedAt, overageStatus: "rejected", overageResetsAt: resetsAt, isUsingOverage: true,
+    })
+    expect(rateLimitStore.get("work", "five_hour")?.utilization).toBeUndefined()
+    expect(rateLimitStore.get("work", "five_hour")?.resetsAt).toBeUndefined()
+    expect(await healthSnapshots(app)).toEqual({ spent: [], exhausted: before.exhausted })
+    failingDirs.delete("prof-work")
+    capturedEnvs = []
+    expect((await post(app, {}, "overage still excludes reset account")).status).toBe(200)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  }, 20_000)
+
+  it("unbenches a matching cleared refusal without touching another exhausted profile", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    const resetsAt = Date.now() + 3_600_000
+    for (const profile of ["work", "personal"]) {
+      rateLimitStore.record(profile, { status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt })
+    }
+    failingDirs.add("prof-work")
+    failingDirs.add("prof-personal")
+    expect((await post(app, {}, "before matching reset")).status).toBe(429)
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect((await healthSnapshots(app)).spent.map(entry => entry.profileId)).toEqual(["personal"])
+    expect((await healthSnapshots(app)).exhausted.map(entry => entry.id)).toEqual(["personal"])
+    expect(rateLimitStore.get("personal", "five_hour")?.status).toBe("rejected")
+    failingDirs.delete("prof-work")
+    capturedEnvs = []
+    expect((await post(app, {}, "after matching reset")).status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("allows a matching named session refusal to be re-probed even without a reset timestamp", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    failureMessage = "Claude Code returned an error result: You've hit your session limit"
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "session refusal without clock")).status).toBe(200)
+    expect((await healthSnapshots(app)).spent.map(entry => entry.profileId)).toEqual(["work"])
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await healthSnapshots(app)).toEqual({ exhausted: [], spent: [] })
+    failingDirs.delete("prof-work")
+    capturedEnvs = []
+    expect((await post(app, {}, "retry cleared session without clock")).status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  for (const scenario of [
+    { name: "empty cleared list", body: { result: "reset", cleared: [] }, status: 200, expectedStatus: 200 },
+    { name: "already used grant", body: { result: "already_used", cleared: ["five_hour"] }, status: 200, expectedStatus: 200 },
+    ...["not_limited", "cooldown", "ineligible", "unavailable"].map(result => ({
+      name: result, body: { result, cleared: ["five_hour"] }, status: 200, expectedStatus: 200,
+    })),
+    { name: "uncertain mutation", body: { error: "unavailable" }, status: 503, expectedStatus: 502 },
+  ]) {
+    it(`preserves known quota health after ${scenario.name}`, async () => {
+      const { app, workDir } = createReauthTestApp()
+      await seedResetCredentials(workDir)
+      rateLimitStore.record("work", { status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: Date.now() + 3_600_000 })
+      failingDirs.add("prof-work")
+      expect((await post(app, {}, `before ${scenario.name}`)).status).toBe(200)
+      const before = await healthSnapshots(app)
+      stubOAuthEndpoints(200, scenario.body, scenario.status)
+      expect((await resetQuota(app)).status).toBe(scenario.expectedStatus)
+      expect(await healthSnapshots(app)).toEqual(before)
+      expect(rateLimitStore.get("work", "five_hour")?.status).toBe("rejected")
+    }, 20_000)
+  }
+
+  it("preserves quota refusals whose bucket was never identified", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "unknown refusal before reset")).status).toBe(200)
+    const before = await healthSnapshots(app)
+    expect(before.spent.map(entry => entry.profileId)).toEqual(["work"])
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour", "seven_day"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await healthSnapshots(app)).toEqual(before)
+  }, 20_000)
+
+  it("preserves non-quota exhaustion when quota buckets happen to be cleared", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    failureMessage = SUBSCRIPTION_REFUSAL
+    failingDirs.add("prof-work")
+    expect((await post(app, {}, "billing refusal before reset")).status).toBe(200)
+    const before = await healthSnapshots(app)
+    expect(before.exhausted).toEqual([expect.objectContaining({ id: "work", reason: "billing_error" })])
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["five_hour", "seven_day"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await healthSnapshots(app)).toEqual(before)
+  }, 20_000)
 
   it("clears exhausted and spent state when /profiles/login/complete succeeds so the next request routes to the re-authenticated profile", async () => {
     const resetsAt = Date.now() + 60 * 60_000

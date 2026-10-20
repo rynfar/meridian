@@ -352,7 +352,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `POST /profiles/add/start` | Begin creating a new profile — validates the name and returns the authorize URL (see [Adding from the web UI](profiles.md#from-the-web-ui-add-a-profile)) |
 | `POST /profiles/add/complete` | Finish that creation — writes the profile only once Anthropic returns credentials |
 | `GET /v1/usage/quota` | Usage windows for the active profile (JSON) |
-| `GET /v1/usage/quota/all` | Usage windows for every profile (JSON) |
+| `GET /v1/usage/quota/all` | Usage windows and Claude banked-reset grants with expiration dates for every profile (JSON) |
+| `POST /v1/usage/quota/reset` | Explicitly redeem a Claude banked reset with `profile`, `grantId` and caller-owned `requestId`; [request and outcome contract](../MONITORING.md#redeeming-a-banked-reset) |
 | `GET /settings` | Routing, SDK feature toggles, model pricing, telemetry storage, update-check, site-header and page layout UI |
 | `GET/PUT /settings/api/updates` | Read or set `checkForUpdates` (JSON `{"checkForUpdates": true}`); takes effect on the running proxy |
 | `GET/PUT /settings/api/header` | Read or set `showHostname` (JSON `{"showHostname": true}`): name the machine beside the header's status; takes effect on the running proxy |

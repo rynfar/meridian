@@ -130,6 +130,33 @@ class RateLimitStore {
     return total
   }
 
+  /** Invalidate confirmed windows without discarding independent overage state. */
+  clearBuckets(profileId: string, cleared: readonly string[]): void {
+    const buckets = this.byProfile.get(profileId)
+    if (!buckets) return
+    for (const [key, entry] of buckets) {
+      if (cleared.includes("overage")) {
+        delete entry.overageStatus
+        delete entry.overageResetsAt
+        delete entry.overageDisabledReason
+        delete entry.isUsingOverage
+      }
+      if (!cleared.includes(key)) continue
+      const hasOverage = entry.overageStatus !== undefined || entry.overageResetsAt !== undefined
+        || entry.overageDisabledReason !== undefined || entry.isUsingOverage !== undefined
+      if (!hasOverage) {
+        buckets.delete(key)
+        continue
+      }
+      // The base window was reset; overage fields still describe their own allowance.
+      entry.status = "allowed"
+      delete entry.utilization
+      delete entry.resetsAt
+      delete entry.surpassedThreshold
+    }
+    if (buckets.size === 0) this.byProfile.delete(profileId)
+  }
+
   /**
    * Drop stored entries for one profile, or every profile when `profileId`
    * is omitted. Wired into the `POST /auth/refresh` handler so a refreshed
