@@ -13,7 +13,7 @@ import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bu
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
-import { mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { lookupSharedSession, setSessionStoreDir, storeSharedSession } from "../proxy/sessionStore"
@@ -91,7 +91,7 @@ installMcpToolsMock(() => ({
   }),
 }))
 
-const { createProxyServer } = await import("../proxy/server")
+const { createProxyServer, initializeProxyBookkeeping } = await import("../proxy/server")
 const { diagnosticLog, telemetryStore } = await import("../telemetry")
 
 const ev = (event: any) => ({
@@ -395,6 +395,67 @@ describe("silent-turn recovery", () => {
     expect(queryCalls[1].options.forkSession).toBe(true)
     // ...and the NEXT turn resumes the fork, which is where the answer lives.
     expect(queryCalls[2].options.resume).toBe(queryCalls[1].options.sessionId)
+  })
+
+  // NOTE: agent-specific (claude-code). A trailing system turn holding only the
+  // batching reminder is left out of the lineage, so the reply sits one index
+  // earlier than the request's last message. The recovery fork's UUID map must
+  // end there too, or the stored map runs past the stored message count.
+  for (const backend of ["json", "sqlite"] as const) it(`sizes the recovery fork's UUID map to the lineage after a reminder-only system turn (${backend})`, async () => {
+    const savedMode = process.env.MERIDIAN_BOOKKEEPING
+    process.env.MERIDIAN_BOOKKEEPING = backend
+    let owner: Awaited<ReturnType<typeof initializeProxyBookkeeping>> = undefined
+    let proxy: ReturnType<typeof createProxyServer> | undefined
+    try {
+      owner = await initializeProxyBookkeeping()
+      expect(owner !== undefined).toBe(backend === "sqlite")
+      proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const sessionId = `silent-recovery-reminder-only-${crypto.randomUUID()}`
+      const batching = "First privately list what you need next; then request every item that doesn't depend on another's result in this one response."
+      scripted = [
+        [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
+        [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } }),
+         ...forkTextBlock(0, "Recovered after the reminder."), ...forkMsgEnd()],
+      ]
+
+      const body = await read(await proxy.app.fetch(new Request("http://localhost/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "dummy",
+          "user-agent": "claude-cli/2.1.259",
+          "x-meridian-agent": "claude-code",
+          "x-opencode-session": sessionId,
+        },
+        body: JSON.stringify({
+          ...REQUEST,
+          model: "claude-fable-5-1",
+          metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+          messages: [
+            { role: "user", content: "summarise the tool output" },
+            { role: "system", content: [{ type: "text", text: batching }] },
+          ],
+        }),
+      })))
+
+      expect(queryCalls.length).toBe(2)
+      expect(body).toContain("Recovered after the reminder.")
+      const stored = lookupSharedSession(sessionId)
+      expect(stored?.claudeSessionId).toBe(queryCalls[1].options.sessionId)
+      expect(stored?.messageCount).toBe(1)
+      expect(stored?.sdkMessageUuids).toEqual([null])
+      expect(existsSync(join(isolatedSessionDir, "session-bookkeeping.sqlite"))).toBe(backend === "sqlite")
+      expect(existsSync(join(isolatedSessionDir, "sessions.json"))).toBe(backend === "json")
+    } finally {
+      try { await proxy?.closeBackend?.() }
+      finally {
+        try { await owner?.close() }
+        finally {
+          if (savedMode === undefined) delete process.env.MERIDIAN_BOOKKEEPING
+          else process.env.MERIDIAN_BOOKKEEPING = savedMode
+        }
+      }
+    }
   })
 
   it("classifies a message envelope without content blocks as no_blocks", async () => {
