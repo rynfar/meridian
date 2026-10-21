@@ -1,0 +1,15 @@
+{
+  "capturedUTC": "2026-10-21T14:41:50.216701+00:00",
+  "PR": 1243,
+  "state": "closed",
+  "merged": false,
+  "unchangedHead": "5198b68aea1eb648e3b5685285f2b1008ab827b4",
+  "sourceBranch": "feat/session-store-sqlite",
+  "sourceOwner": "Nowaker",
+  "sourceBranchSHAUnchanged": true,
+  "commentId": 6318784815,
+  "commentURL": "https://github.com/rynfar/meridian/pull/1243#issuecomment-6318784815",
+  "exactApprovedBodyVerified": true,
+  "body": "Closing this proposal because the approved JSON default, explicit SQLite opt-in and offline migration are now delivered by #1219 and #1433 in 1.85.0. This PR still automatically selects/imports SQLite, which conflicts with that decision.\n\nIts implementation remains unmerged and its authored commits remain preserved. #1220’s separate asynchronous JSON writer stays open.",
+  "ownerApproval": "Current user explicitly approved this exact explanation and closure."
+}

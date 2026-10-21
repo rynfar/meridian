@@ -1,0 +1,27 @@
+{
+  "PR": 1440,
+  "state": "MERGED",
+  "sourceHead": "9b54e3101f06dc4d3096a82a325e38c8d1a3bf36",
+  "landed": "c84af243708578c0f15c92acad90fa68e364aaa9",
+  "parent": "a5a939be8e3bd43e73b8750963900568530e6445",
+  "tree": "8ea62d8bdca5ff4d3cc10e9e075b51e012ef415f",
+  "treeMatchesValidatedCandidate": true,
+  "author": {
+    "name": "Damian Nowak",
+    "email": "spam@nowaker.net",
+    "date": "2026-10-21T16:17:00Z"
+  },
+  "authorLogin": "Nowaker",
+  "sourceAuthorAlias": "Nowaker <spam@nowaker.net>",
+  "aliasVerification": "GitHub accountNowaker and identical source email; GitHub uses the contributor display name Damian Nowak for the squash.",
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T16:17:00Z"
+  },
+  "verifiedSignature": true,
+  "message": "fix(chatgpt): release a turn that fails before reaching the backend (#1440)\n\nCo-authored-by: Trevor Walker <rynfar@gmail.com>",
+  "sourceBranchPreserved": true,
+  "route": "normal exact-head squash; no admin/check bypass",
+  "proofCommit": "c3e3277ce1371134dda10e75e4577dfd145bee93"
+}

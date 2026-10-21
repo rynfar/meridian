@@ -1,0 +1,25 @@
+{
+  "PR": 1426,
+  "state": "MERGED",
+  "sourceHead": "88dee56ab569520315cf3ee99920b1809e64574c",
+  "landed": "a5a939be8e3bd43e73b8750963900568530e6445",
+  "parent": "075e9e4736d3457e12dda1a0108531b9b5843e96",
+  "tree": "7c8a50ef8fb2ff2f9be091c64d21611ec93d5291",
+  "treeMatchesValidatedCandidate": true,
+  "author": {
+    "name": "Alex Gleason",
+    "email": "alex@alexgleason.me",
+    "date": "2026-10-21T15:53:10Z"
+  },
+  "authorLogin": "alexgleason",
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T15:53:10Z"
+  },
+  "verifiedSignature": true,
+  "message": "feat: read x-session-id as conversation identity on /v1/chat/completions (#1426)\n\nCo-authored-by: Trevor Walker <rynfar@gmail.com>",
+  "sourceBranchPreserved": true,
+  "route": "normal exact-head squash; no admin/check bypass",
+  "proofCommit": "0b2f308426b8b297f2b22e90f11547101c8e7f70"
+}

@@ -1,0 +1,16 @@
+{
+  "issue": 1094,
+  "latestComment": "https://github.com/rynfar/meridian/issues/1094#issuecomment-6319971678",
+  "disposition": "Keep open; new version qualification candidate, no blanket unpin or billing-error resolution",
+  "currentQualifiedVersions": [
+    "0.0.0-beta-18314",
+    "0.0.0-beta-18866",
+    "0.0.0-beta-19271",
+    "2.0.16",
+    "2.0.21",
+    "2.0.31"
+  ],
+  "newEvidence": "Participant reports continued use after upgrading to2.1.1, with no retained exact plugin/setup/route/model witnesses. It is useful compatibility evidence but not the repository acceptance gate.",
+  "remaining": "Qualify exact2.1.1 with installed Meridian client and scrub preflight, E42/current supported-version matrix, live extended flows and installed package before adding that exact version. Do not treat this as compatibility with all future hosts. Original minimized content-sensitive billing payload and active negative control are still absent; the new participant opinion does not reproduce or retire that report.",
+  "actions": "Read-only triage, no code change, comment, model call or issue closure"
+}
