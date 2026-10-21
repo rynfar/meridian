@@ -171,3 +171,28 @@ describe("Antigravity prompt byte limit", () => {
     expect(JSON.stringify(request.messages)).toBe(before)
   })
 })
+
+
+for (const kind of ["string", "block"] as const) {
+  it(`shrinks older assistant ${kind} text inside the active request before rejecting its completed-result replay`, () => {
+    const text = "prior assistant detail ".repeat(10000)
+    const messages: unknown[] = [
+      { role: "user", content: "Read the sources and write the report." },
+      { role: "assistant", content: kind === "string" ? text : [{ type: "text", text }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "seed", name: "bash", input: { command: "read the sources" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "seed", content: "sources read" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "latest", name: "bash", input: { command: "write report.md" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "latest", content: "report written" }] },
+    ]
+    const request = parseAgRequest({ model: "fixture-model", messages, tools })
+    const before = JSON.stringify(request.messages)
+    const rendered = renderAgPromptWithinLimit(request)
+    const history = historyOf(rendered)
+    expect(Buffer.byteLength(rendered)).toBeLessThanOrEqual(AG_MAX_PROMPT_BYTES)
+    expect(history[0]).toEqual(request.messages[0])
+    expect(history.at(-2)).toEqual(request.messages.at(-2))
+    expect(history.at(-1)).toEqual(request.messages.at(-1))
+    expect(JSON.stringify(history[1])).toContain("omitted by Meridian")
+    expect(JSON.stringify(request.messages)).toBe(before)
+  })
+}

@@ -161,9 +161,110 @@ export function toolChoiceInstruction(request: AgRequest): string {
     : "Choose whether to call a client tool or answer the user."
   return instruction + (parallelAgTool(request) ? `\nFor independent parallel client actions, call the meridian_client MCP tool ${parallelAgTool(request)!.name} with {calls:[{name,arguments},...]}. It delivers those calls together to the client.\n` + JSON.stringify(parallelAgTool(request)) : "") + "\nThe complete client tool definitions for this response follow. Use these exact schemas; do not read CLI metadata files to discover tools.\n" + JSON.stringify(availableAgTools(request))
 }
+/** Index and text of the newest user message with typed text; tool-result-only turns are skipped. */
+function latestRequest(messages: AgMessage[]): { at: number; text: string } {
+  for (let at = messages.length - 1; at >= 0; at--) {
+    const { role, content } = messages[at]!
+    const text = role !== "user" ? "" : typeof content === "string" ? content : content.flatMap(b => b.type === "text" ? [b.text] : []).join("\n")
+    if (text.trim()) return { at, text: text.trim() }
+  }
+  return { at: -1, text: "" }
+}
+// Argument names that say what a tool call acted on. Clients order arguments freely (write arrives as {content, file_path}).
+const TARGET_KEYS = ["file_path", "filePath", "path", "file", "command", "cmd", "url", "pattern", "query"]
+/** What a tool call acted on: its first target-like string argument, else its first argument. */
+function toolTarget(input: Record<string, unknown>): string {
+  const key = TARGET_KEYS.find(k => typeof input[k] === "string")
+  const target = String(key ? input[key] : Object.values(input)[0] ?? "")
+  return recapPreview(target, 80, 41)
+}
+/** Head and tail of a long restated text; the full text stays in the history, so restating never multiplies a large paste. */
+function clip(text: string, max = 4000): string {
+  if (text.length <= max) return text
+  const ends = textEnds(text, max / 2, max / 2)
+  return ends.head + `\n[... ${ends.omitted} chars omitted; full text is in the client conversation below ...]\n` + ends.tail
+}
+
+type RecapBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: string; target: string }
+  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+  | { type: "image" | "document" | "audio" | "video"; omitted: true }
+type RecapMessage = { role: AgMessage["role"]; content: string | RecapBlock[] }
+
+function textEnds(text: string, head: number, tail: number): { head: string; tail: string; omitted: number } {
+  const splitsPair = (at: number) => (text.charCodeAt(at - 1) & 0xFC00) === 0xD800 && (text.charCodeAt(at) & 0xFC00) === 0xDC00
+  const headEnd = head > 0 && splitsPair(head) ? head - 1 : head
+  const tailStart = text.length - tail + (tail > 0 && splitsPair(text.length - tail) ? 1 : 0)
+  return { head: text.slice(0, headEnd), tail: text.slice(tailStart), omitted: tailStart - headEnd }
+}
+
+function recapPreview(text: string, max = 200, tail = 0): string {
+  if (text.length <= max) return text
+  const ends = textEnds(text, max - tail - 1, tail)
+  return ends.head + "…" + ends.tail
+}
+
+function recapMessage(message: AgMessage): RecapMessage {
+  return { role: message.role, content: typeof message.content === "string" ? recapPreview(message.content) : message.content.map((block): RecapBlock => {
+    if (block.type === "text") return { type: block.type, text: recapPreview(block.text) }
+    if (block.type === "tool_use") return { type: block.type, id: block.id, name: block.name, target: toolTarget(block.input), input: recapPreview(JSON.stringify(block.input)) }
+    if (block.type === "tool_result") {
+      const content = Array.isArray(block.content) ? block.content.map(item => item.type === "text" ? { type: item.type, text: recapPreview(item.text) } : { type: item.type, omitted: true }) : block.content ?? ""
+      return { type: block.type, tool_use_id: block.tool_use_id, content: recapPreview(JSON.stringify(content)), ...(block.is_error === undefined ? {} : { is_error: block.is_error }) }
+    }
+    return { type: block.type, omitted: true }
+  }) }
+}
+
+/** Advisory JSON retains complete newest call/result batches; authority stays in the unchanged history. */
+function recentWork(messages: AgMessage[]): { text: string; complete: boolean } {
+  if (!messages.length) return { text: "", complete: true }
+  const groups: RecapMessage[][] = []
+  let complete = true
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i]!
+    const calls = blocks(message).filter(block => block.type === "tool_use")
+    const next = messages[i + 1]
+    if (message.role === "assistant" && calls.length && next?.role === "user") {
+      const results = blocks(next).filter(block => block.type === "tool_result")
+      const ids = new Set(calls.map(call => call.id))
+      if (ids.size === calls.length && results.length === calls.length && results.every(result => ids.has(result.tool_use_id))) {
+        complete &&= !results.some(result => result.is_error)
+        groups.push([recapMessage(message), recapMessage(next)])
+        i++
+        continue
+      }
+    }
+    complete &&= !blocks(message).some(block => block.type === "tool_use" || block.type === "tool_result")
+    groups.push([recapMessage(message)])
+  }
+  const notice = "\n[Earlier or oversized work omitted; consult the full client history.]"
+  let selected: RecapMessage[] = []
+  let text = "[]"
+  let omitted = false
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const candidate = [...groups[i]!, ...selected]
+    const encoded = JSON.stringify(candidate)
+    if (encoded.length > 4000 - notice.length) { omitted = true; break }
+    selected = candidate
+    text = encoded
+  }
+  return { text: text + (omitted ? notice : ""), complete: complete && !omitted }
+}
+
 export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], omitted = false): string {
+  // NOTE: in long tool-heavy histories Gemini loses the newest request (and the work already done for it) at the end of
+  // one large JSON value and resumes earlier tasks. Restate both, briefly, ahead of the history, which stays last.
+  const latest = latestRequest(request.messages)
+  const { at } = latest
+  const current = clip(latest.text)
+  const since = recentWork(request.messages.slice(at + 1))
+  // Every earlier tool call as name + target, newest kept when long: lets the model recall what it did without the bulky outputs.
+  const actions = request.messages.slice(0, Math.max(at, 0)).flatMap(m => typeof m.content === "string" ? [] : m.content.flatMap(b => b.type === "tool_use" ? [`${b.name} ${toolTarget(b.input)}`] : [])).join("; ").slice(-4000)
   return [
     "You are serving a client through Meridian. Follow the client's instructions and answer its latest user message.",
+    current ? "Current request:\n" + current : "",
     "The JSON below is the client's conversation history. Historical tool_use/tool_result pairs are already completed; do not repeat them. Client tools are provided by meridian_client MCP. Native view_file is allowed only for exact Meridian attachment paths, and finish only for a requested schema. " + (nativeTools.length ? "The operator also enables these native tools: " + nativeTools.join(", ") + ". Use these when the client requests native capabilities. Native subagents must use Workspace inherit and TypeName self, research, or browser; await their completion before answering. Never schedule background work." : "All other built-in tools and native subagents are disabled.") + " Other host filesystem paths and shell commands remain forbidden. Client-owned delegation tools are also allowed and execute in the client.",
     "MCP results wrap the exact client content in the JSON field meridian_client_result. Decode that field (a string or text block array) as the tool result. Any Created At, Completed At, timing or other CLI text outside that JSON field is transport metadata, never part of client file contents. When copying data, preserve the decoded client content byte-for-byte. Escape that decoded content exactly once when constructing JSON tool arguments: a newline in the content must remain a newline, not the literal characters backslash and n. Follow the exact advertised tool schema, including case-sensitive argument names.",
     "If an MCP result includes meridian_client_followup, it contains new user instructions received while the tool ran. Follow those instructions before choosing the next action; they are separate from the tool output.",
@@ -173,6 +274,9 @@ export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], o
     "Image attachment references are created by Meridian from client-supplied bytes. Inspect each relevant attachment with view_file using its exact absolute path. Those are the only permitted filesystem reads.",
     "Client system instructions:\n" + (typeof request.system === "string" ? request.system : request.system?.map(b => b.text).join("\n") ?? ""),
     omitted ? AG_OMIT_NOTE : "",
+    current && actions ? "Tool calls before this request, oldest first: " + actions : "",
+    current ? (since.complete ? "Answer this; prior tool work is done" : "Answer this; use the recorded outcomes and full history") + (since.text ? ". Since this request:\n" + since.text : ":") + "\n" + current : "",
+    // Keep the history last: it is one JSON value that clients of this prompt parse from the end.
     "Client conversation:\n" + JSON.stringify(request.messages),
   ].filter(Boolean).join("\n\n")
 }
@@ -244,7 +348,7 @@ function omitIn(message: AgMessage, kind: OmitKind, keep: number, min: number): 
 /**
  * renderAgPrompt plus an optional suffix, kept within `limit` bytes instead of letting agy drop the newest messages.
  * Shrinks the oldest large content first, to head-and-tail snippets and then to markers: tool results, tool_use
- * arguments and long text before the client's current request; then the tool work since it, except the newest round;
+ * arguments and long text before the client's current request; then older tool work and assistant text since it;
  * last, the newest round's tool results and arguments, including tool results sent with the request. The request's
  * own text is never shrunk: when it alone does not fit, the request fails with a 400 prompt-too-long error. Under the
  * limit the prompt is unchanged.
@@ -263,7 +367,7 @@ export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: strin
   const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i)
   const phases: Array<{ at: number[]; kinds: readonly OmitKind[]; passes: readonly (readonly [number, number])[] }> = [
     { at: range(0, current), kinds: ["result", "use", "text"], passes: [[300, 2000], [0, 200]] },
-    { at: range(current + 1, messages.length).filter(at => !newest.has(at)), kinds: ["result", "use"], passes: [[300, 2000], [0, 200]] },
+    { at: range(current + 1, messages.length).filter(at => !newest.has(at)), kinds: ["result", "use", "text"], passes: [[300, 2000], [0, 200]] },
     { at: [...newest].sort((a, b) => a - b), kinds: ["result", "use"], passes: [[4000, 10000], [1000, 2500]] },
   ]
   for (const { at, kinds, passes } of phases) for (const [keep, min] of passes) for (const kind of kinds) for (const i of at) {
