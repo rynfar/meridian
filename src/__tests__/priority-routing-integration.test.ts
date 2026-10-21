@@ -1249,7 +1249,7 @@ describe("priority routing", () => {
     const firstApp = createTestApp()
     await assignToFallback(firstApp, sessionId, "human-1")
     const staleRoute = durableRoute(sessionId)
-    expect(evictSharedSession(staleRoute.mappingKey, staleRoute.mappingGeneration)).toBe(true)
+    expect(await evictSharedSession(staleRoute.mappingKey, staleRoute.mappingGeneration)).toBe(true)
     expect(lookupSharedSessionResult(staleRoute.mappingKey).status).toBe("missing")
     capturedEnvs = []
     capturedSdkCalls = []
@@ -1544,8 +1544,9 @@ describe("priority routing", () => {
 
     await body.cancel("cancel after atomic publication")
     recoveryGate.open()
-    for (let attempt = 0; attempt < 50 && durableRoute(sessionId).profileId !== "personal"; attempt++) {
-      await new Promise<void>(resolve => setImmediate(resolve))
+    // The rollback is a store write off the event loop; give it wall time, not ticks.
+    for (let attempt = 0; attempt < 500 && durableRoute(sessionId).profileId !== "personal"; attempt++) {
+      await new Promise<void>(resolve => setTimeout(resolve, 10))
     }
 
     const restored = durableRoute(sessionId)
@@ -1588,7 +1589,7 @@ describe("priority routing", () => {
     await body.cancel("cancel unsigned publication before terminal")
     latePublicationRecoveryGate = null
     recoveryGate.open()
-    for (let attempt = 0; attempt < 100; attempt++) {
+    for (let attempt = 0; attempt < 500; attempt++) {
       const current = durableRoute(sessionId)
       const mapping = lookupSharedSessionResult(current.mappingKey)
       if (
@@ -1596,7 +1597,7 @@ describe("priority routing", () => {
         && mapping.session.claudeSessionId === fallbackMapping.session.claudeSessionId
         && current.mappingGeneration === mapping.generation
       ) break
-      await new Promise<void>(resolve => setImmediate(resolve))
+      await new Promise<void>(resolve => setTimeout(resolve, 10))
     }
     const restored = durableRoute(sessionId)
     const restoredMapping = lookupSharedSessionResult(restored.mappingKey)

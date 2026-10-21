@@ -109,11 +109,11 @@ it("store: absent/null, exact/stale/present CAS, export invalidation, copies and
 })
 
 it("store: rollback protection and protected capacity reject atomically; route generations refresh", async () => {
-  legacy.storeSharedSession("protected", "id")
+  await legacy.storeSharedSession("protected", "id")
   const prior = legacy.lookupSharedSessionResult("protected")
   const route = legacy.lookupPriorityAssignmentResult("route")
   if (prior.status === "error" || !prior.generation || route.status === "error") throw new Error("fixture")
-  legacy.storeSharedSessionAndPriorityAssignment({ key: "protected", claudeSessionId: "id", messageCount: 1,
+  await legacy.storeSharedSessionAndPriorityAssignment({ key: "protected", claudeSessionId: "id", messageCount: 1,
     lineageHash: "h", messageHashes: [], messageBlockHashes: [], expectedMappingGeneration: prior.generation,
     priority: { routeKey: "route", profileId: "p", lastHumanTurnDigest: "x".repeat(43),
       lastHumanTurnIssuedAt: 1, expectedAssignmentGeneration: route.generation } })
@@ -518,7 +518,7 @@ it("evict: absent no-op, stale/protected false; cascades mapping dependants but 
 })
 
 it("clear: removes mapping/history/pins/exports/routes/rollbacks/attempts and advances all affected slots", async () => {
-  legacy.storeSharedSession("imported", "id")
+  await legacy.storeSharedSession("imported", "id")
   await migrate()
   expect(handle!.reader.get("SELECT key FROM legacy_exports WHERE kind='mapping'")).toBeDefined()
   expect(evictSharedSession(directory, "imported")).toBe(true)
@@ -544,14 +544,14 @@ it("clear: removes mapping/history/pins/exports/routes/rollbacks/attempts and ad
 })
 
 it("full backend: every store facade operation dispatches to migrated SQLite, JSON remains barred", async () => {
-  legacy.storeSharedSession("seed", "seed-id")
+  await legacy.storeSharedSession("seed", "seed-id")
   await migrate()
   legacy.setSessionStoreBackendForTest(sqliteSessionStoreBackend)
   expect(legacy.getSessionStoreDir()).toBe(directory)
   expect(legacy.getMaxStoredSessionsLimit()).toBeGreaterThan(0)
   expect(legacy.getMaxPriorityAssignmentsLimit()).toBeGreaterThan(0)
   expect(legacy.getMaxPriorityAttemptsLimit()).toBeGreaterThan(0)
-  const stored = legacy.storeSharedSession("key", "id")
+  const stored = (await legacy.storeSharedSession("key", "id"))
   if (!stored) throw new Error("store rejected")
   expect(stored).toBe(generation("key"))
   const found = legacy.lookupSharedSessionResult("key")
@@ -560,7 +560,7 @@ it("full backend: every store facade operation dispatches to migrated SQLite, JS
   expect(legacy.lookupSharedSessionByClaudeIdResult("id").status).toBe("found")
   expect(legacy.lookupSharedSessionByClaudeId("id")?.claudeSessionId).toBe("id")
   expect(legacy.getStoredSessionGeneration(legacy.lookupSharedSession("key")!, "key")).toBe(stored)
-  expect(legacy.attachSharedTranscriptLocator("key", "id", { sessionId: "id", configDir: directory })).not.toBe(false)
+  expect((await legacy.attachSharedTranscriptLocator("key", "id", { sessionId: "id", configDir: directory }))).not.toBe(false)
   expect(legacy.readSessionTranscriptPins()).toHaveLength(1)
   expect(legacy.readSessionStoreSnapshot().key?.claudeSessionId).toBe("id")
   expect(legacy.readSessionStoreGenerationSnapshot("key", ["p"]).key).toBe(generation("key"))
@@ -568,31 +568,31 @@ it("full backend: every store facade operation dispatches to migrated SQLite, JS
   expect(legacy.listStoredSessions().map((row) => row.key)).toContain("seed")
   const missing = legacy.lookupPriorityAssignmentResult("route")
   if (missing.status === "error") throw missing.error
-  const first = legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation })
+  const first = (await legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation }))
   if (!first) throw new Error("claim rejected")
-  expect(legacy.releasePriorityAttempt("route", first.ownerToken)).toBe(true)
-  const second = legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation })
+  expect((await legacy.releasePriorityAttempt("route", first.ownerToken))).toBe(true)
+  const second = (await legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation }))
   if (!second) throw new Error("claim rejected")
-  expect(legacy.blockPriorityAttempt("route", second.ownerToken)).toBe(true)
-  const third = legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation,
-    turn: { turnId: "a".repeat(43), issuedAt: 1 } })
+  expect((await legacy.blockPriorityAttempt("route", second.ownerToken))).toBe(true)
+  const third = (await legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: missing.generation,
+    turn: { turnId: "a".repeat(43), issuedAt: 1 } }))
   if (!third) throw new Error("claim rejected")
-  const published = legacy.storeSharedSessionAndPriorityAssignment({ ...publication(), attemptOwnerToken: third.ownerToken })
+  const published = (await legacy.storeSharedSessionAndPriorityAssignment({ ...publication(), attemptOwnerToken: third.ownerToken }))
   if (!published) throw new Error("publication rejected")
   const assigned = legacy.lookupPriorityAssignmentResult("route")
   if (assigned.status !== "found") throw new Error("assignment missing")
   expect(legacy.getPriorityAssignmentGeneration(assigned.assignment, "route")).toBe(published.assignmentGeneration)
-  expect(legacy.finalizeSharedSessionAndPriorityAssignment({ key: "key", routeKey: "route",
+  expect((await legacy.finalizeSharedSessionAndPriorityAssignment({ key: "key", routeKey: "route",
     expectedMappingGeneration: published.mappingGeneration, expectedAssignmentGeneration: published.assignmentGeneration,
-    attemptOwnerToken: third.ownerToken })).toBe(true)
-  const next = legacy.storeSharedSessionAndPriorityAssignment(publication())
+    attemptOwnerToken: third.ownerToken }))).toBe(true)
+  const next = (await legacy.storeSharedSessionAndPriorityAssignment(publication()))
   if (!next) throw new Error("publication rejected")
-  expect(legacy.rollbackSharedSessionAndPriorityAssignment({ key: "key", routeKey: "route",
+  expect((await legacy.rollbackSharedSessionAndPriorityAssignment({ key: "key", routeKey: "route",
     expectedMappingGeneration: next.mappingGeneration, expectedAssignmentGeneration: next.assignmentGeneration,
-    previousMapping: next.previousMapping, previousAssignment: next.previousAssignment })).not.toBe(false)
-  expect(legacy.evictSharedSession("key")).toBe(true)
+    previousMapping: next.previousMapping, previousAssignment: next.previousAssignment }))).not.toBe(false)
+  expect((await legacy.evictSharedSession("key"))).toBe(true)
   expect(mapping("key")).toBeUndefined()
-  legacy.clearSharedSessions()
+  await legacy.clearSharedSessions()
   expect(legacy.readSessionStoreSnapshot()).toEqual({})
   expect(handle!.reader.get("SELECT count(*) AS n FROM mappings")?.n).toBe(0)
 })

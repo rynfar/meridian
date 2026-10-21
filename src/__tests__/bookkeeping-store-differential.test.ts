@@ -9,7 +9,7 @@ import { sqliteSessionStoreBackend } from "../proxy/session/bookkeeping/sqliteSt
 
 // Inject identical entropy per semantic operation, not per internal call (JSON file names also use UUIDs).
 // No returned token, timestamp, array order or false outcome is normalized away.
-it("runs the same store/priority ledger on JSON and SQLite with exact step results", () => {
+it("runs the same store/priority ledger on JSON and SQLite with exact step results", async () => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), "bookkeeping-differential-")))
   const limits = ["MERIDIAN_MAX_STORED_SESSIONS", "MERIDIAN_MAX_PRIORITY_ASSIGNMENTS",
     "MERIDIAN_MAX_PRIORITY_ATTEMPTS"] as const
@@ -18,13 +18,13 @@ it("runs the same store/priority ledger on JSON and SQLite with exact step resul
   const clock = spyOn(Date, "now").mockImplementation(() => 1_900_000_000_000 + step)
   const uuid = spyOn(crypto, "randomUUID").mockImplementation(() =>
     `00000000-0000-4000-8000-${step.toString(16).padStart(12, "0")}`)
-  const execute = () => {
+  const execute = async () => {
     step = 0
     for (const name of limits) process.env[name] = "20"
     const results: Array<{ name: string; result: unknown }> = []
-    function run<T>(name: string, operation: () => T): T {
+    async function run<T>(name: string, operation: () => T | Promise<T>): Promise<T> {
       step++
-      const value = operation()
+      const value = await operation()
       results.push({ name, result: structuredClone(value) })
       return value
     }
@@ -38,92 +38,92 @@ it("runs the same store/priority ledger on JSON and SQLite with exact step resul
       if (found.status === "error") throw found.error
       return found.generation
     }
-    const publish = (key: string, route: string, owner?: string) => store.storeSharedSessionAndPriorityAssignment({
+    const publish = async (key: string, route: string, owner?: string) => (await store.storeSharedSessionAndPriorityAssignment({
       key, claudeSessionId: `sdk-${key}`, messageCount: 2, lineageHash: "lineage",
       messageHashes: ["a", "b"], messageBlockHashes: [["a"], ["b"]],
       expectedMappingGeneration: mapping(key), attemptOwnerToken: owner,
       priority: { routeKey: route, profileId: "p", lastHumanTurnDigest: "a".repeat(43),
         lastHumanTurnIssuedAt: 1, expectedAssignmentGeneration: priority(route) },
-    })
-    run("store", () => store.storeSharedSession("key", "sdk-key"))
-    run("CAS conflict", () => store.storeSharedSession("key", "wrong", undefined, undefined, undefined,
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined, null))
-    run("CAS exact", () => store.storeSharedSession("key", "sdk-key", 2, undefined, ["history"],
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined, mapping("key")))
-    const claim = run("claim", () => store.claimPriorityAttempt({ routeKey: "route",
-      expectedAssignmentGeneration: priority("route"), turn: { turnId: "a".repeat(43), issuedAt: 1 } }))
+    }))
+    await run("store", async () => (await store.storeSharedSession("key", "sdk-key")))
+    await run("CAS conflict", async () => (await store.storeSharedSession("key", "wrong", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)))
+    await run("CAS exact", async () => (await store.storeSharedSession("key", "sdk-key", 2, undefined, ["history"],
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, mapping("key"))))
+    const claim = await run("claim", async () => (await store.claimPriorityAttempt({ routeKey: "route",
+      expectedAssignmentGeneration: priority("route"), turn: { turnId: "a".repeat(43), issuedAt: 1 } })))
     if (!claim) throw new Error("claim fixture")
     const stranger = "11111111-1111-4111-8111-111111111111"
-    run("block foreign", () => store.blockPriorityAttempt("route", stranger))
-    run("release foreign", () => store.releasePriorityAttempt("route", stranger))
-    run("block own", () => store.blockPriorityAttempt("route", claim.ownerToken))
-    run("release settled", () => store.releasePriorityAttempt("route", claim.ownerToken))
-    const second = run("newer claim", () => store.claimPriorityAttempt({ routeKey: "route",
-      expectedAssignmentGeneration: priority("route"), turn: { turnId: "b".repeat(43), issuedAt: 2 } }))
+    await run("block foreign", async () => (await store.blockPriorityAttempt("route", stranger)))
+    await run("release foreign", async () => (await store.releasePriorityAttempt("route", stranger)))
+    await run("block own", async () => (await store.blockPriorityAttempt("route", claim.ownerToken)))
+    await run("release settled", async () => (await store.releasePriorityAttempt("route", claim.ownerToken)))
+    const second = await run("newer claim", async () => (await store.claimPriorityAttempt({ routeKey: "route",
+      expectedAssignmentGeneration: priority("route"), turn: { turnId: "b".repeat(43), issuedAt: 2 } })))
     if (!second) throw new Error("second claim fixture")
-    run("release own", () => store.releasePriorityAttempt("route", second.ownerToken))
-    run("clear blocker", () => store.clearSharedSessions())
-    run("seed fallback", () => publish("fallback", "route"))
-    const promoted = run("publish", () => publish("promoted", "route"))
+    await run("release own", async () => (await store.releasePriorityAttempt("route", second.ownerToken)))
+    await run("clear blocker", async () => (await store.clearSharedSessions()))
+    await run("seed fallback", async () => (await publish("fallback", "route")))
+    const promoted = await run("publish", async () => (await publish("promoted", "route")))
     if (!promoted) throw new Error("publication fixture")
-    run("evict rollback", () => store.evictSharedSession("fallback", mapping("fallback")))
-    run("rollback stale", () => store.rollbackSharedSessionAndPriorityAssignment({
+    await run("evict rollback", async () => (await store.evictSharedSession("fallback", mapping("fallback"))))
+    await run("rollback stale", async () => (await store.rollbackSharedSessionAndPriorityAssignment({
       key: "promoted", routeKey: "route",
       expectedMappingGeneration: "stale", expectedAssignmentGeneration: promoted.assignmentGeneration,
-      previousMapping: promoted.previousMapping, previousAssignment: promoted.previousAssignment }))
-    run("rollback", () => store.rollbackSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
+      previousMapping: promoted.previousMapping, previousAssignment: promoted.previousAssignment })))
+    await run("rollback", async () => (await store.rollbackSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
       expectedMappingGeneration: promoted.mappingGeneration, expectedAssignmentGeneration: promoted.assignmentGeneration,
-      previousMapping: promoted.previousMapping, previousAssignment: promoted.previousAssignment }))
-    const final = run("republish", () => publish("promoted", "route"))
+      previousMapping: promoted.previousMapping, previousAssignment: promoted.previousAssignment })))
+    const final = await run("republish", async () => (await publish("promoted", "route")))
     if (!final) throw new Error("final publication fixture")
-    run("finalize stale", () => store.finalizeSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
+    await run("finalize stale", async () => (await store.finalizeSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
       expectedMappingGeneration: "stale", expectedAssignmentGeneration: final.assignmentGeneration,
-      rollbackMappingKey: "fallback" }))
-    run("finalize", () => store.finalizeSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
+      rollbackMappingKey: "fallback" })))
+    await run("finalize", async () => (await store.finalizeSharedSessionAndPriorityAssignment({ key: "promoted", routeKey: "route",
       expectedMappingGeneration: final.mappingGeneration, expectedAssignmentGeneration: final.assignmentGeneration,
-      rollbackMappingKey: "fallback" }))
-    run("attach", () => store.attachSharedTranscriptLocator("promoted", "sdk-promoted",
-      { configDir: directory, sessionId: "sdk-promoted" }, mapping("promoted")))
-    run("pins before eviction", () => store.readSessionTranscriptPins())
-    run("evict live assignment", () => store.evictSharedSession("promoted", mapping("promoted")))
-    run("assignment survives", () => store.lookupPriorityAssignmentResult("route"))
-    run("clear", () => store.clearSharedSessions())
+      rollbackMappingKey: "fallback" })))
+    await run("attach", async () => (await store.attachSharedTranscriptLocator("promoted", "sdk-promoted",
+      { configDir: directory, sessionId: "sdk-promoted" }, mapping("promoted"))))
+    await run("pins before eviction", () => store.readSessionTranscriptPins())
+    await run("evict live assignment", async () => (await store.evictSharedSession("promoted", mapping("promoted"))))
+    await run("assignment survives", () => store.lookupPriorityAssignmentResult("route"))
+    await run("clear", async () => (await store.clearSharedSessions()))
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "1"
-    run("mapping cap first", () => store.storeSharedSession("old", "old"))
-    run("mapping cap second", () => store.storeSharedSession("new", "new"))
-    run("pruned mapping", () => store.lookupSharedSessionResult("old"))
+    await run("mapping cap first", async () => (await store.storeSharedSession("old", "old")))
+    await run("mapping cap second", async () => (await store.storeSharedSession("new", "new")))
+    await run("pruned mapping", () => store.lookupSharedSessionResult("old"))
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "20"
     process.env.MERIDIAN_MAX_PRIORITY_ASSIGNMENTS = "1"
-    run("route cap first", () => publish("one", "one"))
-    run("route cap second", () => publish("two", "two"))
-    run("pruned route", () => store.lookupPriorityAssignmentResult("one"))
+    await run("route cap first", async () => (await publish("one", "one")))
+    await run("route cap second", async () => (await publish("two", "two")))
+    await run("pruned route", () => store.lookupPriorityAssignmentResult("one"))
     process.env.MERIDIAN_MAX_PRIORITY_ATTEMPTS = "1"
-    run("attempt cap first", () => store.claimPriorityAttempt({ routeKey: "one",
-      expectedAssignmentGeneration: priority("one") }))
-    run("attempt cap reject", () => store.claimPriorityAttempt({ routeKey: "two",
-      expectedAssignmentGeneration: priority("two") }))
-    run("recovery", () => store.lookupSessionRecovery("two"))
-    run("list", () => store.listStoredSessions())
-    run("snapshot", () => store.readSessionStoreSnapshot())
-    run("generations", () => store.readSessionStoreGenerationSnapshot("two", ["p", "default"]))
-    run("pins", () => store.readSessionTranscriptPins())
-    run("final clear", () => store.clearSharedSessions())
-    run("empty snapshot", () => store.readSessionStoreSnapshot())
-    run("empty generations", () => store.readSessionStoreGenerationSnapshot("two", ["p"]))
-    run("empty pins", () => store.readSessionTranscriptPins())
+    await run("attempt cap first", async () => (await store.claimPriorityAttempt({ routeKey: "one",
+      expectedAssignmentGeneration: priority("one") })))
+    await run("attempt cap reject", async () => (await store.claimPriorityAttempt({ routeKey: "two",
+      expectedAssignmentGeneration: priority("two") })))
+    await run("recovery", () => store.lookupSessionRecovery("two"))
+    await run("list", () => store.listStoredSessions())
+    await run("snapshot", () => store.readSessionStoreSnapshot())
+    await run("generations", () => store.readSessionStoreGenerationSnapshot("two", ["p", "default"]))
+    await run("pins", () => store.readSessionTranscriptPins())
+    await run("final clear", async () => (await store.clearSharedSessions()))
+    await run("empty snapshot", () => store.readSessionStoreSnapshot())
+    await run("empty generations", () => store.readSessionStoreGenerationSnapshot("two", ["p"]))
+    await run("empty pins", () => store.readSessionTranscriptPins())
     return results
   }
   let handle: ReturnType<typeof initializeSessionBookkeeping> | undefined
   try {
     store.setSessionStoreBackendForTest(null)
     store.setSessionStoreDir(directory)
-    const json = execute()
+    const json = await execute()
     // A fresh SQL store starts with the same absence authority as a fresh JSON store.
     rmSync(directory, { recursive: true, force: true })
     mkdirSync(directory, { mode: 0o700 })
     handle = initializeSessionBookkeeping(directory)
     store.setSessionStoreBackendForTest(sqliteSessionStoreBackend)
-    const sql = execute()
+    const sql = await execute()
     expect(sql.length).toBe(json.length)
     for (let index = 0; index < json.length; index++) expect(sql[index]).toEqual(json[index])
   } finally {

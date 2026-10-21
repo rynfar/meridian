@@ -59,7 +59,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage — shared store", () 
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     const claudeSessionId = "sess_shared_usage_001"
 
-    storeSharedSession(
+    await storeSharedSession(
       "shared-key-usage",
       claudeSessionId,
       1,
@@ -85,7 +85,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage — shared store", () 
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     const claudeSessionId = "sess_shared_usage_iterations_001"
 
-    storeSharedSession(
+    await storeSharedSession(
       "shared-key-usage-iterations",
       claudeSessionId,
       1,
@@ -136,7 +136,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage — shared store", () 
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     const claudeSessionId = "sess_shared_usage_empty_iterations_001"
 
-    storeSharedSession(
+    await storeSharedSession(
       "shared-key-usage-empty-iterations",
       claudeSessionId,
       1,

@@ -15,7 +15,7 @@ try {
   if (mode === "legacy-write") {
     process.env.MERIDIAN_SESSION_LOCK_TIMEOUT_MS = "20"
     setSessionStoreDir(directory)
-    storeSharedSession("old-writer", "sdk-old")
+    await storeSharedSession("old-writer", "sdk-old")
     process.exit(0)
   }
   if (mode === "fresh") { initializeSessionBookkeeping(directory).close(); process.exit(0) }

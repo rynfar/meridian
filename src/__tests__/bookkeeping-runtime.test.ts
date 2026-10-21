@@ -105,7 +105,7 @@ it("a private native reader cannot release the last serving runtime during admis
 
 it("does not import legacy data implicitly and permits only explicit offline migration", async () => {
   process.env.MERIDIAN_BOOKKEEPING = "json"
-  storeSharedSession("legacy", "sdk-legacy")
+  await storeSharedSession("legacy", "sdk-legacy")
   const bytes = readFileSync(join(directory, "sessions.json"), "utf8")
   process.env.MERIDIAN_BOOKKEEPING = "sqlite"
   await expect(initializeProxyBookkeeping()).rejects.toThrow("offline migration")

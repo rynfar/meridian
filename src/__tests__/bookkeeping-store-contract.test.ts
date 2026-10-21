@@ -58,12 +58,12 @@ it("rejects scalar NUL before SQL writes, including owner tokens and locator pat
   const prepare = spyOn(db, "prepare")
   try {
     for (const operation of [
-      () => store.storeSharedSession("key\0suffix", "id"),
-      () => store.storeSharedSession("key", "id\0suffix"),
-      () => store.blockPriorityAttempt("route", "owner\0suffix"),
-      () => store.releasePriorityAttempt("route", "owner\0suffix"),
-      () => store.storeSharedSession("key", "id", undefined, undefined, undefined,
-        undefined, undefined, undefined, undefined, undefined, { sessionId: "id", configDir: `${directory}\0suffix` }),
+      async () => (await store.storeSharedSession("key\0suffix", "id")),
+      async () => (await store.storeSharedSession("key", "id\0suffix")),
+      async () => (await store.blockPriorityAttempt("route", "owner\0suffix")),
+      async () => (await store.releasePriorityAttempt("route", "owner\0suffix")),
+      async () => (await store.storeSharedSession("key", "id", undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined, undefined, { sessionId: "id", configDir: `${directory}\0suffix` })),
     ]) {
       prepare.mockClear()
       expect(operation).toThrow(BookkeepingTextParameterError)
@@ -75,10 +75,10 @@ it("rejects scalar NUL before SQL writes, including owner tokens and locator pat
 })
 
 it("round-trips NUL payload through store and export; changed imports never revive legacy bytes", async () => {
-  store.storeSharedSession("key", "old", 1, undefined, ["before"])
+  await store.storeSharedSession("key", "old", 1, undefined, ["before"])
   await migrate()
   expect(handle!.reader.get("SELECT key FROM legacy_exports WHERE kind='mapping'")?.key).toBe("key")
-  expect(store.storeSharedSession("key", "new", 2, undefined, ["before\0after"])).not.toBe(false)
+  expect((await store.storeSharedSession("key", "new", 2, undefined, ["before\0after"]))).not.toBe(false)
   const result = store.lookupSharedSessionResult("key")
   expect(result.status === "found" && result.session.messageHashes).toEqual(["before\0after"])
   expect(handle!.reader.get("SELECT key FROM legacy_exports WHERE kind='mapping'")).toBeUndefined()
@@ -91,7 +91,7 @@ it("round-trips NUL payload through store and export; changed imports never revi
 })
 
 it("migrates the real reserved NUL metadata key without treating it as a mapping", async () => {
-  store.storeSharedSession("key", "id")
+  await store.storeSharedSession("key", "id")
   const original = JSON.parse(readFileSync(join(directory, "sessions.json"), "utf8"))
   expect(STORE_META_KEY).toBe("\0meridian-session-store")
   expect(original[STORE_META_KEY]).toBeDefined()
@@ -123,8 +123,8 @@ it("facade lookup sees uncommitted store writes and returns copies, not aliases"
 it("never aliases caller-owned store locators or returned lookup/snapshot objects", async () => {
   await migrate()
   const locator = { configDir: directory, sessionId: "id" }
-  expect(store.storeSharedSession("key", "id", 1, undefined, ["original"], undefined,
-    undefined, undefined, undefined, undefined, locator)).not.toBe(false)
+  expect((await store.storeSharedSession("key", "id", 1, undefined, ["original"], undefined,
+    undefined, undefined, undefined, undefined, locator))).not.toBe(false)
   const original = structuredClone(store.readSessionStoreSnapshot())
   locator.configDir = "/caller-mutated"
   locator.sessionId = "caller-mutated"

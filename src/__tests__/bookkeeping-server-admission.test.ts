@@ -39,7 +39,34 @@ it("every imported server mutation enters async admission or the joint publicati
   expect(file.text).not.toContain("readSessionStoreSnapshot")
 })
 
-it("publication callbacks do not assign server durability flags before their outer COMMIT", () => {
+const durabilityFlags = new Set(["mappingExpectedGeneration", "managedForkPublished", "recoveryForkPublished", "recoveryPublishedTarget"])
+
+function requiresJson(condition: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(condition)) return requiresJson(condition.expression)
+  if (ts.isPrefixUnaryExpression(condition)) return condition.operator === ts.SyntaxKind.ExclamationToken
+    && ts.isIdentifier(condition.operand) && condition.operand.text === "bookkeepingHandle"
+  return ts.isBinaryExpression(condition) && condition.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    && (requiresJson(condition.left) || requiresJson(condition.right))
+}
+
+function nativePublicationAssignments(callback: ts.Node): string[] {
+  const assignments: string[] = []
+  const check = (child: ts.Node) => {
+    if (ts.isIfStatement(child) && requiresJson(child.expression)) {
+      // The condition still runs in SQL, including any assignment it contains.
+      check(child.expression)
+      if (child.elseStatement) check(child.elseStatement)
+      return
+    }
+    if (ts.isBinaryExpression(child) && child.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      && ts.isIdentifier(child.left) && durabilityFlags.has(child.left.text)) assignments.push(child.left.text)
+    ts.forEachChild(child, check)
+  }
+  check(callback)
+  return assignments
+}
+
+it("SQL publication callbacks do not assign server durability flags before their outer COMMIT", () => {
   const file = source("src/proxy/server.ts")
   let publications = 0
   const visit = (node: ts.Node) => {
@@ -48,20 +75,24 @@ it("publication callbacks do not assign server durability flags before their out
       publications++
       const callback = node.arguments[1]
       if (!callback) throw new Error("publication callback missing")
-      const check = (child: ts.Node) => {
-        if (ts.isBinaryExpression(child) && child.operatorToken.kind === ts.SyntaxKind.EqualsToken
-          && ts.isIdentifier(child.left)) {
-          expect(["mappingExpectedGeneration", "managedForkPublished", "recoveryForkPublished", "recoveryPublishedTarget"])
-            .not.toContain(child.left.text)
-        }
-        ts.forEachChild(child, check)
-      }
-      check(callback)
+      expect(nativePublicationAssignments(callback)).toEqual([])
     }
     ts.forEachChild(node, visit)
   }
   visit(file)
   expect(publications).toBe(4)
+})
+
+it.each([
+  ["mappingExpectedGeneration = value", ["mappingExpectedGeneration"]],
+  ["if (value && !bookkeepingHandle) { managedForkPublished = true }", []],
+  ["if (value && bookkeepingHandle) { managedForkPublished = true }", ["managedForkPublished"]],
+  ["if (value || !bookkeepingHandle) { managedForkPublished = true }", ["managedForkPublished"]],
+  ["if (!bookkeepingHandle) { managedForkPublished = true } else { recoveryForkPublished = true }", ["recoveryForkPublished"]],
+  ["if ((mappingExpectedGeneration = value) && !bookkeepingHandle) { managedForkPublished = true }", ["mappingExpectedGeneration"]],
+] as const)("keeps native assignment checks for %s", (body, expected) => {
+  const file = ts.createSourceFile("publication-control.ts", `() => { ${body} }`, ts.ScriptTarget.Latest, true)
+  expect(nativePublicationAssignments(file)).toEqual([...expected])
 })
 
 it("the production mutation-root inventory extends beyond server.ts", () => {

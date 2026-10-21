@@ -1,3 +1,19 @@
+## Asynchronous JSON store and SQLite transaction parity (#1220)
+
+Run the isolated `proxy-session-store-locking`, `priority-session-store`,
+`execution-history-store`, `bookkeeping-cache-publication` and
+`session-cache-clear-completion` test files. JSON gates exercise real file-handle
+sync waits, lock contention, ordered mutations and rollback fallback ownership.
+SQLite gates require synchronous publication callbacks, atomic rollback and
+commit-ordered cache/priority effects. Deliberately yielding the native result
+continuation must fail the SQL authority tests; delaying the headerless rollback
+key capture must fail its JSON store-error fallback test. Restore source bytes
+before qualification.
+
+These checks do not resolve #1220's original live Opus cache-prefix discrepancy.
+Keep the unchanged E41 threshold and original actual-client/model/platform gates;
+recorded metadata and later green runs are not a causal explanation.
+
 ## Awaited session-cache cleanup (#1244/#1277)
 
 Run `bun test src/__tests__/session-cache-clear-completion.test.ts` with a

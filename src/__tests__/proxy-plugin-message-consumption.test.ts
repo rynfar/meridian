@@ -219,7 +219,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
       it(`checkpoint proof and tool pairing (stream=${stream}, modified=${modify})`, async () => {
         const app = await appWithPlugin()
         const prior: Message[] = [{ role: "user", content: "REMOVE_FROM_EXECUTION original objective" }]
-        storeSession("fixture-checkpoint", prior, "fixture-sdk-checkpoint", undefined, [null, "fixture-tool-uuid"], undefined, "fixture-tool-uuid", ["fixture-tool-id"])
+        await storeSession("fixture-checkpoint", prior, "fixture-sdk-checkpoint", undefined, [null, "fixture-tool-uuid"], undefined, "fixture-tool-uuid", ["fixture-tool-id"])
         const call = { type: "tool_use", id: "fixture-tool-id", name: "read", input: { path: "fixture.txt" } }
         await post(app, [...prior, { role: "assistant", content: [call] }, { role: "user", content: [{ type: "tool_result", tool_use_id: call.id, content: "EXACT_CHECKPOINT_RESULT" }] }], modify ? "modify" : "noop", stream, "fixture-checkpoint")
         if (modify) {
@@ -265,7 +265,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
     it(`transformed undo cannot inherit a raw rollback UUID (stream=${stream})`, async () => {
       const app = await appWithPlugin()
       const cached: Message[] = [{ role: "user", content: "REMOVE_FROM_EXECUTION first instruction" }, { role: "assistant", content: "prior answer" }, { role: "user", content: "old question" }]
-      storeSession("fixture-undo", cached, "fixture-sdk-undo", undefined, [null, "fixture-old-uuid", null])
+      await storeSession("fixture-undo", cached, "fixture-sdk-undo", undefined, [null, "fixture-old-uuid", null])
       await post(app, [...cached.slice(0, 2), { role: "user", content: "replacement question" }], "modify", stream, "fixture-undo")
       expect(lineages(app).at(-1)?.lineage).toBe("undo")
       expect(calls[0]?.options?.resume).toBeUndefined()
@@ -325,7 +325,7 @@ describe("documented plugin message transforms at SDK ingress", () => {
     it(`a simulated resume refusal cannot reintroduce omitted history (stream=${stream})`, async () => {
       const app = await appWithPlugin()
       failures = ["Missing message UUID in session"]
-      storeSession("fixture-resume-refusal", [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }], "fixture-sdk-refused")
+      await storeSession("fixture-resume-refusal", [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }], "fixture-sdk-refused")
       const response = await post(app, [{ role: "user", content: "REMOVE_FROM_EXECUTION cached input" }, { role: "assistant", content: "fixture answer" }, { role: "user", content: "new question" }], "modify", stream, "fixture-resume-refusal", true)
       if (!stream) expect(response.status).not.toBe(200)
       expect(calls).toHaveLength(1)

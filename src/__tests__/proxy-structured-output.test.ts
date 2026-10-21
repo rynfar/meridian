@@ -200,7 +200,7 @@ describe("native structured output", () => {
 
     for (let index = 0; index < 1_000 && queryCalls < 2; index++) await Bun.sleep(1)
     expect(queryCalls).toBe(2)
-    expect(evictSharedSession(sessionId, source.generation)).toBe(true)
+    expect(await evictSharedSession(sessionId, source.generation)).toBe(true)
     releaseResult()
 
     const response = await responsePromise
