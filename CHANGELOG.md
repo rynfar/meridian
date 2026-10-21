@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.86.0](https://github.com/rynfar/meridian/compare/meridian-v1.85.0...meridian-v1.86.0) (2026-10-21)
+
+
+### Features
+
+* read x-session-id as conversation identity on /v1/chat/completions ([#1426](https://github.com/rynfar/meridian/issues/1426)) ([a5a939b](https://github.com/rynfar/meridian/commit/a5a939be8e3bd43e73b8750963900568530e6445))
+
+
+### Bug Fixes
+
+* **antigravity:** compact older assistant text in active tool loops ([#1437](https://github.com/rynfar/meridian/issues/1437)) ([075e9e4](https://github.com/rynfar/meridian/commit/075e9e4736d3457e12dda1a0108531b9b5843e96))
+* **chatgpt:** release a turn that fails before reaching the backend ([#1440](https://github.com/rynfar/meridian/issues/1440)) ([c84af24](https://github.com/rynfar/meridian/commit/c84af243708578c0f15c92acad90fa68e364aaa9))
+
 ## [1.85.0](https://github.com/rynfar/meridian/compare/meridian-v1.84.0...meridian-v1.85.0) (2026-10-21)
 
 
