@@ -10,6 +10,7 @@
  * We just need the definitions so Claude can call them.
  */
 
+import { createHash } from "node:crypto"
 import { createSdkMcpServer, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 
@@ -344,6 +345,53 @@ export function createPassthroughMcpServer(
     hasDeferredTools,
     clientNameByAlias: aliases.clientNameByAlias,
   }
+}
+
+type PassthroughMcpServer = ReturnType<typeof createPassthroughMcpServer>
+
+// Built definition sets by content, shared by every session that sends the
+// same tools. A built set is large: a 230-tool OpenCode set is ~650k Zod schema
+// objects, about 30 MB of heap, and every OpenCode session sends the same set.
+// Built once per session, the per-session MCP cache multiplied that by its
+// 1,000 entries: several GB of identical schemas on a long-lived proxy.
+//
+// Held weakly, so this map keeps nothing alive itself: a set lives exactly as
+// long as a session cache entry or a running query holds it, and the caches
+// that own it keep their bounds.
+const sharedPassthroughServers = new Map<string, WeakRef<PassthroughMcpServer>>()
+const sharedPassthroughCleanup = new FinalizationRegistry<string>((digest) => {
+  if (sharedPassthroughServers.get(digest)?.deref() === undefined) sharedPassthroughServers.delete(digest)
+})
+
+/**
+ * `createPassthroughMcpServer`, returning the same built set for the same
+ * content. The digest covers everything the build reads - names, descriptions,
+ * deferral flags, schemas in request order, the namespace, the resolved
+ * auto-defer decision and the core tool names - so a shared set is identical to
+ * the one a fresh build would produce. The built set is never mutated by its
+ * users: each query builds its own server from the definitions.
+ */
+export function sharedPassthroughMcpServer(
+  tools: Parameters<typeof createPassthroughMcpServer>[0],
+  coreToolNames?: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
+  pinnedAutoDefer?: boolean,
+): PassthroughMcpServer {
+  const autoDefer = pinnedAutoDefer ?? autoDeferDecision(getAutoDeferThreshold(), coreToolNames, tools.length)
+  const digest = createHash("sha256").update(JSON.stringify([
+    serverName,
+    autoDefer,
+    autoDefer && coreToolNames ? coreToolNames.map(name => name.toLowerCase()) : null,
+    // Schema property order survives SDK tools/list rendering, so it is part
+    // of the built catalog's identity even when JSON Schema semantics match.
+    tools.map(tool => [tool.name, tool.description || "", tool.defer_loading ?? null, JSON.stringify(tool.input_schema ?? null)]),
+  ])).digest("hex")
+  const shared = sharedPassthroughServers.get(digest)?.deref()
+  if (shared) return shared
+  const built = createPassthroughMcpServer(tools, coreToolNames, serverName, autoDefer)
+  sharedPassthroughServers.set(digest, new WeakRef(built))
+  sharedPassthroughCleanup.register(built, digest)
+  return built
 }
 
 /**
