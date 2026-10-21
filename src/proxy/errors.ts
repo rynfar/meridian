@@ -170,6 +170,18 @@ const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
  *  in the first place. */
 const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/m
 
+/**
+ * How a headless session's refusal closes. The slash commands of the
+ * interactive banner mean nothing to an SDK caller, so the CLI's refusal
+ * builder (read from 2.1.284 and 2.1.289) ends every such banner with
+ * "Switch to another model to continue.", and splices the credits page in
+ * when the account can buy usage credits: "Switch to another model, or manage
+ * usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to
+ * continue." (`claude.ai/admin-settings/usage` on a team or enterprise seat).
+ * Only those two addresses: this is still an enumerated suffix, not a tail.
+ */
+const SWITCH_MODEL_PROSE = String.raw`switch[ \t]+to[ \t]+another[ \t]+model(?:,[ \t]+or[ \t]+manage[ \t]+usage[ \t]+credits[ \t]+at[ \t]+claude\.ai\/(?:admin-settings|settings)\/usage(?:\?from=cc_cli_limit_message)?,)?(?:[ \t]+to[ \t]+continue)?`
+
 /** Credits-era per-tier banner uses "reached", not the "hit" wording from
  * #764 and #787. Enumerate tiers rather than wildcarding the qualifier: the
  * CLI also emits "reached your specified/configured ..." prose that is not
@@ -195,6 +207,9 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * enumerated like the others rather than admitted as a wildcard tail, because
  * the negative cases below turn on exactly that distinction: a documentation
  * sentence continuing past the banner must not exhaust a healthy profile.
+ * With the credits page spliced in (`SWITCH_MODEL_PROSE`) it went unmatched
+ * again: 57 Fable requests in seven minutes on 2026-10-05, each a 500 on a
+ * profile whose Fable window was spent, none failed over.
  *
  * The bound is the LINE, not the message — `/m`, like HIT_YOUR_SPEND_LIMIT
  * above and CONTEXT_OVERFLOW_SIGNALS below. `server.ts` appends captured
@@ -205,7 +220,7 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * always, the harmless "custom betas" warning being emitted first. Both shapes
  * then fell through to the code-1 branch, which tells the operator to run
  * `claude login` for what is actually a quota refusal. */
-const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
+const REACHED_YOUR_TIER_LIMIT = new RegExp(String.raw`^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|${SWITCH_MODEL_PROSE})\.?|[.!]?)[ \t\r]*$`, "m")
 
 /**
  * The CLI's refusal when a turn hit the output-token maximum.
@@ -232,10 +247,16 @@ export function isOutputTokenCapExceeded(message: string | undefined | null): bo
   return typeof message === "string" && OUTPUT_TOKEN_MAXIMUM.test(message)
 }
 
-/** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
- * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
- * cannot exhaust every profile in a priority pool. */
-const OUT_OF_USAGE_CREDITS = /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)re out of usage credits(?:[.!]\s*)?(?:\/model to switch models\.?)?\s*$/
+/** Canonical Claude Code usage-credit banner. Anchor on a whole line, behind
+ * nothing but the known SDK wrappers, so quoted docs and negated or incidental
+ * prose cannot exhaust every profile in a priority pool.
+ *
+ * The bound is the line, and the headless suffix is accepted, for the reasons
+ * given at REACHED_YOUR_TIER_LIMIT: with stderr appended the banner is never
+ * the end of the message, and an SDK session never gets the slash command.
+ * It follows that a line of captured stderr which is the banner and nothing
+ * else is taken for it, as it is there. */
+const OUT_OF_USAGE_CREDITS = new RegExp(String.raw`^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)re out of usage credits(?:(?:[.!][ \t]+|[ \t]+)(?:\/model[ \t]+to[ \t]+switch[ \t]+models|${SWITCH_MODEL_PROSE})\.?|[.!]?)[ \t\r]*$`, "m")
 
 /** Bare HTTP codes are useful SDK signals only when they are not embedded in
  * an opaque hexadecimal identity. Managed transcript errors include random

@@ -1198,6 +1198,65 @@ describe("priority routing", () => {
     expect(retained.mappingGeneration).toBe(mapping.generation)
   }, 20_000)
 
+  for (const stream of [false, true]) {
+    it(`keeps the retained account's longer exclusion after a shorter repeat (${stream ? "SSE" : "JSON"})`, async () => {
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+      const sessionId = "retained-own-account-wait"
+      const app = createTestApp()
+      await assignToFallback(app, sessionId, "human-1")
+      rateLimitStore.clear()
+      try {
+        // Work can reopen sooner, but this continuation can only use personal.
+        failingDirs.add("prof-work")
+        expect((await post(app, {}, "another conversation")).status).toBe(200)
+        failingDirs.delete("prof-work")
+        expect((await exhaustedMarks(app)).map(m => m.id)).toEqual(["work"])
+
+        const personalReset = Date.now() + 3 * 60 * 60_000
+        rateLimitStore.record("personal", {
+          status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: personalReset,
+        })
+        failingDirs.add("prof-personal")
+        const headers = unauthenticatedOpenCodeHeaders(sessionId)
+        const first = await post(app, headers, CONTINUED_AFTER_PERSONAL)
+        expect(first.status).toBe(429)
+        expect(Number(first.headers.get("retry-after"))).toBeGreaterThan(2 * 60 * 60)
+        await first.json()
+
+        // Remove the reset evidence without clearing the real exclusion.
+        // Reattempting personal now proposes ten minutes, not three hours.
+        rateLimitStore.clear()
+        if (stream) preludePingDirs.add("prof-personal")
+        capturedEnvs = []
+        const refused = await postMessages(app, { headers, content: CONTINUED_AFTER_PERSONAL, stream })
+        let wait: number
+        if (stream) {
+          expect(refused.status).toBe(200)
+          expect(refused.headers.get("content-type")).toContain("text/event-stream")
+          const frames = (await refused.text()).split("\n\n").filter(frame => frame.startsWith("event: error\n"))
+          expect(frames).toHaveLength(1)
+          const payload = JSON.parse(frames[0]!.split("\n").find(line => line.startsWith("data: "))!.slice(6)) as {
+            error: { type: string; retry_after: number }
+          }
+          expect(payload.error.type).toBe("rate_limit_error")
+          wait = payload.error.retry_after
+        } else {
+          expect(refused.status).toBe(429)
+          wait = Number(refused.headers.get("retry-after"))
+          const payload = await refused.json() as { error: { retry_after: number } }
+          expect(payload.error.retry_after).toBe(wait)
+        }
+        expect(capturedEnvs.length).toBeGreaterThan(0)
+        expect(capturedEnvs.every(dir => dir === "/tmp/meridian-test-prof-personal")).toBe(true)
+        expect(wait).toBeGreaterThanOrEqual(Math.ceil((personalReset - Date.now()) / 1000) - 2)
+        expect(wait).toBeLessThanOrEqual(Math.ceil((personalReset - Date.now()) / 1000) + 2)
+        expect((await exhaustedMarks(app)).find(mark => mark.id === "personal")?.until).toBe(personalReset)
+      } finally {
+        rateLimitStore.clear()
+      }
+    }, 30_000)
+  }
+
   it("atomically refreshes a same-human tool continuation before the next human promotes", async () => {
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const sessionId = "same-human-atomic-refresh-session"

@@ -611,6 +611,16 @@ downgraded every concurrent sibling at once, and the model switch cold-caches
 each of them — their cached prefixes were built on the 1M model. Clients with no
 session identity still bench profile-wide; there is nothing narrower to use.
 
+**A spent per-model allowance benches only that model.** An account that refuses
+a Fable request for its Fable allowance still serves every other model, so
+`ProfileExhaustion` (`routing.ts`) keeps per-model marks apart from account-wide
+ones, and `limitModelScope` (`limitDetection.ts`) decides which a refusal earns
+from the evidence of the refused attempt alone. Both priority dispatch paths —
+the non-stream loop and `streamPriorityDispatch` — record a failure through one
+`markPriorityFailure`, and both terminal paths take the pool's wait from
+`poolEarliestReset`, which includes accounts skipped as already benched for the
+requested model.
+
 ## Cancellation Contract
 
 Cancellation is per-HTTP-request: `requestAbort.ts` forwards one socket's abort
