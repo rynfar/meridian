@@ -7330,6 +7330,107 @@ Final packaged arm64 validation on September 18:
 These results supersede the earlier Mac sign-in, notification and handoff gates.
 Windows/Linux desktop runtime evidence remains absent. No release was published.
 
+## Session GC keeps up with the transcripts turns leave
+
+**What it proves:** at its default limits the session GC retires and deletes
+orphaned transcripts faster than parallel runs leave them, so they cannot
+fill the transcript ownership ceiling, and stopping the proxy costs no more
+than it did.
+
+Every managed turn runs on a fork of its conversation's SDK session, so every
+turn leaves one transcript for the GC. One that no mapping pins is retired,
+waits out the grace (`MERIDIAN_SESSION_GC_GRACE_MS`, the session turn's hold
+and a minute: 11 minutes by default) and is then deleted through the Agent
+SDK in a gated child. Sweeps run one at a time, every
+`MERIDIAN_SESSION_GC_INTERVAL_MS` (60 s) **and after every managed fork
+publication or abandonment**, so under load they run back to back.
+- **The backlog is the fix under load.** `MERIDIAN_SESSION_GC_MAX_PENDING`
+  over the grace caps how many transcripts can be retired a minute, however
+  often sweeps run. The fixed 256 allowed about 23 a minute (about 1,400 an
+  hour) against the 1,100–1,700 an hour parallel runs left in the source's
+  live report, with no headroom for bursts. It now defaults to three graces
+  of deletions at the interval's rate, never under 256: 64 × 11 × 3 =
+  **2,112**, about 190 a minute. The ownership ceiling (twice
+  `MERIDIAN_MAX_STORED_SESSIONS` plus the backlog) rises with it,
+  20,256 → 22,112.
+- **The per-sweep cap sets interval and idle cadence.**
+  `MERIDIAN_SESSION_GC_MAX_DELETES` (was 16, now 64) bounds each sweep, not
+  the rate under load. It decides how fast a backlog drains once publications
+  stop and only the interval sweeps: a full 2,112 in about 33 minutes at 64,
+  more than two hours at 16.
+- **Shutdown stays at 16.** Once the proxy is draining, its sweeps, close()'s
+  final one among them, delete at most 16 (or the per-sweep cap when lower).
+- `sessionGcLimits.ts` holds the defaults and resolves the settings. The
+  lifecycle lock, deferral, generation fencing and publication leases are
+  unchanged.
+
+### Run it
+
+```bash
+bun test src/__tests__/session-gc-limits.test.ts src/__tests__/proxy-session-gc-capacity.test.ts
+bun scripts/e2e-session-gc-throughput.mjs                                  # 300 orphans
+DRAINING=1 bun scripts/e2e-session-gc-throughput.mjs                       # a draining proxy's sweep
+ORPHANS=20000 MAX_PENDING=2112 bun scripts/e2e-session-gc-throughput.mjs   # a large lifecycle file
+MAX_DELETES=16 ORPHANS=20000 MAX_PENDING=2112 bun scripts/e2e-session-gc-throughput.mjs   # the old cap
+```
+
+The proxy tests register 300 orphaned transcripts and run one sweep at the
+default limits, and check the per-sweep cap that reaches `runGc` before and
+after the drain, including `startProxyServer`'s `close()`. The gate makes real
+transcript files where the SDK keeps sessions, none pinned; past the first
+300 they are written straight into the lifecycle file. One sweep retires them
+up to the backlog; after a 1-second grace a second sweep deletes as many as it
+may, each through the SDK's `deleteSession` in a gated child. No model calls,
+no accounts.
+
+**Pass criteria** (asserted, non-zero exit on any), at the default 300:
+- The proxy tests: one sweep retires all 300 (main at ca716c36: 255); a
+  draining proxy's sweeps, and close()'s final one, run with a cap of 16.
+- The gate: one sweep deletes 64 transcript files within the sweep's
+  30-second budget (`MERIDIAN_SESSION_GC_RUN_TIMEOUT_MS`); with `DRAINING=1`,
+  16.
+
+**Measured 2026-10-16** on this build, Linux, Bun 1.3.14, Agent SDK 0.2.141,
+a shared 20-core host (load average about 11):
+
+| Live transcripts | Lifecycle file | Deletes per sweep | Deleted | Sweep | Per deletion |
+|---|---|---|---|---|---|
+| 300 | 0.1 MB | 64 | 64 | 11.3–14.1 s | 177–220 ms |
+| 300 | 0.1 MB | 16 (draining) | 16 | 3.5 s | 219 ms |
+| 2,000 | 1.0 MB | 64 | 64 | 19.9 s | 310 ms |
+| 10,000 | 4.8 MB | 64 | 64 | 25.9 s | 405 ms |
+| 20,000 | 9.6 MB | 64 | 49, 51 | 30.5, 30.7 s (budget) | 601–623 ms |
+| 20,000 | 9.6 MB | 16 (old cap) | 16 | 9.8–11.3 s | 613–705 ms |
+| 20,000 | 9.6 MB | 16 (draining) | 16 | 8.7 s | 541 ms |
+
+Each deletion rewrites the whole lifecycle file under its lock (claim,
+executor handshake, settlement), so a deletion costs more as the file grows.
+- **Lock occupancy** is the per-deletion cost times the deletion rate, not a
+  per-minute figure: while sweeps run back to back after publications, a
+  large backlog draining on a 20,000-transcript store can keep the lifecycle
+  lock busy almost continuously. That was already so at 16 a sweep; 64 only
+  shortens the gaps between sweeps on the interval.
+- **Past about 10,000 live transcripts a sweep stops at its 30-second budget**
+  short of 64. The deletion the budget cuts short goes back to retired and is
+  retried; none were left `deleting`. The gate reports FAIL at 20,000 for that
+  reason; it is the measured limit, not a regression against main.
+- **Wasted last claim:** from about 15,000 live transcripts, a sweep that runs
+  into its budget claims one last deletion with almost none left, kills its
+  child, counts it failed and backs it off. That costs three full rewrites of
+  the lifecycle file under the lock and logs `session GC deferred 1 failed
+  deletion(s)` at warn level on every such sweep. Not fixed here; a follow-up
+  can stop claiming once the remaining budget is below one deletion's cost.
+
+**Live evidence owed.** The source runs (macOS, Claude CLI 2.1.284–2.1.294)
+were not re-run against this build. Owed before release, on the affected
+platform with real parallel Claude Code runs through the proxy:
+- `session.gc` log lines and `deleted` tombstones per minute keep pace with the
+  transcripts turns create, over an hour of parallel runs.
+- No `session transcript ownership capacity is full` 503s.
+- Request admission latency on the lifecycle lock while a large backlog
+  drains in back-to-back sweeps.
+- Stop time (`close()`) of a proxy with a large retired backlog.
+
 ## Windows session garbage collection (#895 / #896)
 
 ```powershell

@@ -109,6 +109,10 @@ export interface SessionLifecycleOptions {
   maxOwned?: number
   maxTombstones?: number
   maxDeletesPerRun?: number
+  /** Lower the remaining attempt allowance cooperatively, never replenish it.
+   * Checked before claims and after settlement; an active deletion completes
+   * and counts toward a lowered allowance before another claim can start. */
+  maxRemainingDeletes?: () => number
   lockWaitMs?: number
   lockRetryMs?: number
   lockStaleMs?: number
@@ -818,13 +822,19 @@ async function runGcOwned(pins: readonly TranscriptLocator[], options: SessionLi
   await retryDeferredLeaseReleases(options)
   await reconcile(pins, options)
   let currentPins = indexPins(pins)
-  const limit = option(options.maxDeletesPerRun, DEFAULT_MAX_DELETES, "maxDeletesPerRun")
+  let remaining = option(options.maxDeletesPerRun, DEFAULT_MAX_DELETES, "maxDeletesPerRun")
+  const lowerRemaining = () => {
+    remaining = Math.min(remaining, nonNegativeOption(
+      options.maxRemainingDeletes?.(), remaining, "maxRemainingDeletes",
+    ))
+  }
   const result: GcResult = { deleted: 0, notFound: 0, failed: 0, deferred: 0 }
   const runTimeoutMs = option(options.runTimeoutMs, DEFAULT_DELETE_TIMEOUT_MS, "runTimeoutMs")
   const deadline = Date.now() + runTimeoutMs
 
-  for (let index = 0; index < limit; index++) {
-    if (Date.now() >= deadline) break
+  for (; remaining > 0; remaining--) {
+    lowerRemaining()
+    if (remaining === 0 || Date.now() >= deadline) break
     const refreshedPins = options.pinProvider?.()
     if (refreshedPins) {
       currentPins = indexPins(refreshedPins)
@@ -872,6 +882,9 @@ async function runGcOwned(pins: readonly TranscriptLocator[], options: SessionLi
     if (failure) result.failed++
     else if (notFound) result.notFound++
     else result.deleted++
+    // Shutdown may have begun during the joined deletion or its settlement.
+    // Include that attempt in the newly reduced allowance, then decrement it.
+    lowerRemaining()
   }
 
   result.deferred += await countDeferred(currentPins, options)

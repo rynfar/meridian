@@ -120,11 +120,18 @@ export async function runDeletionPhase(pins: readonly TranscriptLocator[],
   await retryDeferredLeaseReleases(options)
   let currentPins = pins
   indexPins(currentPins, options)
-  const limit = positiveOption(options.maxDeletesPerRun, runtime.maxDeletes, "maxDeletesPerRun")
+  let remaining = positiveOption(options.maxDeletesPerRun, runtime.maxDeletes, "maxDeletesPerRun")
+  const lowerRemaining = () => {
+    const allowance = options.maxRemainingDeletes?.() ?? remaining
+    if (!Number.isSafeInteger(allowance) || allowance < 0)
+      throw new TypeError("maxRemainingDeletes must be a non-negative integer")
+    remaining = Math.min(remaining, allowance)
+  }
   const result: GcResult = { deleted: 0, notFound: 0, failed: 0, deferred: 0 }
   const deadline = Date.now() + positiveOption(options.runTimeoutMs, runtime.timeoutMs, "runTimeoutMs")
-  for (let index = 0; index < limit; index++) {
-    if (Date.now() >= deadline) break
+  for (; remaining > 0; remaining--) {
+    lowerRemaining()
+    if (remaining === 0 || Date.now() >= deadline) break
     currentPins = options.pinProvider?.() ?? currentPins
     const candidate = await claimDeletion(currentPins, options)
     if (!candidate) break
@@ -147,6 +154,9 @@ export async function runDeletionPhase(pins: readonly TranscriptLocator[],
     if (failure) result.failed++
     else if (notFound) result.notFound++
     else result.deleted++
+    // Include this joined attempt if shutdown lowered the allowance while
+    // deletion or settlement was in progress. An increase never replenishes it.
+    lowerRemaining()
   }
   const finalPins = indexPins(currentPins, options)
   result.deferred += withBookkeepingRead(directoryFor(options), (reader) =>
