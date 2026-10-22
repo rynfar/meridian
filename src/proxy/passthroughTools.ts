@@ -10,6 +10,7 @@
  * We just need the definitions so Claude can call them.
  */
 
+import { createHash } from "node:crypto"
 import { createSdkMcpServer, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 
@@ -346,6 +347,33 @@ export function createPassthroughMcpServer(
   }
 }
 
+// Client tool lists by content, shared by every session cache entry holding the
+// same list. OpenCode sends one ~300 KB list on every turn of every session,
+// and the per-session tool cache kept each session's own parsed copy: about
+// 570 KB of heap per entry, for up to MERIDIAN_MAX_SESSIONS entries. Held
+// weakly, so this map keeps nothing alive itself: the session caches alone
+// decide how long a list lives.
+const sharedToolLists = new Map<string, WeakRef<object[]>>()
+const sharedToolListCleanup = new FinalizationRegistry<string>((digest) => {
+  if (sharedToolLists.get(digest)?.deref() === undefined) sharedToolLists.delete(digest)
+})
+
+/**
+ * `tools`, or an earlier list with exactly the same content. The digest covers
+ * the list as the client sent it, tool order and key order included, so a
+ * shared list replays exactly what this request carried. Callers keep the
+ * list read-only.
+ */
+export function sharedToolList<T extends object>(tools: T[]): T[] {
+  if (tools.length === 0) return tools
+  const digest = createHash("sha256").update(JSON.stringify(tools)).digest("hex")
+  const shared = sharedToolLists.get(digest)?.deref()
+  if (shared) return shared as T[]
+  sharedToolLists.set(digest, new WeakRef(tools))
+  sharedToolListCleanup.register(tools, digest)
+  return tools
+}
+
 /**
  * Determine if a tool should be marked alwaysLoad (kept in prompt, not deferred).
  * A tool is always-loaded when:
@@ -368,7 +396,9 @@ function shouldAlwaysLoad(
 /**
  * Stable cache key for a tool set — name + input schema, sorted.
  * Schema is included so silently-updated tool definitions force a rebuild
- * of the cached MCP server.
+ * of the cached MCP server. Returned as a digest: the serialization is ~190 KB
+ * for a real OpenCode tool list, and the per-session MCP cache keeps one key
+ * per session.
  */
 export function computeToolSetKey(
   tools: Array<{ name: string; input_schema?: unknown; defer_loading?: boolean }>
@@ -380,7 +410,7 @@ export function computeToolSetKey(
       schema: stableStringify(t.input_schema ?? null),
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
-  return JSON.stringify(entries)
+  return createHash("sha256").update(JSON.stringify(entries)).digest("hex")
 }
 
 function stableStringify(value: unknown): string {

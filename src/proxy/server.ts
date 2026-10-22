@@ -83,7 +83,7 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { parseToolInputObject } from "./toolInputJson"
-import { createPassthroughMcpServer, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, autoDeferDecision, getAutoDeferThreshold } from "./passthroughTools"
+import { createPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, autoDeferDecision, getAutoDeferThreshold } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
@@ -770,6 +770,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // invalidation when clients intermittently omit tools on continuation requests.
   // SDK checkpoint eviction after a recovered tool-use refusal permits one
   // matching tool-result continuation to reuse the declared tool definitions.
+  // Entries hold the shared list for their content (sharedToolList), not a
+  // copy per session.
   const sessionToolCache = new LRUMap<string, {
     sdkSessionId: string
     tools: Parameters<typeof createPassthroughMcpServer>[0]
@@ -3044,7 +3046,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // Failed side calls must not replace the main turn's tool set, and
             // an empty fresh branch must not inherit or retain another's tools.
             if (passthrough && committedSdkSessionId) {
-              sessionToolCache.set(profileSessionId, { sdkSessionId: committedSdkSessionId, tools: requestTools })
+              sessionToolCache.set(profileSessionId, { sdkSessionId: committedSdkSessionId, tools: sharedToolList(requestTools) })
             }
           }
         }
@@ -8032,7 +8034,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 ) {
                   sessionToolCache.set(recoveryToolKey, {
                     sdkSessionId: currentSessionId ?? "",
-                    tools: requestTools,
+                    tools: sharedToolList(requestTools),
                     recovery: {
                       prefixHashes: computeMessageHashes(lineageMessages),
                       toolIds: [...streamedToolUseIds],
