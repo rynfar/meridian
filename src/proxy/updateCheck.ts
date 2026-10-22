@@ -19,6 +19,9 @@
  * The background check is off until the `checkForUpdates` setting turns it on,
  * and `MERIDIAN_NO_UPDATE_CHECK=1` forces it off whatever the setting says.
  * While it is off, nothing here opens a connection.
+ *
+ * The same pass checks every loaded plugin that comes from an npm package;
+ * see pluginUpdateCheck.ts.
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
@@ -26,6 +29,7 @@ import { homedir } from "node:os"
 import { env, envBool } from "../env"
 import { getSetting } from "../settings"
 import { compareVersions } from "./buildInfo"
+import { clearPluginUpdates, refreshPluginUpdates, type PluginUpdateCheckOptions } from "./pluginUpdateCheck"
 
 const PACKAGE_NAME = "@rynfar/meridian"
 const DEFAULT_REGISTRY_URL = `https://registry.npmjs.org/-/package/${PACKAGE_NAME}/dist-tags`
@@ -46,6 +50,8 @@ export interface UpdateCheckOptions {
   fetchLatest?: () => Promise<string | undefined>
   /** Called when a check resolves a version we did not already have. */
   onResolved?: (latest: string) => void
+  /** Options for the plugin half of the pass; tests inject a cache path and fetch. */
+  plugins?: PluginUpdateCheckOptions
 }
 
 function defaultCachePath(): string {
@@ -123,6 +129,7 @@ export async function checkForUpdate(options: UpdateCheckOptions = {}): Promise<
 
 let latestVersion: string | undefined
 let refreshTimer: ReturnType<typeof setInterval> | undefined
+let pluginOptions: PluginUpdateCheckOptions | undefined
 // Bumped by every stop, so a check still in flight when the operator switches
 // the setting off cannot publish its answer afterwards.
 let generation = 0
@@ -157,25 +164,42 @@ export function startUpdateCheck(options: UpdateCheckOptions = {}): Promise<void
   if (!isUpdateCheckEnabled() || refreshTimer) return Promise.resolve()
 
   const started = generation
+  pluginOptions = { ttlMs: options.ttlMs, now: options.now, ...options.plugins }
   const run = () =>
-    checkForUpdate(options).then((latest) => {
-      if (started !== generation) return
-      if (!latest || latest === latestVersion) return
-      latestVersion = latest
-      options.onResolved?.(latest)
-    })
+    Promise.all([
+      checkForUpdate(options).then((latest) => {
+        if (started !== generation) return
+        if (!latest || latest === latestVersion) return
+        latestVersion = latest
+        options.onResolved?.(latest)
+      }),
+      checkPluginsNow(),
+    ]).then(() => undefined)
 
-  const first = run()
+  // The timer exists before the first pass, which checkPluginsNow reads as "running".
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS
   refreshTimer = setInterval(() => void run(), ttlMs)
   refreshTimer.unref?.()
-  return first
+  return run()
+}
+
+/**
+ * Check the tracked plugins now, if the background check is running.
+ *
+ * For a plugin reload: a newly loaded package is checked at once instead of
+ * at the next daily pass, and an unchanged one is answered from the cache.
+ */
+export function checkPluginsNow(): Promise<void> {
+  if (!refreshTimer || !pluginOptions || !isUpdateCheckEnabled()) return Promise.resolve()
+  return refreshPluginUpdates({ ...pluginOptions, enabled: isUpdateCheckEnabled })
 }
 
 /** Stop the background refresh (shutdown, and between tests). */
 export function stopUpdateCheck(): void {
   if (refreshTimer) clearInterval(refreshTimer)
   refreshTimer = undefined
+  pluginOptions = undefined
   latestVersion = undefined
   generation++
+  clearPluginUpdates()
 }

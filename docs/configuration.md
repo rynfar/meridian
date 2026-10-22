@@ -69,6 +69,8 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_NO_UPDATE_CHECK` | — | unset | Set to `1` to force the update check off even when the `checkForUpdates` setting is on. No outbound request is made at all when set. See [Build provenance](#build-provenance-and-staying-current). |
 | `MERIDIAN_UPDATE_CHECK_URL` | — | npm dist-tags | Registry endpoint for the update check. Point it at a mirror on restricted networks; it must return `{"latest":"<version>"}`. |
 | `MERIDIAN_UPDATE_CHECK_PATH` | — | `~/.cache/meridian/update-check.json` | Where the update check caches its result. |
+| `MERIDIAN_UPDATE_CHECK_REGISTRY` | — | `https://registry.npmjs.org` | Registry the plugin update check asks for each plugin package's `/-/package/<name>/dist-tags`. |
+| `MERIDIAN_PLUGIN_UPDATE_CHECK_PATH` | — | `~/.cache/meridian/plugin-update-check.json` | Where the plugin update check caches its results. |
 | `MERIDIAN_BUILD_SOURCE` | — | *(derived from the install path)* | Overrides the `build.source` reported by `/health`: `npm`, `local`, or `dev`. Normally set by [`bin/meridian-launchd.sh`](#running-as-a-service-without-drift), not by hand. |
 | `MERIDIAN_BUILD_SHA`, `MERIDIAN_BUILD_BRANCH`, `MERIDIAN_BUILD_DIRTY` | — | unset | Optional commit stamps surfaced in `/health` `build`. Absent unless something sets them at launch. |
 | `MERIDIAN_ERROR_REPORTING_DSN` | — | unset | GlitchTip/Sentry DSN to report Meridian's own crashes to; `errorReportingDsn` in `settings.json` is the alternative, and the environment wins. Off when neither is set. See [Error reporting](#error-reporting). |
@@ -354,7 +356,7 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /v1/usage/quota` | Usage windows for the active profile (JSON) |
 | `GET /v1/usage/quota/all` | Usage windows for every profile (JSON) |
 | `GET /settings` | Routing, SDK feature toggles, model pricing, telemetry storage, update-check, site-header and page layout UI |
-| `GET/PUT /settings/api/updates` | Read or set `checkForUpdates` (JSON `{"checkForUpdates": true}`); takes effect on the running proxy |
+| `GET/PUT /settings/api/updates` | Read or set `checkForUpdates` (JSON `{"checkForUpdates": true}`); takes effect on the running proxy. Also reports each loaded plugin's installed and latest version in `plugins` |
 | `GET/PUT /settings/api/header` | Read or set `showHostname` (JSON `{"showHostname": true}`): name the machine beside the header's status; takes effect on the running proxy |
 | `GET/PUT /settings/api/layout` | Read or set the web pages' `layout`: `contained` (default, a centered column) or `wide` (spans the window, more cards per row). JSON `{"layout": "wide"}`, `null` to unset; applies on the next page load |
 | `GET /plugins` | Plugin management page (`/plugins/list`, `POST /plugins/reload` for JSON/actions) |
@@ -509,6 +511,18 @@ Once on, it asks the npm registry's `dist-tags` endpoint (the same source
 the request path. If the registry is unreachable it keeps reporting the last
 version it saw rather than dropping the field. Toggling it in the UI applies to
 the running proxy; switching it off also clears `build.latest`.
+
+The same pass checks every loaded plugin installed from an npm package. A
+plugin's package is the nearest `package.json` above the file Meridian loaded,
+which gives its name and installed version; a lone file dropped into
+`plugins/`, or a private package, is listed as not checkable. Each package is
+asked once per interval however many plugins share it, cached to
+`~/.cache/meridian/plugin-update-check.json`, and a failed lookup is reported on
+that plugin with the last version it saw. A plugin added by **Reload Plugins**
+is checked at once. The results are listed under **Updates** on `/settings` and
+in `plugins` on `GET /settings/api/updates`: per plugin `name`, `path`,
+`status`, `checkable` (`reason` when false), `package`, `installed`, `latest`,
+`updateAvailable`, `checkedAt` and `error`.
 `MERIDIAN_NO_UPDATE_CHECK=1` forces it off regardless of the setting, so a
 fleet can refuse the call in one place. The launcher script's own install-time
 check below is separate and has its own switch.

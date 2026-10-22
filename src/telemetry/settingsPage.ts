@@ -242,7 +242,8 @@ ${profileBarHtml}
   <p class="subtitle" style="max-width:720px;line-height:1.6">
     Meridian is installed and updated by hand, so an instance can sit on an old version for weeks without
     anyone noticing. Switch this on and it asks the npm registry once a day whether a newer version is
-    published; the site header then says so, beside the version it is running. Off unless you turn it on —
+    published; the site header then says so, beside the version it is running. The same check covers every
+    loaded plugin installed from an npm package, listed below. Off unless you turn it on —
     nothing contacts the registry until then. The header shows the running version either way.
   </p>
   <div class="adapter-card" id="updates-card">
@@ -923,10 +924,33 @@ async function loadUpdates() {
     cfg.envOptOut ? ' <span style="font-size:11px;color:var(--yellow)">(MERIDIAN_NO_UPDATE_CHECK=1 wins over this setting)</span>' : '')
     + '<div class="pricing-note" style="margin-top:4px">Running ' + telemetryEsc(build.version || 'unknown')
       + (build.source && build.source !== 'npm' ? ' from a ' + telemetryEsc(build.source) + ' build; the header shows its separate release and runtime provenance' : '')
-      + '.</div>';
+      + '.</div>'
+    + pluginUpdatesHtml(cfg);
 
   const box = document.getElementById('upd-enabled');
   if (box && !cfg.envOptOut) box.addEventListener('change', (e) => putUpdates(e.target.checked));
+}
+
+function pluginUpdateState(p, enabled) {
+  if (!p.checkable) return 'not checkable: ' + telemetryEsc(p.reason || 'no npm package');
+  const installed = telemetryEsc(p.installed);
+  const failed = p.error ? ' <span style="color:var(--red)">(last check failed: ' + telemetryEsc(p.error) + ')</span>' : '';
+  if (!enabled) return installed;
+  if (p.updateAvailable) return installed + ' → <span style="color:var(--yellow)">' + telemetryEsc(p.latest) + ' available</span>' + failed;
+  if (p.latest) return installed + ', <span style="color:var(--green)">up to date</span>' + failed;
+  return installed + (p.error ? failed : ', checking…');
+}
+
+function pluginUpdatesHtml(cfg) {
+  const plugins = cfg.plugins || [];
+  if (plugins.length === 0) return '<div class="pricing-note">No plugins loaded.</div>';
+  return '<div class="pricing-note" style="margin-bottom:6px">Plugins</div>' + plugins.map(function (p) {
+    return '<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap;font-size:13px">'
+      + '<span style="color:var(--muted);width:150px;overflow-wrap:anywhere">' + telemetryEsc(p.name) + '</span>'
+      + (p.package ? '<code>' + telemetryEsc(p.package) + '</code>' : '')
+      + '<span style="color:var(--muted);font-size:12px">' + pluginUpdateState(p, cfg.enabled) + '</span>'
+      + '</div>';
+  }).join('');
 }
 
 async function putUpdates(checkForUpdates) {

@@ -265,6 +265,15 @@ Visit `http://localhost:3456/plugins` to:
 - View adapter scope
 - Reload plugins without restarting
 
+## Update Checks
+
+With **Check for updates** on (`/settings`, Updates), Meridian also checks each
+loaded plugin that was installed from an npm package: it reads the `name` and
+`version` of the nearest `package.json` above the plugin file and compares
+them with that package's `latest` on the registry. Publish your plugin with
+its `package.json` beside the built entry and users are told when they fall
+behind. A lone file in `plugins/` is listed as not checkable.
+
 ## Roadmap
 
 **Planned hooks:**
