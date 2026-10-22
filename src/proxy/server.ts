@@ -51,7 +51,7 @@ import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG, resolveBackendConfig } from "./types"
 import { createAntigravityServer } from "./backends/antigravity"
-import { env, envBool, envInt } from "../env"
+import { env, envBool, envInt, envSource, envVarSource } from "../env"
 import { installErrorReporter } from "../errorReporting"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
@@ -9405,9 +9405,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       modes: ROUTING_MODES,
       profileOrder: resolvePriorityOrder(profileIds, priorityProfileOrderSetting()).order,
       profiles: profileIds,
+      saved: {
+        routing: getSetting("routing") ?? null,
+        profileOrder: getSetting("profileOrder") ?? null,
+      },
       envOverride: {
         routing: Boolean(process.env.MERIDIAN_ROUTING),
         profileOrder: Boolean(process.env.MERIDIAN_PROFILE_ORDER),
+      },
+      // The variable behind each override, for the page to name beside the
+      // value it produced (`routing`, `profileOrder` above are that value).
+      envSources: {
+        routing: process.env.MERIDIAN_ROUTING ? envVarSource("MERIDIAN_ROUTING") : null,
+        profileOrder: process.env.MERIDIAN_PROFILE_ORDER?.trim() ? envVarSource("MERIDIAN_PROFILE_ORDER") : null,
       },
     })
   })
@@ -9487,6 +9497,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         diagnosticLogSize: env("DIAGNOSTIC_LOG_SIZE") !== undefined,
         telemetryDb: env("TELEMETRY_DB") !== undefined,
       },
+      // Which variable each override reads; `wanted` holds the value it resolves to.
+      envSources: {
+        telemetryPersist: envSource("TELEMETRY_PERSIST"),
+        telemetryRetentionDays: envSource("TELEMETRY_RETENTION_DAYS"),
+        telemetrySize: envSource("TELEMETRY_SIZE"),
+        diagnosticLogSize: envSource("DIAGNOSTIC_LOG_SIZE"),
+      },
       pendingRestart,
       supervision: detectSupervision(),
       limits: TELEMETRY_SETTING_LIMITS,
@@ -9524,6 +9541,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return {
       checkForUpdates: getSetting("checkForUpdates") === true,
       envOptOut: envBool("NO_UPDATE_CHECK"),
+      envSource: envBool("NO_UPDATE_CHECK") ? envSource("NO_UPDATE_CHECK") : null,
       enabled: isUpdateCheckEnabled(),
       build: currentBuild(),
     }

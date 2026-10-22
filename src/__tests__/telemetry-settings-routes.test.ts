@@ -30,6 +30,7 @@ interface TelemetrySettingsResponse {
   wanted: { persist: boolean; retentionDays: number; telemetrySize: number; diagnosticLogSize: number; dbPath: string }
   effective: { kind: string; held: number; capacity?: number; diagnosticLogCapacity: number | null }
   envOverride: Record<string, boolean>
+  envSources: Record<string, { name: string; value: string | null; secret: boolean } | null>
   pendingRestart: string[]
   supervision: { kind: string; restartCommand: string | null }
   limits: typeof TELEMETRY_SETTING_LIMITS
@@ -168,6 +169,30 @@ describe("telemetry settings routes", () => {
     expect(body.saved.telemetryRetentionDays).toBe(90)
     expect(body.wanted.retentionDays).toBe(3)
     expect(body.envOverride.telemetryRetentionDays).toBe(true)
+  })
+
+  it("names the variable that outranks a setting and its value, beside the value it resolves to", async () => {
+    setSetting("telemetryRetentionDays", 14)
+    process.env.MERIDIAN_TELEMETRY_RETENTION_DAYS = "30"
+
+    const body = await get()
+    expect(body.envSources.telemetryRetentionDays).toEqual({ name: "MERIDIAN_TELEMETRY_RETENTION_DAYS", value: "30", secret: false })
+    expect(body.wanted.retentionDays).toBe(30)
+    expect(body.envSources.telemetrySize).toBeNull()
+    expect(body.envSources.telemetryPersist).toBeNull()
+  })
+
+  it("names the legacy CLAUDE_PROXY_ variable when that is the one read", async () => {
+    const legacy = process.env.CLAUDE_PROXY_TELEMETRY_SIZE
+    process.env.CLAUDE_PROXY_TELEMETRY_SIZE = "2500"
+    try {
+      const body = await get()
+      expect(body.envSources.telemetrySize).toEqual({ name: "CLAUDE_PROXY_TELEMETRY_SIZE", value: "2500", secret: false })
+      expect(body.wanted.telemetrySize).toBe(2500)
+    } finally {
+      if (legacy === undefined) delete process.env.CLAUDE_PROXY_TELEMETRY_SIZE
+      else process.env.CLAUDE_PROXY_TELEMETRY_SIZE = legacy
+    }
   })
 })
 

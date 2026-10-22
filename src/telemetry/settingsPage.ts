@@ -4,6 +4,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { envOverrideText, settingRowHtml } from "./settingRow"
 
 export const settingsPageHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -53,25 +54,40 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); }
   .badge-inactive { background: rgba(139, 148, 158, 0.15); color: var(--muted); }
 
-  .feature-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-  @media (max-width: 600px) { .feature-grid { grid-template-columns: minmax(0, 1fr); } }
-  /* Wide layout: two columns across the whole window put a toggle a thousand
-     pixels from its label, so rows keep their contained width and add columns.
-     The pricing table sizes to its columns for the same reason. */
-  html[data-layout="wide"] .feature-grid { grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); }
+  /* Every setting is one .setting-row (settingRow.ts): label and control on
+     the header line, the description below at the row's full width, status
+     and env-override lines under that. A description beside a control lost
+     the row to whichever was wider - a select sized to its longest option
+     left the text one word per line. On a narrow screen the control wraps
+     under the label, never the description beside it. */
+  .setting-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .setting-stack { display: flex; flex-direction: column; gap: 10px; }
+  /* Wide layout: one row across the whole window puts a toggle a thousand
+     pixels from its label, so rows keep a readable width and add columns,
+     each wide enough for a long select beside its label. The pricing table
+     sizes to its columns for the same reason. */
+  html[data-layout="wide"] .setting-grid { grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr)); }
   html[data-layout="wide"] .pricing-table { width: auto; }
 
-  .feature-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 10px 14px; border-radius: 6px;
+  .setting-row {
+    padding: 10px 14px; border-radius: 6px; min-width: 0;
     background: var(--bg); border: 1px solid var(--border);
   }
-  /* A select as wide as its longest option does not fit beside its label on
-     a phone: it goes below the label instead of past the card's edge. */
-  @media (max-width: 600px) { .feature-row { flex-wrap: wrap; } }
-  .feature-info { display: flex; flex-direction: column; min-width: 0; }
-  .feature-label { font-size: 13px; font-weight: 500; }
-  .feature-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .setting-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+  .setting-label { font-size: 13px; font-weight: 500; }
+  .setting-control {
+    display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px 8px;
+    margin-left: auto; min-width: 0; max-width: 100%;
+  }
+  .setting-control > * { max-width: 100%; }
+  .setting-unit { color: var(--muted); font-size: 12px; }
+  .setting-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .setting-status { font-size: 12px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+  .setting-env { font-size: 12px; color: var(--yellow); margin-top: 4px; overflow-wrap: anywhere; }
+  .setting-input {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px;
+  }
 
   /* Toggle switch */
   .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -94,7 +110,7 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .feature-select {
     background: var(--surface); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;
-    min-width: 0; max-width: 100%; flex-shrink: 0;
+    min-width: 0; max-width: 100%;
   }
 
   .save-indicator {
@@ -140,9 +156,6 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .add-btn { background: var(--accent); border: none; color: #fff; border-radius: 6px;
     padding: 5px 14px; font-size: 12px; font-weight: 500; cursor: pointer; }
   .pricing-note { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
-  /* An executable path is one long unbroken string; on a phone it would widen
-     the whole page rather than wrap. */
-  #claude-exe-card code { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -192,7 +205,7 @@ ${profileBarHtml}
         <span class="adapter-name">ChatGPT gateway</span>
         <button class="reset-btn" onclick="resetChatGpt()">Reset</button>
       </div>
-      <div class="feature-grid" id="chatgpt-grid"></div>
+      <div class="setting-grid" id="chatgpt-grid"></div>
     </div>
   </div>
 
@@ -289,6 +302,18 @@ ${profileBarHtml}
 <div class="save-indicator" id="saveIndicator">Saved</div>
 
 <script>
+var envOverrideText = ${envOverrideText.toString()};
+var settingRowHtml = ${settingRowHtml.toString()};
+
+// settingRowHtml for a control built as an element, so its listeners stay attached.
+function settingRowEl(view, control) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = settingRowHtml(Object.assign({}, view, { controlHtml: '' }));
+  const row = wrap.firstElementChild;
+  if (control) row.querySelector('.setting-control').appendChild(control);
+  return row;
+}
+
 const FEATURES = [
   { key: 'codeSystemPrompt', label: 'Claude Code Prompt', desc: 'Include the built-in Claude Code system prompt (tool usage rules, safety guidelines, coding best practices)', type: 'toggle' },
   { key: 'clientSystemPrompt', label: 'Client Prompt', desc: 'Include the system prompt sent by the connecting agent (e.g. OpenCode or Crush instructions)', type: 'toggle' },
@@ -314,7 +339,7 @@ const CHATGPT_FEATURES = [
   { key: 'maxBudgetUsd', label: 'Max Budget (USD)', desc: 'Per-request cost cap from OpenAI pricing (0 = disabled). Refused before sending when the input alone is over it, stopped mid-stream when the estimate passes it. Hidden reasoning tokens are only counted when the response ends', type: 'number' },
   { key: 'fallbackModel', label: 'Fallback Model', desc: 'Retry once on this ChatGPT model when the requested one fails before any output was sent: a server error, every account rate limited, or the model refused. Never on a sign-in problem', type: 'select' },
   { key: 'creditsPolicy', label: 'Codex Credits', desc: 'When a seat whose plan usage is used up may keep serving on its purchased Codex credits. Credits may be real money: ChatGPT spends them by itself once a seat\u2019s plan runs out, and an account with automatic reload is charged again every time its balance runs low. Meridian cannot see whether reload is on. Seats with plan usage left are never affected', type: 'policy' },
-  { key: 'freeSeatOrder', label: 'Free-Plan Seats', desc: 'Where a seat on ChatGPT\u2019s free plan ranks for work no profile is pinned to. It always comes after every paid seat with plan usage left, because a free seat refuses most Codex models, and it does so even when it is the active seat. A turn pinned to it still goes there', type: 'freeseat' },
+  { key: 'freeSeatOrder', label: 'Free-Plan Seats', desc: 'Where a seat on ChatGPT\u2019s free plan ranks for work no profile is pinned to. It always comes after every paid seat with plan usage left, because a free seat refuses most Codex models, and it does so even when it is the active seat. Ranking it before credits costs nothing, since its usage is free. A turn pinned to it still goes there', type: 'freeseat' },
 ];
 const REASONING_SUMMARY_OPTIONS = [
   { value: 'client', label: 'As the client asks (unchanged)' },
@@ -323,8 +348,8 @@ const REASONING_SUMMARY_OPTIONS = [
   { value: 'detailed', label: 'Detailed' },
 ];
 const FREE_SEAT_ORDER_OPTIONS = [
-  { value: 'before-credits', label: 'Before any seat spends credits (free usage costs nothing)' },
-  { value: 'after-credits', label: 'Only once no seat can serve on credits either' },
+  { value: 'before-credits', label: 'Before any seat spends credits' },
+  { value: 'after-credits', label: 'Only once no seat can use credits' },
 ];
 const CREDITS_POLICY_OPTIONS = [
   { value: 'never', label: 'Never use credits' },
@@ -390,18 +415,10 @@ function renderChatGpt() {
   grid.innerHTML = '';
   const features = chatgptState.features;
   for (const feat of CHATGPT_FEATURES) {
-    const row = document.createElement('div');
-    row.className = 'feature-row';
-    const info = document.createElement('div');
-    info.className = 'feature-info';
-    const label = document.createElement('span');
-    label.className = 'feature-label';
-    label.textContent = feat.label;
-    const desc = document.createElement('span');
-    desc.className = 'feature-desc';
-    desc.textContent = feat.desc;
-    info.append(label, desc);
-    row.appendChild(info);
+    const id = 'chatgpt-' + feat.key;
+    const row = settingRowEl({ label: feat.label, desc: feat.desc, forId: id }, null);
+    const slot = row.querySelector('.setting-control');
+    let control;
     if (feat.type === 'toggle') {
       const toggle = document.createElement('label');
       toggle.className = 'toggle';
@@ -412,7 +429,8 @@ function renderChatGpt() {
       const track = document.createElement('span');
       track.className = 'toggle-track';
       toggle.append(input, track);
-      row.appendChild(toggle);
+      slot.appendChild(toggle);
+      control = input;
     } else if (feat.type === 'number') {
       const input = document.createElement('input');
       input.type = 'number';
@@ -423,13 +441,14 @@ function renderChatGpt() {
       input.step = '0.01';
       input.value = String(features[feat.key] ?? 0);
       input.addEventListener('change', function () { saveChatGpt(feat.key, parseFloat(input.value) || 0); });
-      row.appendChild(input);
+      slot.appendChild(input);
+      control = input;
     } else if (feat.type === 'policy') {
-      row.appendChild(policySelect(CREDITS_POLICY_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
+      control = slot.appendChild(policySelect(CREDITS_POLICY_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
     } else if (feat.type === 'summary') {
-      row.appendChild(policySelect(REASONING_SUMMARY_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
+      control = slot.appendChild(policySelect(REASONING_SUMMARY_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
     } else if (feat.type === 'freeseat') {
-      row.appendChild(policySelect(FREE_SEAT_ORDER_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
+      control = slot.appendChild(policySelect(FREE_SEAT_ORDER_OPTIONS, features[feat.key], function (value) { saveChatGpt(feat.key, value); }));
     } else {
       const select = document.createElement('select');
       select.className = 'feature-select';
@@ -441,8 +460,9 @@ function renderChatGpt() {
         select.appendChild(option);
       });
       select.addEventListener('change', function () { saveChatGpt(feat.key, select.value); });
-      row.appendChild(select);
+      control = slot.appendChild(select);
     }
+    control.id = id;
     grid.appendChild(row);
   }
   // Auto-reload is a property of each account, so each seat may differ from
@@ -450,32 +470,24 @@ function renderChatGpt() {
   // whose credits are meant to be spent.
   var seats = chatgptState.seats || [];
   for (const seat of seats) {
-    const row = document.createElement('div');
-    row.className = 'feature-row';
-    const info = document.createElement('div');
-    info.className = 'feature-info';
-    const label = document.createElement('span');
-    label.className = 'feature-label';
-    label.textContent = 'Credits: ' + seat.id;
-    const desc = document.createElement('span');
-    desc.className = 'feature-desc';
-    desc.textContent = seat.label + ' \u2014 overrides the Codex Credits policy for this seat only';
-    info.append(label, desc);
-    row.appendChild(info);
     const options = [{ value: 'inherit', label: 'Same as above (' + features.creditsPolicy + ')' }].concat(CREDITS_POLICY_OPTIONS);
-    row.appendChild(policySelect(options, seat.creditsPolicy || 'inherit', function (value) {
+    const select = policySelect(options, seat.creditsPolicy || 'inherit', function (value) {
       const patch = {};
       patch[seat.id] = value;
       saveChatGpt('seatCreditsPolicy', patch);
-    }));
-    grid.appendChild(row);
+    });
+    select.id = 'chatgpt-seat-' + seat.id;
+    grid.appendChild(settingRowEl({
+      label: 'Credits: ' + seat.id,
+      desc: seat.label + ' \u2014 overrides the Codex Credits policy for this seat only',
+      forId: select.id,
+    }, select));
   }
 }
 
 function policySelect(options, current, onChange) {
   const select = document.createElement('select');
   select.className = 'feature-select';
-  select.style.maxWidth = '100%';
   options.forEach(function (choice) {
     const option = document.createElement('option');
     option.value = choice.value;
@@ -571,19 +583,15 @@ function adapterCard(adapter) {
   '</div>';
 
   const grid = document.createElement('div');
-  grid.className = 'feature-grid';
+  grid.className = 'setting-grid';
 
   for (const feat of FEATURES) {
-    const row = document.createElement('div');
-    row.className = 'feature-row';
-
-    const info = '<div class="feature-info"><span class="feature-label">' +
-      feat.label + '</span><span class="feature-desc">' + feat.desc + '</span></div>';
-
+    const id = 'feat-' + adapter + '-' + feat.key;
+    let control = '';
     if (feat.type === 'toggle') {
       const checked = features[feat.key] ? 'checked' : '';
-      row.innerHTML = info +
-        '<label class="toggle"><input type="checkbox" ' + checked +
+      control =
+        '<label class="toggle"><input type="checkbox" id="' + id + '" ' + checked +
         ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.checked)">' +
         '<span class="toggle-track"></span></label>';
     } else if (feat.type === 'select') {
@@ -591,22 +599,22 @@ function adapterCard(adapter) {
         const label = o === '' ? '(None)' : o.charAt(0).toUpperCase()+o.slice(1);
         return '<option value="'+o+'"'+(features[feat.key]===o?' selected':'')+'>'+label+'</option>';
       }).join('');
-      row.innerHTML = info +
-        '<select class="feature-select" onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">' +
+      control =
+        '<select class="feature-select" id="' + id + '" onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">' +
         options + '</select>';
     } else if (feat.type === 'number') {
       const value = features[feat.key] ?? 0;
-      row.innerHTML = info +
-        '<input type="number" class="feature-select" style="width:80px;text-align:right" min="0" step="0.01" value="'+value+'"' +
+      control =
+        '<input type="number" class="feature-select" id="' + id + '" style="width:80px;text-align:right" min="0" step="0.01" value="'+value+'"' +
         ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', parseFloat(this.value)||0)">';
     } else if (feat.type === 'text') {
       const value = (features[feat.key] ?? '').toString().replace(/"/g, '&quot;');
-      row.innerHTML = info +
-        '<input type="text" class="feature-select" style="width:180px" value="'+value+'"' +
+      control =
+        '<input type="text" class="feature-select" id="' + id + '" style="width:220px" value="'+value+'"' +
         ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">';
     }
 
-    grid.appendChild(row);
+    grid.insertAdjacentHTML('beforeend', settingRowHtml({ label: feat.label, desc: feat.desc, forId: id, controlHtml: control }));
   }
 
   card.appendChild(grid);
@@ -747,19 +755,27 @@ async function loadRouting() {
   const res = await fetch('/settings/api/routing');
   const cfg = await res.json();
   const el = document.getElementById('routing-body');
-  const envNote = (on) => on ? ' <span style="font-size:11px;color:var(--yellow)">(env override active — setting saved but env wins)</span>' : '';
-  let h = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
-    + '<label style="color:var(--muted);font-size:13px;width:90px">Mode</label>'
-    + '<select id="routing-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-    + (cfg.modes || ['active','sticky','priority']).map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
-    + '</select>' + envNote(cfg.envOverride.routing) + '</div>';
+  const sources = cfg.envSources || {};
+  const saved = cfg.saved || {};
+  const orderText = (order) => Array.isArray(order) && order.length ? order.join(', ') : null;
+  const modeEnv = envOverrideText(sources.routing, cfg.routing, saved.routing || null);
+  const orderEnv = envOverrideText(sources.profileOrder, orderText(cfg.profileOrder), orderText(saved.profileOrder));
+  let h = settingRowHtml({
+    label: 'Mode',
+    forId: 'routing-mode',
+    controlHtml: '<select id="routing-mode" class="feature-select">'
+      + (cfg.modes || ['active','sticky','priority']).map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
+      + '</select>',
+    envText: modeEnv,
+  });
   var usesPool = cfg.routing === 'priority' || cfg.routing === 'active+priority';
-  h += '<div id="routing-order-wrap" style="'+(usesPool?'':'display:none')+'">'
+  h += '<div id="routing-order-wrap" style="margin-top:14px;'+(usesPool?'':'display:none')+'">'
     + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">'
     + (cfg.routing === 'active+priority'
         ? 'Fallback order - used when the active profile runs out. The active profile always goes first, wherever it sits in this list.'
         : 'Pool order — highest priority first. Drained top to bottom.')
-    + envNote(cfg.envOverride.profileOrder) + '</div>'
+    + '</div>'
+    + (orderEnv ? '<div class="setting-env" style="margin-bottom:8px">' + telemetryEsc(orderEnv) + '</div>' : '')
     + '<ol id="routing-order" style="margin:0;padding-left:22px">'
     + cfg.profileOrder.map((id, i) =>
         '<li style="padding:4px 0;color:var(--text)">'
@@ -798,15 +814,11 @@ function telemetryEsc(s) {
 }
 
 // The saved value drives the form; the EFFECTIVE one is what the proxy is
-// actually doing. Rendering only the former is the failure mode this whole card
-// exists to avoid — a form that reads back what you typed and implies it landed.
-function telemetryRow(label, control, effective, note) {
-  return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">'
-    + '<label style="color:var(--muted);font-size:13px;width:150px">' + label + '</label>'
-    + control
-    + '<span style="color:var(--muted);font-size:12px">now: ' + effective + '</span>'
-    + (note || '')
-    + '</div>';
+// actually doing, shown as the row's "now:" line. Rendering only the former is
+// the failure mode this whole card exists to avoid — a form that reads back
+// what you typed and implies it landed.
+function nowLine(effective) {
+  return 'now: ' + effective;
 }
 
 async function loadTelemetry() {
@@ -815,36 +827,51 @@ async function loadTelemetry() {
   const el = document.getElementById('telemetry-body');
   const live = cfg.effective || {};
   const lim = cfg.limits || {};
-  const envNote = (on) => on ? ' <span style="font-size:11px;color:var(--yellow)">(env override active — setting saved but env wins)</span>' : '';
+  const sources = cfg.envSources || {};
+  const wanted = cfg.wanted || {};
+  const saved = cfg.saved || {};
   const persisting = live.kind === 'sqlite';
+  const backend = (persist) => persist == null ? null : (persist ? 'SQLite' : 'memory');
+  const amount = (n, unit) => n == null ? null : n.toLocaleString() + ' ' + unit;
 
   const num = (key, value, suffix) => {
     const l = lim[key] || { min: 1, max: 1000000 };
-    return '<input type="number" id="tel-' + key + '" value="' + (value == null ? '' : value) + '"'
-      + ' min="' + l.min + '" max="' + l.max + '" step="1" placeholder="default"'
-      + ' style="width:110px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-      + (suffix ? ' <span style="color:var(--muted);font-size:12px">' + suffix + '</span>' : '');
+    return '<input type="number" class="setting-input" id="tel-' + key + '" value="' + (value == null ? '' : value) + '"'
+      + ' min="' + l.min + '" max="' + l.max + '" step="1" placeholder="default" style="width:110px">'
+      + (suffix ? '<span class="setting-unit">' + suffix + '</span>' : '');
   };
 
-  let h = telemetryRow('Persist to SQLite',
-    '<input type="checkbox" id="tel-persist"' + (cfg.wanted.persist ? ' checked' : '') + '>',
-    persisting ? 'SQLite' : 'memory',
-    envNote(cfg.envOverride.telemetryPersist));
+  let h = '<div class="setting-stack">' + settingRowHtml({
+    label: 'Persist to SQLite',
+    forId: 'tel-persist',
+    controlHtml: '<input type="checkbox" id="tel-persist"' + (wanted.persist ? ' checked' : '') + '>',
+    statusHtml: [nowLine(persisting ? 'SQLite' : 'memory')],
+    envText: envOverrideText(sources.telemetryPersist, backend(wanted.persist), backend(saved.telemetryPersist)),
+  });
 
-  h += telemetryRow('Retention',
-    num('telemetryRetentionDays', cfg.saved.telemetryRetentionDays, 'days'),
-    persisting ? (live.retentionDays + 'd') : 'n/a while in memory',
-    envNote(cfg.envOverride.telemetryRetentionDays));
+  h += settingRowHtml({
+    label: 'Retention',
+    forId: 'tel-telemetryRetentionDays',
+    controlHtml: num('telemetryRetentionDays', saved.telemetryRetentionDays, 'days'),
+    statusHtml: [nowLine(persisting ? (live.retentionDays + 'd') : 'n/a while in memory')],
+    envText: envOverrideText(sources.telemetryRetentionDays, amount(wanted.retentionDays, 'days'), amount(saved.telemetryRetentionDays, 'days')),
+  });
 
-  h += telemetryRow('Request ring size',
-    num('telemetrySize', cfg.saved.telemetrySize, 'rows'),
-    persisting ? 'n/a while persisting' : (live.capacity == null ? '—' : live.capacity.toLocaleString()),
-    envNote(cfg.envOverride.telemetrySize));
+  h += settingRowHtml({
+    label: 'Request ring size',
+    forId: 'tel-telemetrySize',
+    controlHtml: num('telemetrySize', saved.telemetrySize, 'rows'),
+    statusHtml: [nowLine(persisting ? 'n/a while persisting' : (live.capacity == null ? '—' : live.capacity.toLocaleString()))],
+    envText: envOverrideText(sources.telemetrySize, amount(wanted.telemetrySize, 'rows'), amount(saved.telemetrySize, 'rows')),
+  });
 
-  h += telemetryRow('Diagnostic log size',
-    num('diagnosticLogSize', cfg.saved.diagnosticLogSize, 'entries'),
-    persisting ? 'n/a while persisting' : (live.diagnosticLogCapacity == null ? '—' : live.diagnosticLogCapacity.toLocaleString()),
-    envNote(cfg.envOverride.diagnosticLogSize));
+  h += settingRowHtml({
+    label: 'Diagnostic log size',
+    forId: 'tel-diagnosticLogSize',
+    controlHtml: num('diagnosticLogSize', saved.diagnosticLogSize, 'entries'),
+    statusHtml: [nowLine(persisting ? 'n/a while persisting' : (live.diagnosticLogCapacity == null ? '—' : live.diagnosticLogCapacity.toLocaleString()))],
+    envText: envOverrideText(sources.diagnosticLogSize, amount(wanted.diagnosticLogSize, 'entries'), amount(saved.diagnosticLogSize, 'entries')),
+  }) + '</div>';
 
   const held = (live.held == null ? 0 : live.held).toLocaleString();
   let state = 'Holding ' + held + ' request' + (live.held === 1 ? '' : 's');
@@ -917,13 +944,18 @@ async function loadUpdates() {
   else if (!build.latest) state = 'checking…';
   else state = build.updateAvailable ? telemetryEsc(build.latest) + ' available' : 'up to date';
 
-  document.getElementById('updates-body').innerHTML = telemetryRow('Check for updates',
-    '<input type="checkbox" id="upd-enabled"' + (cfg.checkForUpdates ? ' checked' : '') + (cfg.envOptOut ? ' disabled' : '') + '>',
-    state,
-    cfg.envOptOut ? ' <span style="font-size:11px;color:var(--yellow)">(MERIDIAN_NO_UPDATE_CHECK=1 wins over this setting)</span>' : '')
-    + '<div class="pricing-note" style="margin-top:4px">Running ' + telemetryEsc(build.version || 'unknown')
-      + (build.source && build.source !== 'npm' ? ' from a ' + telemetryEsc(build.source) + ' build; the header shows its separate release and runtime provenance' : '')
-      + '.</div>';
+  document.getElementById('updates-body').innerHTML = settingRowHtml({
+    label: 'Check for updates',
+    forId: 'upd-enabled',
+    controlHtml: '<input type="checkbox" id="upd-enabled"' + (cfg.checkForUpdates ? ' checked' : '') + (cfg.envOptOut ? ' disabled' : '') + '>',
+    statusHtml: [
+      nowLine(state),
+      'Running ' + telemetryEsc(build.version || 'unknown')
+        + (build.source && build.source !== 'npm' ? ' from a ' + telemetryEsc(build.source) + ' build; the header shows its separate release and runtime provenance' : '')
+        + '.',
+    ],
+    envText: cfg.envOptOut ? envOverrideText(cfg.envSource, 'off, no update checks', cfg.checkForUpdates ? 'on' : null) : null,
+  });
 
   const box = document.getElementById('upd-enabled');
   if (box && !cfg.envOptOut) box.addEventListener('change', (e) => putUpdates(e.target.checked));
@@ -966,28 +998,40 @@ async function loadClaudeExecutable() {
   }
   const cands = cfg.candidates || {};
   const modes = cfg.modes || ['system', 'bundled', 'custom'];
-  const select = '<select id="claude-exe-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
+  const select = '<select id="claude-exe-mode" class="feature-select">'
     + modes.map(m => '<option value="' + m + '"' + (cfg.mode === m ? ' selected' : '') + '>' + m + '</option>').join('')
     + '</select>';
   const active = cfg.active
     ? claudeExeCandidate(cfg.active) + ' <span style="color:var(--muted)">(' + telemetryEsc(cfg.active.source) + ')</span>'
     : '<span style="color:var(--red)">' + telemetryEsc(cfg.activeError || 'none resolved') + '</span>';
-  const envNote = !cfg.envOverride ? ''
-    : ' <span style="font-size:11px;color:var(--yellow)">('
-      + (cfg.active && cfg.active.source === 'env'
-        ? 'MERIDIAN_CLAUDE_PATH wins over this setting'
-        : 'MERIDIAN_CLAUDE_PATH is set but not used: ' + telemetryEsc(cfg.envOverride.detail || 'it cannot run'))
-      + ')</span>';
-  let h = telemetryRow('Executable', select, active, envNote);
-  h += '<div class="pricing-note" style="margin-top:4px">System: ' + claudeExeCandidate(cands.system) + '</div>';
-  h += '<div class="pricing-note" style="margin-top:4px">Bundled: ' + claudeExeCandidate(cands.bundled) + '</div>';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">'
-    + '<label for="claude-exe-path" style="color:var(--muted);font-size:13px;width:150px">Custom path</label>'
-    + '<input type="text" class="pricing-input" id="claude-exe-path" style="width:360px;max-width:100%;text-align:left"'
-    + ' placeholder="/absolute/path/to/claude" value="' + telemetryEsc(cfg.customPath || '') + '">'
-    + '<button class="add-btn" id="claude-exe-use">Use this path</button>'
-    + '</div>';
-  if (cfg.customPath) h += '<div class="pricing-note" style="margin-top:4px">Custom: ' + claudeExeCandidate(cands.custom) + '</div>';
+  const envPathName = (cfg.envSource && cfg.envSource.name) || 'MERIDIAN_CLAUDE_PATH';
+  let envText = null;
+  if (cfg.envOverride && cfg.active && cfg.active.source === 'env') {
+    envText = envOverrideText(cfg.envSource,
+      cfg.active.path + (cfg.active.version ? ' ' + cfg.active.version : ''),
+      cfg.mode === 'custom' && cfg.customPath ? 'custom ' + cfg.customPath : cfg.mode);
+  } else if (cfg.envOverride) {
+    envText = envPathName + ' is set but not used: ' + (cfg.envOverride.detail || 'it cannot run');
+  }
+  let h = '<div class="setting-stack">' + settingRowHtml({
+    label: 'Executable',
+    forId: 'claude-exe-mode',
+    controlHtml: select,
+    statusHtml: [
+      nowLine(active),
+      'System: ' + claudeExeCandidate(cands.system),
+      'Bundled: ' + claudeExeCandidate(cands.bundled),
+    ],
+    envText: envText,
+  });
+  h += settingRowHtml({
+    label: 'Custom path',
+    forId: 'claude-exe-path',
+    controlHtml: '<input type="text" class="setting-input" id="claude-exe-path" style="width:320px"'
+      + ' placeholder="/absolute/path/to/claude" value="' + telemetryEsc(cfg.customPath || '') + '">'
+      + '<button class="add-btn" id="claude-exe-use">Use this path</button>',
+    statusHtml: cfg.customPath ? ['Custom: ' + claudeExeCandidate(cands.custom)] : [],
+  }) + '</div>';
   document.getElementById('claude-exe-body').innerHTML = h;
 
   const pathInput = document.getElementById('claude-exe-path');
@@ -1023,10 +1067,15 @@ async function putClaudeExecutable(body) {
 
 async function loadHeaderSettings() {
   const cfg = await (await fetch('/settings/api/header')).json();
-  document.getElementById('header-body').innerHTML = telemetryRow('Show hostname',
-    '<input type="checkbox" id="hdr-hostname" aria-label="Show hostname"' + (cfg.showHostname ? ' checked' : '') + '>',
-    cfg.showHostname ? 'shown' : 'hidden',
-    ' <span style="font-size:12px;color:var(--muted)">This machine: <code>' + telemetryEsc(cfg.hostname || 'unknown') + '</code></span>');
+  document.getElementById('header-body').innerHTML = settingRowHtml({
+    label: 'Show hostname',
+    forId: 'hdr-hostname',
+    controlHtml: '<input type="checkbox" id="hdr-hostname"' + (cfg.showHostname ? ' checked' : '') + '>',
+    statusHtml: [
+      nowLine(cfg.showHostname ? 'shown' : 'hidden'),
+      'This machine: <code>' + telemetryEsc(cfg.hostname || 'unknown') + '</code>',
+    ],
+  });
   document.getElementById('hdr-hostname').addEventListener('change', (e) => putHeaderSettings(e.target.checked));
 }
 
@@ -1060,11 +1109,13 @@ async function putHeaderSettings(showHostname) {
 async function loadLayout() {
   const cfg = await (await fetch('/settings/api/layout')).json();
   const el = document.getElementById('layout-body');
-  el.innerHTML = '<div style="display:flex;align-items:center;gap:12px">'
-    + '<label for="layout-mode" style="color:var(--muted);font-size:13px;width:90px">Layout</label>'
-    + '<select id="layout-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-    + (cfg.layouts || ['contained', 'wide']).map(l => '<option value="'+l+'"'+(cfg.layout===l?' selected':'')+'>'+l+'</option>').join('')
-    + '</select></div>';
+  el.innerHTML = settingRowHtml({
+    label: 'Layout',
+    forId: 'layout-mode',
+    controlHtml: '<select id="layout-mode" class="feature-select">'
+      + (cfg.layouts || ['contained', 'wide']).map(l => '<option value="'+l+'"'+(cfg.layout===l?' selected':'')+'>'+l+'</option>').join('')
+      + '</select>',
+  });
   document.getElementById('layout-mode').addEventListener('change', (e) => putLayout(e.target.value));
 }
 

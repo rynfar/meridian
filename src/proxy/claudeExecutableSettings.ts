@@ -11,6 +11,7 @@
 
 import { isAbsolute } from "node:path"
 import { isSameOriginRequest } from "../sameOrigin"
+import { envVarSource } from "../env"
 import { loadSettings, saveSettings, type MeridianSettings } from "../settings"
 import { CLAUDE_EXECUTABLE_MODES, isClaudeExecutableMode, resolveClaudeExecutablePreference } from "./claudeExecutablePreference"
 import { assertClaudeProbeActive } from "./claudeProbeOwnership"
@@ -63,6 +64,7 @@ export async function claudeExecutableSettingsState() {
     active,
     ...(activeError ? { activeError } : {}),
     envOverride,
+    envSource: envPath ? envVarSource("MERIDIAN_CLAUDE_PATH") : null,
     candidates: { system: candidates.system, bundled: candidates.bundled, custom },
   }
 }

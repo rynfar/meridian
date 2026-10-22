@@ -13,6 +13,32 @@ export function env(suffix: string): string | undefined {
   return process.env[`MERIDIAN_${suffix}`] ?? process.env[`CLAUDE_PROXY_${suffix}`]
 }
 
+/** Names whose value the settings page may only report as set. */
+const CREDENTIAL_NAME = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|AUTH/
+
+/**
+ * The env var that decides a setting, for the settings page to name: which
+ * variable was read and its raw value, or null when none is set. A
+ * credential-like name reports presence only.
+ */
+export interface EnvSource {
+  name: string
+  value: string | null
+  secret: boolean
+}
+
+export function envVarSource(name: string): EnvSource | null {
+  const value = process.env[name]
+  if (value === undefined) return null
+  const secret = CREDENTIAL_NAME.test(name)
+  return { name, value: secret ? null : value, secret }
+}
+
+/** envVarSource for the variable env(suffix) reads: MERIDIAN_*, else CLAUDE_PROXY_*. */
+export function envSource(suffix: string): EnvSource | null {
+  return envVarSource(`MERIDIAN_${suffix}`) ?? envVarSource(`CLAUDE_PROXY_${suffix}`)
+}
+
 /**
  * Resolve an env var with a default value.
  */
