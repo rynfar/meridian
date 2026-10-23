@@ -50,31 +50,95 @@ function organizationsFile(): string {
     : join(homedir(), ".config", "meridian", "organizations.json")
 }
 
+/**
+ * What one `/api/oauth/profile` read says about the account behind a profile.
+ *
+ * The UUIDs are what tells two profiles signed in to ONE account apart from
+ * two accounts that merely share an email (see duplicateProfiles.ts). Absent
+ * (undefined) means this record predates them and is worth one more read; null
+ * means Anthropic was asked and did not say.
+ *
+ * `credentialMark` is the access token's expiry at the time of the read, so a
+ * record can tell it was read for an earlier credential: every login and every
+ * renewal writes a new one, and a login into a different account must not keep
+ * the previous account's identity for a day.
+ */
 export interface OrganizationRecord {
-  name: string
+  name: string | null
   fetchedAt: number
+  accountUuid?: string | null
+  organizationUuid?: string | null
+  email?: string | null
+  credentialMark?: number | null
+}
+
+export interface OrganizationLookup {
+  name: string | null
+  accountUuid: string | null
+  organizationUuid: string | null
+  email: string | null
 }
 
 // --- Pure ------------------------------------------------------------------
 
+const MAX_IDENTIFIER_LENGTH = 200
+
+function identifier(value: unknown): string | null | undefined {
+  if (value === null) return null
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed && trimmed.length <= MAX_IDENTIFIER_LENGTH ? trimmed : undefined
+}
+
 /**
  * Read a record map out of whatever the file actually holds. Hand-editable and
- * written by other versions, so an entry that is not a usable name is dropped
- * rather than served.
+ * written by other versions, so an entry that is neither a usable name nor a
+ * known account is dropped rather than served.
  */
 export function readOrganizations(raw: unknown): Record<string, OrganizationRecord> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {}
   const out: Record<string, OrganizationRecord> = {}
   for (const [id, value] of Object.entries(raw)) {
     if (!id || typeof value !== "object" || value === null) continue
-    const record = value as { name?: unknown; fetchedAt?: unknown }
-    if (typeof record.name !== "string") continue
-    const name = record.name.trim()
-    if (!name || name.length > MAX_ORGANIZATION_NAME_LENGTH) continue
+    const record = value as Record<string, unknown>
+    const rawName = typeof record.name === "string" ? record.name.trim() : ""
+    const name = rawName && rawName.length <= MAX_ORGANIZATION_NAME_LENGTH ? rawName : null
+    const accountUuid = identifier(record.accountUuid)
+    const organizationUuid = identifier(record.organizationUuid)
+    if (!name && !accountUuid) continue
     const fetchedAt = typeof record.fetchedAt === "number" && isFinite(record.fetchedAt) ? record.fetchedAt : 0
-    out[id] = { name, fetchedAt }
+    const email = identifier(record.email)
+    const credentialMark = typeof record.credentialMark === "number" && isFinite(record.credentialMark)
+      ? record.credentialMark
+      : record.credentialMark === null ? null : undefined
+    out[id] = {
+      name,
+      fetchedAt,
+      ...(accountUuid !== undefined ? { accountUuid } : {}),
+      ...(organizationUuid !== undefined ? { organizationUuid } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(credentialMark !== undefined ? { credentialMark } : {}),
+    }
   }
   return out
+}
+
+/**
+ * Pull the account's identity out of an `/api/oauth/profile` body: the same
+ * three fields Claude Code copies into `.claude.json` as `oauthAccount`
+ * (`accountUuid`, `organizationUuid`, `emailAddress`). Read here rather than
+ * from that file because only Claude Code writes it, so it still names the
+ * previous account after Meridian signs a profile in to another.
+ */
+export function extractAccountIdentity(body: unknown): Omit<OrganizationLookup, "name"> {
+  const object = (value: unknown) => (typeof value === "object" && value !== null ? value as Record<string, unknown> : {})
+  const account = object(object(body).account)
+  const organization = object(object(body).organization)
+  return {
+    accountUuid: identifier(account.uuid) ?? null,
+    organizationUuid: identifier(organization.uuid) ?? null,
+    email: identifier(account.email) ?? identifier(account.email_address) ?? null,
+  }
 }
 
 /**
@@ -94,13 +158,33 @@ export function extractOrganizationName(body: unknown): string | null {
   return trimmed
 }
 
+/**
+ * Whether a record is worth another read: it is missing, aged, older than the
+ * account identity fields, or read for an earlier credential. Pass
+ * `credentialMark` (the stored access token's expiry) to have a login or a
+ * renewal re-read the account; omit it to judge by age alone.
+ */
 export function organizationNeedsRefresh(
   record: OrganizationRecord | undefined,
   now: number,
   refreshAfterMs: number = ORGANIZATION_REFRESH_AFTER_MS,
+  credentialMark?: number | null,
 ): boolean {
   if (!record) return true
+  if (record.accountUuid === undefined) return true
+  if (credentialMark != null && record.credentialMark !== credentialMark) return true
   return now - record.fetchedAt >= refreshAfterMs
+}
+
+/**
+ * Whether a record describes the credential a profile holds NOW. A record read
+ * for an earlier credential may name the account the profile was signed in to
+ * before - exactly what a sign-in into the wrong account leaves behind - so a
+ * caller choosing between it and another source must ask.
+ */
+export function organizationRecordCurrent(record: OrganizationRecord | undefined, credentialMark: number | null | undefined): boolean {
+  if (!record || record.accountUuid === undefined) return false
+  return credentialMark == null || record.credentialMark === credentialMark
 }
 
 // --- Persistence -----------------------------------------------------------
@@ -116,9 +200,10 @@ export function organizationNames(): Record<string, OrganizationRecord> {
   }
 }
 
-export function rememberOrganizationName(profileId: string, name: string): void {
+export function rememberOrganization(profileId: string, lookup: OrganizationLookup, credentialMark: number | null = null): void {
   const file = organizationsFile()
-  const merged = { ...organizationNames(), [profileId]: { name, fetchedAt: Date.now() } }
+  const record: OrganizationRecord = { ...lookup, fetchedAt: Date.now(), credentialMark }
+  const merged = { ...organizationNames(), [profileId]: record }
   try {
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 })
@@ -127,23 +212,34 @@ export function rememberOrganizationName(profileId: string, name: string): void 
   }
 }
 
+export function rememberOrganizationName(profileId: string, name: string): void {
+  rememberOrganization(profileId, { name, accountUuid: null, organizationUuid: null, email: null })
+}
+
 // --- Lookup ----------------------------------------------------------------
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
+
+export interface FetchedOrganization {
+  lookup: OrganizationLookup
+  /** The access token's expiry, epoch ms, of the credential the read used. */
+  credentialMark: number | null
+}
 
 /**
  * Best-effort lookup for one account. Never throws and never fails its caller:
  * a profile whose organization is unknown is strictly better than a page that
  * will not render.
  */
-export async function fetchOrganizationName(
+export async function fetchOrganization(
   store: CredentialStore,
   fetchImpl: FetchLike = globalThis.fetch,
-): Promise<string | null> {
+): Promise<FetchedOrganization | null> {
   try {
     const credentials = await store.read()
     const token = credentials?.claudeAiOauth?.accessToken
     if (!token) return null
+    const expiresAt = credentials?.claudeAiOauth?.expiresAt
     const response = await fetchImpl(OAUTH_PROFILE_URL, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -156,11 +252,22 @@ export async function fetchOrganizationName(
       claudeLog("organization.bad_response", { status: response.status })
       return null
     }
-    return extractOrganizationName(await response.json())
+    const body = await response.json()
+    return {
+      lookup: { name: extractOrganizationName(body), ...extractAccountIdentity(body) },
+      credentialMark: typeof expiresAt === "number" && isFinite(expiresAt) ? expiresAt : null,
+    }
   } catch (err) {
     claudeLog("organization.lookup_failed", { error: err instanceof Error ? err.message : String(err) })
     return null
   }
+}
+
+export async function fetchOrganizationName(
+  store: CredentialStore,
+  fetchImpl: FetchLike = globalThis.fetch,
+): Promise<string | null> {
+  return (await fetchOrganization(store, fetchImpl))?.lookup.name ?? null
 }
 
 /**
@@ -176,7 +283,12 @@ export function enableOrganizationLookup(): void {
   lookupEnabled = true
 }
 
+export function organizationLookupEnabled(): boolean {
+  return lookupEnabled
+}
+
 const lastAttemptAt = new Map<string, number>()
+const lastAttemptMark = new Map<string, number | null>()
 const inflight = new Set<string>()
 
 export interface RefreshOrganizationOpts {
@@ -184,6 +296,28 @@ export interface RefreshOrganizationOpts {
   store?: CredentialStore
   fetchImpl?: FetchLike
   retryAfterMs?: number
+  /**
+   * The access token expiry the caller sees now. A different one than the last
+   * attempt was made for is a new login or a renewal, and is read at once
+   * instead of waiting out the retry floor.
+   */
+  credentialMark?: number | null
+}
+
+async function lookUpAndRemember(profileId: string, opts: RefreshOrganizationOpts): Promise<OrganizationRecord | null> {
+  const store = opts.store ?? createPlatformCredentialStore({ claudeConfigDir: opts.claudeConfigDir })
+  const found = await fetchOrganization(store, opts.fetchImpl)
+  if (!found || (!found.lookup.name && !found.lookup.accountUuid)) return null
+  rememberOrganization(profileId, found.lookup, found.credentialMark)
+  // Lengths and presence rather than values: this log is what gets pasted into
+  // an issue, and authDiscovery.ts redacts the same fields for that reason.
+  claudeLog("organization.discovered", {
+    profile: profileId,
+    nameLength: found.lookup.name?.length ?? 0,
+    accountKnown: !!found.lookup.accountUuid,
+    organizationKnown: !!found.lookup.organizationUuid,
+  })
+  return organizationNames()[profileId] ?? null
 }
 
 /** Learn one profile's organization in the background. Returns immediately. */
@@ -192,28 +326,41 @@ export function refreshOrganizationNameSoon(profileId: string, opts: RefreshOrga
   if (inflight.has(profileId)) return
   const now = Date.now()
   const last = lastAttemptAt.get(profileId)
-  if (last !== undefined && now - last < (opts.retryAfterMs ?? ORGANIZATION_RETRY_AFTER_MS)) return
+  const newCredential = opts.credentialMark != null && lastAttemptMark.get(profileId) !== opts.credentialMark
+  if (!newCredential && last !== undefined && now - last < (opts.retryAfterMs ?? ORGANIZATION_RETRY_AFTER_MS)) return
   lastAttemptAt.set(profileId, now)
+  if (opts.credentialMark !== undefined) lastAttemptMark.set(profileId, opts.credentialMark)
   inflight.add(profileId)
   void (async () => {
     try {
-      const store = opts.store ?? createPlatformCredentialStore({ claudeConfigDir: opts.claudeConfigDir })
-      const name = await fetchOrganizationName(store, opts.fetchImpl)
-      if (name) {
-        rememberOrganizationName(profileId, name)
-        // Length rather than the value: this log is what gets pasted into an
-        // issue, and authDiscovery.ts redacts the same field for that reason.
-        claudeLog("organization.discovered", { profile: profileId, nameLength: name.length })
-      }
+      await lookUpAndRemember(profileId, opts)
     } finally {
       inflight.delete(profileId)
     }
   })()
 }
 
+/**
+ * Read one profile's account now and wait for the answer — for a login that
+ * just finished, whose page is waiting to show who it signed in as. Ignores the
+ * retry floor: a new credential is exactly what the floor must not hold back.
+ * Null when the lookup is disarmed or Anthropic did not answer.
+ */
+export async function refreshOrganizationNow(profileId: string, opts: RefreshOrganizationOpts = {}): Promise<OrganizationRecord | null> {
+  if (!lookupEnabled && !opts.store) return null
+  lastAttemptAt.set(profileId, Date.now())
+  inflight.add(profileId)
+  try {
+    return await lookUpAndRemember(profileId, opts)
+  } finally {
+    inflight.delete(profileId)
+  }
+}
+
 /** Reset module state — for testing only. */
 export function resetOrganizationLookupForTesting(): void {
   lookupEnabled = false
   lastAttemptAt.clear()
+  lastAttemptMark.clear()
   inflight.clear()
 }

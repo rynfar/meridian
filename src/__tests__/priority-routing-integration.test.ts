@@ -270,6 +270,7 @@ const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 const { loadSettings, saveSettings } = await import("../settings")
+const { rememberOrganization } = await import("../proxy/organizationName")
 const {
   evictSharedSession,
   lookupPriorityAssignmentResult,
@@ -630,6 +631,29 @@ describe("priority routing", () => {
     expect(recovered.status).toBe(200)
     expect(capturedEnvs[0]).toContain("prof-work")
   })
+
+  it("a quota refusal cools down every profile signed in to the same account", async () => {
+    // work and its twin were signed in to ONE account: the identities read for
+    // both carry the same account and organization. One quota, two names.
+    const sameAccount = { name: "Acme", accountUuid: "acct-1", organizationUuid: "org-1", email: null }
+    rememberOrganization("work", sameAccount)
+    rememberOrganization("twin", sameAccount)
+    rememberOrganization("personal", { ...sameAccount, organizationUuid: "org-personal" })
+    process.env.MERIDIAN_PROFILE_ORDER = "work,twin,personal"
+    failingDirs.add("prof-work")
+    const { app } = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      profiles: [PROFILES[0]!, { id: "twin", claudeConfigDir: "/tmp/meridian-test-twin-of-w" }, PROFILES[1]!],
+      defaultProfile: "work",
+    })
+    const res = await post(app, {}, "shared quota unique message")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[capturedEnvs.length - 1]).toContain("prof-personal")
+    // The twin is never asked: its answer is the refusal work just gave.
+    expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(false)
+    expect((await exhaustedMarks(app)).map(mark => mark.id).sort()).toEqual(["twin", "work"])
+  }, 20_000)
 
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {
     failingDirs.add("prof-work")

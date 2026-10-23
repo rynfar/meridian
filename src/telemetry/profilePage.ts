@@ -10,6 +10,8 @@ import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrd
 import { PROVIDERS_NONE_SHOWN_HTML, profileProvidersCss, profileProvidersJs } from "./profileProviders"
 import { isUnusableJs } from "./profileSpent"
 import { WINDOW_LABELS } from "./profileUsage"
+import { domPatchJs } from "./domPatch"
+import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
 
 
 export const profilePageHtml = `<!DOCTYPE html>
@@ -98,6 +100,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   .profile-card-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
   ${reorderCss}
   ${profileProvidersCss}
+  ${profileCardStatusCss}
   .profile-name { font-size: 16px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
   .profile-card-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .icon-btn {
@@ -487,6 +490,8 @@ ${isUnusableJs}
 
 ${reorderClientJs}
 ${profileProvidersJs}
+${domPatchJs}
+${profileCardStatusJs}
 
 var providersPresent = [];
 // The chips sit outside #content, so a poll does not replace them; they are
@@ -508,6 +513,11 @@ function renderProviderChips(groups) {
 var lastQuota = null;
 // Last profile payload, so a rename can redraw from cache without refetching.
 var lastProfiles = null;
+// When that payload was asked for: an answer requested before a sign-in
+// finished cannot know about it (see profileCardStatus.ts).
+var lastProfilesRequestedAt = null;
+// A quicker poll while a card is updating, so its new facts land in seconds.
+var updatePollTimer = null;
 // Profile whose name is being edited in place, and the error from the last
 // rejected attempt. While editing, the poll is suspended — it rewrites
 // innerHTML, which would blank the input mid-keystroke.
@@ -616,6 +626,7 @@ async function commitRemove(id) {
 
 async function refresh() {
   if (editingProfile || removingProfile || detailFactFocused()) return;
+  var requestedAt = Date.now();
   try {
     var [profilesRes, quotaRes, routingRes] = await Promise.all([
       fetch('/profiles/list'),
@@ -632,6 +643,7 @@ async function refresh() {
       try { meridianReorder.adopt(await routingRes.json()); } catch (_) { /* keep the last good order */ }
     }
     lastProfiles = profiles;
+    lastProfilesRequestedAt = requestedAt;
     adoptChatGpt(profiles);
     if (detailFactFocused()) return;
     render(profiles, lastQuota);
@@ -1075,6 +1087,7 @@ function render(data, quotaData) {
   const reorderable = profiles.length > 1 && !meridianReorder.envPinned();
 
   let html = '';
+  let anyUpdating = false;
   if (profiles.length > 1) html += meridianReorder.noteHtml(reorderable, profiles.some(isChatGptProfile), grouped);
 
   for (let idx = 0; idx < slots.length; idx++) {
@@ -1085,7 +1098,9 @@ function render(data, quotaData) {
     // both providers has an active Claude account AND an active ChatGPT seat.
     const isActive = !!p.isActive;
     const needsLogin = isUnusable({ loggedIn: p.loggedIn, error: (quotaById[p.id] || {}).error });
-    html += '<div class="profile-card provider-' + esc(slot.provider) + (isActive ? ' active' : '') + (needsLogin ? ' needs-login' : '') + '" id="' + esc(profileAnchorElementId(p.id)) + '" data-id="' + esc(p.id) + '" data-index="' + idx + '" data-group="' + esc(slot.provider) + '">';
+    const update = meridianCardStatus.updateOf(p, lastProfilesRequestedAt);
+    if (update && update.state === 'updating') anyUpdating = true;
+    html += '<div class="profile-card provider-' + esc(slot.provider) + (isActive ? ' active' : '') + (needsLogin ? ' needs-login' : '') + (update && update.state === 'updating' ? ' updating" aria-busy="true' : '') + '" id="' + esc(profileAnchorElementId(p.id)) + '" data-id="' + esc(p.id) + '" data-index="' + idx + '" data-group="' + esc(slot.provider) + '">';
     html += '<div class="profile-card-header">';
     if (editingProfile === p.id) {
       html += "<input class=\\"rename-input\\" id=\\"rename-input\\" value=\\"" + esc(p.id) + "\\" spellcheck=\\"false\\" autocomplete=\\"off\\""
@@ -1108,6 +1123,7 @@ function render(data, quotaData) {
         var access = profileAccessHelp(p);
         html += '<span class="profile-badge badge-needs-login" title="' + esc(access.summary) + '">' + esc(access.pill) + '</span>';
       } else if (needsLogin) html += "<span class=\\"profile-badge badge-needs-login\\" title=\\"Cannot serve requests. Log in again below.\\">needs login</span>";
+      html += meridianCardStatus.duplicateBadgeHtml(p, 'profile-badge');
       html += renderSpentBadge((quotaById[p.id] || {}).spent);
       if ((quotaById[p.id] || {}).servingOnCredits) html += '<span class="profile-badge badge-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
       html += "<span class=\\"profile-card-actions\\">";
@@ -1116,6 +1132,7 @@ function render(data, quotaData) {
       html += "</span>";
     }
     html += '</div>';
+    html += meridianCardStatus.updateHtml(update);
     html += renderSpentNote((quotaById[p.id] || {}).spent, p);
 
     if (editingProfile === p.id && renameError) {
@@ -1146,7 +1163,9 @@ function render(data, quotaData) {
 
     html += renderLoginRows(p);
 
-    html += '<div class="login-slot" id="login-slot-' + esc(p.id) + '"></div>';
+    // An open sign-in panel is the script's, not the render's: the refresh
+    // leaves it, and the code being pasted into it, alone.
+    html += '<div class="login-slot" id="login-slot-' + esc(p.id) + '"' + (loginPanelOpen(p.id) ? ' data-patch-own' : '') + '></div>';
 
     html += renderUsageSection(quotaById[p.id], p);
 
@@ -1159,18 +1178,15 @@ function render(data, quotaData) {
     html += '</div>';
   }
 
-  // A refresh already in flight when a login panel opened still renders. Carry
-  // the open panel's node across so the paste, and its focus, survive.
-  var keptSlot = activeLogin ? loginSlot(activeLogin.profile) : null;
-  var keptFocus = keptSlot && keptSlot.contains(document.activeElement) ? document.activeElement : null;
-  document.getElementById('content').innerHTML = html;
-  var freshSlot = keptSlot ? loginSlot(activeLogin.profile) : null;
-  if (freshSlot) freshSlot.replaceWith(keptSlot);
+  // Patched in place, not replaced: unchanged nodes stay the same nodes, so a
+  // find-in-page highlight, a selection, focus and scroll survive a refresh.
+  meridianPatch.html(document.getElementById('content'), html);
   meridianReorder.restoreFocus(refocusId);
-  if (freshSlot && keptFocus) keptFocus.focus();
-  // render() replaces #content wholesale, so the anchors are new elements with
-  // whatever href the markup carried. Restore them from the cache, then top up
-  // anything missing or near expiry in the background.
+  if (anyUpdating && !updatePollTimer) {
+    updatePollTimer = setTimeout(function () { updatePollTimer = null; refresh(); }, 1500);
+  }
+  // The markup carries placeholder hrefs. Restore them from the cache, then top
+  // up anything missing or near expiry in the background.
   applyLoginHrefs();
   ensureLoginLinks(profiles);
   afterRender();
@@ -1357,6 +1373,10 @@ var activeLogin = null;
 var loginPollTimer = null;
 
 function loginSlot(id) { return document.getElementById('login-slot-' + id); }
+
+function loginPanelOpen(id) {
+  return !!((activeLogin && activeLogin.profile === id) || (activeChatGptRelogin && activeChatGptRelogin.profile === id));
+}
 
 function setPanelMsg(slot, text, kind) {
   if (!slot) return;
@@ -1662,7 +1682,10 @@ function finishLogin() {
   stopLoginPoll();
   var finished = activeLogin;
   activeLogin = null;
-  if (finished) retireLoginLink(finished);
+  if (finished) {
+    meridianCardStatus.beginUpdate(finished.profile);
+    retireLoginLink(finished);
+  }
   if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
   refresh();
 }
@@ -1934,7 +1957,9 @@ async function submitAdd() {
     return;
   }
 
+  var created = activeAdd ? activeAdd.profile : null;
   resetAddForm('');
+  if (created) meridianCardStatus.beginUpdate(created);
   if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
   refresh();
 }
@@ -2117,6 +2142,7 @@ function finishChatGptConnect(data) {
   activeChatGptConnect = null;
   resetAddForm('');
   setAddFormMsg('Connected ' + (data.email || data.accountUserId || data.seat) + (data.profile ? ' as ' + data.profile : '') + '.', '');
+  if (data.profile) meridianCardStatus.beginUpdate(data.profile);
   if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
   refresh().then(function () { if (data.profile) location.hash = encodeURIComponent(data.profile); });
 }
@@ -2305,6 +2331,7 @@ function finishChatGptRelogin(data) {
   var id = activeChatGptRelogin ? activeChatGptRelogin.profile : null;
   stopChatGptReloginPoll();
   activeChatGptRelogin = null;
+  if (id) meridianCardStatus.beginUpdate(id);
   if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
   refresh().then(function () {
     if (id) showLoginMessage(id, 'Signed in again' + (data.email ? ' as ' + data.email : '') + '.', '');

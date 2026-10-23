@@ -186,6 +186,50 @@ describe("profile login routes", () => {
       .toBe("route-access-token")
   })
 
+  it.skipIf(skipOnDarwin)("reports the profile as updating from the completed sign-in until its facts are re-read", async () => {
+    const started = await post("/profiles/login/start", { profile: "personal" })
+    const { loginId } = await started.json() as { loginId: string }
+
+    // The usage read the sign-in triggers is held until the test lets it go.
+    let releaseUsage!: () => void
+    const usageHeld = new Promise<void>(resolve => { releaseUsage = resolve })
+    let usageAsked = false
+    globalThis.fetch = Object.assign(
+      async (input: Parameters<typeof fetch>[0]) => {
+        const url = String(input)
+        if (url === "https://api.anthropic.com/api/oauth/profile") return Response.json({ organization: { organization_type: "claude_max" } })
+        if (url === "https://api.anthropic.com/api/oauth/usage") {
+          usageAsked = true
+          await usageHeld
+          return Response.json({ five_hour: { utilization: 10, resets_at: null } })
+        }
+        return Response.json(TOKEN_RESPONSE)
+      },
+      { preconnect: originalFetch.preconnect },
+    )
+
+    const factsRefreshOf = async (id: string) => {
+      const list = await (await get("/profiles/list")).json() as { profiles: Array<{ id: string; factsRefresh: unknown }> }
+      return list.profiles.find(p => p.id === id)!.factsRefresh
+    }
+
+    expect(await factsRefreshOf("personal")).toBeNull()
+    expect((await post("/profiles/login/complete", { loginId, code: "abc123" })).status).toBe(200)
+    // Set before the route answered: no poll can see the profile in between.
+    expect(await factsRefreshOf("personal")).toMatchObject({ state: "updating" })
+    expect(await factsRefreshOf("direct")).toBeNull()
+
+    for (let i = 0; i < 50 && !usageAsked; i++) await Bun.sleep(10)
+    expect(usageAsked).toBe(true)
+    releaseUsage()
+    let after: unknown = "pending"
+    for (let i = 0; i < 100 && after !== null; i++) {
+      await Bun.sleep(20)
+      after = await factsRefreshOf("personal")
+    }
+    expect(after).toBeNull()
+  })
+
   it.skipIf(skipOnDarwin)("410s a replayed completion", async () => {
     const started = await post("/profiles/login/start", { profile: "personal" })
     const { loginId } = await started.json() as { loginId: string }

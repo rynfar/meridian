@@ -15,6 +15,8 @@ import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrd
 import { profileProvidersCss, profileProvidersJs } from "./profileProviders"
 import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "./profileSort"
 import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "./profileSpent"
+import { domPatchJs } from "./domPatch"
+import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -93,6 +95,7 @@ export const landingHtml = `<!DOCTYPE html>
   a.spend-pill:hover { border-color: var(--red); }
   ${reorderCss}
   ${profileProvidersCss}
+  ${profileCardStatusCss}
   /* The name row carries every badge the card can earn - Active, the plan
      chip, pool position, exhausted/refused, needs login, spent - and on a
      narrow card they do not fit beside the cost. The row wraps its badges
@@ -360,6 +363,8 @@ function setViewSort(mode){
 
 ${reorderClientJs}
 ${profileProvidersJs}
+${domPatchJs}
+${profileCardStatusJs}
 
 var providersPresent=[];
 
@@ -517,6 +522,8 @@ function profileSection(q,s,pl,h){
   var pos=0;
   for(var i=0;i<slots.length;i++){
     var slot=slots[i];
+    var update=slot.item.entry?meridianCardStatus.updateOf(slot.item.entry,null):null;
+    var updating=!!(update&&update.state==='updating');
     var providerHidden=!meridianProviders.visible(slot.provider,providersPresent);
     if(grouped&&slot.place===0)cards+=meridianProviders.headingHtml(slot.group,providerHidden);
     var p=slot.item;var cost=profileCost(byProfile,p);
@@ -615,6 +622,7 @@ function profileSection(q,s,pl,h){
     // A free-plan seat serves unpinned work after the paid ones even while it
     // is the active seat, which the active badge alone would hide.
     var freeFact=chat&&p.entry&&p.entry.planTier==='free'?profileFacts(p.entry).filter(function(f){return f.label==='Routing'})[0]:null;
+    if(p.entry)badge+=' '+meridianCardStatus.duplicateBadgeHtml(p.entry,'pool-chip');
     if(freeFact)badge+=' <span class="spend-pill" title="'+esc(freeFact.value+'. '+freeFact.title)+'">'+esc(p.entry.freeSeatDeferred?'free \u00b7 paid seats first':'free plan')+'</span>';
     var spendClass=spend.reason==='unusable'?' needs-login':spend.fade>0?' spend-'+spend.state:'';
     var spendStyle=spend.fade>0?' style="--spend-fade:'+spend.fade.toFixed(2)+'"':'';
@@ -622,14 +630,15 @@ function profileSection(q,s,pl,h){
       :spend.fraction!=null&&spend.fade>0?' title="'+Math.round(spend.fraction*100)+'% of this '+(chat?'seat\u2019s allowance':'account\u2019s 5h / 7d allowance')+' is used"':'';
     // A provider's only card has nowhere to move, so it gets no handle.
     var draggable=reorderable&&p.configured&&slot.size>1;
-    cards+='<div class="profile-card provider-'+esc(slot.provider)+(p.isActive?' active':'')+(switchable?' switchable':'')+spendClass+'"'+spendStyle+spendTip
+    cards+='<div class="profile-card provider-'+esc(slot.provider)+(p.isActive?' active':'')+(switchable?' switchable':'')+spendClass+(updating?' updating" aria-busy="true':'')+'"'+spendStyle+spendTip
+      +' data-key="card:'+esc(p.id)+'"'
       +' data-group="'+esc(slot.provider)+'"'+(providerHidden?' hidden':'')
       +(p.configured?' data-id="'+esc(p.id)+'" data-index="'+pos+'"':'')
       +(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,slot.place,slot.size):'')+'<span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+''+esc(p.label||p.id)+' '+meridianProviders.badgeHtml(slot.provider,'provider-pill')+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
-      +spentBanner+rows+'</div>';
+      +meridianCardStatus.updateHtml(update)+spentBanner+rows+'</div>';
     if(p.configured)pos++;
   }
   if(!cards)return {html:'',shown:shown};
@@ -695,7 +704,8 @@ function render(h,s,q,pl){
   o+=pastUsageSection(pastUsage((s.costEstimate&&s.costEstimate.byProfile)||{},accounts.shown));
 
   o+='<div class="footer">Meridian · <a href="https://github.com/rynfar/meridian">GitHub</a> · Built on the <a href="https://github.com/anthropics/claude-agent-sdk-typescript">Claude Agent SDK</a></div>';
-  document.getElementById('content').innerHTML=o;
+  // Patched in place: a find-in-page highlight, a selection and scroll survive.
+  meridianPatch.html(document.getElementById('content'),o);
   meridianReorder.restoreFocus(refocusId);
   if(refocusChip){var chip=document.querySelector('.provider-chip[data-provider-chip="'+refocusChip+'"]');if(chip)chip.focus()}
 }

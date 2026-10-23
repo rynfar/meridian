@@ -3,6 +3,7 @@ import { runInNewContext } from "node:vm"
 import { profileFactsJs } from "../telemetry/profileFacts"
 import { profilePageHtml } from "../telemetry/profilePage"
 import { profileProvidersJs } from "../telemetry/profileProviders"
+import { profileCardStatusJs } from "../telemetry/profileCardStatus"
 
 function pageFunction(name: string): string {
   const definition = profilePageHtml.match(new RegExp(`(?:async )?function ${name}\\([^]*?^\\}`, "m"))?.[0]
@@ -111,7 +112,7 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
   const isUnusable = profilePageHtml.match(/^function isUnusable\(p\)\{.*\}$/m)?.[0]
   if (!isUnusable) throw new Error("Missing rendered page function isUnusable")
   const none = () => ""
-  runInNewContext([profileFactsJs, profileProvidersJs, isUnusable, pageFunction("render"), "render(data, quota);"].join("\n"), {
+  runInNewContext([profileFactsJs, profileProvidersJs, profileCardStatusJs, isUnusable, pageFunction("render"), "render(data, quota);"].join("\n"), {
     data: { profiles }, quota: { profiles: quota },
     document: { getElementById: () => content },
     meridianReorder: { sortProfiles: (list: unknown[]) => list, focusAnchor: none, envPinned: () => true,
@@ -119,6 +120,8 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
     esc: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
     renderSpentBadge: none, renderSpentNote: none, factRows: none, profileFacts: () => [],
     loginHrefFor: none, renderUsageSection: none, applyLoginHrefs: none, ensureLoginLinks: none,
+    meridianPatch: { html: (target: { innerHTML: string }, markup: string) => { target.innerHTML = markup } },
+    loginPanelOpen: () => false, lastProfilesRequestedAt: null, updatePollTimer: null,
     afterRender: none, loginSlot: () => null, activeLogin: null, editingProfile: null, renameError: null,
     removingProfile: null, removeError: null, renderProviderChips: none, providersPresent: [],
     chatGptOwnerInfo: null, renderAccessNote: none, renderLoginRows: none,

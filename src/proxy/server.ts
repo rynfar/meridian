@@ -147,7 +147,9 @@ import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, res
 import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
-import { organizationNames, organizationNeedsRefresh, refreshOrganizationNameSoon } from "./organizationName"
+import { organizationNames, organizationNeedsRefresh, organizationRecordCurrent, organizationLookupEnabled, refreshOrganizationNameSoon, refreshOrganizationNow } from "./organizationName"
+import { findDuplicateProfiles, type IdentifiedProfile } from "./duplicateProfiles"
+import { ProfileFactsRefresh } from "./profileFactsRefresh"
 import {
   getRoutingMode,
   classifyRouteKind,
@@ -1409,6 +1411,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // percentages of its last successful read (measured: `5h 67% / 7d 7%` while
   // every request through it was being refused).
   const spentProfiles = new SpentStore()
+  const profileFactsRefresh = new ProfileFactsRefresh()
   const failoverEvents = new FailoverEventLog()
 
   function priorityProfileOrderSetting(): string[] | undefined {
@@ -1633,14 +1636,43 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return { inner, exposure }
   }
 
-  function markPriorityFailure(candidate: string, reason: string): number {
+  /**
+   * Other Claude profiles PROVEN to be signed in to `profileId`'s account: the
+   * account and organization UUIDs on record match. They hold one quota, so a
+   * quota refusal on one is a refusal on all of them, and trying each in turn
+   * spends an attempt per name to learn what the first already said. Email
+   * and organization name are not proof enough to steer traffic by; the pages
+   * flag those matches, routing does not act on them.
+   */
+  function quotaSharedWith(profileId: string): string[] {
+    const records = organizationNames()
+    const claude = getEffectiveProfiles(finalConfig.profiles).filter(p => (p.type ?? "claude-max") === "claude-max")
+    const found = findDuplicateProfiles(claude.map((p): IdentifiedProfile => {
+      const record = records[p.id]
+      return record?.accountUuid && record.organizationUuid
+        ? { id: p.id, identity: { provider: "claude", accountUuid: record.accountUuid, organizationUuid: record.organizationUuid } }
+        : { id: p.id, identity: null }
+    }))
+    return found.get(profileId)?.duplicateOf ?? []
+  }
+
+  /** `sharedQuota` collects the profiles this refusal also spoke for, so the
+   *  request's remaining candidates can skip them. */
+  function markPriorityFailure(candidate: string, reason: string, sharedQuota?: Set<string>): number {
     const quotaRefusal = isQuotaRefusal(reason)
     const until = quotaRefusal
       ? priorityCooldownUntil(candidate, Date.now())
       : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
     priorityExhaustion.mark(candidate, until, reason)
     claudeLog("priority.exhausted", { profile: candidate, until, reason })
-    if (quotaRefusal) refinePriorityCooldown(candidate)
+    if (quotaRefusal) {
+      for (const twin of quotaSharedWith(candidate)) {
+        priorityExhaustion.mark(twin, until, reason)
+        sharedQuota?.add(twin)
+        claudeLog("priority.exhausted", { profile: twin, until, reason, sharedWith: candidate })
+      }
+      refinePriorityCooldown(candidate)
+    }
     return until
   }
 
@@ -1672,6 +1704,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       previous: string | null
       previousReason: string
       earliestPoolReset: number | null
+      sharedQuota: Set<string>
     },
   ): Promise<Response> {
     const encoder = new TextEncoder()
@@ -1705,6 +1738,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           for (let attempt = start.attempt; attempt < options.candidateIds.length; attempt++) {
             const candidate = options.candidateIds[attempt]!
             const handed = attempt === start.attempt
+            if (!handed && start.sharedQuota.has(candidate)) continue
             // The handed attempt is always relayed: its reader owns the cancel.
             if (!handed && isCancelled()) break
             activeExposure = handed ? start.exposure : { committed: false }
@@ -1720,7 +1754,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               await verdict.discard()
               await responseCompletions.get(inner)?.catch(() => {})
               const reason = verdict.errorType
-              const cooldownUntil = markPriorityFailure(candidate, reason)
+              const cooldownUntil = markPriorityFailure(candidate, reason, start.sharedQuota)
               if (isCancelled()) break
               earliestPoolReset = Math.min(earliestPoolReset ?? cooldownUntil, cooldownUntil)
               lastError = verdict.errorPayload
@@ -1911,14 +1945,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // frees up, not the last one tried. Tracked across the loop so the caller's
     // Retry-After names the pool's earliest opening (#901).
     let earliestPoolReset: number | null = null
+    // Profiles a refusal in THIS request already spoke for: one account under
+    // another name, so asking it again only repeats the answer.
+    const sharedQuota = new Set<string>()
     for (const [attempt, candidate] of options.candidateIds.entries()) {
+      if (sharedQuota.has(candidate)) continue
       const { inner, exposure } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
       // A non-SSE answer is decided here and keeps its HTTP status. Once an
       // account streams, headers go out and the remaining candidates are
       // tried inside the stream.
       if (options.wantsStream && isEventStream(inner)) {
         return streamPriorityDispatch(options, attemptOwnerToken, settleAttempt, {
-          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset,
+          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset, sharedQuota,
         })
       }
       const sniffed = await sniffAccountFailure(inner)
@@ -1957,7 +1995,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement.
-      const cooldownUntil = markPriorityFailure(candidate, reason)
+      const cooldownUntil = markPriorityFailure(candidate, reason, sharedQuota)
       if (earliestPoolReset === null || cooldownUntil < earliestPoolReset) {
         earliestPoolReset = cooldownUntil
       }
@@ -10034,13 +10072,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       )
       const cacheInfo = getAuthCacheInfo(p.id !== "default" ? p.id : undefined)
       const organization = organizations[p.id]
-      // Only claude-max profiles have an OAuth account to ask about, and only
-      // their credentials are a directory this can name — an API-key profile
-      // would otherwise be looked up against the host's own ~/.claude and
-      // labelled with an unrelated organization.
-      if (resolved.type === "claude-max" && organizationNeedsRefresh(organization, Date.now())) {
-        refreshOrganizationNameSoon(p.id, { claudeConfigDir: resolved.env.CLAUDE_CONFIG_DIR })
-      }
       // The tier that sizes the plan is never in `claude auth status` — only
       // the family (`max`), which covers both 5x and 20x. It is on disk, in
       // the profile's own credential file.
@@ -10070,10 +10101,25 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // empty stored OAuth grant cannot invalidate those credentials.
       const stored = profileStore ? await readStoredCredentialSnapshot(profileStore) : undefined
       const presence = stored?.presence ?? "unknown"
+      // Only claude-max profiles have an OAuth account to ask about, and only
+      // their credentials are a directory this can name — an API-key profile
+      // would otherwise be looked up against the host's own ~/.claude and
+      // labelled with an unrelated organization. The stored access token's
+      // expiry marks which credential a record was read for, so a login or a
+      // renewal re-reads the account instead of keeping the previous one's.
+      const credentialMark = stored?.accessTokenExpiresAt ?? null
+      if (resolved.type === "claude-max" && organizationNeedsRefresh(organization, Date.now(), undefined, credentialMark)) {
+        refreshOrganizationNameSoon(p.id, { claudeConfigDir: resolved.env.CLAUDE_CONFIG_DIR, credentialMark })
+      }
+      // `claude auth status` reads the email Claude Code last cached, which a
+      // login Meridian performed does not touch - so it keeps naming the
+      // account signed in before. A read made for this very credential knows.
+      const email = (organizationRecordCurrent(organization, credentialMark) ? organization?.email : null)
+        || auth?.email || null
       const renewal = renewalStatusFor(stored?.refreshTokenExpiresAt, renewalWarnDays, expiryObservedAt)
       return {
         ...p,
-        email: auth?.email || null,
+        email,
         subscriptionType: auth?.subscriptionType || null,
         organizationName: organization?.name ?? null,
         rateLimitTier: plan.rateLimitTier ?? null,
@@ -10123,8 +10169,32 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // from and why switching is refused. Absent unless MERIDIAN_FOLLOW_ACTIVE.
     const follow = followStatus(profiles.map(p => p.id))
     const claudeActiveProfile = resolveActiveProfileId(profiles.map(p => p.id)) || finalConfig.defaultProfile || profiles[0]?.id || "default"
+    const listed = chatGptProfiles ? [...enriched, ...chatGptProfiles.listEntries()] : enriched
+    const duplicates = findDuplicateProfiles(listed.map((entry): IdentifiedProfile => {
+      if ("seat" in entry && typeof entry.seat === "string") {
+        return { id: entry.id, identity: { provider: "chatgpt", seat: entry.seat, email: entry.email } }
+      }
+      if ((entry.type ?? "claude-max") !== "claude-max") return { id: entry.id, identity: null }
+      const record = organizations[entry.id]
+      return {
+        id: entry.id,
+        identity: {
+          provider: "claude",
+          accountUuid: record?.accountUuid,
+          organizationUuid: record?.organizationUuid,
+          email: entry.email,
+          organizationName: entry.organizationName,
+        },
+      }
+    }))
     return c.json({
-      profiles: chatGptProfiles ? [...enriched, ...chatGptProfiles.listEntries()] : enriched,
+      // Additive: `duplicateOf` names the other profiles signed in to the
+      // same account (one quota under two names), `[]` when there are none;
+      // `duplicateBasis` says what proved it. Present on every profile so a
+      // reader can tell "none" from an instance too old to say.
+      // `factsRefresh` (additive, null when idle): a sign-in finished and its
+      // facts are being re-read (`updating`), or that read failed (`failed`).
+      profiles: listed.map(entry => ({ ...entry, ...duplicates.get(entry.id), factsRefresh: profileFactsRefresh.view(entry.id) })),
       ...activeProfileFields(profiles.length > 0 ? claudeActiveProfile : null, claudeActiveProfile),
       // Additive (#383): current routing mode so UIs can surface it.
       routing: routingModeNow,
@@ -10294,6 +10364,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // seat on the next poll rather than after their own intervals.
       chatGptUsageAt = 0
       void chatGptCatalog?.refresh()
+      // The seat's card says it is updating until that usage read is in.
+      const seatProfileId = chatGptProfiles?.profileIdFor(account.accountUserId)
+      if (seatProfileId) {
+        void profileFactsRefresh.run(seatProfileId, async () => {
+          chatGptUsageAt = 0
+          await refreshChatGptUsage()
+        })
+      }
     },
     renderPage: (result) => renderLoginCallbackPage(result.ok
       ? { ok: true, okMessage: `ChatGPT seat${result.email ? ` ${result.email}` : ""} is connected to Meridian. You can close this tab.`, ...(result.returnTo ? { backHref: result.returnTo } : {}) }
@@ -10621,6 +10699,26 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     clearOAuthUsageForProfile(profileId)
   }
 
+  // A finished sign-in changes who the profile is (email, organization,
+  // account), its plan and its usage, and each is its own read. Re-read them
+  // now and say so on /profiles/list meanwhile, so the card shows it is
+  // updating instead of serving the previous login's facts as current ones.
+  // Started before the route answers: see ProfileFactsRefresh.run.
+  function refreshClaudeFactsAfterLogin(profileId: string): void {
+    const resolved = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, profileId)
+    const claudeConfigDir = resolved.env.CLAUDE_CONFIG_DIR
+    void profileFactsRefresh.run(profileId, async () => {
+      const [record] = await Promise.all([
+        refreshOrganizationNow(profileId, { claudeConfigDir }),
+        fetchOAuthUsageResult({ profileId, claudeConfigDir, force: true }),
+        getInstanceAuthStatus(profileId, Object.keys(resolved.env).length > 0 ? resolved.env : undefined),
+      ])
+      if (!record && organizationLookupEnabled()) {
+        throw new Error("Signed in, but Anthropic has not said which account this is yet. The card catches up on its own within minutes.")
+      }
+    })
+  }
+
   app.post("/profiles/login/complete", async (c) => {
     let body: { loginId?: string; code?: string }
     try {
@@ -10645,6 +10743,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // drop it so /profiles/list reflects the login on the UI's next poll.
     expireAuthStatusCache()
     clearStaleProfileHealth(result.profileId)
+    refreshClaudeFactsAfterLogin(result.profileId)
     claudeLog("profile.login_completed", {
       profile: result.profileId,
       userAgent: c.req.header("user-agent")?.slice(0, 120) ?? null,
@@ -10677,6 +10776,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
     expireAuthStatusCache()
     clearStaleProfileHealth(result.profileId)
+    refreshClaudeFactsAfterLogin(result.profileId)
     claudeLog("profile.login_completed", { profile: result.profileId, via: "callback" })
     plog(`[PROXY] Profile login completed for "${result.profileId}" (browser redirect)`)
     return c.html(renderLoginCallbackPage({ ok: true, profileId: result.profileId }))
@@ -10744,6 +10844,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // on the UI's next poll rather than after the 60s TTL.
     expireAuthStatusCache()
     clearStaleProfileHealth(result.profileId)
+    refreshClaudeFactsAfterLogin(result.profileId)
     claudeLog("profile.add_completed", {
       profile: result.profileId,
       userAgent: c.req.header("user-agent")?.slice(0, 120) ?? null,

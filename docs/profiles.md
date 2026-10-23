@@ -172,6 +172,27 @@ return unavailable expiry facts and preserve the existing authentication
 provenance. A changed or missing current deadline replaces the displayed value;
 Meridian does not infer a new login or retain a separate login-history file.
 
+### Duplicate profiles
+
+Signing a profile in from a browser that is still signed in to another account leaves two profiles holding one account: two names, one quota. Meridian flags them. Each such card on `/` and `/profiles` carries a **duplicate of &lt;other&gt;** badge naming the other profile, so you can sign one of them in to the account it was meant for, or remove it. Nothing is removed, renamed or excluded automatically.
+
+`GET /profiles/list` reports two fields on every profile:
+
+| Field | Meaning |
+| --- | --- |
+| `duplicateOf` | Ids of the other profiles signed in to the same account, `[]` when there are none |
+| `duplicateBasis` | What proved it, or `null`: `account-organization`, `email-organization`, `seat` or `workspace-email` |
+
+One person legitimately holds several subscriptions - a personal plan and seats in several Team organizations - so an email alone never makes a duplicate. A Claude account is its account UUID **and** organization UUID, as `GET /api/oauth/profile` reports them. Until those have been read for both profiles, the email **and** organization name stand in, and `duplicateBasis` says `email-organization`. A ChatGPT seat is its seat id, or the same email in the same workspace. Profiles of different providers never match.
+
+The account is read again whenever the stored credential changes - a login, a re-login or a token renewal - instead of waiting for the daily refresh, so a re-login into the right account clears the flag on the next poll. Under priority routing, a quota refusal on one profile also cools down the profiles proven (by UUID) to be the same account, and the request moves on without trying them.
+
+### After a sign-in
+
+A finished sign-in (re-login by paste or redirect, adding a profile, connecting or re-signing a ChatGPT seat) is followed by the reads that say who it signed in as, its plan and its usage. Until they land, the profile's card stays where it is and shows **Updating with the new sign-in…**; if they fail, it shows the reason. The card stays visible even when a login-state filter would hide it. `GET /profiles/list` reports the state as `factsRefresh`: `null` when idle, `{ "state": "updating", "since" }`, or `{ "state": "failed", "since", "at", "error" }` for five minutes after a failed read.
+
+`/` and `/profiles` refresh every ten seconds by updating each card in place, keyed by profile id, rather than redrawing the list, so the browser's find-in-page, a text selection, focus and scroll position survive a refresh.
+
 ### ChatGPT seats
 
 An instance serving [ChatGPT subscriptions](configuration.md#chatgpt-subscriptions) lists each seat as a profile of `type: "chatgpt"` beside the Claude ones, and the same commands and routes act on it. Each provider keeps its own active account, so switching a seat never moves the Claude pointer.
