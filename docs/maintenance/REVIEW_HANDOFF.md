@@ -1,8 +1,36 @@
-# Meridian review checkpoint — 2026-10-21 UTC
+# Meridian review checkpoint — 2026-10-25 UTC
 
-Last code delivery: `c84af243708578c0f15c92acad90fa68e364aaa9`. The backlog is unfinished. This approved continuation delivered two contributor PRs, the approved decline, and its tracking issue. The earlier blocked-goal audit preceded the new owner approvals; it is historical and does not mean every remaining item has the same blocker.
+Last code delivery: `bd021733deb054bbb95cacc0383fa816469e5773` (#1408). The backlog is unfinished. The 2026-10-25 owner-requested continuation covered only #1408 and a review of the 1.86.0 candidate; the 2026-10-21 record below is unchanged except where #1408's status superseded it. The previous checkpoint is [immutable at 9d94a354](https://github.com/rynfar/meridian/blob/9d94a3542f2e31edace685118d56e6e293feb4bd/docs/maintenance/REVIEW_HANDOFF.md).
 
-Release [1.85.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.85.0) remains published and verified. Mac notarization is explicitly deferred. Release Please #1438 now proposes 1.86.0; no subsequent release is authorized. External comments remain restricted to explicit authorization: this continuation posted only the approved #1243 explanation and created the approved #1441 tracking issue. No comments were posted on #1261 or #1094.
+## 2026-10-25: #1408 delivered, 1.86.0 reviewed, not published
+
+- **[#1408](https://github.com/rynfar/meridian/pull/1408), merged `bd021733deb054bbb95cacc0383fa816469e5773`.** Git Author: Nate Berkopec; the maintainer is credited with a `Co-authored-by` trailer.
+  - Nate's signed original `33357ce4` and eight signed maintainer corrections were added to his branch by fast-forward (`388b05bb`). Normal exact-head squash; the tree is identical to the validated head.
+  - Corrections:
+    - side calls keep the conversation's model tier (`fork-side-call`);
+    - setup moves aside a non-Meridian `extensions/meridian`;
+    - `--client=pi` and `~` in `PI_CODING_AGENT_DIR` work;
+    - migration docs and known limits.
+  - The owner approved the `pi1`, `plugin.pi` and `MERIDIAN_SOURCE` contracts (recorded in `api-contract.md`).
+  - Two independent adversarial reviews; their findings were fixed or recorded.
+  - Local gates: typecheck and build pass. All 26 test groups ran: 8,131 pass, 63 skip, 14 fail. The 14 failures are environmental (real-process SQLite children on Bun's system SQLite 3.51.0) and fail identically on unchanged main. All hosted checks pass.
+  - Live evidence: real Pi 1.4.0/1.3.0 wire identity and compaction side calls pass. [Review, live evidence, gates and artifacts](evidence/1408-pi-extension-20261025/README.md).
+- **Open gate: Pi generation through Meridian is refused on this account.** Claude refuses Pi's request content with an Extra Usage 402.
+  - This reproduces on unchanged main through the old `models.json` route; plain requests succeed.
+  - The owner chose to merge on identity evidence and not enable paid Extra Usage.
+  - The owner's installed 1.79.0 did not refuse the same Pi request, but Pi's reply said it received no content. Worth investigating separately: it may affect every Pi user of 1.80+.
+- **Follow-ups (no issues filed):**
+  - OpenCode V2 compaction still uses the 200k `subagent-compaction` tier on Opus and Fable 1M; needs an owner decision.
+  - `antigravitySetup.ts` lacks `~` expansion for `PI_CODING_AGENT_DIR`.
+  - A Pi side call does not inherit its conversation's `[1m]` rate-limit pause.
+  - The remaining Pi known limits are listed in `docs/agents.md`.
+- **Release Please [#1438](https://github.com/rynfar/meridian/pull/1438) proposes 1.86.0 (head `49245d4e`). Publication is not authorized.**
+  - The candidate tarball was installed into an isolated prefix: Pi setup, `/health`, a stale-copy negative control, Pi discovery and plain generation pass.
+  - An independent release review found no code or packaging blocker and recommends adding an upgrade note for #1426's `x-session-id` behavior.
+  - The candidate's workflows were waiting for approval and have been approved; check their results on #1438 before any release decision.
+- **Workspace:** the #1408 integration, unchanged-main comparison and release-candidate worktrees, the local integration branch, the installed prefix and every scratch Pi and Meridian directory from this continuation have been removed. The owner's root checkout and its uncommitted files were not touched. This approved continuation delivered two contributor PRs, the approved decline, and its tracking issue. The earlier blocked-goal audit preceded the new owner approvals; it is historical and does not mean every remaining item has the same blocker.
+
+Release [1.85.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.85.0) remains published and verified. Mac notarization is explicitly deferred. Release Please #1438 now proposes 1.86.0 including #1408; no subsequent release is authorized. External comments remain restricted to explicit authorization: this continuation posted only the approved #1243 explanation and created the approved #1441 tracking issue. No comments were posted on #1261 or #1094.
 
 ## Delivered
 
@@ -32,8 +60,8 @@ The 16:23 UTC discovery covered 165 accessible repositories, three accessible or
 - **#1314, head5c96dd30:** Pi/Gemini source and installed paths passed earlier. Reporter ACP/platform and duplicate cause are missing. Original d1a13085 is signed with unknown_key, not unsigned; the unsigned-only admin exception does not apply. [Proof](https://github.com/rynfar/meridian/blob/985793c9c2720b7a2a56d7ebd9f4fcc71b95cca9/docs/maintenance/evidence/1314-current-main-20261021/QUALIFIED.md).
 - **#1220, head92222508:** earlier8,102/36/0 and hosted checks pass. Actual Opus5.5/SDK0.2.141/native2.1.284/OpenCode1.18.34 cache3332→3132 misses the95% floor3165.4; original native locator/fingerprint stderr is absent. The scoped capture test correction is now on main through1426, without importing the async-writer implementation. No blind model retry or closure.
 - **#1193:** owner-deferred warming, lifecycle/cost and benefit decision.
-- **Drafts #1408/#1402/#1359/#1347/#1322/#1317/#1266/#1050:** retain draft/no-review/owner holds. Do not mark ready or review around them.
-- **Release Please #1438:** proposed1.86.0, publication unauthorized.
+- **Drafts #1402/#1359/#1347/#1322/#1317/#1266/#1050:** retain draft/no-review/owner holds. Do not mark ready or review around them.
+- **Release Please #1438:** proposed 1.86.0 (now including #1408), publication unauthorized; see the 2026-10-25 section.
 
 Issues #1390/#1338/#1302/#1229 map to held drafts. #1311's separate agent identity contract remains unapproved. #1439 needs exact suspension incident/provider notice and versions; IP/header causation remains a hypothesis. #1073 retains unfinished provider/platform work and deferred Mac notarization. #1011 retains its owner-deferred capped-streaming work. #933's broader CI/fast-500 causes remain incomplete; the concrete capture/receipt fixture corrections are bounded improvements, not universal resolution. #769 needs the exact private OpenClaw trigger/version and Off–On–Off proof. #650 remains owner-deferred for its sender-secret prerequisite.
 
