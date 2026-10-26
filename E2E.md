@@ -34,9 +34,19 @@ Haiku tool loop continued on one signed turn and returned the fixture, the
 answered on `opus[1m]`. The scrub was active and processed every request
 without errors. Without the scrub, the same Pi request through the extension
 was still refused; in the first run a plain request through the same server
-succeeded. Paid Extra Usage stayed off. Resuming a saved Pi session,
-in-process pi-subagents and a live `next-user-turn` promotion remain
-unqualified on that account. The promotion path is covered by
+succeeded. Paid Extra Usage stayed off.
+
+Recorded 2026-10-25 against the owner's launchd Meridian (main `cb767de`,
+pi-scrub 0.2.0) with Pi 1.4.0 on Claude Max: `pi -c` resumed a saved session
+as `lineage=continuation` with cache reads, and recalled its codeword. An
+in-process foreground child of pi-subagents 0.82.1's builtin `delegate` agent
+went out as `fork-side-call` on `opus[1m]`. That agent appends its prompt, so
+its `<active_agent>` marker sits inside Pi's `<addendum>` section; the
+extension now reads it there, and the same run sent `subagent-delegate` on the
+base `opus` tier while the parent stayed signed on `opus[1m]`
+([evidence](docs/maintenance/evidence/pi-subagents-addendum-20261025/README.md)).
+A live `next-user-turn` promotion remains unqualified: it needs the priority
+account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
 ## Awaited session-cache cleanup (#1244/#1277)

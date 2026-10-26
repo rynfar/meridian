@@ -151,16 +151,38 @@ describe("Pi extension request identity", () => {
   })
 
   test("tiers a pi-subagents agent whose prompt is appended to Pi's", () => {
-    const marked = (text: string) =>
+    // Pi's layout (core/system-prompt.js): an untagged preamble, then each
+    // section as <name>\n…\n</name>, the addendum before project_context,
+    // skills and cwd. A forced prompt is the same text flattened with blank lines.
+    const sections = (addendum: string, projectContext = "AGENTS.md text") => ({
+      preamble: "You are an expert coding assistant operating inside pi.",
+      docs: "<docs>\nPi documentation\n</docs>",
+      addendum: `<addendum>\n${addendum}\n</addendum>`,
+      project_context: `<project_context>\n${projectContext}\n</project_context>`,
+      cwd: "<cwd>\n/tmp/project\n</cwd>",
+    })
+    const flat = (addendum: string, projectContext?: string) => Object.values(sections(addendum, projectContext)).join("\n\n")
+    const source = (message: Omit<SystemMessage, "role" | "timestamp">) =>
       sent(shape({ sessionId: SESSION }, { session: rootSession() }, normalizeContext({
-        messages: [{ role: "system", content: text, timestamp: 0 } satisfies SystemMessage],
+        messages: [{ role: "system", timestamp: 0, ...message } satisfies SystemMessage],
       })))["x-meridian-source"]
-    const prompt = (addendum: string) =>
-      `You are an expert coding assistant operating inside pi.\n\n<docs>\nPi documentation\n</docs>\n\n<addendum>\n${addendum}\n</addendum>\n\n<cwd>\n/tmp/project\n</cwd>`
-    expect(marked(prompt('<active_agent name="delegate"/>\n\nYou are a delegated agent.'))).toBe("subagent-delegate")
-    expect(marked(prompt('Global append text.\n\n<active_agent name="delegate"/>\n\nYou are a delegated agent.'))).toBe("subagent-delegate")
-    expect(marked(prompt('See <active_agent name="delegate"/> in the docs.'))).toBeUndefined()
-    expect(marked(`${prompt("Append text.")}\n\n<project_context>\n<active_agent name="worker"/>\n</project_context>`)).toBeUndefined()
+    const delegate = '<active_agent name="delegate"/>\n\nYou are a delegated agent.'
+
+    expect(source({ content: flat(delegate) })).toBe("subagent-delegate")
+    expect(source({ content: "", sections: sections(delegate) })).toBe("subagent-delegate")
+    expect(source({ content: "", sections: { ...sections("Append."), preamble: delegate } })).toBe("subagent-delegate")
+    expect(source({ content: flat(`Global append text.\n\n${delegate}`) })).toBe("subagent-delegate")
+    expect(source({ content: flat(`Global append text ending in a newline.\n\n\n${delegate}`) })).toBe("subagent-delegate")
+
+    expect(source({ content: flat('See <active_agent name="delegate"/> in the docs.') })).toBeUndefined()
+    expect(source({ content: "", sections: sections('See <active_agent name="delegate"/> in the docs.') })).toBeUndefined()
+    const quoted = `Example layout:\n\n<addendum>\n${delegate}\n</addendum>`
+    const rootQuotingLayout = Object.entries(sections("", quoted))
+      .filter(([name]) => name !== "addendum")
+      .map(([, text]) => text)
+      .join("\n\n")
+    expect(source({ content: rootQuotingLayout })).toBeUndefined()
+    expect(source({ content: "", sections: sections("Append.", quoted) })).toBeUndefined()
   })
 })
 

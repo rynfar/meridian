@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import type { ProviderHeaders, SimpleStreamOptions, TranscriptContext } from "@earendil-works/pi-ai"
+import type { ProviderHeaders, SimpleStreamOptions, SystemMessage, TranscriptContext } from "@earendil-works/pi-ai"
 import { PRIORITY_ATTESTATION_HEADER, createPriorityAttestation } from "../priority-attestation"
 
 export const PI_AGENT_ID = "pi"
@@ -81,40 +81,72 @@ export function childSourceFromEnvironment(env: NodeJS.ProcessEnv): string | und
   return env.PI_SUBAGENT_CHILD === "1" ? CHILD_SOURCE : undefined
 }
 
-function systemTexts(context: TranscriptContext): string[] {
-  return context.messages.flatMap((message) => {
-    if (message.role !== "system") return []
-    return typeof message.content === "string" ? [message.content] : message.content.map((block) => block.text)
-  })
-}
-
 const ACTIVE_AGENT_MARKER = /^<active_agent name="([^"]{1,64})"\/>/
-/** Pi's `appendSystemPrompt` section; appended prompts are joined by blank lines. */
-const ADDENDUM_SECTION = /\n<addendum>\n([\s\S]*?)\n<\/addendum>(?:\n|$)/
+const ADDENDUM_OPEN = "<addendum>\n"
+const ADDENDUM_CLOSE = "\n</addendum>"
+/**
+ * Sections Pi renders after `<addendum>` (core/system-prompt.js). A flattened
+ * prompt whose first addendum tag follows one of them is quoting the layout,
+ * for example in AGENTS.md, and is not Pi's own addendum.
+ */
+const SECTIONS_AFTER_ADDENDUM = ["project_context", "skills", "cwd"]
 
-function activeAgentName(text: string): string | undefined {
-  const leading = text.match(ACTIVE_AGENT_MARKER)?.[1]
-  if (leading !== undefined) return leading
-  const addendum = text.match(ADDENDUM_SECTION)?.[1]
-  if (addendum === undefined) return undefined
-  for (const part of addendum.split("\n\n")) {
-    const name = part.match(ACTIVE_AGENT_MARKER)?.[1]
+/** Appended prompts, which Pi joins with blank lines; the marker opens one. */
+function addendumMarker(addendum: string): string | undefined {
+  for (const part of addendum.split(/\r?\n\r?\n/)) {
+    const name = part.trimStart().match(ACTIVE_AGENT_MARKER)?.[1]
     if (name !== undefined) return name
   }
   return undefined
+}
+
+/** A forced prompt is one flat string: the marker leads it, or opens a part of its addendum. */
+function flattenedMarker(text: string): string | undefined {
+  const leading = text.match(ACTIVE_AGENT_MARKER)?.[1]
+  if (leading !== undefined) return leading
+  const open = text.indexOf(`\n\n${ADDENDUM_OPEN}`)
+  if (open < 0) return undefined
+  const quoted = SECTIONS_AFTER_ADDENDUM.some((name) => {
+    const index = text.indexOf(`\n\n<${name}>\n`)
+    return index >= 0 && index < open
+  })
+  if (quoted) return undefined
+  const start = open + 2 + ADDENDUM_OPEN.length
+  const close = text.indexOf(ADDENDUM_CLOSE, start)
+  return close < 0 ? undefined : addendumMarker(text.slice(start, close))
+}
+
+/** A structured prompt keeps the replacing prompt in `preamble` and each tag in its own section. */
+function sectionsMarker(sections: Record<string, string | null>): string | undefined {
+  const preamble = sections.preamble?.match(ACTIVE_AGENT_MARKER)?.[1]
+  if (preamble !== undefined) return preamble
+  const addendum = sections.addendum
+  if (!addendum?.startsWith(ADDENDUM_OPEN) || !addendum.endsWith(ADDENDUM_CLOSE)) return undefined
+  return addendumMarker(addendum.slice(ADDENDUM_OPEN.length, -ADDENDUM_CLOSE.length))
+}
+
+function activeAgentName(message: SystemMessage): string | undefined {
+  const texts = typeof message.content === "string" ? [message.content] : message.content.map((block) => block.text)
+  for (const text of texts) {
+    const name = flattenedMarker(text)
+    if (name !== undefined) return name
+  }
+  return message.sections ? sectionsMarker(message.sections) : undefined
 }
 
 /**
  * NOTE: agent-specific (pi) — pi-subagents announces the agent a prompt belongs
  * to with an `<active_agent name="…"/>` marker at the start of the agent's
  * prompt, including for children it runs inside the parent process, where no
- * environment marker exists. An agent whose prompt replaces Pi's starts the
+ * environment marker exists. An agent whose prompt replaces Pi's leads the
  * system prompt with it; one that appends (the builtin `delegate`, for one)
- * starts a part of Pi's `<addendum>` section with it.
+ * leads a part of Pi's `<addendum>` section. Pi sends the prompt either as
+ * structured sections or, when an extension forces it, as one flat string.
  */
 function activeAgentSource(context: TranscriptContext): string | undefined {
-  for (const text of systemTexts(context)) {
-    const name = activeAgentName(text)
+  for (const message of context.messages) {
+    if (message.role !== "system") continue
+    const name = activeAgentName(message)
     const safe = name === undefined ? undefined : safeName(name)
     if (safe) return `subagent-${safe}`
   }
