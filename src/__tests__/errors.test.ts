@@ -1006,6 +1006,13 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
   it.each([
     ["bare banner", "You're out of usage credits"],
     ["nested SDK wrappers", "Error: API Error: You’re out of usage credits! /model to switch models."],
+    // The shapes a headless session gets, read from the refusal builder of CLI
+    // 2.1.284 and 2.1.289: no slash commands, and the credits link when the
+    // account can buy them. And the stderr the proxy appends on every
+    // subscription profile, which a message-final anchor never saw past.
+    ["banner then the appended beta warning", "Claude Code returned an error result: You're out of usage credits. /model to switch models.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."],
+    ["headless prose suffix", "Claude Code returned an error result: You're out of usage credits. Switch to another model to continue."],
+    ["headless prose suffix with the credits link", "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."],
   ])("maps the canonical usage-credit %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -1078,6 +1085,14 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["status-prefixed prose suffix", "Claude Code returned an error result: API Error: 400 You've reached your Fable limit. Switch to another model to continue."],
     ["status-prefixed slash suffix", "Claude Code returned an error result: API Error: 429 You've reached your Fable 5 limit. /model to switch models."],
     ["status-prefixed bare banner", "API Error: 400 You've reached your Opus limit."],
+    // What a headless session gets when the account can buy usage credits: the
+    // link is spliced into the prose suffix. Live on CLI 2.1.284 and 2.1.289,
+    // 2026-10-05: 57 Fable requests in seven minutes on a Claude Max profile
+    // whose Fable window was spent, each a 500 that failed nothing over while
+    // another profile in the pool had window left.
+    ["prose suffix with the credits link", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue."],
+    ["credits link, then the appended beta warning", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."],
+    ["credits link of a team or enterprise seat", "You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/admin-settings/usage, to continue."],
   ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -1102,6 +1117,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     // The prose suffix is enumerated, not a licence for any tail: a sentence
     // that merely starts like it must still fall through.
     ["prose switch suffix continuing into documentation", "You've reached your Fable 5 limit. Switch to another model to continue, the docs say, but the account is healthy"],
+    // The credits link is the CLI's own two addresses, not any address.
+    ["credits link to somewhere else", "You've reached your Fable limit. Switch to another model, or manage usage credits at example.com/settings/usage, to continue."],
+    ["credits link continuing into documentation", "You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage, to continue, as the docs put it"],
     // The status allowance is exactly three digits immediately before the
     // banner, so neither a longer number nor an arbitrary numeric preamble
     // opens the line up.

@@ -135,6 +135,23 @@ export function retryAfterBodyFields(seconds: number | null): Record<string, num
   return seconds === null ? {} : { retry_after: seconds }
 }
 
+/**
+ * An error envelope with another wait in its body.
+ *
+ * For an error passed on from an attempt that worked out its own: the wait a
+ * client is given may be for someone else to say, as when one account of a
+ * pool refused and another is back sooner. Returned as it came when there is
+ * no wait to give, or when it is not an error envelope.
+ */
+export function withRetryAfter(payload: unknown, seconds: number | null): unknown {
+  if (seconds === null || !isRecord(payload) || !isRecord(payload.error)) return payload
+  return { ...payload, error: { ...payload.error, ...retryAfterBodyFields(seconds) } }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
 function clamp(seconds: number): number {
   if (!Number.isFinite(seconds)) return RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS
   return Math.min(RETRY_AFTER_MAX_SECONDS, Math.max(RETRY_AFTER_MIN_SECONDS, Math.round(seconds)))
