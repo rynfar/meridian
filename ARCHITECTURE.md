@@ -252,6 +252,7 @@ src/
 │   │   ├── processIncarnation.ts ← Process/host identity for lock ownership
 │   │   └── durableFileSystem.ts ← Durable file operations
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
+│   ├── sessionGcLimits.ts     ← Session GC deletion, shutdown and backlog limits and their resolution (PURE)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
 │   ├── profileConfigStore.ts  ← cross-process profile writer lock and atomic snapshots (leaf, I/O)
@@ -333,7 +334,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts` and `toolInputJson.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
+3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `sseFailureSniff.ts`, `sessionGcLimits.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts`, `toolInputJson.ts` and `sessionGcLimits.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
 
 4. **`server.ts` owns Hono route registration and orchestration.** Hono
    middleware stays at the proxy boundary. Standard `Request`/`Response`
