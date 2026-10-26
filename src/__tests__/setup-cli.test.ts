@@ -180,6 +180,7 @@ describe("meridian setup --client", () => {
 
       expect(result.status).toBe(0)
       if (platform() !== "win32") expect(result.stdout).toContain("installed for Pi 1.3.0")
+      expect(result.stdout).toContain("@rynfar/meridian-plugin-pi-scrub")
       expect(readFileSync(join(agentDir, "extensions", "meridian", "index.ts"), "utf8"))
         .toBe('export { default } from "./pi/index"\n')
     })

@@ -29,13 +29,14 @@ harness passed on Pi 1.4.0 and 1.3.0, with two compaction requests each. The
 Claude harness passed every identity assertion on Pi 1.4.0, but that first run
 omitted the Pi scrub, and Claude refused all three generations as third-party
 traffic. Rerun the same day with pi-scrub 0.2.2, the harness passed: the
-Haiku tool loop resumed as a continuation and returned the fixture, the
+Haiku tool loop continued on one signed turn and returned the fixture, the
 `subagent-e2e` child answered on the base tier, and Opus 5.5 at high effort
-answered on `opus[1m]`. The scrub was active and processed four requests
-without errors. Without the scrub, the same Pi request through the extension is
-still refused, and a plain request through the same server succeeds. Paid
-Extra Usage stayed off. In-process pi-subagents and a live `next-user-turn`
-promotion remain unqualified on that account. The promotion path is covered by
+answered on `opus[1m]`. The scrub was active and processed every request
+without errors. Without the scrub, the same Pi request through the extension
+was still refused; in the first run a plain request through the same server
+succeeded. Paid Extra Usage stayed off. Resuming a saved Pi session,
+in-process pi-subagents and a live `next-user-turn` promotion remain
+unqualified on that account. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
 ## Awaited session-cache cleanup (#1244/#1277)

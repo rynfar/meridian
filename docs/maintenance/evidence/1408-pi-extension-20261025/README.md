@@ -5,7 +5,7 @@ Accepted with maintainer corrections and merged as `bd021733deb054bbb95cacc0383f
 ## Owner decisions
 
 - The three public-contract additions requested in the PR are approved and recorded in `.agents/references/api-contract.md`: `pi1` on `x-meridian-opencode-turn`, `plugin.pi` in `/health`, and the `MERIDIAN_SOURCE` child-process convention.
-- On this account, Claude refuses every Pi request through Meridian with an Extra Usage 402, including on unchanged main through the old `models.json` route. The owner chose to merge on live wire-identity evidence and record the generation gap, rather than enable paid Extra Usage.
+- (Superseded by the [correction](#correction-the-generation-refusal-was-a-missing-scrub-2026-10-25): the refusal came from running without the Pi scrub.) On this account, Claude refuses every Pi request through Meridian with an Extra Usage 402, including on unchanged main through the old `models.json` route. The owner chose to merge on live wire-identity evidence and record the generation gap, rather than enable paid Extra Usage.
 
 ## Maintainer corrections
 
@@ -52,7 +52,7 @@ Darwin arm64, Bun 1.3.14, Node 22.22.3. Pi 1.4.0 (the global install) and Pi 1.3
 | Baselines | unchanged main `9d94a35` | Pi through the built-in `anthropic` provider was refused the same way. Plain `/v1/messages` (default and `x-meridian-agent: pi`) returned 200 OK. |
 | Control | the owner's installed Meridian 1.79.0 | The same Pi request was not refused, but Pi's reply said it received no content. Unexplained and not investigated here. |
 
-The refusal predates the extension, and the extension delegates request construction to Pi's own Anthropic implementation. Still unqualified on this account:
+(Superseded by the [correction](#correction-the-generation-refusal-was-a-missing-scrub-2026-10-25), which qualifies generation and tool-loop continuity.) The refusal predates the extension, and the extension delegates request construction to Pi's own Anthropic implementation. Still unqualified on this account:
 - generation;
 - tool-loop and resume continuity;
 - in-process pi-subagents;
@@ -92,11 +92,11 @@ The reviewer's own 1.4.3-built tarball install also ran `meridian setup --client
 
 ## Correction: the generation refusal was a missing scrub (2026-10-25)
 
-The refusal recorded above came from the harness, not from the extension or the account. Every live run used a fresh Meridian config directory, which loads no server plugins, so the [Pi scrub](https://github.com/rynfar/meridian-plugin-pi-scrub) never ran. Claude refuses Pi's default system prompt as third-party traffic: it opens with "operating inside pi, a coding agent harness" and carries a Pi documentation block. The owner's own Meridian loads the scrub. This is the same harness mistake as the October 12 OpenCode runs in [#1346](../1327-extra-usage.md).
+The refusal recorded above came from running without the Pi scrub, not from the extension. Every live run used a fresh Meridian config directory, which loads no server plugins, so the [Pi scrub](https://github.com/rynfar/meridian-plugin-pi-scrub) never ran. Claude refuses Pi's default system prompt as third-party traffic: it opens with "operating inside pi, a coding agent harness" and carries a Pi documentation block. The owner's own Meridian loads the scrub. This is the same harness mistake as the October 12 OpenCode runs in [#1346](../1327-extra-usage.md).
 
 Rerun on `main` `7ecb310` with Pi 1.4.0 and the scrub ([receipt](scrub-correction.json)):
 - Without the scrub, a Haiku request through the extension is refused with the Extra Usage 402. With pi-scrub 0.2.2, or the owner's installed 0.2.0 and Pi `AGENTS.md`, it answers.
-- `scripts/e2e-pi-extension.mjs`, now requiring `E2E_PLUGIN_PATH`, passes with pi-scrub 0.2.2. The Haiku tool loop returns the fixture and resumes as a continuation on one signed turn. The `subagent-e2e` child answers on the base tier. Opus 5.5 at high effort answers on `opus[1m]`. The scrub processed four requests without errors.
+- `scripts/e2e-pi-extension.mjs`, now requiring `E2E_PLUGIN_PATH`, passes with pi-scrub 0.2.2. The Haiku tool loop returns the fixture and continues on one signed turn. The `subagent-e2e` child answers on the base tier. Opus 5.5 at high effort answers on `opus[1m]`. The scrub processed four requests without errors.
 - The 1.79.0 "no content" control was a separate bug: Pi 1.4 ends each request with an empty `system` message, and 1.79.0's streaming path took it as the prompt. Current `main` answers the same streamed request.
 
-Generation and tool-loop continuity are now qualified. In-process pi-subagents and a live `next-user-turn` promotion remain unqualified.
+Generation and tool-loop continuity are now qualified on this account. Resuming a saved Pi session, in-process pi-subagents and a live `next-user-turn` promotion remain unqualified.

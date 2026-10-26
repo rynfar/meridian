@@ -3,7 +3,7 @@
   "platform": "Darwin arm64",
   "pi": "1.4.0",
   "meridian_commit": "7ecb310afdbde99880d6b0f1b2f8e74decdee1db",
-  "finding": "The #1408 Claude harness omitted the Pi scrub server plugin. Claude refuses Pi's unscrubbed default system prompt as third-party traffic; with the scrub, every generation succeeds.",
+  "finding": "On this Max account (2026-10-25), the #1408 Claude harness ran without the Pi scrub server plugin, and Claude refused Pi's unscrubbed default system prompt as third-party traffic. With the scrub loaded, all three harness generations succeeded.",
   "pi_prompt_fingerprint": [
     "opening line: 'You are an expert coding assistant operating inside pi, a coding agent harness.'",
     "<docs> block: 'Pi documentation (read only when the user asks about pi itself, ...)'"
@@ -35,8 +35,9 @@
     "discovered_models": 12,
     "scrub": {
       "packageVersion": "0.2.2",
-      "runtimeVersion": "0.2.2",
       "sha256": "919020957c22f04bee21e2198619ae35649618dcc82eb6b05d08d2bf44b14af5",
+      "runtimeVersion": "0.2.2",
+      "status": "active",
       "invocations": 4,
       "errors": 0
     },
@@ -107,5 +108,11 @@
     },
     "current_main": "streamed Pi requests answer correctly (runs above)"
   },
-  "paid_extra_usage": "unchanged (off)"
+  "paid_extra_usage": "unchanged (off)",
+  "harness": {
+    "script": "scripts/e2e-pi-extension.mjs",
+    "sha256": "d8bb506b048fa60f7b51f4bcfcef105f229783393506d9c579e630b599355cdc",
+    "exit": 0
+  },
+  "published_1_85_0_streamed_pi_request_with_trailing_system_turn": "OK (installed in an isolated prefix, owner's pi-scrub 0.2.0)"
 }

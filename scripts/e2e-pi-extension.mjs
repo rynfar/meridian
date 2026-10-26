@@ -20,8 +20,8 @@ import { configurePiScrub, resolvePiScrub, verifyPiScrub } from "./lib-pi-scrub-
 const repo = resolve(import.meta.dir, "..")
 const pi = process.argv.find(arg => arg.startsWith("--pi="))?.slice(5) ?? Bun.which("pi")
 assert(pi, "pi not found; pass --pi=/path/to/pi")
-// Claude refuses Pi's default system prompt as third-party traffic unless the
-// scrub removes its fingerprint, so a run without it cannot test generation.
+// Claude has refused Pi's default system prompt as third-party traffic on a
+// subscription unless the scrub removes its fingerprint (October 2026, Max).
 const scrub = resolvePiScrub(process.env.E2E_PLUGIN_PATH, process.env.E2E_SCRUB_VERSION)
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-pi-extension-")))
@@ -131,8 +131,9 @@ async function turn({ name, model, prompt, sessionId, tools = "read", env = {}, 
 
 const sessions = { primary: crypto.randomUUID(), child: crypto.randomUUID(), opus: crypto.randomUUID() }
 const report = { pi: version, meridianUrl: "loopback", cases: [] }
+let scrubList
 try {
-  report.scrub = verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub)
+  verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub)
   report.cases.push(await turn({
     name: "primary turn with a tool loop",
     model: "meridian/claude-haiku-5-5",
@@ -157,7 +158,7 @@ try {
     tools: "",
     expect: stdout => /\bOK\b/.test(stdout),
   }))
-  report.scrub = verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub, true)
+  scrubList = await (await fetch(`${meridianUrl}/plugins/list`)).json()
 } finally {
   recorder.stop(true)
   await instance.close()
@@ -165,7 +166,11 @@ try {
 
 const store = JSON.parse(readFileSync(join(agentDir, "models-store.json"), "utf8"))
 report.discovered = Object.values(store).flatMap(entry => entry?.models ?? []).map(model => model.id)
+report.scrub = { ...scrub, loaded: scrubList.plugins }
 console.log(JSON.stringify(report, null, 2))
+
+const verifiedScrub = verifyPiScrub(scrubList, scrub, true)
+assert(verifiedScrub.invocations >= wire.length, "the scrub must process every Pi request")
 
 assert(report.discovered.includes("claude-haiku-5-5"), "the extension must discover Meridian's models")
 for (const { name, requests } of report.cases) {
