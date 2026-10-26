@@ -1,8 +1,16 @@
-# Meridian review checkpoint — 2026-10-25 UTC
+# Meridian review checkpoint — 2026-10-26 UTC
 
 Last code delivery: `bd021733deb054bbb95cacc0383fa816469e5773` (#1408). The backlog is unfinished. The 2026-10-25 owner-requested continuation covered only #1408 and a review of the 1.86.0 candidate; the 2026-10-21 record below is unchanged except where #1408's status superseded it. The previous checkpoint is [immutable at 9d94a354](https://github.com/rynfar/meridian/blob/9d94a3542f2e31edace685118d56e6e293feb4bd/docs/maintenance/REVIEW_HANDOFF.md).
 
-## 2026-10-25: #1408 delivered, 1.86.0 reviewed, not published
+## 2026-10-26: 1.86.0 published
+
+- **Release [1.86.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.86.0) is published and installed-package validated** (owner-authorized). Merge `e521c5feb190d1b73b812b42bb51d1d068b3f11c` from Release Please #1438 head `a9e2c95a`. npm `latest` with provenance; Docker `1.86.0`/`1.86` for amd64 and arm64.
+- **Desktop download missing:** the release's `desktop / mac` job failed at Apple notarization (HTTP 401), as for 1.85.0. The owner's app was built and installed locally from the tag.
+- **#1453** (merged `5359f634`) fixed the Pi extension missing pi-subagents' appended-prompt marker, found during live proof of #1408; saved-session resume and in-process pi-subagents are now qualified.
+- **Follow-up:** Meridian Desktop does not reload a window whose renderer process is gone, which leaves an empty glass panel.
+- [Release record](evidence/release-1.86.0-20261026/README.md).
+
+## 2026-10-25: #1408 delivered, 1.86.0 reviewed
 
 - **[#1408](https://github.com/rynfar/meridian/pull/1408), merged `bd021733deb054bbb95cacc0383fa816469e5773`.** Git Author: Nate Berkopec; the maintainer is credited with a `Co-authored-by` trailer.
   - Nate's signed original `33357ce4` and eight signed maintainer corrections were added to his branch by fast-forward (`388b05bb`). Normal exact-head squash; the tree is identical to the validated head.
@@ -27,7 +35,7 @@ Last code delivery: `bd021733deb054bbb95cacc0383fa816469e5773` (#1408). The back
   - The candidate's workflows were waiting for approval and have been approved; check their results on #1438 before any release decision.
 - **Workspace:** the #1408 integration, unchanged-main comparison and release-candidate worktrees, the local integration branch, the installed prefix and every scratch Pi and Meridian directory from this continuation have been removed. The owner's root checkout and its uncommitted files were not touched. This approved continuation delivered two contributor PRs, the approved decline, and its tracking issue. The earlier blocked-goal audit preceded the new owner approvals; it is historical and does not mean every remaining item has the same blocker.
 
-Release [1.85.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.85.0) remains published and verified. Mac notarization is explicitly deferred. Release Please #1438 now proposes 1.86.0 including #1408; no subsequent release is authorized. External comments remain restricted to explicit authorization: this continuation posted only the approved #1243 explanation and created the approved #1441 tracking issue. No comments were posted on #1261 or #1094.
+Release [1.86.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.86.0) is published and verified (see above). Mac notarization is still deferred. No subsequent release is authorized. External comments remain restricted to explicit authorization: this continuation posted only the approved #1243 explanation and created the approved #1441 tracking issue. No comments were posted on #1261 or #1094.
 
 ## Delivered
 
