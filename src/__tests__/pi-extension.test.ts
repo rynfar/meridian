@@ -149,6 +149,19 @@ describe("Pi extension request identity", () => {
     expect(marked([{ type: "text", text: '<active_agent name="re\u200bviewer"/>' }])).toBe("subagent-reviewer")
     expect(marked('Mentions <active_agent name="worker"/> later')).toBeUndefined()
   })
+
+  test("tiers a pi-subagents agent whose prompt is appended to Pi's", () => {
+    const marked = (text: string) =>
+      sent(shape({ sessionId: SESSION }, { session: rootSession() }, normalizeContext({
+        messages: [{ role: "system", content: text, timestamp: 0 } satisfies SystemMessage],
+      })))["x-meridian-source"]
+    const prompt = (addendum: string) =>
+      `You are an expert coding assistant operating inside pi.\n\n<docs>\nPi documentation\n</docs>\n\n<addendum>\n${addendum}\n</addendum>\n\n<cwd>\n/tmp/project\n</cwd>`
+    expect(marked(prompt('<active_agent name="delegate"/>\n\nYou are a delegated agent.'))).toBe("subagent-delegate")
+    expect(marked(prompt('Global append text.\n\n<active_agent name="delegate"/>\n\nYou are a delegated agent.'))).toBe("subagent-delegate")
+    expect(marked(prompt('See <active_agent name="delegate"/> in the docs.'))).toBeUndefined()
+    expect(marked(`${prompt("Append text.")}\n\n<project_context>\n<active_agent name="worker"/>\n</project_context>`)).toBeUndefined()
+  })
 })
 
 describe("Pi extension human-turn attestation", () => {

@@ -88,14 +88,33 @@ function systemTexts(context: TranscriptContext): string[] {
   })
 }
 
+const ACTIVE_AGENT_MARKER = /^<active_agent name="([^"]{1,64})"\/>/
+/** Pi's `appendSystemPrompt` section; appended prompts are joined by blank lines. */
+const ADDENDUM_SECTION = /\n<addendum>\n([\s\S]*?)\n<\/addendum>(?:\n|$)/
+
+function activeAgentName(text: string): string | undefined {
+  const leading = text.match(ACTIVE_AGENT_MARKER)?.[1]
+  if (leading !== undefined) return leading
+  const addendum = text.match(ADDENDUM_SECTION)?.[1]
+  if (addendum === undefined) return undefined
+  for (const part of addendum.split("\n\n")) {
+    const name = part.match(ACTIVE_AGENT_MARKER)?.[1]
+    if (name !== undefined) return name
+  }
+  return undefined
+}
+
 /**
  * NOTE: agent-specific (pi) — pi-subagents announces the agent a prompt belongs
- * to with a leading `<active_agent name="…"/>` marker, including for children it
- * runs inside the parent process, where no environment marker exists.
+ * to with an `<active_agent name="…"/>` marker at the start of the agent's
+ * prompt, including for children it runs inside the parent process, where no
+ * environment marker exists. An agent whose prompt replaces Pi's starts the
+ * system prompt with it; one that appends (the builtin `delegate`, for one)
+ * starts a part of Pi's `<addendum>` section with it.
  */
 function activeAgentSource(context: TranscriptContext): string | undefined {
   for (const text of systemTexts(context)) {
-    const name = text.match(/^<active_agent name="([^"]{1,64})"\/>/)?.[1]
+    const name = activeAgentName(text)
     const safe = name === undefined ? undefined : safeName(name)
     if (safe) return `subagent-${safe}`
   }
