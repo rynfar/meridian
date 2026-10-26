@@ -498,8 +498,7 @@ exist under both `anthropic` and `meridian`. To switch:
 #### Without the extension
 
 Pi releases before 1.0, which cannot load the extension, can point the built-in
-`anthropic` provider at Meridian in `~/.pi/agent/models.json`. The
-[`pi-scrub` server plugin](plugins.md#official-plugins) applies here too:
+`anthropic` provider at Meridian in `~/.pi/agent/models.json`:
 
 ```json
 {
@@ -514,6 +513,9 @@ Pi releases before 1.0, which cannot load the extension, can point the built-in
   }
 }
 ```
+
+The [`pi-scrub` server plugin](plugins.md#official-plugins) applies to this
+route too.
 
 Pi mimics Claude Code's User-Agent, so the `x-meridian-agent: pi` header (or
 `MERIDIAN_DEFAULT_AGENT=pi` when Pi is your only agent) selects the Pi adapter.
@@ -931,7 +933,7 @@ letting the header decide.
 | [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see [Agent Setup](#agent-setup)) — full tool support, file read/write/edit, bash, session resume |
 | [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
 | [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
-| [Pi](https://github.com/earendil-works/pi) | ✅ Verified | `meridian setup --client pi` extension on Pi 1.0+ (see [Pi](#pi)); models.json config for older releases; Claude subscriptions need the `pi-scrub` server plugin — full tool support via passthrough, per-session identity, subagent tiering and `next-user-turn` failback |
+| [Pi](https://github.com/earendil-works/pi) | ✅ Verified | `meridian setup --client pi` extension on Pi 1.0+ (see [Pi](#pi)); models.json config for older releases; on a Claude subscription, load the `pi-scrub` server plugin (see [Pi](#pi)) — full tool support via passthrough, per-session identity, subagent tiering and `next-user-turn` failback |
 | [Prime Agent](https://www.npmjs.com/package/prime-agent) | ⚠️ Single-agent verified | Extension config (see [Agent Setup](#agent-setup)) — reliable with one active agent. Concurrent RLM subagents receive distinct session keys, but are not yet production-safe; see [Prime Agent subagents](#prime-agent-subagents). The extension's `metadata.user_id` stamp is **required**, not optional. |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](#agent-setup)) — chat client with Claude's built-in web search via internal mode |
