@@ -11,11 +11,14 @@ Two harnesses use the actual Pi CLI with the extension that
   session, with a distinct turn per prompt. Every compaction request must carry
   a fresh session key, `x-meridian-source: fork-side-call` and no
   attestation.
-- `bun scripts/e2e-pi-extension.mjs --pi=<pi>` runs Pi print mode through an
+- `E2E_PLUGIN_PATH=<installed pi-scrub>/dist/index.js bun
+  scripts/e2e-pi-extension.mjs --pi=<pi>` runs Pi print mode through an
   in-process Meridian and real Claude: a Haiku tool loop, a
-  `MERIDIAN_SOURCE=subagent-e2e` child and Opus 5.5 at high effort. It asserts
-  model discovery, the wire identity and Meridian's adapter/source telemetry,
-  and reports generation separately.
+  `MERIDIAN_SOURCE=subagent-e2e` child and Opus 5.5 at high effort. Meridian
+  loads only the named Pi scrub (`E2E_SCRUB_VERSION` pins its version), which
+  must be active and must process the requests. It asserts model discovery,
+  the wire identity and Meridian's adapter/source telemetry, and reports
+  generation separately.
 
 Pass the Pi executable explicitly. A version manager can select a
 project-local Pi from the working directory. Run under a qualified SQLite
@@ -23,15 +26,16 @@ runtime (see `src/proxy/session/bookkeeping/nativeDatabase.ts`).
 
 Recorded 2026-10-25 on Darwin arm64, Bun 1.3.14, Node 22.22.3: the side-call
 harness passed on Pi 1.4.0 and 1.3.0, with two compaction requests each. The
-Claude harness passed every identity assertion on Pi 1.4.0. Discovery returned
-twelve models, Meridian selected the `pi` adapter and recorded
-`subagent-e2e`, and all primary attestations verified. Claude refused all three
-generations with an Extra Usage billing error. Paid Extra Usage stayed off.
-Unchanged main refuses the same Pi request through the built-in `anthropic`
-provider, and a plain request through the same server succeeds, so the refusal
-predates the extension. Generation, resume continuity, in-process
-pi-subagents and a live `next-user-turn` promotion remain unqualified on that
-account. The promotion path is covered by
+Claude harness passed every identity assertion on Pi 1.4.0, but that first run
+omitted the Pi scrub, and Claude refused all three generations as third-party
+traffic. Rerun the same day with pi-scrub 0.2.2, the harness passed: the
+Haiku tool loop resumed as a continuation and returned the fixture, the
+`subagent-e2e` child answered on the base tier, and Opus 5.5 at high effort
+answered on `opus[1m]`. The scrub was active and processed four requests
+without errors. Without the scrub, the same Pi request through the extension is
+still refused, and a plain request through the same server succeeds. Paid
+Extra Usage stayed off. In-process pi-subagents and a live `next-user-turn`
+promotion remain unqualified on that account. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
 ## Awaited session-cache cleanup (#1244/#1277)

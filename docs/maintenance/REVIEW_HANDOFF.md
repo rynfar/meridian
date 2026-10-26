@@ -15,11 +15,8 @@ Last code delivery: `bd021733deb054bbb95cacc0383fa816469e5773` (#1408). The back
   - Two independent adversarial reviews; their findings were fixed or recorded.
   - Local gates: typecheck and build pass. All 26 test groups ran: 8,131 pass, 63 skip, 14 fail. The 14 failures are environmental (real-process SQLite children on Bun's system SQLite 3.51.0) and fail identically on unchanged main. All hosted checks pass.
   - Live evidence: real Pi 1.4.0/1.3.0 wire identity and compaction side calls pass. [Review, live evidence, gates and artifacts](evidence/1408-pi-extension-20261025/README.md).
-- **Open gate: Pi generation through Meridian is refused on this account.** Claude refuses Pi's request content with an Extra Usage 402.
-  - This reproduces on unchanged main through the old `models.json` route; plain requests succeed.
-  - The owner chose to merge on identity evidence and not enable paid Extra Usage.
-  - The owner's installed 1.79.0 did not refuse the same Pi request, but Pi's reply said it received no content. Worth investigating separately: it may affect every Pi user of 1.80+.
-- **Follow-ups (no issues filed):**
+- **Pi generation gate closed (correction).** The recorded Extra Usage refusals came from harnesses run without the Pi scrub server plugin. With pi-scrub, real Pi 1.4.0 generation through the extension passes, including the tool loop, the child and Opus 5.5 at high effort. The 1.79.0 "no content" control was a separate 1.79.0 streaming bug that current main fixes. `scripts/e2e-pi-extension.mjs` now requires the scrub, and the Pi docs and setup say it is needed. [Correction](evidence/1408-pi-extension-20261025/README.md#correction-the-generation-refusal-was-a-missing-scrub-2026-10-25).
+- **Follow-ups (filed as #1448, #1449, #1450):**
   - OpenCode V2 compaction still uses the 200k `subagent-compaction` tier on Opus and Fable 1M; needs an owner decision.
   - `antigravitySetup.ts` lacks `~` expansion for `PI_CODING_AGENT_DIR`.
   - A Pi side call does not inherit its conversation's `[1m]` rate-limit pause.

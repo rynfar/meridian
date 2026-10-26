@@ -169,6 +169,8 @@ if (setupClient === "pi") {
   console.log(`  Extension: ${result.extensionPath}`)
   if (result.backupPath) console.log(`  Backup: ${result.backupPath} (the directory that was there was not Meridian's)`)
   console.log("\nRestart Pi or run /reload, then pick a model under the meridian provider with /model.")
+  console.log("On a Claude subscription, Meridian also needs the pi-scrub server plugin, or Claude refuses Pi's")
+  console.log("system prompt as third-party traffic. See docs/plugins.md.")
   process.exit(0)
 }
 

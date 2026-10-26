@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 // Real Pi 1.x with the Meridian extension → Meridian → Claude.
 //
-// Usage: bun scripts/e2e-pi-extension.mjs [--pi=/path/to/pi]
+// Usage: E2E_PLUGIN_PATH=/abs/path/to/meridian-plugin-pi-scrub/dist/index.js \
+//          bun scripts/e2e-pi-extension.mjs [--pi=/path/to/pi]
 //
 // Installs the extension with `meridian setup --client pi` into a scratch Pi
-// agent directory, starts Meridian in-process on scratch state, and runs Pi in
+// agent directory, starts Meridian in-process on scratch state with only the
+// independently installed Pi scrub server plugin, and runs Pi in
 // print mode through a loopback recorder that captures the identity headers
 // each request carries on the wire. Wire identity and attestation are asserted;
 // each request is joined to Meridian's telemetry by its request ID. Generation
@@ -13,10 +15,14 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
+import { configurePiScrub, resolvePiScrub, verifyPiScrub } from "./lib-pi-scrub-preflight.mjs"
 
 const repo = resolve(import.meta.dir, "..")
 const pi = process.argv.find(arg => arg.startsWith("--pi="))?.slice(5) ?? Bun.which("pi")
 assert(pi, "pi not found; pass --pi=/path/to/pi")
+// Claude refuses Pi's default system prompt as third-party traffic unless the
+// scrub removes its fingerprint, so a run without it cannot test generation.
+const scrub = resolvePiScrub(process.env.E2E_PLUGIN_PATH, process.env.E2E_SCRUB_VERSION)
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-pi-extension-")))
 const agentDir = join(root, "pi-agent")
@@ -55,7 +61,7 @@ const { startProxyServer } = await import("../src/proxy/server.ts")
 const { telemetryStore } = await import("../src/telemetry/index.ts")
 const { PRIORITY_ATTESTATION_HEADER, verifyPriorityAttestation } = await import("../src/proxy/priorityAttestation.ts")
 
-const instance = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+const instance = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true, ...configurePiScrub(root, scrub) })
 const meridianUrl = `http://127.0.0.1:${instance.server.address().port}`
 
 const wire = []
@@ -126,6 +132,7 @@ async function turn({ name, model, prompt, sessionId, tools = "read", env = {}, 
 const sessions = { primary: crypto.randomUUID(), child: crypto.randomUUID(), opus: crypto.randomUUID() }
 const report = { pi: version, meridianUrl: "loopback", cases: [] }
 try {
+  report.scrub = verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub)
   report.cases.push(await turn({
     name: "primary turn with a tool loop",
     model: "meridian/claude-haiku-5-5",
@@ -150,6 +157,7 @@ try {
     tools: "",
     expect: stdout => /\bOK\b/.test(stdout),
   }))
+  report.scrub = verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub, true)
 } finally {
   recorder.stop(true)
   await instance.close()

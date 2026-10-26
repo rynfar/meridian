@@ -89,3 +89,14 @@ The reviewer's own 1.4.3-built tarball install also ran `meridian setup --client
 ## Artifacts
 
 [proof.tar.gz](proof.tar.gz) holds the baseline/stub/runner harnesses, the SQLite test shim, reports per head, and logs. Its archive and member hashes are in [manifest.json](manifest.json). The committed harnesses are `scripts/e2e-pi-extension.mjs` and `scripts/e2e-pi-extension-side-calls.mjs`. No credentials, transcripts or private SDK files are included.
+
+## Correction: the generation refusal was a missing scrub (2026-10-25)
+
+The refusal recorded above came from the harness, not from the extension or the account. Every live run used a fresh Meridian config directory, which loads no server plugins, so the [Pi scrub](https://github.com/rynfar/meridian-plugin-pi-scrub) never ran. Claude refuses Pi's default system prompt as third-party traffic: it opens with "operating inside pi, a coding agent harness" and carries a Pi documentation block. The owner's own Meridian loads the scrub. This is the same harness mistake as the October 12 OpenCode runs in [#1346](../1327-extra-usage.md).
+
+Rerun on `main` `7ecb310` with Pi 1.4.0 and the scrub ([receipt](scrub-correction.json)):
+- Without the scrub, a Haiku request through the extension is refused with the Extra Usage 402. With pi-scrub 0.2.2, or the owner's installed 0.2.0 and Pi `AGENTS.md`, it answers.
+- `scripts/e2e-pi-extension.mjs`, now requiring `E2E_PLUGIN_PATH`, passes with pi-scrub 0.2.2. The Haiku tool loop returns the fixture and resumes as a continuation on one signed turn. The `subagent-e2e` child answers on the base tier. Opus 5.5 at high effort answers on `opus[1m]`. The scrub processed four requests without errors.
+- The 1.79.0 "no content" control was a separate bug: Pi 1.4 ends each request with an empty `system` message, and 1.79.0's streaming path took it as the prompt. Current `main` answers the same streamed request.
+
+Generation and tool-loop continuity are now qualified. In-process pi-subagents and a live `next-user-turn` promotion remain unqualified.

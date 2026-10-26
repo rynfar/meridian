@@ -408,6 +408,15 @@ meridian setup --client pi
 pi --model meridian/claude-sonnet-5-5
 ```
 
+On a Claude subscription, also install the
+[`pi-scrub` server plugin](plugins.md). Pi's default system prompt identifies Pi,
+and Claude can refuse it as third-party traffic ("Third-party apps now draw
+from your extra usage, not your plan limits") with or without the extension.
+On a Max account in October 2026, every Pi 1.4 request was refused without the
+scrub and answered with it. The extension and the scrub do different jobs: the extension
+carries Pi's session identity; the scrub removes Pi's fingerprint from the
+prompt Meridian sends.
+
 Setup copies the extension to `~/.pi/agent/extensions/meridian` (or
 `$PI_CODING_AGENT_DIR/extensions/meridian`) and creates the shared
 `opencode-turn.key`. Rerun it after upgrading Meridian; startup warns when the
