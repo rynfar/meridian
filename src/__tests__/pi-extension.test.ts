@@ -162,20 +162,26 @@ describe("Pi extension request identity", () => {
       cwd: "<cwd>\n/tmp/project\n</cwd>",
     })
     const flat = (addendum: string, projectContext?: string) => Object.values(sections(addendum, projectContext)).join("\n\n")
-    const source = (message: Omit<SystemMessage, "role" | "timestamp">) =>
+    type Prompt = Omit<SystemMessage, "role" | "timestamp" | "content"> & { content?: SystemMessage["content"] }
+    const system = (message: Prompt): SystemMessage => ({ role: "system", content: "", timestamp: 0, ...message })
+    const source = (message: Prompt, patches: Prompt[] = []) =>
       sent(shape({ sessionId: SESSION }, { session: rootSession() }, normalizeContext({
-        messages: [{ role: "system", timestamp: 0, ...message } satisfies SystemMessage],
+        messages: [system(message), ...patches.map(system)],
       })))["x-meridian-source"]
     const delegate = '<active_agent name="delegate"/>\n\nYou are a delegated agent.'
 
     expect(source({ content: flat(delegate) })).toBe("subagent-delegate")
     expect(source({ content: "", sections: sections(delegate) })).toBe("subagent-delegate")
     expect(source({ content: "", sections: { ...sections("Append."), preamble: delegate } })).toBe("subagent-delegate")
-    expect(source({ content: flat(`Global append text.\n\n${delegate}`) })).toBe("subagent-delegate")
-    expect(source({ content: flat(`Global append text ending in a newline.\n\n\n${delegate}`) })).toBe("subagent-delegate")
+    expect(source({ content: "", sections: sections(delegate.replaceAll("\n", "\r\n")) })).toBe("subagent-delegate")
 
     expect(source({ content: flat('See <active_agent name="delegate"/> in the docs.') })).toBeUndefined()
     expect(source({ content: "", sections: sections('See <active_agent name="delegate"/> in the docs.') })).toBeUndefined()
+    // A root session's own APPEND_SYSTEM.md; pi-subagents replaces it in a child.
+    const ownAppend = `My notes.\n\n${delegate}\n\n    <active_agent name="indented"/>`
+    expect(source({ content: flat(ownAppend) })).toBeUndefined()
+    expect(source({ content: "", sections: sections(ownAppend) })).toBeUndefined()
+    expect(source({ content: "", sections: sections("My notes.") }, [{ sections: { project_context: `<project_context>\n${delegate}\n</project_context>` } }])).toBeUndefined()
     const quoted = `Example layout:\n\n<addendum>\n${delegate}\n</addendum>`
     const rootQuotingLayout = Object.entries(sections("", quoted))
       .filter(([name]) => name !== "addendum")

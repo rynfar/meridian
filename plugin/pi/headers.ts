@@ -91,16 +91,16 @@ const ADDENDUM_CLOSE = "\n</addendum>"
  */
 const SECTIONS_AFTER_ADDENDUM = ["project_context", "skills", "cwd"]
 
-/** Appended prompts, which Pi joins with blank lines; the marker opens one. */
+/**
+ * pi-subagents passes the agent's tagged prompt as a child's only appended
+ * prompt (it replaces APPEND_SYSTEM.md), so the marker opens the addendum. A
+ * later paragraph is the root session's own text, never a marker.
+ */
 function addendumMarker(addendum: string): string | undefined {
-  for (const part of addendum.split(/\r?\n\r?\n/)) {
-    const name = part.trimStart().match(ACTIVE_AGENT_MARKER)?.[1]
-    if (name !== undefined) return name
-  }
-  return undefined
+  return addendum.replace(/^(?:\r?\n)+/, "").match(ACTIVE_AGENT_MARKER)?.[1]
 }
 
-/** A forced prompt is one flat string: the marker leads it, or opens a part of its addendum. */
+/** A forced prompt is one flat string: the marker leads it, or opens its addendum. */
 function flattenedMarker(text: string): string | undefined {
   const leading = text.match(ACTIVE_AGENT_MARKER)?.[1]
   if (leading !== undefined) return leading
@@ -140,7 +140,7 @@ function activeAgentName(message: SystemMessage): string | undefined {
  * prompt, including for children it runs inside the parent process, where no
  * environment marker exists. An agent whose prompt replaces Pi's leads the
  * system prompt with it; one that appends (the builtin `delegate`, for one)
- * leads a part of Pi's `<addendum>` section. Pi sends the prompt either as
+ * leads Pi's `<addendum>` section. Pi sends the prompt either as
  * structured sections or, when an extension forces it, as one flat string.
  */
 function activeAgentSource(context: TranscriptContext): string | undefined {

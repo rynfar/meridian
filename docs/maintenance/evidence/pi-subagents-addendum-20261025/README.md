@@ -61,12 +61,14 @@ adapter=pi profile=work(priority) model=opus[1m] … lineage=continuation
 ```
 
 The child answered `CHILD-OK-79`. After review, the matcher was revised to
-read Pi's structured `sections` as well as a forced flat prompt, and to ignore
-an addendum layout quoted after Pi's own sections; the same run with the
-revised extension gave the same three requests and `CHILD-OK-80`.
+read Pi's structured `sections` as well as a forced flat prompt, to accept the
+marker only at the start of the addendum (pi-subagents replaces a child's
+APPEND_SYSTEM.md with the tagged prompt), and to ignore an addendum layout
+quoted after Pi's own sections. The same run with the final extension gave the
+same three requests and `CHILD-OK-81`.
 
 pi-subagents forces the child's prompt, so this live path sends it flat. The
-structured-sections and quoted-layout cases are covered by
+structured-sections, root APPEND_SYSTEM.md and quoted-layout cases are covered by
 `src/__tests__/pi-extension.test.ts`.
 
 ## Still unqualified
