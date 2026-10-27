@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "node
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import {
+  getFeaturesForAdapter,
   validateFeatureUpdate,
   type AdapterFeatures,
 } from "../proxy/sdkFeatures"
@@ -42,6 +43,13 @@ describe("validateFeatureUpdate", () => {
     expect(validateFeatureUpdate({ thinking: "adaptive" })).toEqual({ thinking: "adaptive" })
     expect(validateFeatureUpdate({ thinking: "enabled" })).toEqual({ thinking: "enabled" })
     expect(validateFeatureUpdate({ thinking: "disabled" })).toEqual({ thinking: "disabled" })
+  })
+
+  it("accepts a default effort from Claude's vocabulary, or none", () => {
+    expect(validateFeatureUpdate({ defaultEffort: "high" })).toEqual({ defaultEffort: "high" })
+    expect(validateFeatureUpdate({ defaultEffort: "" })).toEqual({ defaultEffort: "" })
+    expect(() => validateFeatureUpdate({ defaultEffort: "minimal" })).toThrow("defaultEffort must be one of")
+    expect(() => validateFeatureUpdate({ defaultEffort: 3 })).toThrow("defaultEffort must be one of")
   })
 
   it("accepts valid number fields", () => {
@@ -161,6 +169,42 @@ describe("sdkFeatures config roundtrip", () => {
       config = {}
     }
     expect(config).toEqual({})
+  })
+})
+
+// ── Zed defaults ────────────────────────────────────────────────────
+
+// Zed's openai_compatible provider does not forward the `reasoning_effort`
+// set on its model entry, so the adapter default is the only effort its
+// turns get. Resolved against an empty config dir so a user override on this
+// machine cannot mask the defaults.
+describe("getFeaturesForAdapter — Zed defaults", () => {
+  const tempDir = join(tmpdir(), `meridian-sdk-features-zed-${Date.now()}`)
+  let savedConfigDir: string | undefined
+
+  beforeEach(() => {
+    savedConfigDir = process.env.MERIDIAN_CONFIG_DIR
+    mkdirSync(tempDir, { recursive: true })
+    process.env.MERIDIAN_CONFIG_DIR = tempDir
+  })
+
+  afterEach(() => {
+    if (savedConfigDir === undefined) delete process.env.MERIDIAN_CONFIG_DIR
+    else process.env.MERIDIAN_CONFIG_DIR = savedConfigDir
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it("defaults the effort to high, with thinking on and forwarded", () => {
+    const zed = getFeaturesForAdapter("zed")
+    expect(zed.defaultEffort).toBe("high")
+    expect(zed.thinking).toBe("adaptive")
+    expect(zed.thinkingPassthrough).toBe(true)
+    expect(zed.codeSystemPrompt).toBe(false)
+    expect(zed.claudeMd).toBe("off")
+  })
+
+  it("leaves the generic openai adapter without a default effort", () => {
+    expect(getFeaturesForAdapter("openai").defaultEffort).toBe("")
   })
 })
 

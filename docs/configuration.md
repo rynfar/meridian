@@ -1565,6 +1565,7 @@ Every adapter Meridian can route to appears on that page — the list is derived
 | **Auto-Dream** | on / off | Background memory consolidation between sessions |
 | **Thinking** | disabled / adaptive / enabled | Extended thinking mode for complex reasoning |
 | **Thinking Passthrough** | on / off | Forward thinking blocks to the client for display |
+| **Default Effort** | none / low / medium / high / xhigh / max | Reasoning effort applied when the request carries none (`zed` defaults to `high`: Zed's `openai_compatible` provider never sends one). A request that does send an effort keeps it |
 | **Shared Memory** | on / off | Share memory directory with Claude Code (`~/.claude`) instead of isolated storage |
 | **WebFetch Preflight** | on / off | Check each WebFetch hostname against the Anthropic blocklist before fetching (default on, `cherry` only — see below) |
 | **claude.ai Connectors** | on / off | Load the MCP connectors attached to your claude.ai account (default off) |

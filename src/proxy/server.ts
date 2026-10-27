@@ -3128,6 +3128,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
 
 
+        // Per-adapter default effort, only when the request carries none.
+        // Zed's openai_compatible provider drops the model entry's
+        // `reasoning_effort`, so without this its turns run at the model's
+        // own depth. Applied before the thinking guards below, so an explicit
+        // "disabled" or a stripped thinking beta still drops it.
+        if (!effort && sdkFeatures.defaultEffort) {
+          effort = normalizeEffort(sdkFeatures.defaultEffort)
+          if (effort) plog(`[PROXY] ${requestMeta.requestId} effort=${effort} applied from per-adapter default`)
+        }
         // Resolve thinking against the per-adapter setting.
         //
         // An *explicitly* configured "disabled" is authoritative: it overrides

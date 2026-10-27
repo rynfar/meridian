@@ -406,7 +406,7 @@ Zed is detected by its `Zed/<version>` User-Agent; explicit selection uses `x-me
 - **Session key.** Zed sends its thread id as `prompt_cache_key` when the model's `prompt_cache_key` capability is on (keep it on). That id keys the session, so the full turn list stays as real messages, turns resume the SDK session and prompt caching carries across them. Without the capability the conversation falls back to the fingerprint (first message plus project root).
 - **Title and summary one-shots.** Zed generates the thread title and a summary with extra requests that carry the same thread id and the thread's messages but no agent system prompt. They are auxiliary: a fresh session each, never stored or resumed, so they cannot share a session with the thread.
 - **Nothing from the proxy host.** Zed ships your personal `AGENTS.md` and the open project's rules inside its own system prompt, so the Claude Code preset and host `CLAUDE.md` stay off, and the SDK subprocess runs in an empty directory under Meridian's config dir (`workdir`), on any host, including a container. The model is told the project root Zed reports through the working-directory note.
-- **Thinking.** On by default and forwarded as `reasoning_content`, which the panel renders. A `reasoning_effort` on the model entry reaches the SDK as the effort level.
+- **Thinking.** On by default and forwarded as `reasoning_content`, which the panel renders. Effort defaults to `high`, because Zed's `openai_compatible` provider does not forward the `reasoning_effort` on the model entry; a request that does carry an effort keeps it. Change the default under **Default Effort** at `/settings` (`defaultEffort` in `sdk-features.json`).
 
 ### Cherry Studio
 
