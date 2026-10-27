@@ -611,6 +611,30 @@ describe("POST /v1/chat/completions — Zed session continuity", () => {
     expect(capturedOptionHistory).toHaveLength(2)
     expect(String(capturedOptionHistory[1]?.systemPrompt)).not.toContain("<conversation_history>")
   })
+
+  it("applies the high default effort when the request carries none", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("applies the high default effort over the \"none\" Zed sends", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, { ...firstTurn, reasoning_effort: "none" }, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("keeps an effort the request does carry", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, { ...firstTurn, reasoning_effort: "low" }, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("low")
+  })
 })
 
 // Tool turns are not exercised here: this file's SDK mock never yields the
