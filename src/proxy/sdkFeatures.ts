@@ -137,6 +137,19 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   codex: {
     codeSystemPrompt: false,
   },
+  // Zed's agent panel (/v1/chat/completions). Zed ships its own system
+  // prompt, with the user's AGENTS.md and the open project's rules, so the
+  // Claude Code preset stays OFF and no host CLAUDE.md is loaded (the SDK
+  // subprocess runs in a neutral directory anyway — see adapters/zed.ts).
+  // Thinking is on by default and forwarded as reasoning_content, which the
+  // panel renders; a `reasoning_effort` set on the model entry in Zed's
+  // settings reaches the SDK as the effort level.
+  zed: {
+    codeSystemPrompt: false,
+    claudeMd: "off" as const,
+    thinking: "adaptive" as const,
+    thinkingPassthrough: true,
+  },
   // Polytoken is a native Anthropic Messages client that owns its prompt and
   // its tool loop end to end. Layering the ~28KB Claude Code preset (or any
   // Claude Code harness context) on top would override the client's prompt and
