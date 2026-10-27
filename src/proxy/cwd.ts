@@ -17,8 +17,37 @@
  *   about the user's real working directory.
  */
 
-import { existsSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { join, resolve } from "node:path"
+import { configDir } from "../configDir"
+
+/**
+ * An empty directory of Meridian's own, for clients whose tools run on their
+ * side (Zed): the SDK subprocess reads no files there, so the directory only
+ * has to carry nothing Claude Code would attach to a fresh session. Running
+ * the subprocess in the proxy's checkout instead injected that repository's
+ * CLAUDE.md and git status (branch, recent commits) into every conversation,
+ * whatever project the client had open. Lives under the config directory
+ * (`MERIDIAN_CONFIG_DIR` moves it with everything else) and is created on
+ * first use.
+ *
+ * It holds an empty repository of its own (`.git` skeleton, no commits):
+ * git otherwise walks up from the directory and reports whichever repository
+ * encloses it — a home directory under version control showed its untracked
+ * files to every conversation — so the walk has to stop here.
+ */
+export function neutralWorkingDirectory(root: string = configDir()): string {
+  const dir = join(root, "workdir")
+  const gitDir = join(dir, ".git")
+  if (!existsSync(join(gitDir, "HEAD"))) {
+    mkdirSync(join(gitDir, "objects"), { recursive: true })
+    mkdirSync(join(gitDir, "refs", "heads"), { recursive: true })
+    mkdirSync(join(gitDir, "refs", "tags"), { recursive: true })
+    writeFileSync(join(gitDir, "HEAD"), "ref: refs/heads/main\n")
+    writeFileSync(join(gitDir, "config"), "[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n")
+  }
+  return dir
+}
 
 export interface CwdResolution {
   /** Path passed to the SDK as `cwd:`. Always exists on the proxy host. */
