@@ -216,7 +216,10 @@ describe('typed connection status and windowed data', () => {
     expect(states[0]?.window).toEqual({ kind: '1h' })
     expect(states[0]?.summary).toBeNull()
     expect(states[0]?.timeseries).toBeNull()
-    expect(external.calls.map(call => call.url)).toContain('/telemetry/summary?window=3600000')
+    // The summary spans the chart's range: one hour back, snapped to the 5-minute grid.
+    const summaryWindow = Number(new URL(external.calls.map(call => call.url).find(url => url.startsWith('/telemetry/summary?')) ?? '', 'http://x').searchParams.get('window'))
+    expect(summaryWindow).toBeGreaterThanOrEqual(3_600_000)
+    expect(summaryWindow).toBeLessThan(3_600_000 + 300_000)
     const series = external.calls.find(call => call.url.startsWith('/telemetry/timeseries'))
     expect(series?.url).toMatch(/bucket=300000$/)
     expect(manager.state.timeseries?.bucketMs).toBe(300000)
@@ -306,4 +309,31 @@ describe('account management specifics', () => {
     await manager.removeProfile('work')
     expect(JSON.parse(await readFile(record, 'utf8'))).toEqual(['profile', 'remove', 'work'])
   })
+})
+
+describe('saving preferences', () => {
+  test('an unreadable configuration is never overwritten by set-window or re-detect', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian()
+    const original = JSON.stringify({ mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: 3489, autoStart: true, secret: 'not-decryptable' })
+    await writeFile(join(directory, 'desktop.json'), original)
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init()
+    expect(manager.state.error).toContain('Could not load preferences')
+    await expect(manager.setWindow('1h')).rejects.toThrow('Could not load preferences')
+    await expect(manager.redetect()).rejects.toThrow('Could not load preferences')
+    expect(await readFile(join(directory, 'desktop.json'), 'utf8')).toBe(original)
+  }, 15_000)
+
+  test('overlapping window changes leave valid JSON holding the last choice', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ timeseries: true })
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init()
+    await Promise.all([manager.setWindow('7d'), manager.setWindow('1h'), manager.setWindow('24h')])
+    const saved = JSON.parse(await readFile(join(directory, 'desktop.json'), 'utf8')) as { window: string }
+    expect(saved.window).toBe('24h')
+    expect(manager.snapshot().window.kind).toBe('24h')
+    expect(manager.snapshot().timeseries?.bucketMs).toBe(60 * 60 * 1000)
+  }, 15_000)
 })

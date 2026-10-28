@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { attachDecision, classifySupervisor, dedupeCandidates, detectServices, gatherCandidates, isMeridianJob, launchdBase, loopbackBase, meridianLabels, openCodeBaseUrls, parseJsonc, parseLaunchctlPrint, piBaseUrls, plistMentionsMeridian, type DetectIO, type DetectedService, type Probe } from '../../apps/desktop/src/detect'
+import { attachDecision, classifySupervisor, dedupeCandidates, detectServices, gatherCandidates, isMeridianJob, launchdBase, loopbackBase, meridianLabels, openCodeBaseUrls, parseJsonc, parseLaunchctlPrint, piBaseUrls, plistMentionsMeridian, redactUrl, type DetectIO, type DetectedService, type Probe } from '../../apps/desktop/src/detect'
 
 // Shape of real `launchctl print gui/501/<label>` output (values sanitised).
 const printed = `gui/501/com.example.meridian = {
@@ -199,5 +199,12 @@ describe('attach decision', () => {
     expect(attachDecision([service('http://[::1]:3489', 'meridian', 42)], { baseUrl: 'http://127.0.0.1:3489', pid: 42 }).kind).toBe('managed')
     const decision = attachDecision([service('http://127.0.0.1:3489', 'meridian', 42), service('http://127.0.0.1:3456', 'meridian', 7)], { baseUrl: 'http://127.0.0.1:3489', pid: 42 })
     expect(decision.kind === 'attach' && decision.service.baseUrl).toBe('http://127.0.0.1:3456')
+  })
+})
+
+describe('rejected candidates', () => {
+  test('keep only scheme and host, never credentials, paths or queries', () => {
+    expect(redactUrl('https://user:token@proxy.example.com:8443/v1?api_key=secret')).toBe('https://proxy.example.com:8443')
+    expect(redactUrl('::not a url::')).toBe('invalid URL')
   })
 })

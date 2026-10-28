@@ -13,7 +13,7 @@ import { defaults, endpoint, object, port, redact, rows, text, version, Incident
 import { NotificationGate } from './notifications'
 import type { DesktopState, DetectionReport, InstanceInfo, SettingsSection } from './contracts'
 import { attachDecision, detectServices, nodeDetectIO, type Detection, type DetectOptions } from './detect'
-import { parseTimeseries, routesPath, summaryPath, timeseriesPath } from './uiData'
+import { parseTimeseries, routesPath, summaryPath, timeseriesPath, type Timeseries } from './uiData'
 
 /** Claude ids are [A-Za-z0-9_-]; ChatGPT seat names may also contain dots. The server validates further. */
 const profileName = /^\w[\w.-]{0,63}$/
@@ -40,6 +40,7 @@ export class Manager {
   private restartCount = 0
   private restartTimer?: ReturnType<typeof setTimeout>
   private refreshPromise?: Promise<void>
+  private saving: Promise<void> = Promise.resolve()
   private incidentWrites: Promise<void> = Promise.resolve()
   private closing = false
   private desiredRunning = false
@@ -141,6 +142,7 @@ export class Manager {
   }
   /** Re-detect on request, then start the managed copy only when nothing else serves the clients. */
   async redetect() {
+    if (this.configurationError) throw new Error(this.configurationError)
     const { startManaged } = await this.detectService()
     if (startManaged && !this.child) await this.start()
     else await this.refresh()
@@ -175,6 +177,7 @@ export class Manager {
   /** Change the dashboard window; pushes state at once, then re-reads. */
   async setWindow(raw: unknown) {
     const kind = windowKind(raw)
+    if (this.configurationError) throw new Error(this.configurationError)
     if (kind === this.preferences.window && this.state.window.kind === kind) return
     this.preferences = { ...this.preferences, window: kind }
     // Data for the previous window must not be shown under the new label.
@@ -201,7 +204,19 @@ export class Manager {
     if (input.previous) result.previous = version(input.previous)
     return result
   }
-  private async save() {
+  /**
+   * Persist preferences. Refuses while the saved configuration could not be
+   * read (writing would replace its encrypted secrets and handoff journal), and
+   * serializes writes so overlapping saves cannot interleave on the temp file;
+   * each write snapshots the preferences when it runs, so the last one wins.
+   */
+  private save(): Promise<void> {
+    if (this.configurationError) return Promise.reject(new Error(this.configurationError))
+    const write = this.saving.then(() => this.writePreferences(), () => this.writePreferences())
+    this.saving = write.then(() => undefined, () => undefined)
+    return write
+  }
+  private async writePreferences() {
     const { apiKey, ...preferences } = this.preferences
     const secret = apiKey || this.adopted || this.handoff || Object.keys(this.inheritedEnvironment).length ? this.options.encrypt(JSON.stringify({ apiKey, environment: this.inheritedEnvironment, adopted: this.adopted, handoff: this.handoff })) : undefined
     const content = { ...preferences, secret }
@@ -293,18 +308,21 @@ export class Manager {
       // Older Meridian has no /telemetry/timeseries: null + note, and the UI
       // buckets `requests` itself (uiData.bucketRequests).
       let timeseriesStatus: number | undefined
+      let timeseries: Timeseries | null = null
+      let timeseriesNote: string | undefined
       try {
         const series = parseTimeseries(await this.api(timeseriesPath(window, now)))
-        this.state.timeseries = series ?? null
-        this.state.timeseriesNote = series ? undefined : 'The timeseries response was not understood; charts use the recent requests list.'
+        timeseries = series ?? null
+        timeseriesNote = series ? undefined : 'The timeseries response was not understood; charts use the recent requests list.'
       } catch (error) {
         timeseriesStatus = httpStatus(error)
-        this.state.timeseries = null
-        this.state.timeseriesNote = timeseriesStatus === 404
+        timeseries = null
+        timeseriesNote = timeseriesStatus === 404
           ? `Meridian ${text(object(health).version)} has no /telemetry/timeseries; charts are estimated from the latest 500 requests.`
           : redact(`Timeseries unavailable: ${String(error)}`)
       }
       if (this.preferences.window !== window) return // A newer window is being read.
+      this.state.timeseries = timeseries; this.state.timeseriesNote = timeseriesNote
       this.state.health = health
       this.state.running = text(object(health).version)
       for (const item of data) { this.state[item.key] = item.value; if (item.error) this.state.dataErrors.push(item.error) }

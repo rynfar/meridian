@@ -67,8 +67,10 @@ export function windowRange(kind: WindowKind, now: number): TimeRange {
   const earliest = now - windowSpans[kind]
   return { start: midnight + Math.floor((earliest - midnight) / bucketMs) * bucketMs, end: now, bucketMs }
 }
-export function summaryPath(kind: WindowKind, now: number): string { return `/telemetry/summary?window=${windowMs(kind, now)}` }
-export function routesPath(kind: WindowKind, now: number): string { return `/telemetry/routes?window=${windowMs(kind, now)}` }
+/** Summary and routes cover the same range as the chart, so bucket sums match their totals. */
+const rangeMs = (kind: WindowKind, now: number) => Math.max(1, now - windowRange(kind, now).start)
+export function summaryPath(kind: WindowKind, now: number): string { return `/telemetry/summary?window=${rangeMs(kind, now)}` }
+export function routesPath(kind: WindowKind, now: number): string { return `/telemetry/routes?window=${rangeMs(kind, now)}` }
 export function timeseriesPath(kind: WindowKind, now: number): string {
   const range = windowRange(kind, now)
   return `/telemetry/timeseries?start=${range.start}&end=${range.end}&bucket=${range.bucketMs}`
@@ -123,6 +125,8 @@ export function bucketRequests(requests: unknown, range: TimeRange, limit = 500)
     const timestamp = number(row.timestamp)
     if (timestamp === undefined) continue
     oldest = Math.min(oldest, timestamp)
+    // Keepalive beats are not client requests; the server's summary and timeseries exclude them too.
+    if (row.requestSource === 'cache-keepalive') continue
     if (timestamp < range.start || timestamp >= range.end) continue
     groups[Math.floor((timestamp - range.start) / range.bucketMs)]?.push(row)
   }

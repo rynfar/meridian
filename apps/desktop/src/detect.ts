@@ -251,6 +251,11 @@ export function nodeDetectIO(): DetectIO {
   }
 }
 
+/** Keep only scheme and host of a rejected URL: userinfo, path and query may carry credentials. */
+export function redactUrl(url: string): string {
+  try { const parsed = new URL(url); return `${parsed.protocol}//${parsed.host}` } catch { return 'invalid URL' }
+}
+
 export interface DetectOptions { preferenceEndpoint?: string }
 /** Gather candidates from every source, in order, without probing. */
 export async function gatherCandidates(io: DetectIO, options: DetectOptions = {}): Promise<{ candidates: Candidate[]; rejected: Rejected[]; launchdJobs: { label: string; pid?: number; plistPath?: string }[] }> {
@@ -259,7 +264,7 @@ export async function gatherCandidates(io: DetectIO, options: DetectOptions = {}
   const launchdJobs: { label: string; pid?: number; plistPath?: string }[] = []
   const add = (source: DetectionSource, detail: string, url: string, extra: Partial<Candidate> = {}) => {
     try { candidates.push({ baseUrl: loopbackBase(url), source, detail, ...extra }) }
-    catch (error) { rejected.push({ source, detail, url, reason: error instanceof Error ? error.message : String(error) }) }
+    catch (error) { rejected.push({ source, detail, url: redactUrl(url), reason: error instanceof Error ? error.message : String(error) }) }
   }
   // 1. Loaded launchd jobs.
   if (io.platform === 'darwin') {

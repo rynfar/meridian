@@ -29,6 +29,13 @@ describe('dashboard window', () => {
     expect(week.start).toBeLessThanOrEqual(now - 7 * 24 * HOUR)
     expect(timeseriesPath('7d', now)).toBe(`/telemetry/timeseries?start=${week.start}&end=${now}&bucket=${6 * HOUR}`)
   })
+  test('summary covers exactly the chart range, so bucket sums match its totals', () => {
+    const now = new Date(2026, 9, 27, 14, 37, 12).getTime()
+    for (const kind of ['today', '1h', '24h', '7d'] as const) {
+      const start = Number(new URL(timeseriesPath(kind, now), 'http://x').searchParams.get('start'))
+      expect(Number(new URL(summaryPath(kind, now), 'http://x').searchParams.get('window'))).toBe(now - start)
+    }
+  })
   test('window kinds are validated', () => {
     expect(windowKind('24h')).toBe('24h')
     expect(windowKind({ kind: 'today' })).toBe('today')
@@ -53,6 +60,10 @@ describe('client-side bucketing fallback', () => {
     expect(series.buckets[0]).toEqual({ start: 0, requests: 3, errors: 2, inputTokens: 6, cacheReadTokens: 100, cacheCreationTokens: 3, outputTokens: 9, cacheHitRate: 0.7, p50TotalMs: 200, p50TtfbMs: 100, costUsd: null })
     expect(series.buckets[1]).toMatchObject({ requests: 0, cacheHitRate: null, p50TotalMs: null, p50TtfbMs: null })
     expect(series.buckets[2]).toMatchObject({ requests: 1, inputTokens: 4, p50TotalMs: 50 })
+  })
+  test('cache keepalive beats are not counted as requests', () => {
+    const series = bucketRequests([{ timestamp: 10, inputTokens: 2 }, { timestamp: 20, inputTokens: 50, requestSource: 'cache-keepalive' }], range)
+    expect(series.buckets[0]).toMatchObject({ requests: 1, inputTokens: 2 })
   })
   test('marks truncation when the request list hit its limit before reaching start', () => {
     const full = Array.from({ length: 500 }, (_, i) => ({ timestamp: HOUR + i }))
