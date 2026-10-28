@@ -3,15 +3,16 @@ import { ArrowDown, ArrowUp, Copy, Ellipsis, LogIn, Pencil, Plus, RefreshCw, Tra
 import { useDesktop } from '../lib/desktop'
 import { useModels } from '../lib/models'
 import { cn } from '../lib/cn'
-import { Card } from '../components/card'
+import { Label, Panel } from '../components/card'
 import { Button } from '../components/button'
-import { Pill, toneText } from '../components/pill'
-import { Meter } from '../components/meter'
+import { Dot, Pill, toneText } from '../components/pill'
+import { LimitBar } from '../components/limit'
 import { Input, Segmented, Tip } from '../components/controls'
 import { Menu, MenuItem, MenuSeparator, Sheet } from '../components/overlay'
 import { Avatar } from '../components/brand'
 import { ConnectionProblem, Empty, Skeleton } from '../components/state'
-import { fmtInt, pct, relative, usd, when } from '../model/format'
+import { fmtInt, pct, plural, usd, when } from '../model/format'
+import { untilText } from '../model/pace'
 import { utilTone } from '../model/tone'
 import { limitPill, moveInOrder, type AccountProvider, type AccountView, type LimitWindow } from '../model/accounts'
 import { object } from '../../core'
@@ -28,8 +29,8 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   const [filter, setFilter] = useState<'all' | AccountProvider>('all')
   const [dialog, setDialog] = useState<Dialog>(null)
 
-  if (data.kind === 'failed' && state) return <div className="p-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
-  if (data.kind === 'loading' || !state) return <div className="grid grid-cols-2 gap-3.5 p-5">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-48" />)}</div>
+  if (data.kind === 'failed' && state) return <div className="px-[26px] py-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
+  if (data.kind === 'loading' || !state) return <div className="grid grid-cols-2 gap-4 px-[26px] pt-[22px]">{[0, 1, 2, 3].map(index => <Panel key={index} className="flex flex-col gap-3"><Skeleton className="h-8 w-40" /><Skeleton className="h-10" /><Skeleton className="h-4 w-32" /></Panel>)}</div>
 
   const providers = (['claude', 'chatgpt', 'antigravity'] as const).filter(id => accounts.accounts.some(account => account.provider === id))
   const chatgptServed = Boolean(object(object(state.profiles).chatgpt).owner) || object(state.settings.values.chatgpt).enabled === true
@@ -39,25 +40,25 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   const switchable = state.connection.kind === 'ok' && !accounts.follow
 
   return (
-    <div className="scroll-y h-full px-5 pb-5 pt-[18px]">
-      <div className="mb-3.5 flex items-center gap-2">
+    <div className="scroll-y h-full px-[26px] pb-6 pt-[22px]">
+      <div className="mb-5 flex items-center gap-4">
         {providers.length > 1 ? <Segmented<'all' | AccountProvider> label="Provider" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, ...providers.map(id => ({ value: id, label: providerName[id] }))]} /> : null}
-        {accounts.routing ? <Tip content="How requests choose an account. Change it in Service → Routing."><button type="button" onClick={() => navigate('service', { section: 'routing' })} className="hairline rounded-md border-control-border bg-control px-2 py-[3px] text-sm text-muted hover:text-accent">Routing · <span className="text-text">{accounts.routing}</span></button></Tip> : null}
+        {accounts.routing ? <Tip content="How requests choose an account. Change it in Service → Routing."><button type="button" onClick={() => navigate('service', { section: 'routing' })} className="text-cap text-t3 transition-colors hover:text-accent">Routing <span className="font-medium text-t1">{accounts.routing}</span></button></Tip> : null}
         <span className="flex-1" />
-        {claudeServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'claude' })} disabled={busy || Boolean(state.login)}><Plus />Add Claude account</Button> : null}
-        {chatgptServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'chatgpt' })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}
+        {claudeServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'claude' })} disabled={busy || Boolean(state.login)}><Plus />Add Claude account</Button> : null}
+        {chatgptServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'chatgpt' })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}
       </div>
-      {accounts.follow ? <div className="mb-3.5 rounded-lg bg-accent/10 px-3 py-2 text-sm">Following the active account from <span className="font-mono text-xs text-accent2">{accounts.follow.url}</span>{accounts.follow.stale ? ' (stale)' : ''}. Switching is controlled there.</div> : null}
+      {accounts.follow ? <div className="mb-5 flex items-center gap-2 text-cap text-t2"><Dot tone="accent" size={6} />Following the active account from <span className="font-mono text-xs text-t1">{accounts.follow.url}</span>{accounts.follow.stale ? <span className="text-yellow">(stale)</span> : null}<span className="text-t3">· switching is controlled there.</span></div> : null}
 
-      {!accounts.accounts.length ? <Card><Empty title="No accounts on this service" detail="Add a Claude account to start serving requests.">{claudeServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'claude' })}><Plus />Add Claude account</Button> : null}</Empty></Card> : null}
+      {!accounts.accounts.length ? <Empty title="No accounts on this service" detail="Add a Claude account to start serving requests.">{claudeServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'claude' })}><Plus />Add Claude account</Button> : null}</Empty> : null}
 
       {visible.map(provider => {
         const list = accounts.accounts.filter(account => account.provider === provider)
         const ids = list.map(account => account.id)
         return (
-          <section key={provider} className="mb-5">
-            <div className="mb-2 flex items-baseline gap-2"><span className={`brand-${provider} brand-fill size-2 self-center rounded-full`} /><h2 className="text-md font-semibold">{providerName[provider]}</h2><span className="text-xs text-muted">{providerNote[provider]} · {list.length} {list.length === 1 ? 'account' : 'accounts'}</span></div>
-            <div className="grid grid-cols-2 gap-3.5">
+          <section key={provider} className="mb-7">
+            <Label className="mb-2.5 px-0.5"><span className={`brand-${provider} brand-swatch size-2 rounded-xs`} /><span className="text-t2">{providerName[provider]}</span><span className="font-normal">· {providerNote[provider]} · {plural(list.length, 'account')}</span></Label>
+            <div className="grid grid-cols-2 gap-4">
               {list.map((account, index) => (
                 <AccountCard key={account.id} account={account} now={now} busy={busy} switchable={switchable && provider !== 'antigravity'} follow={Boolean(accounts.follow)}
                   first={index === 0} last={index === list.length - 1}
@@ -81,17 +82,7 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   )
 }
 
-function WindowBar({ window, now }: { window: LimitWindow; now: number }) {
-  const tone = window.stale ? 'muted' : utilTone(window.utilization)
-  return (
-    <div>
-      <div className="flex justify-between text-xs"><span className="text-muted">{window.label}</span><b className={cn('num font-semibold', toneText[tone])}>{pct(window.utilization)}</b></div>
-      <Meter value={window.utilization} stale={window.stale} className="mt-1" label={`${window.label} usage`} />
-      <div className="num mt-0.5 text-2xs text-muted">{window.resetsAt ? window.stale ? `last reading · reset was ${when(window.resetsAt, now)}` : `resets ${relative(window.resetsAt, now)} · ${when(window.resetsAt, now)}` : 'reset time unavailable'}</div>
-    </div>
-  )
-}
-
+/** One account as a raised panel: identity, limits with pace, then plain-text actions and a ⋯ menu. */
 function AccountCard({ account, now, busy, switchable, follow, first, last, canReorder, onUse, onLogin, onRenew, onRename, onRemove, onMove }: {
   account: AccountView; now: number; busy: boolean; switchable: boolean; follow: boolean; first: boolean; last: boolean; canReorder: boolean;
   onUse(): void; onLogin(): void; onRenew(): void; onRename(): void; onRemove(): void; onMove(direction: -1 | 1): void
@@ -99,20 +90,23 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
   const primary = account.windows.filter(window => window.primary)
   const extra = account.windows.filter(window => !window.primary)
   const manageable = account.provider !== 'antigravity'
+  // "Max 20x" already says "Max": show the detail alone when it contains the plan word.
+  const plan = account.planDetail && account.planDetail.toLowerCase().includes(account.plan.toLowerCase()) ? account.planDetail : [account.plan, account.planDetail].filter(Boolean).join(' · ')
   return (
-    <Card className={cn(`brand-${account.provider} flex flex-col gap-2.5`, account.active ? 'brand-ring' : 'brand-stripe', account.needsLogin && 'border-red')}>
+    <Panel className="flex flex-col gap-3">
       <div className="flex items-start gap-2.5">
         <Avatar id={account.id} provider={account.provider} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-md font-semibold">{account.label}</span>
-            {account.active ? <Pill tone="accent">{follow ? 'Following' : 'Active'}</Pill> : null}
-            {account.needsLogin ? <Pill tone="red">needs login</Pill> : null}
-            {account.limited ? <Tip content={account.limited.rationale ?? (account.limited.stale ? 'From the last reading; awaiting a fresh one.' : undefined)}><Pill tone="red">{limitPill(account.limited)}</Pill></Tip> : null}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-md font-semibold leading-tight tracking-title text-t1">{account.label}</span>
+            {account.active ? <Tip content={follow ? 'Followed from another Meridian' : 'Serving requests now'}><span className="inline-flex items-center gap-1.5 text-xs text-t3"><Dot tone="accent" size={6} />{follow ? 'following' : null}</span></Tip> : null}
+            {plan ? <span className="text-xs text-t4">{plan}</span> : null}
+            {account.needsLogin ? <span className="text-meta font-medium text-red">needs sign-in</span> : null}
+            {account.limited ? <Tip content={account.limited.rationale ?? (account.limited.stale ? 'From the last reading; awaiting a fresh one.' : undefined)}><span className="text-meta font-medium text-yellow">{[limitPill(account.limited), untilText(account.limited.resetsAt, now)].filter(text => text !== 'limited').join(' · ')}</span></Tip> : null}
             {account.duplicateOf.length ? <Tip content={account.duplicateTitle}><Pill tone="yellow">duplicate of {account.duplicateOf.join(', ')}</Pill></Tip> : null}
-            {account.aliases.length ? <span className="text-2xs text-muted">aka {account.aliases.join(', ')}</span> : null}
+            {account.aliases.length ? <span className="text-xs text-t4">aka {account.aliases.join(', ')}</span> : null}
           </div>
-          <div className="truncate text-sm text-muted">{[account.email, account.organization && account.organization !== `${account.email}'s Organization` ? account.organization : '', [account.plan, account.planDetail].filter(Boolean).join(' · ')].filter(Boolean).join(' · ')}</div>
+          <div className="mt-0.5 truncate text-meta text-t3">{[account.email, account.organization && account.organization !== `${account.email}'s Organization` ? account.organization : ''].filter(Boolean).join(' · ') || providerName[account.provider]}</div>
         </div>
         {manageable ? (
           <Menu trigger={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${account.id}`}><Ellipsis /></Button>}>
@@ -127,24 +121,24 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
         ) : null}
       </div>
 
-      {account.usageNote ? <div className={cn('text-xs', account.needsLogin ? 'text-red' : 'text-yellow')}>{account.usageNote}{account.fetchedAt && !account.needsLogin ? ` · read ${when(account.fetchedAt, now)}` : ''}</div> : null}
-      {primary.length ? <div className="grid grid-cols-2 gap-3">{primary.map(window => <WindowBar key={window.type} window={window} now={now} />)}</div> : !account.needsLogin ? <div className="text-sm text-muted">No usage windows reported.</div> : null}
+      {account.usageNote ? <div className={cn('text-xs', account.needsLogin ? 'text-red' : 'text-t3')}>{account.usageNote}{account.fetchedAt && !account.needsLogin ? ` · read ${when(account.fetchedAt, now)}` : ''}</div> : null}
+      {primary.length ? <div className="grid grid-cols-2 gap-x-5 gap-y-3">{primary.map(window => <LimitBar key={window.type} name={window.label} window={window} now={now} />)}</div> : !account.needsLogin ? <div className="text-cap text-t3">No usage windows reported.</div> : null}
       {extra.length ? (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-          {extra.map(window => <span key={window.type} className="text-muted" title={window.resetsAt ? `resets ${when(window.resetsAt, now)}` : undefined}>{window.label} <b className={cn('num font-semibold', window.stale ? 'text-muted' : toneText[utilTone(window.utilization)])}>{pct(window.utilization)}</b></span>)}
+        <div className="num flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {extra.map(window => <span key={window.type} className="text-t3" title={window.resetsAt ? `resets ${when(window.resetsAt, now)}` : undefined}>{window.label} <b className={cn('font-medium', window.stale ? 'text-t3' : (window.utilization ?? 0) >= 0.6 ? toneText[utilTone(window.utilization)] : 'text-t1')}>{pct(window.utilization)}</b></span>)}
         </div>
       ) : null}
-      {account.extraUsage ? <div className="text-xs text-muted">{account.extraUsage.text}</div> : null}
+      {account.extraUsage ? <div className="text-xs text-t4">{account.extraUsage.text}</div> : null}
       {account.renewal.soon ? <div className="text-xs text-yellow">Sign in again {account.renewal.days === null ? 'soon' : account.renewal.days <= 0 ? 'today' : `within ${account.renewal.days} ${account.renewal.days === 1 ? 'day' : 'days'}`} — its sign-in expires.</div> : null}
 
-      <div className="hairline-t mt-auto flex items-center gap-2 border-border pt-2 text-xs text-muted">
-        {account.served !== undefined || account.refused ? <span className="num">{fmtInt(account.served ?? 0)} served{account.refused ? <> · <span className="text-red">{fmtInt(account.refused)} refused</span></> : null}</span> : <span>No requests in this window</span>}
-        {account.costUsd !== undefined ? <span className="num">· {usd(account.costUsd)} API-equivalent</span> : null}
+      <div className="num mt-auto flex items-center gap-2 pt-0.5 text-xs text-t3">
+        {account.served !== undefined || account.refused ? <span>{fmtInt(account.served ?? 0)} served{account.refused ? <> · <span className="text-red">{fmtInt(account.refused)} refused</span></> : null}</span> : <span className="text-t4">No requests in this window</span>}
+        {account.costUsd !== undefined ? <span className="text-t4">· {usd(account.costUsd)} API-equivalent</span> : null}
         <span className="flex-1" />
-        {account.needsLogin && manageable ? <Button size="xs" onClick={onLogin} disabled={busy}>Sign in</Button>
-          : !account.active && switchable ? <Button size="xs" onClick={onUse} disabled={busy || Boolean(account.limited)} aria-label={`Use ${account.id}`}>Use</Button> : null}
+        {account.needsLogin && manageable ? <Button variant="text" size="sm" onClick={onLogin} disabled={busy}>Sign in</Button>
+          : !account.active && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy || Boolean(account.limited)} aria-label={`Use ${account.id}`}>Use</Button> : null}
       </div>
-    </Card>
+    </Panel>
   )
 }
 
@@ -163,11 +157,11 @@ function AddSheet({ dialog, onClose }: { dialog: { provider: 'claude' | 'chatgpt
       description={dialog?.provider === 'chatgpt' ? 'Sign in with a one-time code in any browser. The seat joins the pool on this service.' : 'Give the account a short name, then sign in with the matching Claude account in your browser.'}
       footer={<><Button variant="subtle" onClick={onClose}>Cancel</Button><Button onClick={() => { void submit() }} disabled={busy || !valid}>Continue to sign-in</Button></>}>
       <form onSubmit={event => { event.preventDefault(); void submit() }} className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium" htmlFor="account-name">Account name{dialog?.provider === 'chatgpt' ? <span className="font-normal text-muted"> (optional)</span> : null}</label>
+        <label className="text-base font-medium" htmlFor="account-name">Account name{dialog?.provider === 'chatgpt' ? <span className="font-normal text-t3"> (optional)</span> : null}</label>
         <Input id="account-name" autoFocus placeholder="e.g. work" value={name} onChange={event => setName(event.target.value)} />
-        <p className="text-xs text-muted">Letters, numbers, dashes and underscores.</p>
+        <p className="text-xs text-t3">Letters, numbers, dashes and underscores.</p>
         {dialog?.provider === 'claude' && attached ? (
-          <p className="mt-2 text-xs text-muted">Older Meridian versions cannot sign in over HTTP. If this one cannot, copy the command and run it on the service's host:{' '}
+          <p className="mt-2 text-xs text-t3">Older Meridian versions cannot sign in over HTTP. If this one cannot, copy the command and run it on the service's host:{' '}
             <Button variant="link" size="xs" disabled={!NAME.test(name)} onClick={() => { void run('copy-profile-login', name).then(next => { if (next) onClose() }) }}><Copy />Copy sign-in command</Button>
           </p>
         ) : null}
@@ -200,8 +194,8 @@ function RemoveSheet({ account, onClose }: { account: AccountView | null; onClos
       footer={<><Button variant="subtle" onClick={onClose}>Cancel</Button>{viaHost
         ? <Button onClick={() => { void run('copy-profile-remove', account?.id).then(next => { if (next) onClose() }) }} disabled={busy}><Copy />Copy command</Button>
         : <Button variant="danger" onClick={() => { void run('remove-profile', account?.id).then(next => { if (next) onClose() }) }} disabled={busy}><Trash2 />Remove</Button>}</>}>
-      {viaHost ? <div className="text-sm">Run this in Terminal on the Mac hosting Meridian, then refresh:<pre className="selectable hairline mt-2 rounded-md border-border bg-bg px-2.5 py-2 font-mono text-xs text-accent2">{command}</pre></div>
-        : <div className="text-sm text-muted">{account?.active ? 'This is the active account; requests move to the next account in the pool.' : 'Other accounts are not affected.'}</div>}
+      {viaHost ? <div className="text-base">Run this in Terminal on the Mac hosting Meridian, then refresh:<pre className="selectable mt-2 rounded-md bg-well px-2.5 py-2 font-mono text-xs text-t1">{command}</pre></div>
+        : <div className="text-base text-t3">{account?.active ? 'This is the active account; requests move to the next account in the pool.' : 'Other accounts are not affected.'}</div>}
     </Sheet>
   )
 }

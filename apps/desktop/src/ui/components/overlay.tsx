@@ -7,7 +7,7 @@ import { Button } from './button'
 /**
  * Modal sheet on the native <dialog>: focus trapping, Escape and the backdrop
  * come from the platform, and nothing injects <style> (Radix Dialog's scroll
- * lock would, which the strict CSP blocks).
+ * lock would, which the strict CSP blocks). Raised panel, floating shadow.
  */
 export function Sheet({ open, onClose, title, description, children, footer, className }: { open: boolean; onClose(): void; title: ReactNode; description?: ReactNode; children: ReactNode; footer?: ReactNode; className?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -19,18 +19,18 @@ export function Sheet({ open, onClose, title, description, children, footer, cla
   }, [open])
   return (
     <dialog ref={ref} onCancel={event => { event.preventDefault(); onClose() }}
-      className={cn('hairline m-auto w-[440px] max-w-[calc(100vw-48px)] rounded-2xl border-border bg-surface p-0 text-text shadow-panel', className)}>
+      className={cn('pop m-auto w-[440px] max-w-[calc(100vw-48px)] rounded-xl bg-surface p-0 text-t1 open:animate-pop', className)}>
       {open ? (
         <div className="flex max-h-[calc(100vh-80px)] flex-col">
-          <div className="hairline-b flex items-start gap-3 border-border px-5 py-4">
+          <div className="flex items-start gap-3 px-5 pb-2 pt-4">
             <div className="min-w-0 flex-1">
-              <h2 className="text-md font-semibold">{title}</h2>
-              {description ? <p className="mt-0.5 text-sm text-muted">{description}</p> : null}
+              <h2 className="text-lg font-semibold tracking-title">{title}</h2>
+              {description ? <p className="mt-1 text-cap text-t3 [text-wrap:pretty]">{description}</p> : null}
             </div>
             <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}><X /></Button>
           </div>
-          <div className="scroll-y min-h-0 flex-1 px-5 py-4">{children}</div>
-          {footer ? <div className="hairline-t flex justify-end gap-2 border-border px-5 py-3">{footer}</div> : null}
+          <div className="scroll-y min-h-0 flex-1 px-5 py-3">{children}</div>
+          {footer ? <div className="flex justify-end gap-2 px-5 pb-4 pt-2">{footer}</div> : null}
         </div>
       ) : null}
     </dialog>
@@ -44,7 +44,7 @@ export function Menu({ trigger, children, align = 'end' }: { trigger: ReactNode;
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align={align} sideOffset={4} collisionPadding={8}
-          className="hairline z-50 min-w-44 rounded-lg border-border bg-surface p-1 text-sm shadow-panel">
+          className="pop z-50 min-w-48 origin-[var(--radix-dropdown-menu-content-transform-origin)] animate-pop rounded-lg bg-surface p-1 text-base">
           {children}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -54,9 +54,9 @@ export function Menu({ trigger, children, align = 'end' }: { trigger: ReactNode;
 export function MenuItem({ children, onSelect, disabled, danger }: { children: ReactNode; onSelect(): void; disabled?: boolean; danger?: boolean }) {
   return (
     <DropdownMenu.Item disabled={disabled} onSelect={onSelect}
-      className={cn('flex items-center gap-2 rounded-md px-2 py-1 outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-accent/12 [&_svg]:size-3.5', danger ? 'text-red data-[highlighted]:bg-red/10' : 'text-text data-[highlighted]:text-accent')}>
+      className={cn('flex h-6 items-center gap-2 rounded-seg px-2 outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-accent data-[highlighted]:text-surface [&_svg]:size-3.5 [&_svg]:text-t3 data-[highlighted]:[&_svg]:text-surface', danger ? 'text-red' : 'text-t1')}>
       {children}
     </DropdownMenu.Item>
   )
 }
-export function MenuSeparator() { return <DropdownMenu.Separator className="hairline-t my-1 border-border" /> }
+export function MenuSeparator() { return <DropdownMenu.Separator className="mx-2 my-1 h-px bg-ring" /> }

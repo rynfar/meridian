@@ -32,7 +32,7 @@ export function DesktopPreferences({ state }: { state: DesktopState }) {
         ))}
         <SettingRow label="Quiet hour" description="Pause notifications for an hour; alerts still appear in Logs." status={[paused ? `Paused until ${when(p.quietUntil, now)}` : null]}
           control={<Button variant="subtle" onClick={() => { void run('toggle-snooze') }} disabled={busy || !p.notifications}>{paused ? 'Resume now' : 'Pause for 1 hour'}</Button>} />
-        <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">Critical alerts notify at most every 15 minutes; others once per category every 30 minutes.</p>
+        <p className="px-4 py-2.5 text-xs text-t3">Critical alerts notify at most every 15 minutes; others once per category every 30 minutes.</p>
       </Group>
       <Group title="App">
         <SettingRow label="Open at login" description={state.platform === 'darwin' ? 'Available in the packaged Mac app.' : 'Available on macOS.'} control={<Switch aria-label="Open at login" checked={state.loginAtStartup === true} disabled={busy || state.platform !== 'darwin'} onCheckedChange={value => { void run('login-at-startup', value) }} />} />
@@ -66,11 +66,11 @@ export function Clients({ state }: { state: DesktopState }) {
             <SettingRow label="Account model" htmlFor="setup-model" control={<Select id="setup-model" className="w-64" value={model} onChange={event => setModel(event.target.value)}>{models.map(item => <option key={item} value={item}>{item}</option>)}</Select>} />
             <SettingRow label="API-key variable" htmlFor="setup-key" description="Only if this service requires a key: the environment variable your client reads it from." control={<Input id="setup-key" className="w-56 font-mono text-xs" placeholder="MERIDIAN_CLIENT_KEY" value={keyEnv} onChange={event => setKeyEnv(event.target.value)} />} />
             <SettingRow label="Make this the client’s default" control={<Switch aria-label="Make this the client’s default" checked={makeDefault} onCheckedChange={setMakeDefault} />} />
-            <div className="hairline-t border-border px-4 py-3">
+            <div className="px-4 py-3">
               <Textarea readOnly rows={3} aria-label="Setup command" value={command} />
               <div className="mt-2 flex items-center gap-3">
                 <Button disabled={!command || busy} onClick={() => { void run('copy-client-setup', { client, model, keyEnv, setDefault: makeDefault }).then(next => { if (next) say('Setup command copied', 'success') }) }}><Copy />Copy command</Button>
-                <span className="text-xs text-muted">{problem || 'Run it in a terminal with Meridian installed, then restart the client.'}</span>
+                <span className="text-xs text-t3">{problem || 'Run it in a terminal with Meridian installed, then restart the client.'}</span>
               </div>
             </div>
           </>}

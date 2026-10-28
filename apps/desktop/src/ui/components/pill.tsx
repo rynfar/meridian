@@ -3,16 +3,20 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../lib/cn'
 import type { Tone } from '../model/tone'
 
-/** Tinted pill: token text on the same token at ≤ 16% alpha. Blue = active, violet = meta. */
-export const pillVariants = cva('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-px text-2xs font-semibold leading-snug', {
+/**
+ * A quiet state label, only where a discrete state truly helps (a duplicate
+ * account, an override, an installed version): ring outline, coloured text,
+ * never a tinted fill.
+ */
+export const pillVariants = cva('edge-strong inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-kbd px-1.5 py-px text-xs font-medium leading-snug', {
   variants: {
     tone: {
-      green: 'bg-green/14 text-green',
-      yellow: 'bg-yellow/16 text-yellow',
-      red: 'bg-red/14 text-red',
-      violet: 'bg-accent2/14 text-accent2',
-      accent: 'bg-accent/16 text-accent',
-      muted: 'bg-surface2 text-muted',
+      green: 'text-green',
+      yellow: 'text-yellow',
+      red: 'text-red',
+      violet: 'text-cache',
+      accent: 'text-accent',
+      muted: 'text-t3',
     },
   },
   defaultVariants: { tone: 'muted' },
@@ -22,18 +26,11 @@ export function Pill({ className, tone, ...props }: PillProps) {
   return <span className={cn(pillVariants({ tone }), className)} {...props} />
 }
 
-const dotTone: Record<Tone, string> = {
-  green: 'bg-green shadow-[0_0_0_3px_color-mix(in_srgb,var(--green)_18%,transparent)]',
-  yellow: 'bg-yellow shadow-[0_0_0_3px_color-mix(in_srgb,var(--yellow)_18%,transparent)]',
-  red: 'bg-red shadow-[0_0_0_3px_color-mix(in_srgb,var(--red)_18%,transparent)]',
-  muted: 'bg-muted',
-  accent: 'bg-accent',
-  violet: 'bg-accent2',
-}
-/** Health dot with the soft glow DESIGN asks for. */
-export function Dot({ tone, className }: { tone: Tone; className?: string }) {
-  return <span aria-hidden className={cn('inline-block size-[7px] shrink-0 rounded-full', dotTone[tone], className)} />
+const dotTone: Record<Tone, string> = { green: 'bg-green', yellow: 'bg-yellow', red: 'bg-red', muted: 'bg-t4', accent: 'bg-accent', violet: 'bg-cache' }
+/** Status dot: 7px for health, 6px for "active" beside a name. */
+export function Dot({ tone, className, size = 7 }: { tone: Tone; className?: string; size?: 6 | 7 }) {
+  return <span aria-hidden className={cn('inline-block shrink-0 rounded-full', size === 6 ? 'size-1.5' : 'size-[7px]', dotTone[tone], className)} />
 }
 
-export const toneText: Record<Tone, string> = { green: 'text-green', yellow: 'text-yellow', red: 'text-red', muted: 'text-muted', accent: 'text-accent', violet: 'text-accent2' }
-export const toneFill: Record<Tone, string> = { green: 'bg-green', yellow: 'bg-yellow', red: 'bg-red', muted: 'bg-muted', accent: 'bg-accent', violet: 'bg-accent2' }
+export const toneText: Record<Tone, string> = { green: 'text-green', yellow: 'text-yellow', red: 'text-red', muted: 'text-t3', accent: 'text-accent', violet: 'text-cache' }
+export const toneFill: Record<Tone, string> = { green: 'bg-green', yellow: 'bg-yellow', red: 'bg-red', muted: 'bg-t4', accent: 'bg-accent', violet: 'bg-cache' }

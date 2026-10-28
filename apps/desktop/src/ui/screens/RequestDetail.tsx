@@ -1,76 +1,88 @@
+import { useEffect } from 'react'
 import { ArrowRight, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 import { Button } from '../components/button'
-import { Pill } from '../components/pill'
-import { Meter } from '../components/meter'
-import { Label } from '../components/card'
+import { Label, Swatch } from '../components/card'
+import { Glyph } from '../components/glyph'
+import { PromptRibbon } from '../components/ribbon'
 import { fmtInt, fmtTok, ms, pct, usd, when } from '../model/format'
 import { failureCause } from '../model/failures'
 import { waterfall, type RequestRow } from '../model/requests'
+import { failureText } from '../model/today'
 
-const segmentClass = { queue: 'bg-yellow', proxy: 'bg-muted', 'first-token': 'bg-accent', generation: 'bg-green' } as const
+// Timing reads from light to dark: waiting is quiet, generating is the work.
+const segmentClass = { queue: 'bg-fresh', proxy: 'bg-t4', 'first-token': 'bg-t3', generation: 'bg-t2' } as const
 
-function Row({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {
+function Row({ label, children, mono, swatch }: { label: string; children: ReactNode; mono?: boolean; swatch?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-[3px] text-sm">
-      <span className="shrink-0 text-muted">{label}</span>
-      <span className={cn('min-w-0 truncate text-right', mono && 'selectable font-mono text-xs text-accent2')} title={typeof children === 'string' ? children : undefined}>{children}</span>
+    <div className="flex h-[22px] items-center justify-between gap-3 text-base">
+      <span className="flex shrink-0 items-center gap-1.5 text-t3">{swatch ? <Swatch className={swatch} /> : null}{label}</span>
+      <span className={cn('num min-w-0 truncate text-right text-t1', mono && 'selectable font-mono text-xs text-t2')} title={typeof children === 'string' ? children : undefined}>{children}</span>
     </div>
   )
 }
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="hairline-t border-border py-3"><Label className="mb-1.5">{title}</Label>{children}</section>
+  return <section className="mt-5"><Label className="mb-1.5">{title}</Label>{children}</section>
 }
 
-/** Per-request detail: timing waterfall, tokens and cache, lineage, routing chain and ids. */
+/** Per-request detail as a raised side panel: timing, the prompt ribbon, lineage, routing chain and ids. */
 export function RequestDetail({ row, cost, now, onClose }: { row: RequestRow; cost: number | null; now: number; onClose(): void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const segments = waterfall(row)
   const total = Math.max(1, segments.reduce((sum, segment) => sum + segment.ms, 0))
-  const prompt = Math.max(1, row.promptTokens)
   return (
-    <aside aria-label="Request detail" className="hairline-l absolute inset-y-0 right-0 z-20 flex w-[400px] flex-col border-border bg-surface shadow-panel">
-      <div className="hairline-b flex items-start gap-2 border-border px-4 py-3">
+    <aside aria-label="Request detail" className="pop absolute bottom-2.5 right-2.5 top-2.5 z-20 flex w-[392px] animate-pop flex-col rounded-xl bg-surface">
+      <div className="flex items-start gap-2 px-4 pb-1 pt-3.5">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-md font-semibold">
-            {row.model}{row.longContext ? <Pill tone="violet">1M</Pill> : null}
-            <Pill tone={row.failed ? 'red' : 'green'}>{row.status ?? '—'}</Pill>
+          <div className="flex items-baseline gap-2 text-md font-semibold tracking-title text-t1">
+            <span>{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</span>
+            <span className={cn('num text-meta font-medium', row.failed ? 'text-red' : 'text-t4')}>{row.failed ? failureText(row) : row.status ?? ''}</span>
           </div>
-          <div className="num text-xs text-muted">{when(row.timestamp, now)} · {[row.adapter || row.source, row.profile].filter(Boolean).join(' · ')}</div>
+          <div className="num mt-0.5 text-meta text-t3">{when(row.timestamp, now)} · {[row.adapter || row.source, row.profile].filter(Boolean).join(' · ')}</div>
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Close detail" onClick={onClose}><X /></Button>
       </div>
       <div className="scroll-y min-h-0 flex-1 px-4 pb-4">
-        {row.failed ? <div className="mt-3 rounded-lg bg-red/10 px-3 py-2 text-sm"><div className="font-semibold text-red">{failureCause(row)}</div>{row.error ? <div className="selectable mt-0.5 break-words font-mono text-xs text-text">{row.error}</div> : null}</div> : null}
-        {row.envelope.length ? <div className="mt-2 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">Response integrity: {row.envelope.join(', ')}</div> : null}
+        {row.failed ? (
+          <div className="mt-3 flex items-start gap-2 text-cap">
+            <Glyph kind="bad" className="mt-[3px]" />
+            <div className="min-w-0"><div className="font-medium text-red">{failureCause(row)}</div>{row.error ? <div className="selectable mt-0.5 break-words font-mono text-xs text-t2">{row.error}</div> : null}</div>
+          </div>
+        ) : null}
+        {row.envelope.length ? <div className="mt-2 flex items-start gap-2 text-cap text-red"><Glyph kind="bad" className="mt-[3px]" />Response integrity: {row.envelope.join(', ')}</div> : null}
 
-        <Section title="Timing">
-          <div className="flex h-3 gap-px overflow-hidden rounded-xs bg-surface2">
-            {segments.map(segment => segment.ms > 0 ? <div key={segment.key} title={`${segment.label} ${ms(segment.ms)}`} className={segmentClass[segment.key]} style={{ flexGrow: segment.ms / total, minWidth: 2 }} /> : null)}
+        <Section title="Prompt">
+          <div className="flex items-center gap-3">
+            <PromptRibbon tokens={{ read: row.cacheRead, write: row.cacheWrite, fresh: row.inputTokens }} size="hero" className="flex-1" />
+            <span className="num text-md font-semibold text-cache">{pct(row.cacheHit)}</span>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-4">
-            {segments.map(segment => <div key={segment.key} className="flex items-center justify-between gap-2 py-px text-xs"><span className="flex items-center gap-1.5 text-muted"><span className={cn('size-2 rounded-xs', segmentClass[segment.key])} />{segment.label.replace('Waiting for first token', 'First token')}</span><span className="num">{ms(segment.ms)}</span></div>)}
+          <div className="mt-2">
+            <Row label="Cache read" swatch="bg-cache">{fmtInt(row.cacheRead)}</Row>
+            <Row label="Cache write" swatch="bg-cache-write">{fmtInt(row.cacheWrite)}</Row>
+            <Row label="Fresh input" swatch="bg-fresh">{fmtInt(row.inputTokens)}</Row>
+            <Row label="Output">{fmtInt(row.outputTokens)}</Row>
+            <Row label="API-equivalent">{cost === null ? 'no price for this model' : usd(cost)}</Row>
           </div>
-          <Row label="Total">{ms(row.totalMs)}</Row>
-          {row.sessionQueueMs || row.sdkQueueMs ? <Row label="Queue split">session {ms(row.sessionQueueMs)} · SDK {ms(row.sdkQueueMs)}</Row> : null}
         </Section>
 
-        <Section title="Tokens and cache">
-          <div className="flex items-center gap-2"><Meter value={row.cacheHit} tone="violet" label="Cache hit" /><span className="num w-10 text-right text-sm font-semibold text-accent2">{pct(row.cacheHit)}</span></div>
-          <div className="mt-2 flex h-2 overflow-hidden rounded-xs bg-surface2">
-            <div className="bg-accent2 opacity-85" style={{ flexGrow: row.cacheRead / prompt }} title="Cache read" />
-            <div className="bg-accent2 opacity-40" style={{ flexGrow: row.cacheWrite / prompt }} title="Cache write" />
-            <div className="bg-muted opacity-70" style={{ flexGrow: row.inputTokens / prompt }} title="Uncached input" />
+        <Section title="Timing">
+          <div className="flex h-1.5 gap-px overflow-hidden rounded-sm bg-well">
+            {segments.map(segment => segment.ms > 0 ? <i key={segment.key} title={`${segment.label} ${ms(segment.ms)}`} className={cn('block', segmentClass[segment.key])} style={{ flexGrow: segment.ms / total, flexBasis: 0, minWidth: 2 }} /> : null)}
           </div>
-          <Row label="Cache read">{fmtInt(row.cacheRead)}</Row>
-          <Row label="Cache write">{fmtInt(row.cacheWrite)}</Row>
-          <Row label="Uncached input">{fmtInt(row.inputTokens)}</Row>
-          <Row label="Output">{fmtInt(row.outputTokens)}</Row>
-          <Row label="API-equivalent">{cost === null ? 'no price for this model' : usd(cost)}</Row>
+          <div className="mt-2">
+            {segments.map(segment => <Row key={segment.key} label={segment.label.replace('Waiting for first token', 'First token')} swatch={segmentClass[segment.key]}>{ms(segment.ms)}</Row>)}
+            <Row label="Total">{ms(row.totalMs)}</Row>
+            {row.sessionQueueMs || row.sdkQueueMs ? <Row label="Queue split">session {ms(row.sessionQueueMs)} · SDK {ms(row.sdkQueueMs)}</Row> : null}
+          </div>
         </Section>
 
         <Section title="Conversation">
-          <Row label="Lineage">{row.lineage ? <Pill tone="violet">{row.lineage}</Pill> : '—'}</Row>
+          <Row label="Lineage">{row.lineage || '—'}</Row>
           <Row label="Resumed session">{row.isResume ? 'yes' : 'no'}</Row>
           <Row label="Messages">{fmtInt(row.messageCount)}</Row>
           <Row label="Tools">{row.toolCount === null ? '—' : `${row.toolCount}${row.deferredTools ? ` · ${row.deferredTools} deferred` : ''}`}</Row>
@@ -84,11 +96,11 @@ export function RequestDetail({ row, cost, now, onClose }: { row: RequestRow; co
           <Row label="Route">{row.routeKind || 'direct'}</Row>
           {row.refusedBucket ? <Row label="Refused on">{row.refusedBucket.replaceAll('_', ' ')}</Row> : null}
           {row.chain.length > 1 ? (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-base">
               {row.chain.map((hop, index) => (
-                <span key={index} className="flex items-center gap-1">
-                  {index ? <ArrowRight className="size-3 text-muted" /> : null}
-                  <Pill tone={hop.ok ? 'green' : 'red'} title={[hop.error || (hop.status ? `status ${hop.status}` : ''), hop.refusedBucket].filter(Boolean).join(' · ')}>{hop.profile} {hop.ok ? '✓' : '✗'}</Pill>
+                <span key={index} className="flex items-center gap-1.5" title={[hop.error || (hop.status ? `status ${hop.status}` : ''), hop.refusedBucket].filter(Boolean).join(' · ')}>
+                  {index ? <ArrowRight className="size-3 text-t4" /> : null}
+                  <span className="text-t1">{hop.profile}</span><Glyph kind={hop.ok ? 'ok' : 'bad'} className="size-3" />
                 </span>
               ))}
             </div>

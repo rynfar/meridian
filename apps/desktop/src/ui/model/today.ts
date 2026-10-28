@@ -6,6 +6,7 @@ import { fmtTok, plural } from './format'
 import { limitPill, type AccountsModel, type AccountView } from './accounts'
 import { groupFailures, type FailureGroup } from './failures'
 import type { RequestRow } from './requests'
+import type { PromptShare } from './prompt'
 
 export interface Hero { hit: number | null; reused: number; missesOnResume: number; requests: number | null; failed: number; totalP50: number | null; ttfbP50: number | null }
 export function hero(summary: unknown): Hero {
@@ -21,21 +22,35 @@ export function hero(summary: unknown): Hero {
     ttfbP50: requests ? number(object(s.ttfb).p50) ?? null : null,
   }
 }
-export function heroHitDetail(h: Hero): string {
-  return `${fmtTok(h.reused)} tokens reused · ${h.missesOnResume} ${h.missesOnResume === 1 ? 'miss' : 'misses'} on resume`
+/** Under the "Prompt from cache" hero: "26.9M of 28.5M prompt tokens reused · 1 miss on resume". */
+export function heroPromptDetail(prompt: Pick<PromptShare, 'read' | 'total'>, missesOnResume: number): string {
+  return `${fmtTok(prompt.read)} of ${fmtTok(prompt.total)} prompt tokens reused · ${missesOnResume} ${missesOnResume === 1 ? 'miss' : 'misses'} on resume`
 }
 
 export interface FeedRow {
   id: string; timestamp: number; model: string; longContext: boolean; client: string; profile: string;
   failed: boolean; status: number | null; cacheHit: number | null;
+  /** Prompt split for the ribbon. */
+  cacheRead: number; cacheWrite: number; inputTokens: number;
+  /** "HTTP 500 · api_error" for a failed request, else empty. */
+  failure: string;
   /** Shown only when the request did not continue the stored conversation. */
   lineage: string | null; promptTokens: number; totalMs: number | null;
 }
-export function feedRows(requests: readonly RequestRow[], limit = 9): FeedRow[] {
+/** The failure as the list shows it in place of the ribbon: "HTTP 500 · api_error". */
+export function failureText(row: Pick<RequestRow, 'failed' | 'status' | 'error' | 'envelope'>): string {
+  if (!row.failed) return ''
+  const status = row.status ? `HTTP ${row.status}` : ''
+  const error = row.error.trim().replace(/\s+/g, ' ').slice(0, 60) || (row.envelope.length ? 'incomplete response' : '')
+  return [status, error].filter(Boolean).join(' · ') || 'failed'
+}
+
+export function feedRows(requests: readonly RequestRow[], limit = 10): FeedRow[] {
   return requests.filter(row => !row.keepalive).slice(0, limit).map(row => ({
     id: row.id, timestamp: row.timestamp, model: row.model, longContext: row.longContext,
     client: row.adapter || row.source || 'client', profile: row.profile || 'default',
     failed: row.failed, status: row.status, cacheHit: row.cacheHit,
+    cacheRead: row.cacheRead, cacheWrite: row.cacheWrite, inputTokens: row.inputTokens, failure: failureText(row),
     lineage: row.lineage === 'continuation' ? null : row.lineage || 'new',
     promptTokens: row.promptTokens, totalMs: row.totalMs,
   }))

@@ -42,29 +42,29 @@ export function Service({ section: requested }: { section?: string }) {
   const groups = [...new Set(visible.map(section => section.group))]
   const Panel = active.Panel
   const flag = (id: string) => id === 'connection' && state.connection.kind !== 'ok' ? <Dot tone={state.connection.kind === 'starting' || state.connection.kind === 'wrong-port' ? 'yellow' : 'red'} />
-    : id === 'versions' && state.latest && state.running && state.latest !== state.running ? <Dot tone="accent" /> : null
+    : id === 'versions' && state.latest && state.running && state.latest !== state.running ? <Dot tone="accent" size={6} /> : null
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[188px_1fr]">
-      <nav aria-label="Service sections" className="hairline-r scroll-y border-border px-2.5 py-4">
+    <div className="grid h-full min-h-0 grid-cols-[188px_minmax(0,1fr)]">
+      <nav aria-label="Service sections" className="rule-r scroll-y px-2.5 py-4">
         {groups.map(group => (
-          <div key={group} className="mb-3">
-            <div className="px-2 pb-1 text-2xs font-semibold text-muted">{group}</div>
+          <div key={group} className="mb-4">
+            <div className="px-2 pb-1 text-xs font-medium text-t3">{group}</div>
             {visible.filter(section => section.group === group).map(section => (
               <button key={section.id} type="button" onClick={() => setCurrent(section.id)} aria-current={section.id === active.id ? 'true' : undefined}
-                className={cn('flex w-full items-center gap-2 rounded-md px-2 py-[3px] text-left text-sm', section.id === active.id ? 'bg-accent/14 font-medium text-accent' : 'text-text hover:bg-accent/8')}>
+                className={cn('flex h-[26px] w-full items-center gap-2 rounded-md px-2 text-left text-base transition-colors duration-150', section.id === active.id ? 'lift bg-surface font-medium text-t1' : 'text-t2 hover:bg-hover')}>
                 <span className="flex-1 truncate">{section.label}</span>{flag(section.id)}
               </button>
             ))}
           </div>
         ))}
         {state.settings.errors.length || state.settings.fetchedAt ? (
-          <div className="mt-2 px-2 text-2xs text-muted">
-            <Button variant="link" size="xs" onClick={() => { void run('refresh-settings') }} disabled={busy}><RefreshCw />Refresh settings</Button>
+          <div className="mt-2 px-2">
+            <Button variant="text" size="sm" className="text-xs" onClick={() => { void run('refresh-settings') }} disabled={busy}><RefreshCw />Refresh settings</Button>
           </div>
         ) : null}
       </nav>
-      <div ref={scroller} className="scroll-y min-h-0 px-6 pb-8 pt-5">
+      <div ref={scroller} className="scroll-y min-h-0 px-7 pb-8 pt-[22px]">
         <div className="max-w-[760px]"><Panel key={active.id} state={state} /></div>
       </div>
     </div>

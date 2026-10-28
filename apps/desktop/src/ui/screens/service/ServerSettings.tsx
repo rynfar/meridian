@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Search } from 'lucide-react'
 import { useDesktop } from '../../lib/desktop'
 import { Button } from '../../components/button'
-import { Input, Kbd, Segmented, Select, Switch } from '../../components/controls'
+import { Code, Input, Segmented, Select, Switch } from '../../components/controls'
 import { Pill } from '../../components/pill'
 import { Table, Td, Th, Tr } from '../../components/table'
 import { Empty } from '../../components/state'
@@ -43,13 +43,13 @@ export function Routing({ state }: { state: DesktopState }) {
       <Group>
         <SettingRow label="Mode" htmlFor="routing-mode" env={envFor(value, 'routing', text(value.routing), null)} control={
           <Select id="routing-mode" className="w-44" value={text(value.routing)} disabled={busy} onChange={event => { void save('routing', { routing: event.target.value }) }}>{modes.map(mode => <option key={mode} value={mode}>{mode}</option>)}</Select>} />
-        <div className="hairline-t border-border px-4 py-3">
+        <div className="px-4 py-3">
           <div className="text-base font-medium">Pool order</div>
-          <p className="mt-0.5 text-sm text-muted">{pool ? text(value.routing) === 'active+priority' ? 'Fallback order when the active account runs out. The active account always goes first.' : 'Highest priority first; drained top to bottom.' : 'Used by priority modes. Kept for when you switch.'}</p>
+          <p className="mt-0.5 text-sm text-t3">{pool ? text(value.routing) === 'active+priority' ? 'Fallback order when the active account runs out. The active account always goes first.' : 'Highest priority first; drained top to bottom.' : 'Used by priority modes. Kept for when you switch.'}</p>
           <ol className="mt-2 flex flex-col gap-1">
             {order.map((id, index) => (
               <li key={id} className="flex items-center gap-2 text-sm">
-                <span className="num w-5 text-right text-muted">{index + 1}</span>
+                <span className="num w-5 text-right text-t3">{index + 1}</span>
                 <span className="flex-1 font-mono text-xs">{id}</span>
                 <Button variant="ghost" size="icon-sm" aria-label={`Move ${id} up`} disabled={busy || index === 0} onClick={() => { void run('reorder-profiles', moveInOrder(order, id, -1)) }}><ArrowUp /></Button>
                 <Button variant="ghost" size="icon-sm" aria-label={`Move ${id} down`} disabled={busy || index === order.length - 1} onClick={() => { void run('reorder-profiles', moveInOrder(order, id, 1)) }}><ArrowDown /></Button>
@@ -94,7 +94,7 @@ export function Agents({ state }: { state: DesktopState }) {
       <PanelHeader title="Agent features" description="SDK features for each connected agent. In passthrough, tools and project instructions come from the client. Both system prompts should usually stay on: Claude Code’s base instructions come first, then the agent’s. Changes apply to the next request."
         actions={current ? <Button variant="subtle" onClick={() => { void run('reset-features', current) }} disabled={busy}><RotateCcw />Reset {ADAPTERS[current] ?? current}</Button> : null} />
       {!adapters.length ? <Group><Empty title="No agent settings" detail={state.connection.kind === 'ok' ? 'This Meridian reports no adapters.' : 'Connect to Meridian to edit agent features.'} /></Group> : <>
-        <div className="mb-3 flex flex-wrap gap-1">{adapters.map(id => <Button key={id} variant={id === current ? 'default' : 'ghost'} size="sm" onClick={() => setAdapter(id)}>{ADAPTERS[id] ?? id}</Button>)}</div>
+        <div className="mb-3 flex flex-wrap gap-1">{adapters.map(id => <Button key={id} variant={id === current ? 'subtle' : 'ghost'} size="sm" onClick={() => setAdapter(id)}>{ADAPTERS[id] ?? id}</Button>)}</div>
         <Group>
           {FEATURES.filter(feature => feature.key in features).map(feature => {
             const value = features[feature.key]
@@ -174,17 +174,17 @@ export function Pricing({ state }: { state: DesktopState }) {
   return (
     <>
       {header}
-      <div className="mb-2 flex items-center gap-2"><div className="relative w-64"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" /><Input className="pl-7" type="search" aria-label="Search models" placeholder="Search models" value={query} onChange={event => setQuery(event.target.value)} /></div><span className="num text-xs text-muted">{shown.length} models · {Object.keys(overrides).length} overrides</span></div>
+      <div className="mb-2 flex items-center gap-2"><div className="relative w-64"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-t3" /><Input className="pl-7" type="search" aria-label="Search models" placeholder="Search models" value={query} onChange={event => setQuery(event.target.value)} /></div><span className="num text-xs text-t3">{shown.length} models · {Object.keys(overrides).length} overrides</span></div>
       <Group>
-        <div className="max-h-[360px] overflow-auto rounded-t-2xl">
-          <Table>
+        <div className="max-h-[360px] overflow-auto ">
+          <Table inset>
             <thead><tr><Th>Model</Th><Th className="text-right">Input</Th><Th className="text-right">Output</Th><Th className="text-right">Cache read</Th><Th className="text-right">Cache write</Th><Th>Source</Th><Th /></tr></thead>
             <tbody>{shown.map(model => {
               const override = overrides[model] !== undefined
               const effective = object(overrides[model] ?? builtin[model])
               return (
                 <Tr key={model}>
-                  <Td className="font-mono text-xs text-accent2">{model}</Td>
+                  <Td className="font-mono text-xs text-t2">{model}</Td>
                   {RATE_KEYS.map(key => <Td key={key} className="text-right"><CommitField label={`${model} ${key}`} type="number" min={0} className="h-6 w-20 text-right" value={String(Math.round((number(effective[key]) ?? 0) * 10000) / 10000)} onCommit={raw => commit(model, key, raw)} disabled={busy} /></Td>)}
                   <Td><Pill tone={override ? 'accent' : 'muted'}>{override ? 'override' : 'built-in'}</Pill></Td>
                   <Td>{override ? <Button variant="ghost" size="xs" onClick={() => { void run('delete-pricing', model) }} disabled={busy}>{builtin[model] ? 'Reset' : 'Remove'}</Button> : null}</Td>
@@ -193,7 +193,7 @@ export function Pricing({ state }: { state: DesktopState }) {
             })}</tbody>
           </Table>
         </div>
-        <form className="hairline-t flex items-center gap-2 border-border px-4 py-2.5" onSubmit={event => { event.preventDefault(); if (addValid) add() }}>
+        <form className="flex items-center gap-2 px-4 py-2.5" onSubmit={event => { event.preventDefault(); if (addValid) add() }}>
           <Input aria-label="Model id" placeholder="model id (e.g. claude-opus-9)" className="flex-1 font-mono text-xs" value={draft.model} onChange={event => setDraft({ ...draft, model: event.target.value })} />
           {(['input', 'output', 'read', 'write'] as const).map(key => <Input key={key} aria-label={key} type="number" min={0} step={0.01} placeholder={key === 'read' ? 'cache read' : key === 'write' ? 'cache write' : key} className="w-24" value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} />)}
           <Button type="submit" disabled={busy || !addValid}><Plus />Add</Button>
@@ -219,7 +219,7 @@ export function Storage({ state }: { state: DesktopState }) {
           const numberRow = (key: string, label: string, unit: string, now: string) => {
             const limit = object(limits[key])
             return <SettingRow key={key} label={label} htmlFor={`tel-${key}`} status={[`now: ${now}`]} env={envFor(t, key, null, number(saved[key]) === undefined ? null : `${saved[key]} ${unit}`)}
-              control={<><CommitField id={`tel-${key}`} type="number" min={number(limit.min)} max={number(limit.max)} placeholder="default" className="w-28 text-right" value={number(saved[key]) === undefined ? '' : String(saved[key])} disabled={busy} onCommit={raw => { void save('telemetry', { [key]: raw.trim() === '' ? null : Number(raw) }) }} /><span className="w-12 text-xs text-muted">{unit}</span></>} />
+              control={<><CommitField id={`tel-${key}`} type="number" min={number(limit.min)} max={number(limit.max)} placeholder="default" className="w-28 text-right" value={number(saved[key]) === undefined ? '' : String(saved[key])} disabled={busy} onCommit={raw => { void save('telemetry', { [key]: raw.trim() === '' ? null : Number(raw) }) }} /><span className="w-12 text-xs text-t3">{unit}</span></>} />
           }
           const pending = Array.isArray(t.pendingRestart) ? t.pendingRestart.map(text) : []
           return <>
@@ -228,8 +228,8 @@ export function Storage({ state }: { state: DesktopState }) {
             {numberRow('telemetryRetentionDays', 'Retention', 'days', persisting ? `${fmtInt(live.retentionDays)} days` : 'n/a while in memory')}
             {numberRow('telemetrySize', 'Request ring size', 'rows', persisting ? 'n/a while persisting' : fmtInt(live.capacity))}
             {numberRow('diagnosticLogSize', 'Diagnostic log size', 'entries', persisting ? 'n/a while persisting' : fmtInt(live.diagnosticLogCapacity))}
-            <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">Holding {fmtInt(live.held)} requests {persisting ? <>in <span className="font-mono text-accent2">{text(live.dbPath)}</span> ({bytes(live.dbBytes)})</> : 'in memory — lost on restart'}. The database path is set with <Kbd>MERIDIAN_TELEMETRY_DB</Kbd>.</p>
-            {pending.length ? <p className="hairline-t border-border px-4 py-2.5 text-xs text-yellow">Saved, not yet in effect: {pending.join(', ')}. {text(object(t.supervision).restartCommand) ? <>Restart with <Kbd>{text(object(t.supervision).restartCommand)}</Kbd>.</> : 'Restart Meridian to apply.'}</p> : null}
+            <p className="px-4 py-2.5 text-xs text-t3">Holding {fmtInt(live.held)} requests {persisting ? <>in <span className="font-mono text-t2">{text(live.dbPath)}</span> ({bytes(live.dbBytes)})</> : 'in memory — lost on restart'}. The database path is set with <Code>MERIDIAN_TELEMETRY_DB</Code>.</p>
+            {pending.length ? <p className="px-4 py-2.5 text-xs text-yellow">Saved, not yet in effect: {pending.join(', ')}. {text(object(t.supervision).restartCommand) ? <>Restart with <Code>{text(object(t.supervision).restartCommand)}</Code>.</> : 'Restart Meridian to apply.'}</p> : null}
           </>
         })()}
       </Group>
@@ -240,7 +240,7 @@ export function Storage({ state }: { state: DesktopState }) {
           const days = number(effective.days) ?? 0
           return <SettingRow label="Delete after" htmlFor="tr-days" description={<>Off by default. When on, Claude Code deletes <b className="text-yellow">all</b> of its files older than this in each profile directory, not only transcripts. A profile whose own settings set cleanupPeriodDays keeps it.</>}
             status={[`now: ${days > 0 ? `Claude Code deletes files older than ${days} days` : 'off, nothing is deleted'}`]} env={envFor(value, 'transcriptRetentionDays', days > 0 ? `${days} days` : 'off', number(value.saved) ? `${value.saved} days` : null)}
-            control={<><CommitField id="tr-days" type="number" min={number(limits.min) ?? 1} max={number(limits.max) ?? 3650} placeholder="off" className="w-28 text-right" value={number(value.saved) === undefined ? '' : String(value.saved)} disabled={busy} onCommit={raw => { void save('transcripts', { transcriptRetentionDays: raw.trim() === '' ? null : Number(raw) }) }} /><span className="w-12 text-xs text-muted">days</span></>} />
+            control={<><CommitField id="tr-days" type="number" min={number(limits.min) ?? 1} max={number(limits.max) ?? 3650} placeholder="off" className="w-28 text-right" value={number(value.saved) === undefined ? '' : String(value.saved)} disabled={busy} onCommit={raw => { void save('transcripts', { transcriptRetentionDays: raw.trim() === '' ? null : Number(raw) }) }} /><span className="w-12 text-xs text-t3">days</span></>} />
         })()}
       </Group>
     </>
@@ -264,7 +264,7 @@ export function Updates({ state }: { state: DesktopState }) {
           env={value.envOptOut ? 'MERIDIAN_NO_UPDATE_CHECK is set on the service; update checks stay off.' : null}
           control={<Switch aria-label="Check for updates" checked={value.checkForUpdates === true} disabled={busy || value.envOptOut === true} onCheckedChange={next => { void save('updates', { checkForUpdates: next }) }} />} />
         {plugins.map(plugin => (
-          <SettingRow key={text(plugin.name)} label={<span className="flex items-center gap-2">{text(plugin.name)}{text(plugin.package) ? <span className="font-mono text-xs text-accent2">{text(plugin.package)}</span> : null}</span>}
+          <SettingRow key={text(plugin.name)} label={<span className="flex items-center gap-2">{text(plugin.name)}{text(plugin.package) ? <span className="font-mono text-xs text-t2">{text(plugin.package)}</span> : null}</span>}
             status={[!plugin.checkable ? `not checkable: ${text(plugin.reason) || 'no npm package'}` : plugin.updateAvailable ? `${text(plugin.installed)} → ${text(plugin.latest)} available` : `${text(plugin.installed)}${text(plugin.latest) ? ', up to date' : ''}`, text(plugin.error) ? `last check failed: ${text(plugin.error)}` : null]} />
         ))}
       </Group>

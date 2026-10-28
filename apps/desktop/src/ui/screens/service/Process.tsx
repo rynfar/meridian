@@ -3,7 +3,7 @@ import { Download, ExternalLink, Play, RefreshCw, RotateCcw, Square } from 'luci
 import { useDesktop } from '../../lib/desktop'
 import { Button } from '../../components/button'
 import { Select, Switch } from '../../components/controls'
-import { Pill } from '../../components/pill'
+import { Dot, Pill } from '../../components/pill'
 import { Empty } from '../../components/state'
 import { fmtInt } from '../../model/format'
 import { host } from '../../model/status'
@@ -23,13 +23,13 @@ export function Process({ state }: { state: DesktopState }) {
     <>
       <PanelHeader title="Process" description={managed ? 'The app runs its own Meridian. Closing the window keeps it running; quitting finishes active requests first, then stops it.' : 'This Meridian is run by your own service manager. The app reads it and never stops or restarts it.'} />
       <Group>
-        <SettingRow label={<span className="flex items-center gap-2">{state.owned ? 'Running' : managed ? 'Stopped' : state.running ? 'Connected' : 'Not reachable'}<Pill tone={state.owned || (!managed && state.running) ? 'green' : 'muted'}>{managed ? 'app-managed' : 'external'}</Pill></span>}
-          description={<span className="font-mono text-xs text-accent2">{where}</span>}
+        <SettingRow label={<span className="flex items-center gap-2"><Dot tone={state.owned || (!managed && state.running) ? 'green' : 'muted'} />{state.owned ? 'Running' : managed ? 'Stopped' : state.running ? 'Connected' : 'Not reachable'}<span className="text-t3">· {managed ? 'app-managed' : 'external'}</span></span>}
+          description={<span className="font-mono text-xs text-t2">{where}</span>}
           control={managed ? state.owned ? <><Button onClick={() => { void run('restart') }} disabled={busy}><RotateCcw />Restart</Button><Button variant="danger" onClick={() => { void run('stop') }} disabled={busy}><Square />Stop</Button></>
             : <Button onClick={() => { void run('start') }} disabled={busy || !p.selected}><Play />Start Meridian</Button> : null} />
         {managed ? <SettingRow label="Start with the app" description="Start the managed copy when the app opens, unless another Meridian already serves your clients." control={<Switch aria-label="Start with the app" checked={p.autoStart} disabled={busy} onCheckedChange={value => { void run('save-preferences', { autoStart: value }) }} />} /> : null}
-        {managed && !p.selected ? <p className="hairline-t border-border px-4 py-2.5 text-sm text-muted">Install a version in Versions to run the managed copy.</p> : null}
-        {managed ? <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">Crash recovery restarts the managed copy up to three times, then stops and raises an alert.</p> : null}
+        {managed && !p.selected ? <p className="px-4 py-2.5 text-sm text-t3">Install a version in Versions to run the managed copy.</p> : null}
+        {managed ? <p className="px-4 py-2.5 text-xs text-t3">Crash recovery restarts the managed copy up to three times, then stops and raises an alert.</p> : null}
       </Group>
 
       {state.migration ? (
@@ -91,7 +91,7 @@ export function Versions({ state }: { state: DesktopState }) {
               {release !== state.preferences.selected ? <Button onClick={() => { void run('activate', release) }} disabled={busy || !managed}>{release === state.preferences.previous ? 'Roll back' : 'Use version'}</Button> : null}
             </>} />
         )) : <Empty title="No installed versions" detail="Check for updates, then install a release." />}
-        {!managed && state.installed.length ? <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">Switch to the app's own copy in Connection to run these versions.</p> : null}
+        {!managed && state.installed.length ? <p className="px-4 py-2.5 text-xs text-t3">Switch to the app's own copy in Connection to run these versions.</p> : null}
       </Group>
     </>
   )
@@ -109,7 +109,7 @@ export function Plugins({ state }: { state: DesktopState }) {
         {plugins.length ? plugins.map(plugin => {
           const hooks = Object.entries(object(object(plugin.stats).hooks)).map(([hook, raw]) => { const stats = object(raw); return `${hook} ${fmtInt(stats.invocations)}×${number(stats.errors) ? ` · ${fmtInt(stats.errors)} errors` : ''}` })
           return (
-            <SettingRow key={text(plugin.path) || text(plugin.name)} label={<span className="flex min-w-0 items-center gap-2"><span className="truncate">{text(plugin.name)}</span>{text(plugin.version) ? <span className="font-mono text-xs text-accent2">{text(plugin.version)}</span> : null}<Pill tone={plugin.status === 'active' ? 'green' : 'red'}>{text(plugin.status)}</Pill></span>}
+            <SettingRow key={text(plugin.path) || text(plugin.name)} label={<span className="flex min-w-0 items-center gap-2"><span className="truncate">{text(plugin.name)}</span>{text(plugin.version) ? <span className="font-mono text-xs text-t2">{text(plugin.version)}</span> : null}<Pill tone={plugin.status === 'active' ? 'green' : 'red'}>{text(plugin.status)}</Pill></span>}
               description={text(plugin.description) || undefined}
               status={[hooks.join(' · '), text(plugin.error) ? <span className="text-red">{text(plugin.error)}</span> : null]} />
           )
@@ -120,12 +120,12 @@ export function Plugins({ state }: { state: DesktopState }) {
           const loaded = plugins.find(item => item.name === plugin.id)
           const upToDate = Boolean(plugin.latest && (plugin.installed === plugin.latest || (loaded?.version === plugin.latest && loaded?.status === 'active')))
           return (
-            <SettingRow key={plugin.id} label={`${plugin.title} scrub`} description={<span className="font-mono text-xs text-accent2">{plugin.package}</span>}
+            <SettingRow key={plugin.id} label={`${plugin.title} scrub`} description={<span className="font-mono text-xs text-t2">{plugin.package}</span>}
               status={[[plugin.installed ? `Installed ${plugin.installed}${loaded?.status === 'active' ? ' · active' : ' · loads on next start'}` : loaded ? `Loaded ${text(loaded.version)}` : 'Not installed', plugin.latest ? `latest ${plugin.latest}` : ''].filter(Boolean).join(' · ')]}
               control={<Button onClick={() => { void run('install-plugin', plugin.id) }} disabled={busy || !managed || upToDate}>{upToDate ? 'Up to date' : loaded || plugin.installed ? 'Update' : 'Install'}</Button>} />
           )
         })}
-        <div className="hairline-t flex items-center justify-between border-border px-4 py-2.5 text-xs text-muted">
+        <div className="flex items-center justify-between px-4 py-2.5 text-xs text-t3">
           <span>{managed ? 'Shared with local headless installs that use the same plugin configuration.' : 'External services manage their own plugin files.'}</span>
           <Button variant="subtle" onClick={() => { void run('check-plugins') }} disabled={busy}>Check for updates</Button>
         </div>

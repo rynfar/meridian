@@ -4,17 +4,18 @@ import { createColumnHelper, createPaginatedRowModel, createSortedRowModel, rowP
 import { useDesktop } from '../lib/desktop'
 import { useModels } from '../lib/models'
 import { cn } from '../lib/cn'
-import { Card, Label, StatsStrip } from '../components/card'
+import { InlineStats, Label } from '../components/card'
 import { Button } from '../components/button'
 import { Input, Segmented, Select, Tab, TabList, TabPanel, Tabs } from '../components/controls'
-import { Pill } from '../components/pill'
 import { Table, Td, Th, Tr } from '../components/table'
+import { RibbonCell } from '../components/ribbon'
 import { ConnectionProblem, Empty, Skeleton } from '../components/state'
 import { RequestsChart } from '../charts/charts'
 import { RequestDetail } from './RequestDetail'
 import { fmtInt, fmtTok, hhmm, ms, pct, seconds, usd } from '../model/format'
-import { chartSeries } from '../model/series'
+import { bucketWord, chartSeries } from '../model/series'
 import { requestCost, type RequestRow } from '../model/requests'
+import { failureText } from '../model/today'
 import { accountTrafficRows, emptyFilter, facets, filterRows, lineageCounts, modelRows, percentileRows, trafficStats, type RequestFilter, type RequestKind } from '../model/traffic'
 import { windowRange } from '../../uiData'
 import type { Navigate } from '../shell/nav'
@@ -23,22 +24,32 @@ const features = tableFeatures({ rowSortingFeature, rowPaginationFeature, sorted
 const helper = createColumnHelper<typeof features, RequestRow & { cost: number | null }>()
 const num = (value: number | null) => value ?? undefined
 const columns = helper.columns([
-  helper.accessor('timestamp', { header: 'Time', sortFn: 'basic', cell: info => <span className="num text-muted">{hhmm(info.getValue())}</span> }),
-  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <span className="flex items-center gap-1"><span className="font-semibold">{info.getValue()}</span>{info.row.original.longContext ? <Pill tone="violet">1M</Pill> : null}</span> }),
-  helper.accessor(row => row.adapter || row.source, { id: 'client', header: 'Client', sortFn: 'text', cell: info => <span className="text-muted">{info.getValue() || '—'}</span> }),
+  helper.accessor('timestamp', { header: 'Time', sortFn: 'basic', cell: info => <span className="text-t4">{hhmm(info.getValue())}</span> }),
+  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <span className="font-medium text-t1">{info.getValue()}{info.row.original.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</span> }),
+  helper.accessor(row => row.adapter || row.source, { id: 'client', header: 'Client', sortFn: 'text', cell: info => <span className="text-t3">{info.getValue() || '—'}</span> }),
   helper.accessor(row => row.profile, { id: 'account', header: 'Account', sortFn: 'text', cell: info => {
     const row = info.row.original
-    return <span className="flex items-center gap-1">{row.provider !== 'claude' ? <span className="text-muted">{row.provider} ·</span> : null}{row.profile || 'default'}{row.chain.length > 1 ? <Pill tone="yellow">failover</Pill> : null}{row.refusedBucket ? <Pill tone="red">{row.refusedBucket.replace('five_hour', '5h').replace('seven_day', '7d')}</Pill> : null}</span>
+    return (
+      <span className="text-t2">
+        {row.provider !== 'claude' ? <span className="text-t3">{row.provider} · </span> : null}{row.profile || 'default'}
+        {row.chain.length > 1 ? <span className="text-yellow"> · failover</span> : null}
+        {row.refusedBucket ? <span className="text-red"> · {row.refusedBucket.replace('five_hour', '5h').replace('seven_day', '7d')}</span> : null}
+      </span>
+    )
   } }),
-  helper.accessor(row => row.status ?? undefined, { id: 'status', header: 'Status', sortFn: 'basic', sortUndefined: 'last', cell: info => { const row = info.row.original; return <Pill tone={row.failed ? 'red' : 'green'}>{row.status ?? (row.failed ? 'err' : '—')}</Pill> } }),
-  helper.accessor(row => num(row.cacheHit), { id: 'cache', header: 'Cache', sortFn: 'basic', sortUndefined: 'last', cell: info => { const value = info.getValue(); return value === undefined ? <span className="text-muted">—</span> : <span className="num text-accent2">{pct(value)}</span> } }),
-  helper.accessor('promptTokens', { header: 'In', sortFn: 'basic', cell: info => <span className="num">{fmtTok(info.getValue())}</span> }),
-  helper.accessor('outputTokens', { header: 'Out', sortFn: 'basic', cell: info => <span className="num">{fmtTok(info.getValue())}</span> }),
-  helper.accessor(row => num(row.ttfbMs), { id: 'ttfb', header: 'TTFB', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="num">{ms(info.getValue())}</span> }),
-  helper.accessor(row => num(row.totalMs), { id: 'total', header: 'Total', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="num">{seconds(info.getValue())}</span> }),
-  helper.accessor(row => num(row.cost), { id: 'cost', header: 'Cost', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="num text-muted">{info.getValue() === undefined ? '—' : usd(info.getValue())}</span> }),
+  // The prompt ribbon; a failure takes its place as "HTTP 500 · api_error".
+  helper.accessor('promptTokens', { id: 'prompt', header: 'Prompt', sortFn: 'basic', cell: info => {
+    const row = info.row.original
+    return row.failed ? <span className="block max-w-[180px] truncate text-red" title={failureText(row)}>{failureText(row)}</span>
+      : <RibbonCell tokens={{ read: row.cacheRead, write: row.cacheWrite, fresh: row.inputTokens }} className="w-[150px]" />
+  } }),
+  helper.accessor(row => (row.failed ? undefined : num(row.cacheHit)), { id: 'hit', header: 'Hit', sortFn: 'basic', sortUndefined: 'last', cell: info => { const value = info.getValue(); return value === undefined ? null : <span className="font-medium text-cache">{pct(value)}</span> } }),
+  helper.accessor('outputTokens', { header: 'Out', sortFn: 'basic', cell: info => <span className="text-t2">{fmtTok(info.getValue())}</span> }),
+  helper.accessor(row => num(row.ttfbMs), { id: 'ttfb', header: 'First token', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="text-t2">{ms(info.getValue())}</span> }),
+  helper.accessor(row => num(row.totalMs), { id: 'total', header: 'Total', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="text-t1">{seconds(info.getValue())}</span> }),
+  helper.accessor(row => num(row.cost), { id: 'cost', header: 'Cost', sortFn: 'basic', sortUndefined: 'last', cell: info => <span className="text-t3">{info.getValue() === undefined ? '—' : usd(info.getValue())}</span> }),
 ])
-const numeric = new Set(['promptTokens', 'outputTokens', 'ttfb', 'total', 'cost', 'cache'])
+const numeric = new Set(['outputTokens', 'ttfb', 'total', 'cost', 'hit'])
 const kinds: { value: RequestKind; label: string }[] = [{ value: 'all', label: 'All' }, { value: 'errors', label: 'Errors' }, { value: 'low-cache', label: 'Low cache' }]
 
 export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { request?: string; filter?: RequestKind } }) {
@@ -64,8 +75,8 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
   const table = useTable({ features, columns, data: rows, state: { sorting, pagination }, onSortingChange: setSorting, onPaginationChange: setPagination, autoResetPageIndex: false })
   const series = useMemo(() => state ? chartSeries(state, now) : null, [state, now])
 
-  if (data.kind === 'failed' && state) return <div className="p-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
-  if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-3.5 p-5"><Skeleton className="h-[72px]" /><Skeleton className="h-28" /><Skeleton className="h-96" /></div>
+  if (data.kind === 'failed' && state) return <div className="px-[26px] py-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
+  if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-4 px-[26px] pt-[22px]"><div className="flex gap-8">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-11 w-24" />)}</div><Skeleton className="h-24" /><Skeleton className="h-96" /></div>
 
   const stats = trafficStats(state.summary, state.routesSummary)
   const detail = selected ? priced.find(row => row.id === selected) : undefined
@@ -73,36 +84,38 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
   const filtered = filter.query || filter.kind !== 'all' || filter.provider !== 'all' || filter.client !== 'all' || filter.profile !== 'all'
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-3.5 px-5 pb-5 pt-[18px]">
-      {stats.length ? <StatsStrip cells={stats.map(cell => ({ label: cell.label, value: <span className={cell.tone === 'red' ? 'text-red' : cell.tone === 'yellow' ? 'text-yellow' : undefined}>{cell.value}</span>, detail: cell.detail }))} /> : <Skeleton className="h-[72px]" />}
+    <div className="relative flex h-full min-h-0 flex-col px-[26px] pb-[18px] pt-[22px]">
+      {stats.length ? <InlineStats cells={stats.map(cell => ({ label: cell.label, value: <span className={cell.tone === 'red' ? 'text-red' : cell.tone === 'yellow' ? 'text-yellow' : undefined}>{cell.value}</span>, detail: cell.detail }))} />
+        : <div className="flex gap-8">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-11 w-24" />)}</div>}
 
-      <Tabs defaultValue="requests" className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-end justify-between gap-3">
-          <TabList className="flex-1">
-            <Tab value="requests">Requests <span className="num text-2xs text-muted">{fmtInt(inWindow.length)}</span></Tab>
-            <Tab value="latency">Latency</Tab>
-            <Tab value="breakdown">Models &amp; accounts</Tab>
-          </TabList>
-        </div>
+      <Tabs defaultValue="requests" className="mt-6 flex min-h-0 flex-1 flex-col">
+        <TabList>
+          <Tab value="requests">Requests <span className="num text-xs font-normal text-t4">{fmtInt(inWindow.length)}</span></Tab>
+          <Tab value="latency">Latency</Tab>
+          <Tab value="breakdown">Models &amp; accounts</Tab>
+        </TabList>
 
-        <TabPanel value="requests" className="mt-3 flex min-h-0 flex-1 flex-col gap-3 data-[state=inactive]:hidden">
-          <Card className="px-3 pb-1 pt-2.5">
-            <div className="flex items-center justify-between px-1"><Label>Requests per {series && series.series.bucketMs >= 3_600_000 ? (series.series.bucketMs > 3_600_000 ? '6 hours' : 'hour') : '5 minutes'}</Label>{series?.estimated ? <span className="text-2xs text-muted" title={series.note}>estimated from the latest {fmtInt(requests.length)} requests</span> : null}</div>
-            {series ? <RequestsChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={92} /> : <Skeleton className="h-[92px]" />}
-          </Card>
-          <div className="flex items-center gap-2">
-            <div className="relative w-64"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" /><Input className="pl-7" type="search" placeholder="Search model, account, client or id" aria-label="Search requests" value={filter.query} onChange={event => set({ query: event.target.value })} /></div>
+        <TabPanel value="requests" className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+          <div className="flex items-center justify-between">
+            <Label>Requests per {series ? bucketWord(series.series.bucketMs) : 'hour'}</Label>
+            {series?.estimated ? <span className="text-xs text-t4" title={series.note}>estimated from the latest {fmtInt(requests.length)} requests</span> : null}
+          </div>
+          <div className="mt-1">{series ? <RequestsChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={84} /> : <Skeleton className="h-[84px]" />}</div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <div className="relative w-60"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-t3" /><Input className="pl-7" type="search" placeholder="Search model, account, client or id" aria-label="Search requests" value={filter.query} onChange={event => set({ query: event.target.value })} /></div>
             <Segmented label="Request filter" value={filter.kind} options={kinds} onChange={kind => set({ kind })} />
             {options.providers.length > 1 ? <Select aria-label="Provider" value={filter.provider} onChange={event => set({ provider: event.target.value })} className="w-32"><option value="all">All providers</option>{options.providers.map(id => <option key={id} value={id}>{id}</option>)}</Select> : null}
             <Select aria-label="Client" value={filter.client} onChange={event => set({ client: event.target.value })} className="w-28"><option value="all">All clients</option>{options.clients.map(id => <option key={id} value={id}>{id}</option>)}</Select>
             <Select aria-label="Account" value={filter.profile} onChange={event => set({ profile: event.target.value })} className="w-32"><option value="all">All accounts</option>{options.profiles.map(id => <option key={id} value={id}>{id}</option>)}</Select>
             <span className="flex-1" />
-            {filtered ? <Button variant="ghost" size="sm" onClick={() => setFilter(emptyFilter)}>Clear</Button> : null}
-            <span className="num text-xs text-muted">{fmtInt(rows.length)} of {fmtInt(inWindow.length)}</span>
+            {filtered ? <Button variant="text" size="sm" onClick={() => setFilter(emptyFilter)}>Clear</Button> : null}
+            <span className="num text-meta text-t4">{fmtInt(rows.length)} of {fmtInt(inWindow.length)}</span>
           </div>
-          <Card className="flex min-h-0 flex-1 flex-col p-0">
-            {state.requests === null ? <Skeleton className="m-4 h-full" /> : rows.length ? <>
-              <div className="min-h-0 flex-1 overflow-auto rounded-t-2xl">
+
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
+            {state.requests === null ? <Skeleton className="h-full" /> : rows.length ? <>
+              <div className="-mx-2 min-h-0 flex-1 overflow-auto px-0">
                 <Table>
                   <thead>
                     {table.getHeaderGroups().map(group => (
@@ -111,9 +124,9 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
                           const sorted = header.column.getIsSorted()
                           return (
                             <Th key={header.id} className={cn(numeric.has(header.column.id) && 'text-right')} aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}>
-                              <button type="button" onClick={header.column.getToggleSortingHandler()} className={cn('inline-flex items-center gap-0.5 uppercase hover:text-text', sorted && 'text-accent')}>
+                              <button type="button" onClick={header.column.getToggleSortingHandler()} className={cn('inline-flex items-center gap-1 transition-colors hover:text-t1', sorted && 'text-t1')}>
                                 <table.FlexRender header={header} />
-                                {sorted === 'asc' ? <ArrowUp className="size-3" /> : sorted === 'desc' ? <ArrowDown className="size-3" /> : null}
+                                {sorted === 'asc' ? <ArrowUp className="size-3 text-t3" /> : sorted === 'desc' ? <ArrowDown className="size-3 text-t3" /> : null}
                               </button>
                             </Th>
                           )
@@ -123,7 +136,7 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
                   </thead>
                   <tbody>
                     {table.getRowModel().rows.map(row => (
-                      <Tr key={row.id} onClick={() => setSelected(row.original.id)} className={cn('cursor-pointer', row.original.id === selected && 'bg-accent/10 hover:bg-accent/10')} aria-selected={row.original.id === selected}>
+                      <Tr key={row.id} onClick={() => setSelected(row.original.id)} selected={row.original.id === selected} aria-selected={row.original.id === selected}>
                         {row.getAllCells().map(cell => <Td key={cell.id} className={cn(numeric.has(cell.column.id) && 'text-right')}><table.FlexRender cell={cell} /></Td>)}
                       </Tr>
                     ))}
@@ -131,7 +144,7 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
                 </Table>
               </div>
               {table.getPageCount() > 1 ? (
-                <div className="hairline-t flex items-center justify-end gap-2 border-border px-3 py-1.5 text-xs text-muted">
+                <div className="rule-t flex items-center justify-end gap-2 pt-1.5 text-xs text-t3">
                   <span className="num">Page {pagination.pageIndex + 1} of {table.getPageCount()}</span>
                   <Button variant="ghost" size="icon-sm" aria-label="Previous page" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}><ChevronLeft /></Button>
                   <Button variant="ghost" size="icon-sm" aria-label="Next page" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}><ChevronRight /></Button>
@@ -139,13 +152,13 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
               ) : null}
             </> : filtered ? <Empty title="No matching requests" detail="Clear the filters to see everything in the window."><Button onClick={() => setFilter(emptyFilter)}>Clear filters</Button></Empty>
               : <Empty title="No requests yet" detail="Requests appear here as soon as a client sends one through this Meridian." />}
-          </Card>
+          </div>
         </TabPanel>
 
-        <TabPanel value="latency" className="scroll-y mt-3 min-h-0 flex-1 data-[state=inactive]:hidden">
+        <TabPanel value="latency" className="scroll-y mt-4 min-h-0 flex-1 data-[state=inactive]:hidden">
           <LatencyTables summary={state.summary} />
         </TabPanel>
-        <TabPanel value="breakdown" className="scroll-y mt-3 min-h-0 flex-1 data-[state=inactive]:hidden">
+        <TabPanel value="breakdown" className="scroll-y mt-4 min-h-0 flex-1 data-[state=inactive]:hidden">
           <Breakdown summary={state.summary} routes={state.routesSummary} rows={requests} />
         </TabPanel>
       </Tabs>
@@ -157,15 +170,15 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
 
 function LatencyTables({ summary }: { summary: unknown }) {
   const rows = percentileRows(summary)
-  if (!rows.length) return <Card><Empty title="No timings yet" detail="Percentiles appear once requests arrive in this window." /></Card>
+  if (!rows.length) return <Empty title="No timings yet" detail="Percentiles appear once requests arrive in this window." />
   return (
-    <Card className="p-0">
+    <div className="max-w-[760px]">
       <Table>
         <thead><tr>{['Phase', 'p50', 'p95', 'p99', 'Min', 'Max', 'Avg'].map(label => <Th key={label} className={label !== 'Phase' ? 'text-right' : undefined}>{label}</Th>)}</tr></thead>
-        <tbody>{rows.map(row => <Tr key={row.label}><Td className="font-medium">{row.label}</Td>{[row.p50, row.p95, row.p99, row.min, row.max, row.avg].map((value, index) => <Td key={index} className="num text-right">{ms(value)}</Td>)}</Tr>)}</tbody>
+        <tbody>{rows.map(row => <Tr key={row.label}><Td className="font-medium text-t1">{row.label}</Td>{[row.p50, row.p95, row.p99, row.min, row.max, row.avg].map((value, index) => <Td key={index} className={cn('text-right', index === 0 ? 'text-t1' : 'text-t2')}>{ms(value)}</Td>)}</Tr>)}</tbody>
       </Table>
-      <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">First token counts from the SDK query start; upstream includes every replayed attempt. Total = queue + proxy + upstream.</p>
-    </Card>
+      <p className="mt-3 px-2 text-xs text-t3">First token counts from the SDK query start; upstream includes every replayed attempt. Total = queue + proxy + upstream.</p>
+    </div>
   )
 }
 
@@ -174,30 +187,29 @@ function Breakdown({ summary, routes, rows }: { summary: unknown; routes: unknow
   const accounts = accountTrafficRows(summary, routes)
   const lineage = lineageCounts(rows)
   return (
-    <div className="grid grid-cols-[1.4fr_1fr] gap-3.5">
-      <Card className="p-0">
-        <div className="px-4 pt-3"><Label>By model</Label></div>
+    <div className="grid grid-cols-[1.4fr_1fr] gap-10">
+      <section>
+        <Label className="px-2">By model</Label>
         {models.length ? <Table className="mt-1">
           <thead><tr>{['Model', 'Requests', 'Avg', 'Input', 'Output', 'Cache read', 'Cost'].map(label => <Th key={label} className={label !== 'Model' ? 'text-right' : undefined}>{label}</Th>)}</tr></thead>
-          <tbody>{models.map(row => <Tr key={row.model}><Td className="font-mono text-xs text-accent2">{row.model}</Td><Td className="num text-right">{fmtInt(row.requests)}</Td><Td className="num text-right">{seconds(row.avgMs)}</Td><Td className="num text-right">{fmtTok(row.input)}</Td><Td className="num text-right">{fmtTok(row.output)}</Td><Td className="num text-right">{fmtTok(row.cacheRead)}</Td><Td className="num text-right">{row.costUsd === null ? <Pill tone="yellow">no price</Pill> : usd(row.costUsd)}</Td></Tr>)}</tbody>
+          <tbody>{models.map(row => <Tr key={row.model}><Td className="font-mono text-xs text-t1">{row.model}</Td><Td className="text-right">{fmtInt(row.requests)}</Td><Td className="text-right text-t2">{seconds(row.avgMs)}</Td><Td className="text-right text-t2">{fmtTok(row.input)}</Td><Td className="text-right text-t2">{fmtTok(row.output)}</Td><Td className="text-right text-cache">{fmtTok(row.cacheRead)}</Td><Td className="text-right text-t3">{row.costUsd === null ? <span className="text-yellow">no price</span> : usd(row.costUsd)}</Td></Tr>)}</tbody>
         </Table> : <Empty title="No models yet" />}
-        <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">API-equivalent at list prices (cache writes at the 5-minute rate). Subscription usage is not billed per token. Rates are editable in Service → Pricing.</p>
-      </Card>
-      <div className="flex flex-col gap-3.5">
-        <Card className="p-0">
-          <div className="px-4 pt-3"><Label>By account</Label></div>
+        <p className="mt-3 px-2 text-xs text-t3">API-equivalent at list prices (cache writes at the 5-minute rate). Subscription usage is not billed per token. Rates are editable in Service → Pricing.</p>
+      </section>
+      <div className="flex flex-col gap-8">
+        <section>
+          <Label className="px-2">By account</Label>
           {accounts.length ? <Table className="mt-1">
             <thead><tr>{['Account', 'Served', 'Refused', 'Cost'].map(label => <Th key={label} className={label !== 'Account' ? 'text-right' : undefined}>{label}</Th>)}</tr></thead>
-            <tbody>{accounts.map(row => <Tr key={row.id}><Td title={row.refusedOn}>{row.id}</Td><Td className="num text-right">{fmtInt(row.served)}</Td><Td className={cn('num text-right', row.refused && 'text-red')}>{fmtInt(row.refused)}</Td><Td className="num text-right">{row.costUsd === null ? '—' : usd(row.costUsd)}</Td></Tr>)}</tbody>
+            <tbody>{accounts.map(row => <Tr key={row.id}><Td title={row.refusedOn} className="font-medium text-t1">{row.id}</Td><Td className="text-right">{fmtInt(row.served)}</Td><Td className={cn('text-right', row.refused ? 'text-red' : 'text-t3')}>{fmtInt(row.refused)}</Td><Td className="text-right text-t3">{row.costUsd === null ? '—' : usd(row.costUsd)}</Td></Tr>)}</tbody>
           </Table> : <Empty title="No account activity" />}
-          <p className="hairline-t border-border px-4 py-2.5 text-xs text-muted">Refusals include the ones a failover hid from the client.</p>
-        </Card>
-        <Card>
-          <Label>Conversation lineage <span className="font-normal">· loaded requests</span></Label>
-          <div className="mt-2 flex flex-wrap gap-2">{lineage.map(([kind, count]) => <span key={kind} className="flex items-center gap-1.5 text-sm"><Pill tone="violet">{kind}</Pill><span className="num">{fmtInt(count)}</span></span>)}</div>
-        </Card>
+          <p className="mt-3 px-2 text-xs text-t3">Refusals include the ones a failover hid from the client.</p>
+        </section>
+        <section className="px-2">
+          <Label>Conversation lineage <span className="font-normal text-t4">· loaded requests</span></Label>
+          <div className="num mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-base">{lineage.map(([kind, count]) => <span key={kind}><span className="text-t3">{kind}</span> <span className="text-t1">{fmtInt(count)}</span></span>)}</div>
+        </section>
       </div>
     </div>
   )
 }
-

@@ -30,10 +30,10 @@ export function LoginSheet() {
       footer={finished ? <>{login.phase === 'error' ? <Button variant="subtle" disabled={busy} onClick={() => { void run(chatgpt ? 'chatgpt-connect' : 'login-profile', chatgpt ? { profile: login.profile } : login.profile) }}>Try again</Button> : null}<Button onClick={close}>Done</Button></>
         : <Button variant="subtle" onClick={close} disabled={login.phase === 'cancelling'}>Cancel sign-in</Button>}>
       {!finished ? (
-        <ol className="flex flex-col gap-4 text-sm">
+        <ol className="flex flex-col gap-4 text-base">
           <li>
             <div className="font-medium">1 · Open the sign-in page</div>
-            {login.userCode ? <div className="selectable mt-2 rounded-lg bg-accent2/10 py-2 text-center font-mono text-xl font-bold tracking-wider text-accent2">{login.userCode}</div> : null}
+            {login.userCode ? <div className="selectable edge mt-2 rounded-lg bg-well py-2 text-center font-mono text-xl font-semibold tracking-[0.15em] text-t1">{login.userCode}</div> : null}
             <Button className="mt-2" disabled={!login.url || !waiting} onClick={() => { void run('open-login') }}>{login.url ? <ExternalLink /> : <LoaderCircle className="animate-spin" />}Continue in browser</Button>
           </li>
           {!login.userCode ? (
@@ -44,11 +44,11 @@ export function LoginSheet() {
                 <Button type="submit" disabled={!waiting || !code.trim()}>{login.phase === 'verifying' ? 'Connecting…' : 'Connect'}</Button>
               </form>
             </li>
-          ) : <li className="flex items-center gap-2 text-muted"><LoaderCircle className="size-3.5 animate-spin" />Waiting for the code to be entered…</li>}
-          {login.output && waiting ? <li className="text-xs text-muted">{login.output.split('\n').slice(-2).join(' ')}</li> : null}
+          ) : <li className="flex items-center gap-2 text-t3"><LoaderCircle className="size-3.5 animate-spin" />Waiting for the code to be entered…</li>}
+          {login.output && waiting ? <li className="text-xs text-t3">{login.output.split('\n').slice(-2).join(' ')}</li> : null}
         </ol>
       ) : login.phase === 'error' && login.output ? (
-        <details className="text-sm"><summary className="cursor-default text-accent">Technical details</summary><pre className="selectable mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-bg p-2 font-mono text-xs">{login.output}</pre></details>
+        <details className="text-base"><summary className="cursor-default text-accent">Technical details</summary><pre className="selectable mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-well p-2 font-mono text-xs text-t2">{login.output}</pre></details>
       ) : null}
     </Sheet>
   )

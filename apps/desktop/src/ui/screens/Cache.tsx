@@ -2,13 +2,14 @@ import { useMemo } from 'react'
 import { useDesktop } from '../lib/desktop'
 import { useModels } from '../lib/models'
 import { cn } from '../lib/cn'
-import { Card, Label, StatsStrip } from '../components/card'
-import { Pill } from '../components/pill'
+import { Hero, InlineStats, Label, Swatch } from '../components/card'
+import { PromptRibbon, RibbonLegend } from '../components/ribbon'
 import { ConnectionProblem, Empty, Skeleton } from '../components/state'
-import { CacheTokensChart, HitRateChart, Legend } from '../charts/charts'
-import { fmtInt, fmtTok, pct, usd, when } from '../model/format'
+import { CacheTokensChart, HitRateChart } from '../charts/charts'
+import { fmtInt, fmtTok, pct, plural, usd, when } from '../model/format'
 import { cacheMisses, cacheSavings, cacheTotals, keepalive } from '../model/cache'
-import { chartSeries } from '../model/series'
+import { promptShare } from '../model/prompt'
+import { bucketWord, chartSeries } from '../model/series'
 import { windowRange } from '../../uiData'
 import type { Navigate } from '../shell/nav'
 
@@ -19,71 +20,76 @@ export function Cache({ navigate }: { navigate: Navigate }) {
   const kind = state?.window.kind ?? 'today'
   const misses = useMemo(() => cacheMisses(requests, 0.5, 50, windowRange(kind, now).start), [requests, kind, now])
 
-  if (data.kind === 'failed' && state) return <div className="p-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
-  if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-3.5 p-5"><Skeleton className="h-[72px]" /><div className="grid grid-cols-2 gap-3.5"><Skeleton className="h-52" /><Skeleton className="h-52" /></div><Skeleton className="h-60" /></div>
+  if (data.kind === 'failed' && state) return <div className="px-[26px] py-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
+  if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-5 px-[26px] pt-[22px]"><div className="grid grid-cols-2 gap-9"><Skeleton className="h-24" /><Skeleton className="h-24" /></div><div className="grid grid-cols-2 gap-9"><Skeleton className="h-44" /><Skeleton className="h-44" /></div><Skeleton className="h-48" /></div>
 
   const totals = cacheTotals(state.summary)
   const savings = cacheSavings(state.summary, pricing)
   const beats = keepalive(state.summary)
-  const prompt = totals ? totals.read + totals.write + totals.uncached : 0
-  const cells = totals ? [
-    { label: <><span className="text-accent2">●</span> Hit rate</>, value: <span className="text-accent2">{pct(totals.hit)}</span>, detail: 'mean per request' },
-    { label: 'Reused', value: fmtTok(totals.read), detail: prompt ? `${pct(totals.read / prompt)} of prompt tokens` : 'cache read' },
-    { label: 'Written', value: fmtTok(totals.write), detail: 'cache writes' },
-    { label: 'Uncached', value: fmtTok(totals.uncached), detail: 'input sent fresh' },
-    { label: 'Misses on resume', value: <span className={totals.missesOnResume ? 'text-yellow' : undefined}>{fmtInt(totals.missesOnResume)}</span>, detail: 'resumed with 0% reuse' },
-    savings ? { label: 'Saved by caching', value: <span className="text-green">{usd(savings.netUsd)}</span>, detail: `${usd(savings.savedUsd)} reads − ${usd(savings.writePremiumUsd)} writes${savings.partial ? ' · partial' : ''}` }
-      : { label: 'Saved by caching', value: '—', detail: state.settings.unavailable.includes('pricing') ? 'pricing unavailable' : 'needs model pricing' },
-  ] : []
+  // The same token-weighted definition as Today, the sidebar and the menu bar.
+  const prompt = promptShare(state.summary)
+  const per = series ? bucketWord(series.series.bucketMs) : 'hour'
 
   return (
-    <div className="scroll-y flex h-full min-h-0 flex-col gap-3.5 px-5 pb-5 pt-[18px]">
-      {cells.length ? <StatsStrip cells={cells} /> : <Skeleton className="h-[72px] shrink-0" />}
+    <div className="scroll-y flex h-full min-h-0 flex-col px-[26px] pb-[18px] pt-[22px]">
+      {totals ? (
+        <div className="grid shrink-0 grid-cols-[1.15fr_1fr] gap-9">
+          <Hero label={<><Swatch className="bg-cache" />Prompt from cache</>}
+            figure={prompt.share === null ? '—' : Math.round(prompt.share * 100)} unit={prompt.share === null ? undefined : '%'}
+            strip={<PromptRibbon tokens={prompt} size="hero" />}
+            caption={<><b>{fmtTok(prompt.read)}</b> read · {fmtTok(prompt.write)} written · {fmtTok(prompt.fresh)} fresh of {fmtTok(prompt.total)} prompt tokens</>} />
+          <InlineStats className="content-start pt-0.5" cells={[
+            { label: 'Mean per request', value: <span className="text-cache">{pct(totals.hit)}</span>, detail: 'cache hit, averaged over requests' },
+            { label: 'Misses on resume', value: <span className={totals.missesOnResume ? 'text-yellow' : undefined}>{fmtInt(totals.missesOnResume)}</span>, detail: 'resumed with 0% reuse' },
+            savings ? { label: 'Saved by caching', value: usd(savings.netUsd), detail: `${usd(savings.savedUsd)} reads − ${usd(savings.writePremiumUsd)} writes${savings.partial ? ' · partial' : ''}` }
+              : { label: 'Saved by caching', value: '—', detail: state.settings.unavailable.includes('pricing') ? 'pricing unavailable' : 'needs model pricing' },
+          ]} />
+        </div>
+      ) : <div className="grid grid-cols-2 gap-9"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>}
 
-      <div className="grid shrink-0 grid-cols-2 gap-3.5">
-        <Card className="px-3 pb-2">
-          <div className="flex items-center justify-between px-1"><Label><span className="text-accent2">●</span> Hit rate over time</Label>{series?.estimated ? <span className="text-2xs text-muted" title={series.note}>estimated from recent requests</span> : null}</div>
-          {series ? <HitRateChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="mt-2 h-[150px]" />}
-        </Card>
-        <Card className="px-3 pb-2">
-          <div className="flex items-center justify-between px-1"><Label>Prompt tokens per bucket</Label><Legend items={[{ label: 'read', className: 'bg-accent2' }, { label: 'write', className: 'bg-accent2 opacity-40' }, { label: 'uncached', className: 'bg-muted' }]} /></div>
-          {series ? <CacheTokensChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="mt-2 h-[150px]" />}
-        </Card>
+      <div className="mt-[26px] grid shrink-0 grid-cols-2 gap-9">
+        <section className="min-w-0">
+          <div className="flex items-baseline justify-between gap-3"><Label>Prompt tokens per {per}</Label><RibbonLegend /></div>
+          <div className="mt-2">{series ? <CacheTokensChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="h-[150px]" />}</div>
+        </section>
+        <section className="min-w-0">
+          <div className="flex items-baseline justify-between gap-3"><Label><Swatch className="bg-cache" />Hit rate · mean per request</Label>{series?.estimated ? <span className="text-xs text-t4" title={series.note}>estimated from recent requests</span> : null}</div>
+          <div className="mt-2">{series ? <HitRateChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="h-[150px]" />}</div>
+        </section>
       </div>
 
-      <div className={cn('grid min-h-[240px] flex-1 gap-3.5', beats ? 'grid-cols-[1fr_260px]' : 'grid-cols-1')}>
-        <Card className="flex min-h-0 flex-col p-0">
-          <div className="flex items-baseline gap-2 px-4 pt-3">
-            <Label>Low-cache continuations</Label>
-            <span className="text-xs text-muted">resumed conversations that reused ≤ 50% · loaded requests</span>
+      <div className={cn('mt-6 grid min-h-[220px] flex-1 gap-9', beats ? 'grid-cols-[minmax(0,1fr)_240px]' : 'grid-cols-1')}>
+        <section className="flex min-h-0 flex-col">
+          <div className="rule-b flex items-baseline gap-2.5 pb-[7px]">
+            <Label strong>Low-cache continuations</Label>
+            <span className="text-sm text-t3">· resumed conversations that reused ≤ 50% · loaded requests</span>
           </div>
-          {state.requests === null ? <Skeleton className="m-4 h-32" /> : misses.length ? (
-            <div className="scroll-y mt-1.5 min-h-0 flex-1">
+          {state.requests === null ? <Skeleton className="mt-2 h-32" /> : misses.length ? (
+            <div className="scroll-y -mx-2 mt-0.5 min-h-0 flex-1">
               {misses.map(({ row, why, severity }) => (
-                <button key={row.id} type="button" onClick={() => navigate('traffic', { request: row.id })} className="hairline-t flex w-full items-center gap-3 border-border px-4 py-2 text-left text-sm hover:bg-accent/6">
-                  <span className="num w-20 shrink-0 text-muted">{when(row.timestamp, now)}</span>
-                  <Pill tone={severity === 'miss' ? 'red' : 'yellow'} className="w-10 justify-center">{pct(row.cacheHit)}</Pill>
-                  <span className="w-36 shrink-0 truncate"><b className="font-semibold">{row.model}</b> <span className="text-muted">· {row.adapter || row.source} · {row.profile || 'default'}</span></span>
-                  <span className="min-w-0 flex-1 truncate text-muted" title={why}>{why}</span>
-                  <span className="num shrink-0 text-muted">{fmtTok(row.cacheWrite)} written</span>
+                <button key={row.id} type="button" onClick={() => navigate('traffic', { request: row.id })}
+                  className="num grid h-[29px] w-full grid-cols-[84px_40px_minmax(0,170px)_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-md px-2 text-left text-base transition-colors duration-150 hover:bg-hover">
+                  <span className="text-t4">{when(row.timestamp, now)}</span>
+                  <span className={cn('text-right font-medium', severity === 'miss' ? 'text-red' : 'text-yellow')}>{pct(row.cacheHit)}</span>
+                  <span className="truncate"><span className="font-medium text-t1">{row.model}</span> <span className="text-t3">· {row.adapter || row.source} · {row.profile || 'default'}</span></span>
+                  <span className="truncate text-t3" title={why}>{why}</span>
+                  <span className="text-t4">{fmtTok(row.cacheWrite)} written</span>
                 </button>
               ))}
             </div>
           ) : <Empty title="No cache misses" detail="Every resumed conversation in the loaded requests reused most of its prompt." />}
-        </Card>
+        </section>
         {beats ? (
-          <Card>
-            <Label>Cache keepalive</Label>
-            <div className="num mt-1.5 text-xl font-bold">{fmtInt(beats.beats)} <span className="text-sm font-medium text-muted">beats</span></div>
-            <div className="mt-2 flex flex-col gap-1 text-sm">
-              <div className="flex justify-between"><span className="text-muted">Reached upstream</span><span className="num">{fmtInt(beats.reached)}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Skipped</span><span className="num">{fmtInt(beats.skipped)}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Cache read</span><span className="num">{fmtTok(beats.read)}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Cache write</span><span className="num">{fmtTok(beats.write)}</span></div>
-              <div className="flex justify-between"><span className="text-muted">API-equivalent</span><span className="num">{usd(beats.costUsd)}</span></div>
+          <section>
+            <div className="rule-b pb-[7px]"><Label strong>Cache keepalive</Label></div>
+            <div className="num mt-2.5 font-display text-xl font-semibold tracking-title text-t1">{fmtInt(beats.beats)} <span className="font-sans text-cap font-normal text-t3">{plural(beats.beats, 'beat').replace(/^[\d,]+ /, '')}</span></div>
+            <div className="num mt-2 flex flex-col text-base">
+              {([['Reached upstream', fmtInt(beats.reached)], ['Skipped', fmtInt(beats.skipped)], ['Cache read', fmtTok(beats.read)], ['Cache write', fmtTok(beats.write)], ['API-equivalent', usd(beats.costUsd)]] as const).map(([label, value]) => (
+                <div key={label} className="flex h-[22px] items-center justify-between"><span className="text-t3">{label}</span><span className="text-t1">{value}</span></div>
+              ))}
             </div>
-            <p className="mt-2 text-xs text-muted">Beats keep the cache warm between turns. They answer no client and are excluded from every other figure.</p>
-          </Card>
+            <p className="mt-2 text-xs text-t3">Beats keep the cache warm between turns. They answer no client and are excluded from every other figure.</p>
+          </section>
         ) : null}
       </div>
     </div>

@@ -3,15 +3,18 @@ import { Switch as SwitchPrimitive, Tabs as TabsPrimitive, ToggleGroup, Tooltip 
 import { ChevronDown } from 'lucide-react'
 import { cn } from '../lib/cn'
 
-/** macOS-style segmented control (1h · Today · 24h · 7d). */
+const track = 'no-drag edge inline-flex rounded-lg bg-well p-0.5'
+const segment = 'rounded-seg px-[11px] py-[3px] text-sm font-medium text-t3 transition-colors duration-150 hover:text-t1'
+
+/** Native segmented control: well track with ring; the selected segment is raised. */
 export function Segmented<T extends string>({ value, options, onChange, label, className, disabled }: { value: T; options: readonly { value: T; label: ReactNode; title?: string }[]; onChange(value: T): void; label: string; className?: string; disabled?: boolean }) {
   return (
     <ToggleGroup.Root type="single" value={value} aria-label={label} disabled={disabled}
       onValueChange={next => { if (next) onChange(next as T) }}
-      className={cn('no-drag hairline inline-flex overflow-hidden rounded-md border-control-border bg-control', className)}>
+      className={cn(track, className)}>
       {options.map(option => (
         <ToggleGroup.Item key={option.value} value={option.value} title={option.title}
-          className="px-2.5 py-[3px] text-sm text-muted transition-colors hover:text-text data-[state=on]:bg-accent/16 data-[state=on]:font-semibold data-[state=on]:text-accent">
+          className={cn(segment, 'data-[state=on]:bg-surface data-[state=on]:text-t1 data-[state=on]:press')}>
           {option.label}
         </ToggleGroup.Item>
       ))}
@@ -20,12 +23,12 @@ export function Segmented<T extends string>({ value, options, onChange, label, c
 }
 
 export const Tabs = TabsPrimitive.Root
+/** Tabs read as a segmented control, the macOS form for switching views. */
 export function TabList({ className, ...props }: TabsPrimitive.TabsListProps) {
-  return <TabsPrimitive.List className={cn('hairline-b flex gap-5 border-border', className)} {...props} />
+  return <TabsPrimitive.List className={cn(track, 'self-start', className)} {...props} />
 }
-/** DESIGN tab: muted text, active = accent text + 2px accent underline. */
 export function Tab({ className, ...props }: TabsPrimitive.TabsTriggerProps) {
-  return <TabsPrimitive.Trigger className={cn('-mb-px flex items-center gap-1.5 border-b-2 border-transparent pb-2 pt-1 text-sm font-medium text-muted hover:text-text data-[state=active]:border-accent data-[state=active]:text-accent', className)} {...props} />
+  return <TabsPrimitive.Trigger className={cn(segment, 'flex items-center gap-1.5 data-[state=active]:bg-surface data-[state=active]:text-t1 data-[state=active]:press', className)} {...props} />
 }
 export const TabPanel = TabsPrimitive.Content
 
@@ -39,7 +42,7 @@ export function Tip({ content, children, side = 'top' }: { content: ReactNode; c
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content side={side} sideOffset={5} collisionPadding={8}
-          className="hairline z-50 max-w-72 rounded-md border-border bg-surface px-2 py-1 text-xs leading-snug text-text shadow-panel">
+          className="pop z-50 max-w-72 animate-fade rounded-md bg-surface px-2 py-1 text-xs leading-snug text-t1">
           {content}
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Portal>
@@ -49,31 +52,37 @@ export function Tip({ content, children, side = 'top' }: { content: ReactNode; c
 
 export function Switch({ className, ...props }: SwitchPrimitive.SwitchProps) {
   return (
-    <SwitchPrimitive.Root className={cn('no-drag hairline relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full border-control-border bg-surface2 transition-colors disabled:opacity-45 data-[state=checked]:border-accent data-[state=checked]:bg-accent', className)} {...props}>
-      <SwitchPrimitive.Thumb className="block size-3.5 translate-x-px rounded-full bg-surface shadow-card transition-transform data-[state=checked]:translate-x-[15px]" />
+    <SwitchPrimitive.Root className={cn('no-drag edge-strong relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-well transition-colors duration-150 disabled:opacity-45 data-[state=checked]:bg-accent', className)} {...props}>
+      <SwitchPrimitive.Thumb className="press block size-3.5 translate-x-0.5 rounded-full bg-surface transition-transform duration-150 ease-out data-[state=checked]:translate-x-4" />
     </SwitchPrimitive.Root>
   )
 }
 
-const field = 'no-drag hairline h-7 w-full min-w-0 rounded-md border-control-border bg-control px-2 text-sm text-text placeholder:text-muted disabled:opacity-50 focus-visible:border-accent'
+const field = 'no-drag edge h-6 w-full min-w-0 rounded-md bg-well px-2 text-sm text-t1 placeholder:text-t4 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-0'
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
   <input ref={ref} spellCheck={false} className={cn(field, className)} {...props} />
 ))
 Input.displayName = 'Input'
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, ...props }, ref) => (
-  <textarea ref={ref} spellCheck={false} className={cn(field, 'h-auto py-1.5 font-mono text-xs text-accent2', className)} {...props} />
+  <textarea ref={ref} spellCheck={false} className={cn(field, 'h-auto py-1.5 font-mono text-xs text-t2', className)} {...props} />
 ))
 Textarea.displayName = 'Textarea'
 
-/** Native select: system menus are the macOS-native choice, and CSP-clean. */
+/** Native select: system menus are the macOS-native choice, and CSP-clean. Raised like a pop-up button. */
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(({ className, children, ...props }, ref) => (
   <span className={cn('relative inline-flex min-w-0', className)}>
-    <select ref={ref} className={cn(field, 'appearance-none pr-6')} {...props}>{children}</select>
-    <ChevronDown aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+    <select ref={ref} className="no-drag press h-6 w-full min-w-0 appearance-none rounded-md bg-surface pl-2 pr-6 text-sm text-t1 disabled:opacity-50" {...props}>{children}</select>
+    <ChevronDown aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-t3" />
   </span>
 ))
 Select.displayName = 'Select'
 
-export function Kbd({ children }: { children: ReactNode }) {
-  return <code className="hairline rounded-sm border-border bg-bg px-1 py-px font-mono text-xs text-accent2">{children}</code>
+/** Shortcut hint: 10.5/500 t3 on a strong inset ring. */
+export function Kbd({ children, className }: { children: ReactNode; className?: string }) {
+  return <kbd className={cn('edge-strong inline-block rounded-kbd px-[5px] py-0.5 font-sans text-2xs font-medium leading-none text-t3', className)}>{children}</kbd>
+}
+
+/** Inline literal (an environment variable, a command): mono, t2. */
+export function Code({ children }: { children: ReactNode }) {
+  return <code className="selectable rounded-kbd bg-well px-1 py-px font-mono text-xs text-t2">{children}</code>
 }

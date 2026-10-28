@@ -97,3 +97,17 @@ export function bucketLabel(start: number, bucketMs: number): string {
   if (bucketMs >= 6 * 3_600_000) return `${new Date(start).toLocaleDateString('en-US', { weekday: 'short' })} ${hhmm(start)}`
   return hhmm(start)
 }
+
+/** Index of the first Today slot still in the future (Infinity for rolling windows). */
+export function firstFutureSlot(kind: WindowKind, now: number): number {
+  if (kind !== 'today') return Infinity
+  return Math.floor((now - localMidnight(now)) / 3_600_000) + 1
+}
+
+/** "Prompt tokens per hour", "… per 5 minutes", "… per 6 hours". */
+export function bucketWord(bucketMs: number): string {
+  if (bucketMs >= 86_400_000) return 'day'
+  if (bucketMs >= 2 * 3_600_000) return `${Math.round(bucketMs / 3_600_000)} hours`
+  if (bucketMs >= 3_600_000) return 'hour'
+  return `${Math.max(1, Math.round(bucketMs / 60_000))} minutes`
+}
