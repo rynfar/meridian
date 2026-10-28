@@ -42,7 +42,27 @@ export function correlatedModels(requestIds, telemetry) {
   return telemetry.filter(row => ids.has(row.requestId)).map(row => row.model)
 }
 
-export function streamResponse(upstream, controller, { limit = 4 * 1024 * 1024, signal = controller.signal } = {}) {
+export function sseErrorObserver(onError) {
+  const decoder = new TextDecoder()
+  let pending = ''
+  return chunk => {
+    pending = (pending + decoder.decode(chunk, { stream: true })).replaceAll('\r\n', '\n')
+    let boundary
+    while ((boundary = pending.indexOf('\n\n')) !== -1) {
+      const frame = pending.slice(0, boundary)
+      pending = pending.slice(boundary + 2)
+      const lines = frame.split('\n')
+      let payload
+      try { payload = JSON.parse(lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')) }
+      catch { payload = undefined }
+      if (lines.some(line => /^event:\s*error\s*$/.test(line)) || payload?.type === 'error') {
+        onError(typeof payload?.error?.type === 'string' ? payload.error.type : 'provider_error')
+      }
+    }
+  }
+}
+
+export function streamResponse(upstream, controller, { limit = 4 * 1024 * 1024, signal = controller.signal, onChunk } = {}) {
   const reader = upstream.body.getReader()
   let total = 0
   let settle
@@ -65,6 +85,7 @@ export function streamResponse(upstream, controller, { limit = 4 * 1024 * 1024, 
         if (next.done) { output.close(); finish(); return }
         total += next.value.byteLength
         assert(total <= limit, 'Test response exceeded its byte budget')
+        onChunk?.(next.value)
         output.enqueue(next.value)
       } catch (error) {
         controller.abort(error)

@@ -1,11 +1,18 @@
-# OpenCode Desktop 2.2.0 candidate — 2026-10-28
+# OpenCode Desktop 2.2.0 qualification — 2026-10-28
 
-**Status: configured locally; live qualification OPEN. Do not merge the host
-allowlist addition or describe this as released/fully qualified support yet.**
+**Status: Darwin arm64 / Opus 5.5 client qualification PASS; owner authorized
+merge after final-head CI. This is not a published release.**
 
 Owner authorization: configure Desktop to use Meridian; then explicitly add
 2.2 support and launch adversarial reviews after implementation. No release
 was authorized. Work starts from `origin/main` `95b3af5a2` in an isolated branch.
+
+Merge follow-up: the owner selected **Opus 5.5** as the default, reported Desktop
+was "working great", and explicitly requested merge. All CI on `4f12367fe`
+(including `test`, smoke, desktop builds and Windows smoke) passed. The native
+SSH signature was verified by GitHub. Owner acceptance is retained separately
+from the automated Opus 5.5 gate below; neither turns the earlier refused
+Opus 5 marker run into a pass. No release was authorized by the merge request.
 
 ## Before
 
@@ -102,6 +109,67 @@ The two exact refused assistant excerpts are retained in
 [`live-failure.json`](live-failure.json), without keys or customer transcripts.
 The UUID is an owned test value, not a credential or user secret.
 
+## Closed acceptance: real Opus 5.5, clean admitted run
+
+The owner's corrected default is **Opus 5.5**, not Opus 5. The actual Desktop
+2.2.0 bundled CLI and independently installed candidate package passed the full
+stable live gate with requested model `claude-opus-5-5`, Meridian 1.86.0, SDK
+0.2.141 and Claude Code 2.1.312 on Darwin arm64. The native file hash was unchanged
+before/after. Supported `getSessionMessages` calls, restricted to the exact
+request-correlated test SDK session IDs, witnessed **`claude-opus-5-5`** for every
+Opus request, and `claude-haiku-5-5` for title work. No raw SDK/customer transcript
+or credential is published.
+
+The clean run has **12 Messages requests, all 12 correlated server statuses
+200, no server errors**, 12 scrub invocations with zero hook errors, exact
+assistant answers, successful resume/cache reads, real read/result, discovered
+`xhigh`, isolated fork/original histories, detached title/generate, completed
+compaction on `opus[1m]`, and all original test process/captured-pipe joins.
+The signed/session/agent wire witnesses, server-resolved profiles, exact request
+IDs and public-SDK model witnesses are preserved in [`live-pass.json`](live-pass.json).
+
+### Admission and scope
+
+The real owner proxy has four profiles. The controller supplies an **explicit
+single-profile capability boundary**, not a claim that the owner proxy itself
+has one profile: it pins `x-meridian-profile: personal` after the actual client
+plugin, before forwarding each Messages request, and presents that same forced
+scope in the admission inventory. Quota values are real upstream observations,
+not fixture values. Fresh numeric included capacity and disabled paid Extra
+Usage are required; every correlated server record independently resolves to
+`personal`. No account configuration or OAuth credentials were copied/changed.
+
+The exact, machine-specific execution controller is escrowed in
+[`run-pinned-live.mjs`](run-pinned-live.mjs), SHA256
+`ac54998d091bdaf55f9eedc48e84d42859cfcf632b8fb94f21e06482b772a8e9`.
+It is forensic/manual evidence, **not an auto-run setup or CI entrypoint**.
+Review its absolute paths and selected profile before intentionally invoking
+this included-usage live test. Its private attestation key enters only through
+the child environment; no key or token is retained in results.
+
+This qualifies the pinned client/model path. It does not qualify unpinned
+priority failback, another platform, a registry release, or original external
+native-child custody. Owner acceptance separately covers normal unpinned
+Desktop use. A process-identity observation under the actual proxy showed the
+same hashed native executable, but is not attributed to individual test-session
+actors. The owner service remained running throughout.
+
+### Preserved infrastructure failures and controlled correction
+
+The first Opus 5.5 controller run mechanically completed its positive assertions
+after 26 requests: 12 status 200 and **14 `api_error` failures**, with a Bun
+10-second relay-idle warning. That noisy run is **not** the clean acceptance
+record. It exposed the recording relay's implicit idle cutoff and the absence
+of a fail-fast in-band error latch. Relays now disable that idle cutoff while
+retaining the explicit 120-second deadline; SSE error frames stop qualification
+and further model admission instead of letting automatic retries hide them.
+A direct negative test covers error frames split across LF and CRLF chunks.
+
+One repeat stopped at its fresh-quota guard before inference. After fresh real
+usage was available, the final run reused the same Opus 5.5 marker and assertions
+with those identified infrastructure corrections and passed cleanly with 12
+requests. This is not a claim that the older Opus 5 classifier refusal was fixed.
+
 ## Adversarial reviews and corrections
 
 Two independent reviews were launched after implementation. The compatibility
@@ -124,26 +192,32 @@ gaps, which prompted these corrections:
 Earlier fixture iterations exposed test bugs (title jobs have no read tool;
 plugin listing is asynchronous; a canned summary must fill the client's exact
 template). The final gate fixes those causes and does not count their failed
-runs as successful evidence. Final follow-up review findings and final-head
-validation remain PR gates.
+runs as successful evidence. Follow-up review accepted the pin-boundary scope
+conditional on server-resolved-profile checks, public-SDK model witnesses and
+durable controller/results; those checks are present in the clean record.
+Final-head CI remains a separate merge gate.
 
 ## Validation and open gates
 
-- Focused setup/plugin tests: 124 pass; evidence-helper tests additionally cover
+- Focused setup/plugin/evidence suite: **131 pass**, including 7 helper tests covering
   tool/echoed-marker false positives, unknown/future/pool admission, terminal
   current-turn completion (not a previous turn's idle), first-byte streaming,
   deadline rejection after partial output, byte budgets and request correlation.
 - Typecheck and build passed. The full `npm test` command passed with the
   documented patched SQLite library; final helper refinements also passed
   their focused tests and typecheck. Required CI remains a separate gate.
+- An interleaved build hit the existing two-second source-fingerprint budget;
+  the unchanged build command passed without the parallel live workload. No
+  provenance limit or qualification guard was weakened.
 - First full `npm test` failed because Bun's built-in SQLite 3.51.0 lacks the
   repository's required WAL-reset fix. Retest uses the documented test-only
   `MERIDIAN_TEST_SQLITE_LIBRARY=/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib`
   (Homebrew SQLite 3.53.4), and that full command passed; do not weaken runtime
   qualification.
-- Live marker-resume and remaining live stable arms: **OPEN**.
-- Actual native model identity/custody and older-host runtime requalification:
-  not established by these runs.
+- Live stable arms on actual Opus 5.5: **PASS**, with request-correlated public
+  SDK model identity. Earlier requested Opus 5 refusals remain retained limits.
+- External native actor custody, unpinned priority failback, other platforms and
+  older-host runtime requalification are not established by this run.
 - Required final-head CI, including `test`: **merge gate**.
-- No merge, tag, publication, release or contributor-backlog work is authorized
-  by this candidate configuration task.
+- The owner subsequently authorized merge after acceptance. Tagging,
+  publication, release and contributor-backlog work remain outside this task.

@@ -1683,7 +1683,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 compatibility](#e42-opencode-v2-compatibility) | **Automated**, exact betas `18314`, `18866`, `19271` and releases `2.0.16`, `2.0.21`, `2.0.31`. Run the beta package gate with each pinned beta; run `e2e-opencode-v2-stable-live.mjs` with the released binary. The stable gate covers setup, real model requests, title/generate isolation, signed primary turns, resumed session, model-discovery effort variant, tool result, fork isolation, and compaction. Test source and packed npm artifacts. **Run after any V2 plugin/API change; another host version is not a pass** | 2026-09-24 |
+| E42 | [OpenCode V2 compatibility](#e42-opencode-v2-compatibility) | **Automated**, exact betas `18314`, `18866`, `19271` and releases `2.0.16`, `2.0.21`, `2.0.31`; Desktop `2.2.0` qualified on Darwin arm64 with Opus 5.5 through an explicit profile-pin boundary. Run the beta package gate with each pinned beta; run `e2e-opencode-v2-stable-live.mjs` with the released binary. The stable gate covers setup, real model requests, title/generate isolation, signed primary turns, resumed session, model-discovery effort variant, tool result, fork isolation, and compaction. Test source and packed npm artifacts. **Run after any V2 plugin/API change; another host version is not a pass** | 2026-10-28 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
@@ -5352,13 +5352,19 @@ actual provider model identity need their own evidence, not the requested model
 ID in this report. A container client with a forwarded loopback macOS proxy
 verifies the Linux client path, not a full Linux deployment.
 
-For the unreleased Desktop 2.2.0 candidate, pin
+For Desktop 2.2.0, pin
 `E2E_OPENCODE_VERSION=2.2.0` and
 `E2E_OPENCODE_BIN=/Applications/OpenCode.app/Contents/Resources/opencode-cli`.
 The source and independently installed package fixture runs pass on Darwin
-arm64; the live Opus marker-resume acceptance gate remains open after a safety
-refusal. Preserve that failure rather than substituting the fixture pass. See
-[the candidate evidence](docs/maintenance/evidence/opencode-desktop-220-20261028/README.md).
+arm64. The Opus 5.5 live gate also passes with 12 correlated HTTP 200 requests,
+successful assistant answers, actual model identity from public SDK history,
+and the expected compaction tier. Its route is explicitly profile-pinned;
+it does not qualify unpinned priority failback. The older Opus 5 marker refusal
+is retained separately, not claimed fixed by this result. Recording relays
+disable Bun's default 10-second idle cutoff and retain the explicit 120-second
+request deadline. In-band provider errors stop qualification rather than
+allowing a successful automatic retry to hide them. See
+[the qualification evidence](docs/maintenance/evidence/opencode-desktop-220-20261028/README.md).
 
 The reporter's exact captured OpenCode 2.0.16 system block for issue #1094 has
 not been provided. The gate measures and forwards the actual client-generated

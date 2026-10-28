@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { observeChildClosure, stopAndJoinChild } from './lib/e2eProcessCustody.mjs'
-import { clientAnswer, requireAnswer, requireLiveAdmission, requireSuccessfulTurn, correlatedModels, streamResponse } from './lib-opencode-v2-evidence.mjs'
+import { clientAnswer, requireAnswer, requireLiveAdmission, requireSuccessfulTurn, correlatedModels, streamResponse, sseErrorObserver } from './lib-opencode-v2-evidence.mjs'
 import { verifyPriorityAttestation } from '../src/proxy/priorityAttestation.ts'
 
 const expectedClientVersion = process.env.E2E_OPENCODE_VERSION ?? '2.0.16'
@@ -55,6 +55,7 @@ let summary
 let compactionModels = []
 let relay
 let fixtureServer
+let admissionFailure
 let livePreflight
 let proxyURL = process.env.E2E_PROXY_URL
 const joins = []
@@ -74,7 +75,7 @@ function output(stream) {
 try {
   if (fixture) {
     assert(!proxyURL, '--fixture cannot forward to a real proxy')
-    fixtureServer = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+    fixtureServer = Bun.serve({ hostname: '127.0.0.1', port: 0, idleTimeout: 0, async fetch(request) {
       if (new URL(request.url).pathname === '/v1/models') {
         return Response.json({ data: [{ id: model, display_name: 'Discovered fixture model', context_window: 234_567,
           capabilities: { effort: { xhigh: { supported: true } } } }] })
@@ -127,8 +128,9 @@ try {
       scrub: { path: scrub.path, version: scrub.version, invocations: scrub.stats.hooks.onRequest.invocations } }
     writeFileSync(join(root, 'live-preflight.json'), JSON.stringify(livePreflight, null, 2))
   }
-  relay = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+  relay = Bun.serve({ hostname: '127.0.0.1', port: 0, idleTimeout: 0, async fetch(request) {
     const url = new URL(request.url)
+    if (admissionFailure && request.method === 'POST') return new Response('Qualification stopped after provider failure', { status: 409 })
     if (request.method === 'GET' && url.pathname.endsWith('/models')) discovery.push(url.pathname)
     const body = request.method === 'GET' ? undefined : await request.arrayBuffer()
     let row
@@ -174,7 +176,9 @@ try {
         ...(body === undefined ? {} : { body }),
       })
       if (row) row.status = upstream.status
-      const forwarded = streamResponse(upstream, controller, { signal })
+      if (row && upstream.status !== 200) admissionFailure = `Upstream HTTP ${upstream.status}`
+      const observe = row ? sseErrorObserver(type => { row.streamError = type; admissionFailure = `Upstream SSE ${type}` }) : undefined
+      const forwarded = streamResponse(upstream, controller, { signal, onChunk: observe })
       pendingForwards.add(forwarded.done)
       void forwarded.done.then(() => { pendingForwards.delete(forwarded.done); forwardControllers.delete(controller) })
       return forwarded.response
@@ -237,6 +241,7 @@ try {
     assert(closed && joined.joined, `${label}: client process/pipes did not join`)
     assert.equal(code, 0, `${label}: OpenCode exit ${code}; see ${root}/${label}.stderr`)
     clientAnswer(stdout)
+    assert(!admissionFailure, admissionFailure)
     const events = stdout.split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line))
     const sessionID = events.find(event => event.sessionID)?.sessionID
     const context = await json(`${base}/api/session/${sessionID}/context`, { headers })

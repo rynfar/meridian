@@ -27,5 +27,5 @@
     }
   ],
   "result": "FAIL",
-  "qualification": "OPEN; protocol fixtures do not replace the missing live completion"
+  "qualification": "Historical requested Opus 5 case remains FAIL; the separately admitted Opus 5.5 qualification is recorded in live-pass.json"
 }

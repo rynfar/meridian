@@ -49,17 +49,19 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 
 #### Host support policy
 
-Meridian qualifies released CLI versions **2.0.16, 2.0.21 and 2.0.31**, and the earlier public
+Meridian qualifies Desktop/CLI **2.2.0** on Darwin arm64 with Opus 5.5, released
+CLI versions **2.0.16, 2.0.21 and 2.0.31**, and the earlier public
 `@opencode-ai/cli` betas `0.0.0-beta-18314`, `0.0.0-beta-18866`, and
 `0.0.0-beta-19271`. The 2.0.16 plugin API moved catalog editing into separate
 provider and model domains; the bundled plugin selects the matching host API
 at load time while keeping the beta path.
 
-**Unreleased candidate:** Desktop/CLI 2.2.0 is being added. Its independently
-installed V2 package passes the actual bundled-client fixture gate, but the
-live marker-repetition gate is still open: Claude returned a safety refusal on
-resume. This is not qualified release support; see the
-[evidence and remaining gates](maintenance/evidence/opencode-desktop-220-20261028/README.md).
+The 2.2.0 qualification uses the app's actual bundled CLI, an independently
+installed V2 package, and real Opus 5.5 through the SDK. The earlier Opus 5
+marker refusal remains a separate retained observation, not a claim of a
+fixed upstream classifier. Other platforms and unpinned priority failback
+are not certified by this run. See the
+[evidence and scope](maintenance/evidence/opencode-desktop-220-20261028/README.md).
 
 Because upstream V2 plugin interfaces, session headers, subagent tracking, and
 compaction hooks are under active iteration, Meridian enforces a strict
@@ -83,7 +85,7 @@ those checks have not yet been repeated on the released host.
 Unverified releases, phantom versions, and nightly/dev builds are rejected by
 `meridian setup --v2` with an informative message listing the verified releases.
 
-For a candidate build that includes Desktop 2.2.0 support, select the app's
+For a build that includes Desktop 2.2.0 support, select the app's
 bundled executable on macOS (older published Meridian builds reject this host):
 
 ```bash
@@ -946,7 +948,7 @@ letting the header decide.
 
 | Agent | Status | Notes |
 |-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1, three pinned V2 betas, and released 2.0.16/2.0.21/2.0.31. Desktop 2.2.0 is an unreleased candidate with a live gate open; use the matching `meridian setup` mode ([setup](#opencode)). The [V2 host policy](#host-support-policy) lists version-specific coverage. |
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1, three pinned V2 betas, and released 2.0.16/2.0.21/2.0.31; Desktop 2.2.0 qualified on Darwin arm64 with Opus 5.5. Use the matching `meridian setup` mode ([setup](#opencode)); the [V2 host policy](#host-support-policy) lists coverage and limits. |
 | [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — passthrough tool execution, session resume, streaming |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see [Agent Setup](#agent-setup)) — full tool support, session resume, streaming |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — full tool support, session resume, headless `crush run` |

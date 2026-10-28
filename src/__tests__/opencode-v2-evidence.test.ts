@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { clientAnswer, requireAnswer, requireLiveAdmission, requireSuccessfulTurn, correlatedModels, streamResponse } from "../../scripts/lib-opencode-v2-evidence.mjs"
+import { clientAnswer, requireAnswer, requireLiveAdmission, requireSuccessfulTurn, correlatedModels, streamResponse, sseErrorObserver } from "../../scripts/lib-opencode-v2-evidence.mjs"
 
 const event = (value: unknown) => `${JSON.stringify(value)}\n`
 test("tool receipts cannot substitute for a successful assistant answer", () => {
@@ -71,4 +71,17 @@ test("an upstream deadline after a partial response is an error, not successful 
   await expect(reader?.read()).rejects.toThrow("owned deadline")
   await forwarded.done
   expect(cancelled).toBe(true)
+})
+
+test("HTTP 200 streams cannot hide an in-band provider error across chunk boundaries", () => {
+  const errors: string[] = []
+  const observe = sseErrorObserver((type: string) => errors.push(type))
+  const encoder = new TextEncoder()
+  observe(encoder.encode('event: message_start\ndata: {"type":"message_start"}\n\nevent: err'))
+  observe(encoder.encode('or\ndata: {"type":"error","error":{"type":"api_error"}}\n\n'))
+  expect(errors).toEqual(["api_error"])
+  observe(encoder.encode('event: error\r'))
+  observe(encoder.encode('\ndata: {"type":"error","error":{"type":"overloaded_error"}}\r\n\r'))
+  observe(encoder.encode('\n'))
+  expect(errors).toEqual(["api_error", "overloaded_error"])
 })
