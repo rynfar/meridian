@@ -1,0 +1,63 @@
+/** Today screen: hero numbers, the live feed and "Needs attention". Pure. */
+import { number, object } from '../../core'
+import type { WindowKind } from '../../uiData'
+import { windowRange } from '../../uiData'
+import { fmtTok, plural } from './format'
+import { limitPill, type AccountsModel, type AccountView } from './accounts'
+import { groupFailures, type FailureGroup } from './failures'
+import type { RequestRow } from './requests'
+
+export interface Hero { hit: number | null; reused: number; missesOnResume: number; requests: number | null; failed: number; totalP50: number | null; ttfbP50: number | null }
+export function hero(summary: unknown): Hero {
+  const s = object(summary)
+  const tokens = object(s.tokenUsage)
+  const requests = number(s.totalRequests) ?? null
+  return {
+    hit: requests ? number(tokens.avgCacheHitRate) ?? null : null,
+    reused: number(tokens.totalCacheReadTokens) ?? 0,
+    missesOnResume: number(tokens.cacheMissOnResumeCount) ?? 0,
+    requests, failed: number(s.errorCount) ?? 0,
+    totalP50: requests ? number(object(s.totalDuration).p50) ?? null : null,
+    ttfbP50: requests ? number(object(s.ttfb).p50) ?? null : null,
+  }
+}
+export function heroHitDetail(h: Hero): string {
+  return `${fmtTok(h.reused)} tokens reused · ${h.missesOnResume} ${h.missesOnResume === 1 ? 'miss' : 'misses'} on resume`
+}
+
+export interface FeedRow {
+  id: string; timestamp: number; model: string; longContext: boolean; client: string; profile: string;
+  failed: boolean; status: number | null; cacheHit: number | null;
+  /** Shown only when the request did not continue the stored conversation. */
+  lineage: string | null; promptTokens: number; totalMs: number | null;
+}
+export function feedRows(requests: readonly RequestRow[], limit = 9): FeedRow[] {
+  return requests.filter(row => !row.keepalive).slice(0, limit).map(row => ({
+    id: row.id, timestamp: row.timestamp, model: row.model, longContext: row.longContext,
+    client: row.adapter || row.source || 'client', profile: row.profile || 'default',
+    failed: row.failed, status: row.status, cacheHit: row.cacheHit,
+    lineage: row.lineage === 'continuation' ? null : row.lineage || 'new',
+    promptTokens: row.promptTokens, totalMs: row.totalMs,
+  }))
+}
+
+export type AttentionItem =
+  | { kind: 'limit'; account: AccountView; title: string; detail: string; pill: string }
+  | { kind: 'failure'; group: FailureGroup }
+/** Account limits first, then failures grouped by cause in the window. */
+export function attention(model: AccountsModel, requests: readonly RequestRow[], kind: WindowKind, now: number): AttentionItem[] {
+  const serving = model.accounts.find(account => account.id === (model.active.claude ?? model.active.chatgpt))
+  const limits: AttentionItem[] = model.accounts.filter(account => account.limited).map(account => {
+    const limit = account.limited!
+    const stay = account.active ? 'Requests to this account fail or fail over until it resets.' : serving && serving.id !== account.id ? `Requests stay on ${serving.id} until it resets.` : 'It is skipped until it resets.'
+    const what = limit.source === 'refusing' ? `refusing requests${limit.short !== 'rate' ? ` (${limit.label.toLowerCase()})` : ''}` : `${limit.label.toLowerCase()} limit reached`
+    return { kind: 'limit', account, title: what, detail: stay, pill: limitPill(limit).replace(/^(5h|weekly) /, '') }
+  })
+  const range = windowRange(kind, now)
+  const failures: AttentionItem[] = groupFailures(requests, { start: range.start, end: now + 1 }).map(group => ({ kind: 'failure', group }))
+  return [...limits, ...failures]
+}
+export function attentionFootnote(failed: number, kind: WindowKind): string {
+  const when = kind === 'today' ? 'today' : kind === '1h' ? 'in the last hour' : kind === '24h' ? 'in the last 24 hours' : 'in the last 7 days'
+  return failed ? `${plural(failed, 'failed request')} ${when} · open Traffic for all of them` : `No failed requests ${when}`
+}

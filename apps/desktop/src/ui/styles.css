@@ -1,0 +1,140 @@
+/*
+ * Meridian Desktop stylesheet (Tailwind v4). Colours come only from the
+ * DESIGN tokens in dist/theme.css (desktopThemeCss, plus the provider brands
+ * from themeCss); tinted fills mix a token with transparent at ≤ 18%.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "./";
+
+@theme inline {
+  --spacing: 4px;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-sidebar: var(--sidebar);
+  --color-control: var(--control);
+  --color-control-border: var(--control-border);
+  --color-claude: var(--claude);
+  --color-chatgpt: var(--chatgpt);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
+  --text-3xs: 10px;
+  --text-2xs: 10.5px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-hero: 40px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-full: 9999px;
+  --leading-none: 1;
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.55;
+  --tracking-tighter: -1px;
+  --tracking-tight: -0.5px;
+  --tracking-wide: 0.5px;
+  --tracking-wider: 1.5px;
+  --animate-spin: spin 1s linear infinite;
+  --animate-pulse: pulse 1.6s ease-in-out infinite;
+  --shadow-panel: 0 8px 28px color-mix(in srgb, var(--text) 14%, transparent), 0 0 0 0.5px color-mix(in srgb, var(--text) 12%, transparent);
+  --shadow-card: 0 1px 2px color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+@layer base {
+  :root {
+    --glass: color-mix(in srgb, var(--sidebar) 78%, transparent);
+    --toolbar: color-mix(in srgb, var(--bg) 86%, transparent);
+    --tile: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+  html, body, #root { height: 100%; }
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+  }
+  input, textarea, select, .selectable, pre, code { user-select: text; }
+  button { cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  dialog::backdrop { background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); }
+  ::selection { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+}
+
+@utility drag { -webkit-app-region: drag; }
+@utility no-drag { -webkit-app-region: no-drag; }
+@utility num { font-variant-numeric: tabular-nums; }
+@utility glass-sidebar {
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+}
+@utility glass-toolbar {
+  background: var(--toolbar);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+@utility tile { background: var(--tile); }
+@utility hairline { border-width: 0.5px; }
+@utility hairline-t { border-top-width: 0.5px; }
+@utility hairline-b { border-bottom-width: 0.5px; }
+@utility hairline-r { border-right-width: 0.5px; }
+@utility hairline-l { border-left-width: 0.5px; }
+@utility scroll-y { overflow-y: auto; overscroll-behavior: contain; }
+
+/* Native Liquid Glass: the window itself is the material; the sidebar and the
+   menu-bar panel stay clear over it, content keeps a nearly opaque surface. */
+html.native-glass { --glass: transparent; }
+html.native-glass .glass-content { background: color-mix(in srgb, var(--bg) 94%, transparent); }
+html.native-glass .tray-root { background: transparent; }
+html:not(.native-glass) .tray-root { background: var(--bg); }
+
+/* Brand stripe and avatar for account cards (DESIGN §2 provider brands). */
+.brand-claude { --brand: var(--claude); }
+.brand-chatgpt { --brand: var(--chatgpt); }
+.brand-antigravity { --brand: var(--accent2); }
+.brand-stripe { box-shadow: inset 3px 0 0 var(--brand); }
+.brand-fill { background: var(--brand); }
+/* Text on a brand fill: white in light mode, near-white in dark. */
+.on-brand { color: var(--surface); }
+@media (prefers-color-scheme: dark) { .on-brand { color: var(--text); } }
+.brand-ring { border-color: var(--brand); box-shadow: inset 3px 0 0 var(--brand), 0 0 0 1px var(--brand); }
+
+/* Recharts: tokens only, no inline colours. */
+.recharts-cartesian-axis-tick-value { fill: var(--muted); font-size: 10.5px; font-family: var(--font-sans); }
+.recharts-cartesian-grid line { stroke: var(--border); stroke-opacity: 0.6; }
+.recharts-tooltip-cursor { fill: color-mix(in srgb, var(--accent) 8%, transparent); }
+.recharts-surface:focus, .recharts-wrapper:focus, .recharts-wrapper *:focus { outline: none; }

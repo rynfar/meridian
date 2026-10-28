@@ -20,10 +20,13 @@ notifications from a window and a menu-bar panel.
 
 - **Independent package.** Headless installs never install or import it; it
   ships as signed DMG/ZIP releases, not in the npm package.
-- **HTTP only.** The main process talks to existing Meridian endpoints; the app
-  needs **no server API or plugin-contract changes**. It may import only pure
-  shared presentation from `src/telemetry` (`providerView`, `providerSetup`,
-  `profileBar` tokens).
+- **HTTP only.** The main process talks to Meridian's HTTP endpoints and
+  needs no plugin-contract changes. The one server addition it relies on is
+  `GET /telemetry/timeseries` (owner-approved 2026-10-28, see
+  [`telemetry-ui`](../../src/telemetry/SPEC.md)); against an older Meridian the
+  charts are estimated from the latest 500 requests and say so. It may import
+  only pure shared presentation from `src/telemetry` (`providerView`,
+  `providerSetup`, `profileBar` tokens).
 - **Sandboxed renderers** reach a narrow preload interface; IPC accepts only the
   exact main frame and local entry URL of its own windows. Clipboard requests
   carry choices, revalidated by the main process — never arbitrary text.
@@ -50,6 +53,20 @@ notifications from a window and a menu-bar panel.
   the app owns.
 - Managed versions run under bundled stock Node (not Electron's ABI) and are
   installed atomically; a failed activation restores the previous version.
+- **Renderers are React** (`src/ui`, bundled by esbuild; Tailwind v4 maps the
+  DESIGN tokens through `@theme`). All presentation logic lives in pure view
+  models under `src/ui/model` and is unit-tested; components only lay them out.
+  React, Radix, TanStack Table, Recharts and Tailwind are build-time
+  dependencies of this package only.
+- **One purpose per screen, nothing repeated** (owner decision 2026-10-28):
+  *Today* (health, cache hit and requests heroes, serving account, latency,
+  live feed, needs attention), *Traffic* (window stats, requests chart, the
+  request table and detail with waterfall and routing chain), *Cache* (hit
+  rate and tokens over time, savings, keepalive, low-cache continuations),
+  *Accounts* (the only provider/account grid), *Logs*, *Service* (connection,
+  process, versions, plugins, every server setting, desktop preferences). The
+  time window (1h / Today / 24h / 7d, default since local midnight) applies to
+  every windowed figure, including the request table.
 - Visual rules follow [`design-language`](../../DESIGN.md) → *Native desktop
   preview*.
 
