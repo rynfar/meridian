@@ -298,6 +298,19 @@ for telemetry legibility. Blue remains interactive and violet remains metadata.
 The interface labels itself as a preview. Unsupported lifecycle controls are
 not presented as working actions; external service ownership stays visible.
 
+The window is dense and native: a 216px glass sidebar with SF-style line icons,
+counts and badges per screen, and a footer naming the instance being viewed
+(supervisor, address, version); a toolbar with the page title, the health chip
+("Working · personal · Max", or the plain reason it is not) and the time-window
+segmented control. Content uses near-opaque 12px-radius cards on an 18–20px
+grid. Hero numbers are 40px bold with a sparkline beneath; cache figures are
+violet, request bars blue with failures stacked in red. Hours without traffic
+leave a gap in a chart rather than a bridged line. Dollars (API-equivalent at
+list prices, never an invoice) appear on Traffic, Cache and Accounts, never in
+a hero. Failures are grouped by cause with a count, a time span and whether
+they cleared. A screen that cannot read its data shows the connection state,
+its fix and the matching action, never an empty table; loading uses skeletons.
+
 The menu-bar panel prioritizes cache reuse, connection health and account limits.
 Account switching and owned service controls remain available without opening the
 dashboard. It uses system typography, canonical light/dark tokens, blue active

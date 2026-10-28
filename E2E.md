@@ -8306,15 +8306,8 @@ corrected nested outer/list scrollbars before the final local install. Native
 expand/collapse and service health checks passed; the selected account was not
 changed during live verification. Model calls are not implicated by this layout.
 
-Reproduce the overflow checks without credentials:
-
-```sh
-npm run build --prefix apps/desktop
-node scripts/preview-desktop-tray.mjs
-# Open http://127.0.0.1:4319/review (420 × 640 iframe).
-# In the review page console:
-# document.querySelector('iframe').contentWindow.assertTrayLayout()
-```
+This layout and its `scripts/preview-desktop-tray.mjs` fixture were replaced by
+the React renderer; see *Desktop redesign* below for the current harness.
 
 The fixture uses the actual bundled tray renderer/styles and synthetic account
 metadata. Checks passed in dark/light appearances, with long organization/name
@@ -8384,6 +8377,28 @@ reported URL in the collaborative browser, and evaluate the full expression in
 `scripts/e2e-profile-find-browser.js`. Require PASS for the mobile/desktop matrix,
 anchor/header growth, polling/focus, filter/reorder and no-routing-mutation
 controls. See `docs/maintenance/evidence/1200-profile-find.md` for evidence limits.
+
+## Desktop redesign (2026-10-28)
+
+The window and menu-bar panel are React (`apps/desktop/src/ui`). The preview
+harness renders the real production bundles under the production CSP in
+Chromium, with a stub `window.meridian` fed from a snapshot of a real
+Meridian's HTTP responses — no Electron, credentials or model calls:
+
+```sh
+npm run build --prefix apps/desktop
+# Snapshot dir: GET bodies of /health, /v1/usage/quota/all, /telemetry/requests?limit=500,
+# /telemetry/summary, /telemetry/logs, /profiles/list, /plugins/list, /settings/api/features,
+# /telemetry/routes, /telemetry/retention, /providers/status and /settings/api/<section>
+# saved as health.json, quota.json, requests.json, …, settings-<section>.json.
+# It holds account details: keep it and the output outside the repository.
+bun apps/desktop/scripts/preview/fixtures.ts <snapshot-dir> <preview-dir>
+python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
+```
+
+`shoot.py` screenshots every screen in light and dark (ok data, the estimated
+timeseries fallback, stopped, unauthorized and loading) plus the tray, and
+exits 1 on any console error, page error or CSP violation.
 
 ## SDK ping idle regression (#1177)
 
