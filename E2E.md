@@ -8425,6 +8425,19 @@ python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
 timeseries fallback, stopped, unauthorized and loading) plus the tray, and
 exits 1 on any console error, page error or CSP violation.
 
+**Verified 2026-10-28** (maintainer, macOS arm64, Electron 44.3.0): the built
+app was launched with an isolated `--user-data-dir` against the owner's
+launchd Meridian 1.86.0 on 127.0.0.1:3456 and driven over local debugging
+ports. It detected the service from the loaded launchd job (plist outside
+`~/Library/LaunchAgents`) and attached without starting its own copy; every
+screen rendered real traffic (500 requests, 97% of prompt tokens from cache)
+with zero console or CSP problems; the estimated-history fallback showed for
+1.86.0; ⌘1–⌘6 switched screens; the View menu bound ⌘R to *Refresh data*
+(clicking it advanced `lastChecked` without reloading the page) and ⇧⌘R to
+*Reload window*. The installed app's `desktop.json` hash was unchanged and no
+process outlived the run. `/telemetry/timeseries` was covered by HTTP tests
+only, since that service predates it.
+
 ## SDK ping idle regression (#1177)
 
 See [durable evidence](docs/maintenance/evidence/1177-sdk-ping-idle.md).
