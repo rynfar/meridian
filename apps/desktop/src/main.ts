@@ -1,5 +1,5 @@
 import { clientSetupClipboardCommand } from './clientSetup'
-import { app, BrowserWindow, ipcMain, Menu, safeStorage, nativeTheme, Tray, nativeImage, Notification, dialog, shell, screen, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, safeStorage, nativeTheme, Tray, nativeImage, Notification, dialog, shell, screen, clipboard, powerMonitor } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Manager } from './manager'
@@ -8,6 +8,7 @@ import { desktopWindowColors } from '../../../src/telemetry/profileBar'
 import { object, text, version } from './core'
 import { dispatch } from './actions'
 import type { DesktopState } from './contracts'
+import { RendererRecovery } from './rendererRecovery'
 
 app.setName('Meridian Desktop')
 let window: BrowserWindow | undefined
@@ -34,6 +35,55 @@ function updateDock(hide: boolean) {
 }
 let quitting = false
 let canQuit = false
+const recoveries = new Map<BrowserWindow, RendererRecovery>()
+function reloadInterfaces() { for (const recovery of recoveries.values()) recovery.recover('manual reload', true, true) }
+function protectRenderer(target: BrowserWindow, entry: string, name: string) {
+  const contents = target.webContents
+  const recovery = new RendererRecovery({
+    available: () => !quitting && !target.isDestroyed() && !contents.isDestroyed(),
+    async reload(terminate) {
+      if (terminate && !contents.isCrashed()) {
+        await new Promise<void>((resolve, reject) => {
+          const cleanup = () => { clearTimeout(timer); contents.removeListener('render-process-gone', gone) }
+          const gone = () => { cleanup(); resolve() }
+          const timer = setTimeout(() => { cleanup(); reject(new Error('Renderer termination timed out')) }, 2_000)
+          contents.once('render-process-gone', gone)
+          try { contents.forcefullyCrashRenderer() }
+          catch (error) { cleanup(); reject(error) }
+        })
+      }
+      if (!quitting && !target.isDestroyed()) await target.loadFile(entry)
+    },
+    probe: () => contents.executeJavaScript(`new Promise(resolve => {
+      let attempts = 0;
+      const check = () => {
+        if (document.querySelector('#content')?.childElementCount || document.querySelector('#panel header')) resolve(true);
+        else if (++attempts >= 20) resolve(false);
+        else setTimeout(check, 100);
+      };
+      check();
+    })`),
+    log: message => manager.log(`${name}: ${message}`),
+    exhausted: () => {
+      void dialog.showMessageBox({ type: 'warning', message: `${name} could not recover`, detail: 'Meridian’s service has not been restarted. Reload the interface to try again. Unsaved form entries may be lost.', buttons: ['Not now', 'Reload interface'], defaultId: 1, cancelId: 0 })
+        .then(answer => { if (answer.response === 1) recovery.recover('manual retry', true, true) })
+        .catch(error => console.error('Could not show interface recovery dialog', error))
+    },
+  })
+  recoveries.set(target, recovery)
+  let hangTimer: ReturnType<typeof setTimeout> | undefined
+  contents.on('render-process-gone', (_event, details) => {
+    clearTimeout(hangTimer); hangTimer = undefined
+    recovery.recover(`renderer ${details.reason} (exit ${details.exitCode})`)
+  })
+  target.on('unresponsive', () => {
+    if (hangTimer) return
+    hangTimer = setTimeout(() => { hangTimer = undefined; recovery.recover('renderer remained unresponsive', true) }, 5_000)
+  })
+  target.on('responsive', () => { clearTimeout(hangTimer); hangTimer = undefined })
+  target.on('show', () => recovery.check())
+  target.on('closed', () => { clearTimeout(hangTimer); recovery.dispose(); recoveries.delete(target) })
+}
 function show() { panel?.hide(); window?.show(); window?.focus() }
 function togglePanel() {
   if (!panel || !tray) return
@@ -73,6 +123,7 @@ function trayMenu() {
   const state = manager.snapshot()
   return Menu.buildFromTemplate([
     { label: 'Open Meridian', click: show },
+    { label: 'Reload interface', click: reloadInterfaces },
     { label: state.running ? `Meridian ${state.running} · ${state.owned ? 'App managed' : 'External'}` : 'Meridian is not running', enabled: false },
     { type: 'separator' },
     { label: 'Start Meridian', enabled: state.preferences.mode === 'managed' && !state.owned && !state.busy && Boolean(state.preferences.selected), click: () => { void invoke('start') } },
@@ -100,7 +151,14 @@ else {
         return safeStorage.encryptString(value).toString('base64')
       },
       decrypt: value => safeStorage.decryptString(Buffer.from(value, 'base64')),
-      changed: state => { if (window && !window.isDestroyed()) window.webContents.send('meridian:state', state); if (panel && !panel.isDestroyed()) panel.webContents.send('meridian:state', state); updateTray(state) },
+      changed: state => {
+        for (const target of [window, panel]) {
+          if (!target || target.isDestroyed() || target.webContents.isDestroyed() || target.webContents.isCrashed() || target.webContents.isLoadingMainFrame()) continue
+          try { if (!target.webContents.mainFrame.detached) target.webContents.send('meridian:state', state) }
+          catch (error) { console.warn('Could not deliver desktop state', error) }
+        }
+        updateTray(state)
+      },
       notify: incident => { try { showNotification(incident.title, incident.detail) } catch (error) { manager.log(String(error)) } },
     })
     await manager.init()
@@ -122,6 +180,16 @@ else {
     panel.on('close', event => { if (!canQuit) { event.preventDefault(); panel?.hide() } })
     panel.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     panel.webContents.on('will-navigate', event => event.preventDefault())
+    protectRenderer(window, entry, 'Dashboard')
+    protectRenderer(panel, panelEntry, 'Quick controls')
+    app.on('child-process-gone', (_event, details) => {
+      if (details.type === 'GPU' && details.reason !== 'clean-exit') {
+        for (const recovery of recoveries.values()) recovery.recover(`GPU process ${details.reason}`)
+      }
+    })
+    const checkInterfaces = () => { for (const recovery of recoveries.values()) recovery.check() }
+    powerMonitor.on('resume', checkInterfaces)
+    powerMonitor.on('unlock-screen', checkInterfaces)
     const trusted = (event: Electron.IpcMainInvokeEvent) => {
       if (![[window, entryUrl], [panel, panelUrl]].some(([candidate, url]) => candidate instanceof BrowserWindow && !candidate.isDestroyed() && event.sender === candidate.webContents && event.senderFrame === candidate.webContents.mainFrame && event.senderFrame?.url === url)) throw new Error('Untrusted IPC sender')
     }
@@ -183,7 +251,7 @@ else {
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'Meridian Desktop', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
-      { role: 'editMenu' }, { label: 'View', submenu: [{ label: 'Quick controls', accelerator: 'CommandOrControl+Shift+M', click: togglePanel }, { type: 'separator' }, { role: 'reload' }, { role: 'toggleDevTools' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] }, { role: 'windowMenu' },
+      { role: 'editMenu' }, { label: 'View', submenu: [{ label: 'Quick controls', accelerator: 'CommandOrControl+Shift+M', click: togglePanel }, { type: 'separator' }, { label: 'Reload interface', accelerator: 'CommandOrControl+R', click: reloadInterfaces }, { role: 'toggleDevTools' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] }, { role: 'windowMenu' },
     ]))
     window.on('close', event => { if (!canQuit) { event.preventDefault(); window?.hide() } })
     // Template artwork has a transparent background; macOS supplies its tint.
@@ -213,6 +281,7 @@ else {
   }).catch(error => { console.error(error); app.quit() })
 }
 app.on('activate', show)
+app.on('will-quit', () => { for (const recovery of recoveries.values()) recovery.dispose() })
 app.on('before-quit', event => {
   if (canQuit || !manager) return
   event.preventDefault()

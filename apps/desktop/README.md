@@ -115,6 +115,12 @@ packages into those environments.
 
 ## Monitoring and troubleshooting
 
+- A crashed or persistently hung dashboard/menu-bar renderer reloads automatically
+  without restarting the service. Healthy windows are checked, not reloaded, on
+  reopening and macOS wake/unlock. Recovery stops after three attempts per minute
+  per window. Use **View → Reload interface** (⌘R), or right-click the menu-bar
+  icon → **Reload interface**, to retry without quitting the app. Unsaved form
+  entries can be lost; saved accounts and active service requests are not reset.
 - Live health, profiles, quota windows/reset times, request history and cache
   history; polling pauses during lifecycle operations.
 - Search requests by model, account, client or ID; filter failures and low-cache

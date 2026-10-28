@@ -34,6 +34,17 @@ notifications from a window and a menu-bar panel.
   the app owns.
 - Managed versions run under bundled stock Node (not Electron's ABI) and are
   installed atomically; a failed activation restores the previous version.
+- **UI recovery is separate from service recovery.** Each window reloads its
+  fixed local entry after renderer loss, an abnormal GPU-process exit or a
+  persistent unresponsive event. Reopening, waking and unlocking probe the UI
+  first; healthy renderers keep their unsaved forms. An unresponsive renderer
+  is terminated before reload, without restarting the main process or service.
+  Recovery preserves window visibility and sandbox/IPC restrictions. Per-window
+  retries stop after three attempts in one minute, including apparently
+  successful reloads, so crash loops cannot reset their own budget. A native
+  dialog and **Reload interface** in View and the tray menu permit explicit
+  retries. Recovery can discard unsaved UI forms, never persisted credentials
+  or service state. Shutdown disables recovery.
 - Visual rules follow [`design-language`](../../DESIGN.md) → *Native desktop
   preview*.
 
@@ -45,4 +56,7 @@ application (preview)*; usage in `apps/desktop/README.md`.
 - **macOS on Apple Silicon only**; Windows and Linux runtime verification is
   outstanding, and the app labels itself a preview.
 - Crash recovery of an owned service stops after three attempts.
+- A live macOS WindowServer/compositor reset has not been reproduced. Renderer
+  termination/hang recovery does not establish recovery from every blank native
+  surface, particularly when Chromium reports no renderer or GPU failure.
 - The plugin installer never installs into an externally managed service.
