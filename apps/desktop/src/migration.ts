@@ -30,6 +30,20 @@ export async function listeningPid(port: number): Promise<number | undefined> {
   } catch (error) { if (object(error).code === 1) return undefined; throw error }
 }
 async function fingerprint(plist: string) { return createHash('sha256').update(await readFile(plist)).digest('hex') }
+/** A launchd plist as JSON. Shared with service detection (detect.ts). */
+export async function plistJson(plist: string): Promise<Record<string, unknown>> {
+  const { stdout } = await exec('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plist])
+  return object(JSON.parse(stdout))
+}
+/** Where a launchd-run Meridian listens, from its environment (plist
+ * EnvironmentVariables or `launchctl print`'s environment block). */
+export function agentAddress(environment: Record<string, unknown>): { host: string; port: number } {
+  const host = text(environment.MERIDIAN_HOST ?? environment.CLAUDE_PROXY_HOST ?? '127.0.0.1')
+  const port = Number(environment.MERIDIAN_PORT ?? environment.CLAUDE_PROXY_PORT ?? 3456)
+  return { host, port }
+}
+/** `launchctl` output; throws when the job or command fails. */
+export async function launchctl(args: string[]): Promise<string> { return (await exec('/bin/launchctl', args)).stdout }
 export async function discoverLaunchAgent(port: number): Promise<LaunchAgent | undefined> {
   if (process.platform !== 'darwin') return undefined
   const pid = await listeningPid(port)
@@ -41,8 +55,7 @@ export async function discoverLaunchAgent(port: number): Promise<LaunchAgent | u
   const plist = join(homedir(), 'Library/LaunchAgents', label + '.plist')
   try {
     const before = await fingerprint(plist)
-    const { stdout: json } = await exec('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plist])
-    const data = object(JSON.parse(json))
+    const data = await plistJson(plist)
     const args = Array.isArray(data.ProgramArguments) ? data.ProgramArguments.map(text) : [text(data.Program)]
     if (data.Label !== label || (data.Program && data.Program !== args[0])) return undefined
     const cli = args.length === 1 ? args[0] : args.length === 2 && basename(args[0] || '') === 'node' ? args[1] : undefined
@@ -55,14 +68,15 @@ export async function discoverLaunchAgent(port: number): Promise<LaunchAgent | u
     // drain. Such jobs require manual migration rather than truncating work.
     if (data.ExitTimeOut !== 0 && !(typeof data.ExitTimeOut === 'number' && data.ExitTimeOut >= 45)) return undefined
     const environment = object(data.EnvironmentVariables)
-    const host = environment.MERIDIAN_HOST ?? environment.CLAUDE_PROXY_HOST ?? '127.0.0.1'
-    if (host !== '127.0.0.1') return undefined
-    if (Number(environment.MERIDIAN_PORT ?? environment.CLAUDE_PROXY_PORT ?? 3456) !== port) return undefined
+    const address = agentAddress(environment)
+    if (address.host !== '127.0.0.1') return undefined
+    if (address.port !== port) return undefined
     if (await fingerprint(plist) !== before) return undefined
     return savedAgent({ label, plist, pid, fingerprint: before, environment, workingDirectory: data.WorkingDirectory || '/' })
   } catch { /* A job that cannot be fully inspected stays with its supervisor. */ return undefined }
 }
-function domain() { return `gui/${process.getuid?.()}` }
+export function launchDomain() { return `gui/${process.getuid?.()}` }
+const domain = launchDomain
 async function unchanged(agent: LaunchAgent) {
   if (await fingerprint(agent.plist) !== agent.fingerprint) throw new Error('The original launchd plist changed. Restore it or finish the handoff manually; the app will not run a different command.')
 }

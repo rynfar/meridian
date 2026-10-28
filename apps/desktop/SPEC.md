@@ -27,6 +27,22 @@ notifications from a window and a menu-bar panel.
 - **Sandboxed renderers** reach a narrow preload interface; IPC accepts only the
   exact main frame and local entry URL of its own windows. Clipboard requests
   carry choices, revalidated by the main process — never arbitrary text.
+- **Data source is the Meridian the clients use** (`detect.ts`). On launch and
+  on *Re-detect*, candidates are gathered in order — loaded launchd jobs
+  mentioning meridian (port from `launchctl print`'s environment, else the
+  loaded plist), OpenCode/Pi client configs (read-only), `127.0.0.1:3456`, the
+  saved endpoint — deduplicated by base URL, loopback-only, and verified with
+  `/health`. A verified service that is not the app's own child (by URL or
+  listener pid) is attached; a running managed child is drained and the
+  managed copy is not started. The managed copy runs only when nothing is
+  found. Attaching reads only; it never takes ownership or imports secrets.
+- **Failures are typed.** `DesktopState.connection` is `ok | stopped |
+  unauthorized | wrong-port | not-meridian | starting` with message and fix;
+  a failed read leaves `requests` null, never an empty list.
+- **Account and settings parity over HTTP.** Switch, rename, reorder, ChatGPT
+  seat sign-in/renew/remove, Claude sign-in (paste-code routes) and
+  `/settings/api/*` writes go through the viewed server in either mode. Only
+  Claude account removal needs the managed CLI (no HTTP route exists).
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives

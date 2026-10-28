@@ -9,9 +9,18 @@ import { homedir } from 'node:os'
 import { createServer } from 'node:net'
 import { discoverLaunchAgent, suspendAgent, restoreAgent, listeningPid, savedAgent, waitForExit, type LaunchAgent } from './migration'
 import { randomBytes } from 'node:crypto'
-import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth } from './core'
+import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus } from './core'
 import { NotificationGate } from './notifications'
-import type { DesktopState } from './contracts'
+import type { DesktopState, DetectionReport, InstanceInfo, SettingsSection } from './contracts'
+import { attachDecision, detectServices, nodeDetectIO, type Detection, type DetectOptions } from './detect'
+import { parseTimeseries, routesPath, summaryPath, timeseriesPath } from './uiData'
+
+/** Claude ids are [A-Za-z0-9_-]; ChatGPT seat names may also contain dots. The server validates further. */
+const profileName = /^\w[\w.-]{0,63}$/
+const settingsRoutes: Record<SettingsSection, string> = { routing: '/settings/api/routing', telemetry: '/settings/api/telemetry', transcripts: '/settings/api/transcripts', updates: '/settings/api/updates', header: '/settings/api/header', layout: '/settings/api/layout', 'claude-executable': '/settings/api/claude-executable', pricing: '/settings/api/pricing', chatgpt: '/settings/api/chatgpt' }
+/** The same methods the web settings page uses; pricing has its own per-model actions. */
+const settingsWrites: Record<Exclude<SettingsSection, 'pricing'>, 'PUT' | 'PATCH'> = { routing: 'PUT', telemetry: 'PUT', transcripts: 'PUT', updates: 'PUT', header: 'PUT', layout: 'PUT', 'claude-executable': 'PUT', chatgpt: 'PATCH' }
+const SETTINGS_TTL = 60_000
 
 export interface ManagerOptions {
   /** Trusted harness overrides; never exposed through IPC. */
@@ -19,6 +28,8 @@ export interface ManagerOptions {
   directory: string; node: string; npm: string; runner: string; desktopVersion: string;
   encrypt(value: string): string; decrypt(value: string): string;
   changed(state: DesktopState): void; notify(incident: Incident): void;
+  /** Service detection; tests inject a fake. Defaults to the real launchd/client-config scan. */
+  detect?(options: DetectOptions): Promise<Detection>;
 }
 export class Manager {
   preferences: Preferences = { ...defaults }
@@ -39,8 +50,16 @@ export class Manager {
   private adopted?: LaunchAgent
   private handoff?: { phase: 'prepared' | 'managed' | 'returning'; previous: Preferences; agent: LaunchAgent }
   private candidate?: LaunchAgent
+  private detection?: Detection
+  private detectionNote = ''
+  private attachedBase?: string
+  private attachedAt = Date.now()
+  private starting = false
+  private settingsFetchedAt = 0
+  private httpLogin?: { kind: 'claude-login' | 'claude-add' | 'chatgpt'; id: string }
+  private chatGptTimer?: ReturnType<typeof setTimeout>
   constructor(readonly options: ManagerOptions) {
-    this.state = { desktopVersion: options.desktopVersion, platform: process.platform, glass: 'Standard appearance', preferences: defaults, hasApiKey: false, installed: [], available: [], owned: false, health: null, quota: null, requests: [], summary: null, logs: [], profiles: null, plugins: null, catalog: pluginCatalog, features: null, dataErrors: [], incidents: [], serviceLog: [] }
+    this.state = { desktopVersion: options.desktopVersion, platform: process.platform, glass: 'Standard appearance', preferences: defaults, hasApiKey: false, installed: [], available: [], owned: false, health: null, quota: null, requests: null, summary: null, logs: [], profiles: null, plugins: null, catalog: pluginCatalog, features: null, dataErrors: [], incidents: [], serviceLog: [], connection: { kind: 'stopped', message: 'Looking for Meridian…', fix: '' }, instance: null, window: { kind: defaults.window }, timeseries: null, settings: { values: {}, unavailable: [], errors: [] } }
   }
   async init() {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 })
@@ -65,21 +84,104 @@ export class Manager {
     if (this.handoff && this.handoff.phase !== 'managed' && !this.configurationError) {
       try { await this.restoreHandoff() } catch (error) { this.state.error = this.configurationError = `Handoff recovery needs attention: ${String(error)}` }
     }
-    // Existing headless installs stay running. Merely opening the app cannot
-    // take over a service or change client authentication.
-    if (!this.preferences.selected) {
-      try {
-        const response = await fetch(this.preferences.endpoint + '/health', { signal: AbortSignal.timeout(2000) })
-        const health = object(await response.json())
-        if (isMeridianHealth(health)) this.preferences.mode = 'attached'
-      } catch {
-        try {
-          const livez = await fetch(this.preferences.endpoint + '/livez', { signal: AbortSignal.timeout(1000) })
-          if (livez.ok && (await livez.text()).trim() === 'ok') this.preferences.mode = 'attached'
-        } catch { /* No local headless instance: offer the managed installer. */ }
-      }
-    }
+    this.state.window = { kind: this.preferences.window }
+    // View the Meridian the clients use. Attaching never takes over a service
+    // or changes client authentication; it only chooses what to read.
+    if (!this.configurationError) await this.detectService()
     this.publish()
+  }
+  private ownBaseUrl() { return `http://127.0.0.1:${this.preferences.port}` }
+  /**
+   * Find the running service and decide what to view. A verified external
+   * Meridian is attached (draining the app's own child if one runs); with
+   * none, the app-managed copy is selected. Returns whether that copy should
+   * be started (it is never started here).
+   */
+  async detectService(): Promise<{ startManaged: boolean }> {
+    if (this.adopted) {
+      this.detectionNote = `Meridian Desktop manages ${this.adopted.label} after takeover; detection is paused until it is returned to headless.`
+      this.state.detection = this.detectionReport(); return { startManaged: false }
+    }
+    const own = this.child ? { baseUrl: this.ownBaseUrl(), pid: this.child.pid } : undefined
+    try { this.detection = await (this.options.detect ?? (options => detectServices(nodeDetectIO(), options)))({ preferenceEndpoint: this.preferences.endpoint }) }
+    catch (error) { this.log(`Service detection failed: ${String(error)}`); this.detection = { at: Date.now(), services: [], rejected: [] } }
+    const decision = attachDecision(this.detection.services, own)
+    let startManaged = false
+    if (decision.kind === 'attach') {
+      const service = decision.service
+      if (this.child) {
+        // The clients use another service: drain the managed copy rather than run two.
+        this.log(`Meridian found at ${service.baseUrl}; draining the app-managed copy.`)
+        await this.stop()
+      }
+      const changed = this.preferences.mode !== 'attached' || this.preferences.endpoint !== service.baseUrl
+      if (changed) {
+        const endpointChanged = this.preferences.endpoint !== service.baseUrl
+        this.preferences = { ...this.preferences, mode: 'attached', endpoint: service.baseUrl }
+        try { await this.save() } catch (error) { this.log(`Could not save the detected connection: ${String(error)}`) }
+        if (endpointChanged) { this.state.providers = undefined; this.detector = new IncidentDetector() }
+      }
+      this.detectionNote = `Viewing the Meridian your clients use at ${new URL(service.baseUrl).host} (${service.sources[0] ?? 'detected'}). The app-managed copy is not started.`
+    } else if (this.child) {
+      this.detectionNote = `${decision.reason} Viewing the app-managed copy on ${new URL(this.ownBaseUrl()).host}.`
+    } else if (this.preferences.selected && this.state.installed.includes(this.preferences.selected)) {
+      if (this.preferences.mode !== 'managed') {
+        this.preferences = { ...this.preferences, mode: 'managed' }
+        try { await this.save() } catch (error) { this.log(`Could not save the managed selection: ${String(error)}`) }
+      }
+      startManaged = this.preferences.autoStart
+      this.detectionNote = startManaged
+        ? `${decision.reason} Running the app-managed Meridian ${this.preferences.selected} on port ${this.preferences.port}.`
+        : `${decision.reason} The app-managed Meridian ${this.preferences.selected} can run on port ${this.preferences.port}; start it in Service (automatic start is off).`
+    } else {
+      this.detectionNote = `${decision.reason} Start your Meridian service and choose Re-detect, or install a version in Versions.`
+    }
+    this.state.detection = this.detectionReport()
+    return { startManaged }
+  }
+  /** Re-detect on request, then start the managed copy only when nothing else serves the clients. */
+  async redetect() {
+    const { startManaged } = await this.detectService()
+    if (startManaged && !this.child) await this.start()
+    else await this.refresh()
+  }
+  /** Launch policy: start the managed copy only when detection chose it. */
+  shouldStartManaged() {
+    return this.preferences.mode === 'managed' && this.preferences.autoStart && Boolean(this.preferences.selected) && !this.child && !this.configurationError
+  }
+  private detectionReport(): DetectionReport {
+    const ownPid = this.child?.pid
+    return {
+      at: this.detection?.at ?? Date.now(), note: this.detectionNote,
+      services: (this.detection?.services ?? []).map(service => ({ baseUrl: service.baseUrl, port: service.port, sources: service.sources, status: service.probe.status, ...(service.probe.version ? { version: service.probe.version } : {}), supervisor: service.supervisor, ...(service.pid !== undefined ? { pid: service.pid } : {}), own: Boolean(this.child) && (service.baseUrl === this.ownBaseUrl() || (ownPid !== undefined && service.pid === ownPid)) })),
+      rejected: this.detection?.rejected ?? [],
+    }
+  }
+  private describeInstance(): InstanceInfo {
+    const baseUrl = this.baseUrl()
+    if (baseUrl !== this.attachedBase) { this.attachedBase = baseUrl; this.attachedAt = Date.now() }
+    const port = Number(new URL(baseUrl).port) || 80
+    const version = this.state.running ?? null
+    if (this.preferences.mode === 'managed') {
+      return { baseUrl, port, version, attachedAt: this.attachedAt, supervisor: { kind: 'app', ...(this.adopted ? { label: this.adopted.label, plistPath: this.adopted.plist } : {}) }, detectedFrom: this.adopted ? `app-managed (taken over from ${this.adopted.label})` : 'app-managed' }
+    }
+    const match = this.detection?.services.find(service => service.baseUrl === baseUrl)
+    return { baseUrl, port, version, attachedAt: this.attachedAt, supervisor: match?.supervisor ?? { kind: 'unknown' }, detectedFrom: match?.sources.join(', ') || 'preference: saved endpoint' }
+  }
+  /** Another verified Meridian from the last detection, for the wrong-port hint. */
+  private alternative(baseUrl: string) {
+    return this.detection?.services.find(service => service.probe.status === 'meridian' && service.baseUrl !== baseUrl && !(this.child && service.baseUrl === this.ownBaseUrl()))?.baseUrl
+  }
+  /** Change the dashboard window; pushes state at once, then re-reads. */
+  async setWindow(raw: unknown) {
+    const kind = windowKind(raw)
+    if (kind === this.preferences.window && this.state.window.kind === kind) return
+    this.preferences = { ...this.preferences, window: kind }
+    // Data for the previous window must not be shown under the new label.
+    this.state.window = { kind }; this.state.summary = null; this.state.timeseries = null; this.state.timeseriesNote = undefined; this.state.routesSummary = null
+    this.publish()
+    try { await this.save() } catch (error) { this.log(`Could not save the window: ${String(error)}`) }
+    await this.refresh(true)
   }
   private validatePreferences(value: unknown): Preferences {
     const input = object(value)
@@ -94,6 +196,7 @@ export class Manager {
     if (input.port !== undefined) result.port = port(input.port)
     for (const key of ['autoStart', 'notifications', 'notificationCritical', 'notificationRequests', 'notificationCache', 'notificationQuota', 'openWindowAtLaunch', 'hideDockIcon'] as const) if (typeof input[key] === 'boolean') result[key] = input[key]
     if (typeof input.quietUntil === 'number' && Number.isFinite(input.quietUntil)) result.quietUntil = Math.max(0, input.quietUntil)
+    if (input.window !== undefined) result.window = windowKind(input.window)
     if (input.selected) result.selected = version(input.selected)
     if (input.previous) result.previous = version(input.previous)
     return result
@@ -135,62 +238,287 @@ export class Manager {
     try { await operation() } catch (error) { this.state.error = redact(error instanceof Error ? error.message : String(error)); throw error }
     finally { this.state.busy = undefined; this.publish() }
   }
-  baseUrl() { return this.preferences.mode === 'managed' ? `http://127.0.0.1:${this.preferences.port}` : this.preferences.endpoint }
-  async api(path: string, method = 'GET', body?: unknown): Promise<unknown> {
+  baseUrl() { return this.preferences.mode === 'managed' ? this.ownBaseUrl() : this.preferences.endpoint }
+  /** HTTP to the viewed Meridian. Failures are ApiError (status/code) so callers can classify them. */
+  async api(path: string, method = 'GET', body?: unknown, timeout = 8000): Promise<unknown> {
     const key = this.preferences.apiKey
-    const response = await fetch(this.baseUrl() + path, { method, redirect: 'error', headers: { ...(key ? { 'x-api-key': key } : {}), ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(8000) })
-    const data: unknown = await response.json()
-    if (!response.ok && path !== '/health') throw new Error(`${path}: HTTP ${response.status} ${text(object(data).error) || text(object(object(data).error).message)}`)
+    let response: Response
+    try {
+      response = await fetch(this.baseUrl() + path, { method, redirect: 'error', headers: { ...(key ? { 'x-api-key': key } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(timeout) })
+    } catch (error) {
+      const code = failureCode(error)
+      throw new ApiError(`${path}: ${code === 'refused' ? 'connection refused' : code === 'timeout' ? 'timed out' : error instanceof Error ? error.message : String(error)}`, path, code)
+    }
+    const raw = await response.text()
+    let data: unknown
+    try { data = raw ? JSON.parse(raw) : null } catch { throw new ApiError(`${path}: HTTP ${response.status} (not JSON)`, path, response.ok ? 'invalid' : 'http', response.status) }
+    if (!response.ok && path !== '/health') throw new ApiError(`${path}: HTTP ${response.status} ${text(object(data).error) || text(object(object(data).error).message)}`.trim(), path, 'http', response.status, data)
     return data
   }
-  refresh(): Promise<void> {
-    if (this.refreshPromise) return this.refreshPromise
+  /** `force` re-reads after an in-flight refresh, e.g. when the window changed under it. */
+  refresh(force = false): Promise<void> {
+    if (this.refreshPromise) return force ? this.refreshPromise.then(() => this.refresh()) : this.refreshPromise
     this.refreshPromise = this.readState().finally(() => { this.refreshPromise = undefined })
     return this.refreshPromise
   }
   private async readState() {
+    const baseUrl = this.baseUrl()
+    const hasApiKey = Boolean(this.preferences.apiKey)
+    const managed = this.preferences.mode === 'managed'
+    const now = Date.now()
+    const window = this.preferences.window
+    let health: unknown
     try {
       this.state.dataErrors = []
-      const health = await this.api('/health')
-      if (!isMeridianHealth(health)) throw new Error('The endpoint did not return Meridian health data.')
-      const routes = { quota: '/v1/usage/quota/all', requests: '/telemetry/requests?limit=500', summary: '/telemetry/summary', logs: '/telemetry/logs?limit=500', profiles: '/profiles/list', plugins: '/plugins/list', features: '/settings/api/features', routesSummary: '/telemetry/routes', retention: '/telemetry/retention' } as const
+      try { health = await this.api('/health', 'GET', undefined, 4000) }
+      catch (error) { throw Object.assign(new Error(String(error)), { healthError: error }) }
+      if (!isMeridianHealth(health)) throw Object.assign(new Error('The endpoint did not return Meridian health data.'), { notMeridian: true })
+      const routes = { quota: '/v1/usage/quota/all', requests: '/telemetry/requests?limit=500', summary: summaryPath(window, now), logs: '/telemetry/logs?limit=500', profiles: '/profiles/list', plugins: '/plugins/list', features: '/settings/api/features', routesSummary: routesPath(window, now), retention: '/telemetry/retention' } as const
       const data = await Promise.all(Object.entries(routes).map(async ([key, route]) => {
         if (object(health).backend === 'antigravity' && (key === 'routesSummary' || key === 'retention')) return { key: key as keyof typeof routes, value: null }
         try { return { key: key as keyof typeof routes, value: await this.api(route) } }
-        catch (error) { return { key: key as keyof typeof routes, value: null, error: redact(String(error)) } }
+        catch (error) { return { key: key as keyof typeof routes, value: null, error: redact(String(error)), status: httpStatus(error) } }
       }))
       // Optional on older Meridian versions. Provider data has its own scope;
       // never feed Google quota windows into Claude's profile switcher.
       try {
         this.state.providers = parseProviderSnapshot(await this.api('/providers/status'))
       } catch (error) {
-        if (String(error).includes('HTTP 404')) this.state.providers = undefined
+        if (httpStatus(error) === 404) this.state.providers = undefined
         else {
           this.state.dataErrors.push(redact(`Providers: ${String(error)}`))
           if (this.state.providers) this.state.providers = { ...this.state.providers, fetchedAt: Date.now(), providers: this.state.providers.providers.map(p => p.enabled ? { ...p, status: 'unavailable', error: 'Provider refresh failed. Last known data shown.', accounts: p.accounts.map(a => ({ ...a, error: a.error || 'Usage refresh failed' })) } : p) }
         }
       }
+      // Older Meridian has no /telemetry/timeseries: null + note, and the UI
+      // buckets `requests` itself (uiData.bucketRequests).
+      let timeseriesStatus: number | undefined
+      try {
+        const series = parseTimeseries(await this.api(timeseriesPath(window, now)))
+        this.state.timeseries = series ?? null
+        this.state.timeseriesNote = series ? undefined : 'The timeseries response was not understood; charts use the recent requests list.'
+      } catch (error) {
+        timeseriesStatus = httpStatus(error)
+        this.state.timeseries = null
+        this.state.timeseriesNote = timeseriesStatus === 404
+          ? `Meridian ${text(object(health).version)} has no /telemetry/timeseries; charts are estimated from the latest 500 requests.`
+          : redact(`Timeseries unavailable: ${String(error)}`)
+      }
+      if (this.preferences.window !== window) return // A newer window is being read.
       this.state.health = health
       this.state.running = text(object(health).version)
       for (const item of data) { this.state[item.key] = item.value; if (item.error) this.state.dataErrors.push(item.error) }
-      if (this.state.providers?.providers.some(p => p.id === 'claude' && p.enabled) && this.state.providers.providers.some(p => p.id === 'antigravity' && p.enabled)) {
+      const denied = [...data.map(item => item.status), timeseriesStatus].find(status => status === 401 || status === 403)
+      if (this.state.providers?.providers.some(p => p.id === 'claude' && p.enabled) && this.state.providers.providers.some(p => p.id === 'antigravity' && p.enabled) && this.state.requests !== null) {
         try { this.state.requests = [...rows(this.state.requests).map(r => ({ ...r, provider: 'claude' })), ...rows(await this.api('/antigravity/telemetry/requests'))].sort((a, b) => Number(object(b).timestamp) - Number(object(a).timestamp)).slice(0, 500) }
         catch (error) { this.state.dataErrors.push(redact(`Antigravity requests: ${String(error)}`)) }
       }
-      for (const incident of this.detector.collect(this.state.requests, this.state.quota)) this.addIncident(incident)
+      if (!denied) await this.readSettings()
+      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, health, dataStatus: denied })
+      if (this.state.requests !== null) for (const incident of this.detector.collect(this.state.requests, this.state.quota)) this.addIncident(incident)
       this.state.lastChecked = Date.now()
-      await this.inspectOwnership()
+      // Handoff inspection failing (e.g. ambiguous listeners) must not blank readable data.
+      try { await this.inspectOwnership() } catch (error) { this.state.migration = undefined; this.state.dataErrors.push(redact(`Supervisor inspection: ${String(error)}`)) }
     } catch (error) {
       this.state.providers = undefined
       this.state.health = null; this.state.running = undefined; this.state.lastChecked = undefined
-      this.state.quota = null; this.state.requests = []; this.state.summary = null; this.state.logs = []; this.state.profiles = null; this.state.plugins = null; this.state.features = null; this.state.routesSummary = null; this.state.retention = null
-      this.state.dataErrors = [redact(`Cannot reach ${this.baseUrl()}: ${String(error)}`)]
+      this.state.quota = null; this.state.requests = null; this.state.summary = null; this.state.logs = []; this.state.profiles = null; this.state.plugins = null; this.state.features = null; this.state.routesSummary = null; this.state.retention = null
+      this.state.timeseries = null; this.state.timeseriesNote = undefined
+      const failure = object(error)
+      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, alternative: this.alternative(baseUrl), ...(failure.healthError !== undefined ? { healthError: failure.healthError } : failure.notMeridian ? { health } : { healthError: error }) })
+      this.state.dataErrors = [redact(`Cannot read ${baseUrl}: ${String(failure.healthError ?? error)}`)]
     } finally {
+      if (this.starting) this.state.connection = startingConnection(baseUrl)
+      this.state.instance = this.describeInstance()
+      this.state.detection = this.detection || this.detectionNote ? this.detectionReport() : undefined
       try {
         const configured = this.preferences.mode === 'managed' ? await this.configuredPlugins() : []
         this.state.catalog = this.state.catalog?.map(plugin => ({ ...plugin, installed: configured.find(item => item.name === plugin.package && item.enabled)?.version }))
       } catch (error) { this.state.dataErrors.push(redact(`Plugin configuration: ${String(error)}`)) }
       this.publish()
+    }
+  }
+  /** GET every /settings/api section the web settings page reads; at most once a minute unless forced. */
+  async readSettings(force = false) {
+    if (!force && Date.now() - this.settingsFetchedAt < SETTINGS_TTL) return
+    const values: Partial<Record<SettingsSection, unknown>> = {}
+    const unavailable: SettingsSection[] = []
+    const errors: string[] = []
+    await Promise.all((Object.entries(settingsRoutes) as [SettingsSection, string][]).map(async ([section, route]) => {
+      try { values[section] = await this.api(route) }
+      catch (error) { values[section] = null; if (httpStatus(error) === 404) unavailable.push(section); else errors.push(redact(`${section}: ${String(error)}`)) }
+    }))
+    this.settingsFetchedAt = Date.now()
+    this.state.settings = { fetchedAt: this.settingsFetchedAt, values, unavailable, errors }
+  }
+  async updateSettings(raw: unknown) {
+    const input = object(raw)
+    const section = text(input.section) as keyof typeof settingsWrites
+    if (!Object.hasOwn(settingsWrites, section)) throw new Error('Unknown settings section.')
+    if (input.body === null || typeof input.body !== 'object' || Array.isArray(input.body) || JSON.stringify(input.body).length > 32_000) throw new Error('Settings must be a JSON object.')
+    await this.api(settingsRoutes[section], settingsWrites[section], input.body)
+    await this.readSettings(true); await this.refresh(true)
+  }
+  /** DELETE where the web page offers a reset: ChatGPT features, or one adapter's SDK features. */
+  async resetSettings(raw: unknown) {
+    const input = object(raw)
+    if (text(input.section) === 'chatgpt') await this.api('/settings/api/chatgpt', 'DELETE')
+    else if (text(input.section) === 'features') {
+      const adapter = text(input.adapter)
+      if (!/^[\w-]{1,64}$/.test(adapter)) throw new Error('Invalid adapter.')
+      await this.api('/settings/api/features/' + encodeURIComponent(adapter), 'DELETE')
+    } else throw new Error('That section has no reset.')
+    await this.readSettings(true); await this.refresh(true)
+  }
+  async setPricing(raw: unknown) {
+    const input = object(raw)
+    const model = this.pricingModel(input.model)
+    if (input.pricing === null || typeof input.pricing !== 'object' || Array.isArray(input.pricing)) throw new Error('Pricing must be an object.')
+    await this.api('/settings/api/pricing/' + encodeURIComponent(model), 'PUT', input.pricing)
+    await this.readSettings(true); this.publish()
+  }
+  async deletePricing(raw: unknown) {
+    await this.api('/settings/api/pricing/' + encodeURIComponent(this.pricingModel(typeof raw === 'string' ? raw : object(raw).model)), 'DELETE')
+    await this.readSettings(true); this.publish()
+  }
+  private pricingModel(value: unknown) {
+    const model = text(value)
+    if (!/^[\w.:@/-]{1,128}$/.test(model)) throw new Error('Invalid model name.')
+    return model
+  }
+  private profileEntry(id: string) { return rows(object(this.state.profiles).profiles).find(item => item.id === id) }
+  private isChatGptSeat(id: string) { return typeof this.profileEntry(id)?.seat === 'string' }
+  /** HTTP in every mode: /profiles/active serves Claude accounts and ChatGPT seats alike. */
+  async switchProfile(raw: unknown) {
+    const profile = text(raw)
+    if (!profileName.test(profile)) throw new Error('Invalid profile name.')
+    await this.api('/profiles/active', 'POST', { profile }); await this.refresh(true)
+  }
+  async renameProfile(raw: unknown) {
+    const input = object(raw)
+    const from = text(input.from), to = text(input.to)
+    if (!profileName.test(from) || !profileName.test(to)) throw new Error('Invalid profile name.')
+    await this.api('/profiles/rename', 'POST', { from, to }); await this.refresh(true)
+  }
+  /** Saves the pool order the way the web profile page does (PUT /settings/api/routing). */
+  async reorderProfiles(raw: unknown) {
+    const order = Array.isArray(raw) ? raw : object(raw).order
+    if (!Array.isArray(order) || !order.length || order.length > 200 || order.some(item => typeof item !== 'string' || !profileName.test(item)) || new Set(order).size !== order.length) throw new Error('Provide each account once, in the new order.')
+    await this.api('/settings/api/routing', 'PUT', { profileOrder: order })
+    await this.readSettings(true); await this.refresh(true)
+  }
+  /**
+   * ChatGPT seats are removed over HTTP in every mode. Claude accounts have
+   * no HTTP removal route; the managed CLI removes them, so on an external
+   * service the command must run on its host (copy-profile-remove).
+   */
+  async removeProfile(raw: unknown) {
+    const profile = typeof raw === 'string' ? raw : text(object(raw).profile)
+    if (!profileName.test(profile)) throw new Error('Invalid profile name.')
+    if (this.isChatGptSeat(profile)) { await this.api('/profiles/chatgpt/remove', 'POST', { profile }); await this.refresh(true); return }
+    if (this.preferences.mode !== 'managed') throw new Error(`Claude accounts on an external service are removed on its host: run "meridian profile remove ${profile}" there.`)
+    const cli = join(this.options.directory, 'versions', version(this.preferences.selected), 'node_modules/@rynfar/meridian/dist/cli.js')
+    await stat(cli)
+    await this.command([cli, 'profile', 'remove', profile], homedir(), 60_000, 'Account removal')
+    await this.refresh(true)
+  }
+  async chatGptRefresh(raw: unknown) {
+    const profile = typeof raw === 'string' ? raw : text(object(raw).profile)
+    if (!profileName.test(profile)) throw new Error('Invalid profile name.')
+    await this.api('/profiles/chatgpt/refresh', 'POST', { profile }); await this.refresh(true)
+  }
+  /** ChatGPT seat sign-in over HTTP (any mode): device code first, browser redirect as the web page's fallback. */
+  async chatGptConnect(raw: unknown) {
+    this.assertNoLogin()
+    const input = object(raw)
+    const name = text(input.name).trim(), profile = text(input.profile)
+    if ((name && !profileName.test(name)) || (profile && !profileName.test(profile))) throw new Error('Use a name containing letters, numbers, dashes or underscores.')
+    const body = profile ? { profile } : name ? { name } : {}
+    const label = profile || name || 'ChatGPT'
+    let reply: Record<string, unknown>
+    try {
+      reply = object(await this.api('/profiles/chatgpt/connect/device', 'POST', body))
+      this.state.login = { profile: label, phase: 'waiting', provider: 'chatgpt', via: 'http', url: text(reply.verificationUrl), userCode: text(reply.userCode), output: 'Open the link in any browser, sign in to ChatGPT and enter the one-time code.' }
+    } catch (error) {
+      const status = httpStatus(error), code = text(object(error instanceof ApiError ? error.data : undefined).code)
+      if (status === 404 && !code) throw new Error('This Meridian version does not support ChatGPT sign-in.')
+      if (['invalid_profile_id', 'chatgpt_signin_unavailable', 'unknown_profile'].includes(code) || status === 403) throw error
+      reply = object(await this.api('/profiles/chatgpt/connect/start', 'POST', body))
+      this.state.login = { profile: label, phase: 'waiting', provider: 'chatgpt', via: 'http', url: text(reply.authorizeUrl), output: 'Sign in to ChatGPT in the browser. If the page does not return to Meridian, paste the address it ended on.' }
+    }
+    const connectId = text(reply.connectId)
+    if (!connectId || !this.state.login.url) { this.state.login = undefined; throw new Error('Meridian did not return a ChatGPT sign-in.') }
+    this.httpLogin = { kind: 'chatgpt', id: connectId }
+    this.publish(); this.pollChatGpt()
+  }
+  private pollChatGpt() {
+    clearTimeout(this.chatGptTimer)
+    const current = this.httpLogin
+    if (current?.kind !== 'chatgpt') return
+    this.chatGptTimer = setTimeout(async () => {
+      if (this.httpLogin !== current || this.closing) return
+      try {
+        const status = object(await this.api('/profiles/chatgpt/connect/status?connectId=' + encodeURIComponent(current.id)))
+        if (this.httpLogin !== current) return
+        if (status.status === 'waiting' || status.status === 'exchanging') { this.pollChatGpt(); return }
+        this.finishHttpLogin(status.status === 'completed' ? 'success' : 'error', status.status === 'completed' ? `Connected ${text(status.email) || text(status.profile) || 'the seat'}.` : text(status.message) || text(status.error) || 'The sign-in failed.')
+      } catch (error) {
+        if (this.httpLogin !== current) return
+        const status = httpStatus(error)
+        if (status === 410 || status === 404) this.finishHttpLogin('error', redact(String(error)))
+        else this.pollChatGpt()
+      }
+    }, 1500)
+  }
+  private finishHttpLogin(phase: 'success' | 'error' | 'cancelled', output: string) {
+    clearTimeout(this.chatGptTimer)
+    this.httpLogin = undefined
+    if (this.state.login) { this.state.login.phase = phase; this.state.login.output = output; this.state.login.url = undefined; this.state.login.userCode = undefined }
+    this.publish(); if (phase === 'success') void this.refresh(true)
+  }
+  private assertNoLogin() {
+    if (this.loginChild || this.httpLogin) throw new Error('A profile login is already in progress.')
+  }
+  /** Claude sign-in through the viewed server's /profiles/{login,add} routes (paste-code flow). */
+  private async httpProfileLogin(name: string, add: boolean) {
+    this.assertNoLogin()
+    let reply: Record<string, unknown>
+    try { reply = object(await this.api(add ? '/profiles/add/start' : '/profiles/login/start', 'POST', { profile: name })) }
+    catch (error) {
+      if (httpStatus(error) === 404 && !text(object(error instanceof ApiError ? error.data : undefined).code)) throw new Error(`This Meridian version cannot sign in over HTTP. Run "meridian profile ${add ? 'add' : 'login'} ${name}" on its host.`)
+      throw error
+    }
+    const id = text(add ? reply.addId : reply.loginId)
+    const url = text(add ? reply.authorizeUrl : reply.pasteAuthorizeUrl || reply.authorizeUrl)
+    if (!id || !url) throw new Error('Meridian did not return a sign-in link.')
+    this.httpLogin = { kind: add ? 'claude-add' : 'claude-login', id }
+    this.state.login = { profile: name, phase: 'waiting', provider: 'claude', via: 'http', url, output: 'Open the sign-in link, authorize, then paste the code Claude shows.' }
+    this.publish()
+  }
+  private async httpLoginCode(raw: unknown) {
+    const current = this.httpLogin
+    const login = this.state.login
+    if (!current || !login) return
+    if (raw === 'dismiss') throw new Error('Cancel sign-in before dismissing it.')
+    if (raw === 'cancel') {
+      if (current.kind === 'chatgpt') { try { await this.api('/profiles/chatgpt/connect/cancel', 'POST', { connectId: current.id }) } catch (error) { this.log(`ChatGPT sign-in cancel: ${String(error)}`) } }
+      if (this.httpLogin === current) this.finishHttpLogin('cancelled', '')
+      return
+    }
+    const code = text(raw).trim()
+    if (!code || /[\r\n]/.test(code) || code.length > 4000) throw new Error(current.kind === 'chatgpt' ? 'Paste the address the sign-in tab ended on.' : 'Paste the authorization code returned by Claude.')
+    if (login.phase !== 'waiting') throw new Error('Wait for the browser sign-in link before submitting a code.')
+    login.phase = 'verifying'; this.publish()
+    const [path, body] = current.kind === 'chatgpt' ? ['/profiles/chatgpt/connect/complete', { connectId: current.id, url: code }] : current.kind === 'claude-add' ? ['/profiles/add/complete', { addId: current.id, code }] : ['/profiles/login/complete', { loginId: current.id, code }]
+    try {
+      await this.api(path, 'POST', body)
+      if (this.httpLogin === current) this.finishHttpLogin('success', `Signed in ${login.profile}.`)
+    } catch (error) {
+      if (this.httpLogin !== current) return
+      const data = object(error instanceof ApiError ? error.data : undefined)
+      const message = text(data.error) || redact(String(error))
+      if (data.retryable === true) { login.phase = 'waiting'; login.output = message; this.publish() }
+      else this.finishHttpLogin('error', message)
     }
   }
   addIncident(incident: Incident) {
@@ -239,7 +567,7 @@ export class Manager {
     env.PATH = [dirname(this.options.node), join(homedir(), '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', env.PATH].filter(Boolean).join(process.platform === 'win32' ? ';' : ':')
     return env
   }
-  private async command(args: string[], cwd: string, timeout = 600_000) {
+  private async command(args: string[], cwd: string, timeout = 600_000, label = 'Installer') {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(this.options.node, args, { cwd, env: this.environment(), detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
       let timedOut = false
@@ -254,9 +582,9 @@ export class Manager {
       child.once('error', error => { clearTimeout(timer); reject(error) })
       child.once('close', code => {
         clearTimeout(timer)
-        if (timedOut) reject(new Error('Installation timed out. The current version was not replaced.'))
+        if (timedOut) reject(new Error(label === 'Installer' ? 'Installation timed out. The current version was not replaced.' : `${label} timed out.`))
         else if (code === 0) resolve()
-        else reject(new Error(`Installer exited with code ${code}. See service logs.`))
+        else reject(new Error(`${label} exited with code ${code}. See service logs.`))
       })
     })
   }
@@ -390,6 +718,7 @@ export class Manager {
     const entry = join(this.options.directory, 'versions', selected, 'node_modules/@rynfar/meridian/dist/cli.js')
     await stat(entry)
     this.stopping = false; this.desiredRunning = true
+    this.starting = true; this.state.connection = startingConnection(this.ownBaseUrl()); this.publish()
     const child = spawn(this.options.node, ['--import', this.options.runner, entry], {
       cwd: this.adopted?.workingDirectory || homedir(),
       env: { ...this.environment(), ...this.inheritedEnvironment, ...this.options.serviceEnvironment, MERIDIAN_PORT: String(this.preferences.port), MERIDIAN_HOST: '127.0.0.1', MERIDIAN_API_KEY: this.preferences.apiKey || '', MERIDIAN_SHUTDOWN_GRACE_MS: '30000', ...(this.preferences.persistAntigravityHistory !== undefined ? { MERIDIAN_AGY_STATE_PATH: this.preferences.persistAntigravityHistory ? join(this.options.directory, 'antigravity.sqlite') : '' } : {}), ...(this.preferences.backend ? { MERIDIAN_BACKEND: this.preferences.backend } : {}), ...(this.preferences.allowAntigravityTools !== undefined ? { MERIDIAN_AGY_ALLOW_TOOL_BRIDGE: this.preferences.allowAntigravityTools ? '1' : '0' } : {}), ...(this.preferences.allowAntigravityBrowser !== undefined ? { MERIDIAN_AGY_ALLOW_NATIVE_BROWSER: this.preferences.allowAntigravityBrowser ? '1' : '0' } : {}), ...(this.preferences.allowAntigravitySubagents !== undefined ? { MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS: this.preferences.allowAntigravitySubagents ? '1' : '0' } : {}) },
@@ -440,8 +769,9 @@ export class Manager {
       if (!ready) throw new Error(`Startup verification failed: ${lastError}`)
       const requestedBackend = this.preferences.backend
       if (requestedBackend && requestedBackend !== 'claude' && reportedBackend !== requestedBackend) throw new Error('This Meridian installation does not support the selected providers. Install a version with Antigravity support, or select Claude.')
-      await this.refresh()
-    } catch (error) { await this.stop(); throw error }
+      this.starting = false
+      await this.refresh(true)
+    } catch (error) { this.starting = false; await this.stop(); void this.refresh(); throw error }
     this.publish()
   }
   private scheduleRecovery() {
@@ -474,16 +804,17 @@ export class Manager {
     this.publish()
   }
   async restart() { this.restartCount = 0; await this.stop(); await this.start() }
+  /** Managed: the selected CLI (`profile add|login --headless`). Attached: the server's HTTP sign-in routes. */
   async profileLogin(raw: unknown, add: boolean) {
-    if (this.preferences.mode !== 'managed') throw new Error('Use the existing installation to manage external profiles.')
-    if (this.loginChild) throw new Error('A profile login is already in progress.')
+    this.assertNoLogin()
     const name = text(raw)
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(name)) throw new Error('Use a profile name containing letters, numbers, dashes or underscores.')
+    if (this.preferences.mode !== 'managed') { await this.httpProfileLogin(name, add); return }
     const selected = version(this.preferences.selected)
     const cli = join(this.options.directory, 'versions', selected, 'node_modules/@rynfar/meridian/dist/cli.js')
     await stat(cli)
     const child = spawn(this.options.node, [cli, 'profile', add ? 'add' : 'login', name, '--headless'], { env: this.environment(), stdio: ['pipe', 'pipe', 'pipe'] })
-    this.loginChild = child; this.state.login = { profile: name, phase: 'starting', output: '' }
+    this.loginChild = child; this.state.login = { profile: name, phase: 'starting', output: '', provider: 'claude', via: 'cli' }
     const login = this.state.login
     const capture = (chunk: Buffer) => {
       if (this.loginChild !== child || this.state.login !== login) return
@@ -514,7 +845,9 @@ export class Manager {
       this.publish(); void this.refresh()
     })
   }
-  loginCode(raw: unknown) {
+  /** Synchronous for the CLI flow; returns a promise for HTTP sign-ins. */
+  loginCode(raw: unknown): void | Promise<void> {
+    if (this.httpLogin) return this.httpLoginCode(raw)
     if (raw === 'dismiss') {
       if (this.loginChild) throw new Error('Cancel sign-in before dismissing it.')
       this.state.login = undefined; this.publish(); return
@@ -614,6 +947,7 @@ export class Manager {
   async shutdown() {
     if (this.state.busy) throw new Error(`Wait for ${this.state.busy.toLowerCase()} to finish before quitting.`)
     this.closing = true
+    clearTimeout(this.chatGptTimer)
     try { this.loginChild?.kill(); await this.stop(); await this.incidentWrites } catch (error) { this.closing = false; throw error }
   }
 }

@@ -1,4 +1,5 @@
-import { number, rows, text } from './core'
+import { number, object, rows, text, type WindowKind } from './core'
+export type { WindowKind } from './core'
 
 export function filterLogs(data: unknown, query: string) {
   const search = query.trim().toLowerCase()
@@ -37,4 +38,108 @@ export function sortProfilesByConfiguredOrder(ids: string[], order?: readonly st
       return a.index - b.index
     })
     .map(entry => entry.id)
+}
+
+const HOUR = 3_600_000
+/** Bucket width per window: 5-minute for 1h, hourly for today/24h, 6-hourly for 7d. */
+export const windowBuckets: Record<WindowKind, number> = { '1h': 300_000, today: HOUR, '24h': HOUR, '7d': 6 * HOUR }
+const windowSpans: Record<Exclude<WindowKind, 'today'>, number> = { '1h': HOUR, '24h': 24 * HOUR, '7d': 7 * 24 * HOUR }
+
+/** Local midnight (the machine's time zone) of the day containing `now`. */
+export function localMidnight(now: number): number { const day = new Date(now); day.setHours(0, 0, 0, 0); return day.getTime() }
+
+/** Milliseconds the summary covers: since local midnight for 'today', else the fixed span. */
+export function windowMs(kind: WindowKind, now: number): number {
+  // The server reads window=0 as "default (1h)"; one second after midnight is still today.
+  return kind === 'today' ? Math.max(1000, now - localMidnight(now)) : windowSpans[kind]
+}
+
+export interface TimeRange { start: number; end: number; bucketMs: number }
+/**
+ * Chart range for a window. 'today' starts at local midnight; rolling windows
+ * start on the local bucket grid at or before `now - span`, so hourly buckets
+ * read 14:00, 15:00 rather than 14:37, 15:37.
+ */
+export function windowRange(kind: WindowKind, now: number): TimeRange {
+  const bucketMs = windowBuckets[kind]
+  const midnight = localMidnight(now)
+  if (kind === 'today') return { start: midnight, end: now, bucketMs }
+  const earliest = now - windowSpans[kind]
+  return { start: midnight + Math.floor((earliest - midnight) / bucketMs) * bucketMs, end: now, bucketMs }
+}
+export function summaryPath(kind: WindowKind, now: number): string { return `/telemetry/summary?window=${windowMs(kind, now)}` }
+export function routesPath(kind: WindowKind, now: number): string { return `/telemetry/routes?window=${windowMs(kind, now)}` }
+export function timeseriesPath(kind: WindowKind, now: number): string {
+  const range = windowRange(kind, now)
+  return `/telemetry/timeseries?start=${range.start}&end=${range.end}&bucket=${range.bucketMs}`
+}
+
+export interface TimeseriesBucket {
+  start: number; requests: number; errors: number;
+  inputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; outputTokens: number;
+  cacheHitRate: number | null; p50TotalMs: number | null; p50TtfbMs: number | null; costUsd: number | null;
+  unpricedRequests?: number;
+}
+export interface Timeseries {
+  start: number; end: number; bucketMs: number; truncated: boolean; buckets: TimeseriesBucket[];
+  /** Set when the buckets were computed here from the recent-requests list, not by the server. */
+  estimated?: boolean;
+}
+const nullableNumber = (value: unknown) => number(value) ?? null
+/** Validate a /telemetry/timeseries body; undefined when it is not one. */
+export function parseTimeseries(value: unknown): Timeseries | undefined {
+  const input = object(value)
+  const start = number(input.start), end = number(input.end), bucketMs = number(input.bucketMs)
+  if (start === undefined || end === undefined || !bucketMs || !Array.isArray(input.buckets)) return undefined
+  return {
+    start, end, bucketMs, truncated: input.truncated === true,
+    buckets: rows(input.buckets).map(bucket => ({
+      start: number(bucket.start) ?? 0, requests: number(bucket.requests) ?? 0, errors: number(bucket.errors) ?? 0,
+      inputTokens: number(bucket.inputTokens) ?? 0, cacheReadTokens: number(bucket.cacheReadTokens) ?? 0,
+      cacheCreationTokens: number(bucket.cacheCreationTokens) ?? 0, outputTokens: number(bucket.outputTokens) ?? 0,
+      cacheHitRate: nullableNumber(bucket.cacheHitRate), p50TotalMs: nullableNumber(bucket.p50TotalMs),
+      p50TtfbMs: nullableNumber(bucket.p50TtfbMs), costUsd: nullableNumber(bucket.costUsd),
+      ...(number(bucket.unpricedRequests) !== undefined ? { unpricedRequests: number(bucket.unpricedRequests) } : {}),
+    })),
+  }
+}
+function median(values: number[]): number | null {
+  if (!values.length) return null
+  // Same rank as the server's computePercentiles p50.
+  return [...values].sort((a, b) => a - b)[Math.floor(values.length * 0.5)] ?? null
+}
+/**
+ * Client-side fallback for Meridian versions without /telemetry/timeseries:
+ * bucket the recent-requests list over [start, end). Cost is unknown here
+ * (no pricing table), so costUsd is null. `truncated` is set when the list
+ * hit its fetch limit before reaching back to `start`.
+ */
+export function bucketRequests(requests: unknown, range: TimeRange, limit = 500): Timeseries {
+  const list = rows(requests)
+  const count = range.end > range.start ? Math.ceil((range.end - range.start) / range.bucketMs) : 0
+  const groups: Record<string, unknown>[][] = Array.from({ length: count }, () => [])
+  let oldest = Infinity
+  for (const row of list) {
+    const timestamp = number(row.timestamp)
+    if (timestamp === undefined) continue
+    oldest = Math.min(oldest, timestamp)
+    if (timestamp < range.start || timestamp >= range.end) continue
+    groups[Math.floor((timestamp - range.start) / range.bucketMs)]?.push(row)
+  }
+  const buckets = groups.map((items, index): TimeseriesBucket => {
+    const hitRates = items.map(item => number(item.cacheHitRate)).filter((value): value is number => value !== undefined)
+    const sum = (key: string) => items.reduce((total, item) => total + (number(item[key]) ?? 0), 0)
+    return {
+      start: range.start + index * range.bucketMs,
+      requests: items.length,
+      errors: items.filter(item => text(item.error) !== '' || (number(item.status) ?? 0) >= 400).length,
+      inputTokens: sum('inputTokens'), cacheReadTokens: sum('cacheReadInputTokens'),
+      cacheCreationTokens: sum('cacheCreationInputTokens'), outputTokens: sum('outputTokens'),
+      cacheHitRate: hitRates.length ? Math.round(hitRates.reduce((a, b) => a + b, 0) / hitRates.length * 100) / 100 : null,
+      p50TotalMs: median(items.map(item => number(item.totalDurationMs)).filter((value): value is number => value !== undefined)),
+      p50TtfbMs: median(items.map(item => number(item.ttfbMs)).filter((value): value is number => value !== undefined)),
+      costUsd: null,
+    }
+  })
+  return { start: range.start, end: range.end, bucketMs: range.bucketMs, truncated: list.length >= limit && oldest > range.start, buckets, estimated: true }
 }
