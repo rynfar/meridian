@@ -83,6 +83,7 @@ describe("OpenCode generation detection", () => {
       "2.0.16",
       "2.0.21",
       "2.0.31",
+      "2.2.0",
     ]))
   })
 

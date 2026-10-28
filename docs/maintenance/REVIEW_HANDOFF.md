@@ -1,6 +1,50 @@
-# Meridian review checkpoint — 2026-10-26 UTC
+# Meridian review checkpoint — 2026-10-28 UTC
 
-Last code delivery: `bd021733deb054bbb95cacc0383fa816469e5773` (#1408). The backlog is unfinished. The 2026-10-25 owner-requested continuation covered only #1408 and a review of the 1.86.0 candidate; the 2026-10-21 record below is unchanged except where #1408's status superseded it. The previous checkpoint is [immutable at 9d94a354](https://github.com/rynfar/meridian/blob/9d94a3542f2e31edace685118d56e6e293feb4bd/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `94725800af58015daae796be04034ae03d2fec73` (release 1.87.0, #1457). The 2026-10-26/27 owner-authorized backlog run is recorded first; older sections below are unchanged history. The previous checkpoint is [immutable at a12b53bb](https://github.com/rynfar/meridian/blob/a12b53bb3b/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-10-26/27: backlog run and 1.87.0 published
+
+The owner authorized the following for this run:
+
+- reviewing and merging the queue;
+- live model calls on included usage only, stopping on Extra Usage, 402 or `billing_error`, with no account or model switching;
+- PR and issue comments;
+- scrub releases;
+- release 1.87.0.
+
+Each PR below was adversarially reviewed and live- or headless-tested before merge. The review record is on the PR.
+
+- **Contributor PRs merged, contributor as Git Author:**
+  - [#1443](https://github.com/rynfar/meridian/pull/1443) `662fd4c1`: settings rows. The two fields were removed on the owner's decision.
+  - [#1445](https://github.com/rynfar/meridian/pull/1445) `a70a9925`: plugin update check, under the same toggle as Meridian's own.
+  - [#1446](https://github.com/rynfar/meridian/pull/1446) `72da1744`: duplicate-account flags and in-place refresh. This is the UI only; shared-quota routing was split out.
+  - [#1410](https://github.com/rynfar/meridian/pull/1410) `9d971d50` and [#1444](https://github.com/rynfar/meridian/pull/1444) `cb377858`: shared passthrough tool definitions and lists, with heap evidence.
+  - [#1429](https://github.com/rynfar/meridian/pull/1429) `19b0f762` (materemias): lists banked resets and redeems one only explicitly.
+  - [#1261](https://github.com/rynfar/meridian/pull/1261) `3548ff28`: transcript cleanup, narrowed to an opt-in that deletes what Claude Code's own cleanup deletes. `transcriptSweep` is not exported.
+  - [#1193](https://github.com/rynfar/meridian/pull/1193) `1b643b1a` (XInTheDark): optional prompt-cache keepalive. It is operator-only and off by default, beats near the 1-hour expiry, and lasts up to 3 hours. Maintainer corrections went on the contributor's branch.
+  - [#1463](https://github.com/rynfar/meridian/pull/1463) `25345754`: a ChatGPT seat is listed as it was while its renewal is out.
+- **Maintainer PRs:**
+  - [#1455](https://github.com/rynfar/meridian/pull/1455): spec graph.
+  - [#1456](https://github.com/rynfar/meridian/pull/1456): closes #1449, `~` in `PI_CODING_AGENT_DIR`.
+  - [#1458](https://github.com/rynfar/meridian/pull/1458): closes #1448, V2 compaction keeps the conversation's tier.
+  - Bot PRs [#1459](https://github.com/rynfar/meridian/pull/1459) and [#1462](https://github.com/rynfar/meridian/pull/1462).
+  - #1311 was closed (not planned): existing headers already cover it.
+- **Signing exception used once:** #1429's commits are signed but GitHub cannot verify them (`bad_email`). The owner approved an `--admin` exact-head squash on 2026-10-26, and [contributing.md](../../.agents/references/contributing.md) now records that case.
+- **Scrub releases:** opencode-scrub 0.3.0 (#20) and pi-scrub 0.2.3 (#15) are published and verified.
+- **Release [1.87.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.87.0) is published.**
+  - Gates: full gates, a packed-tarball OpenCode V1 and Pi E2E, and a fresh registry install.
+  - Published: npm `latest` with provenance, plus Docker `1.87.0`/`1.87`.
+  - `desktop / mac` again failed Apple notarization (HTTP 401).
+  - [Release record](evidence/release-1.87.0-20261027/README.md).
+- **Filed:** #1451 (warn when Pi traffic lacks pi-scrub), #1460 (the header shows the active profile while priority routing serves from another), and #1461 (an E41 cyber refusal on Opus 5.5 silently falls back to Opus 4.8). #1450 remains open.
+- **Follow-ups:**
+  - Replace the CI Apple notarization credential.
+  - Desktop does not reload a dead renderer.
+  - The startup model-catalog warm-up fetches (npm, GitHub, chatgpt.com) have no off switch.
+  - Nowaker follow-ups for #1261: an idle sweep with custody, and pin-aware cleanup.
+  - Shared-quota routing for #1446.
+  - #1193 keepalive beats are not shown while retention is on.
+- **Not done:** the owner's launchd service (port 3456) still runs 1.86.0. An upgrade is handed to a separate agent, because this run is served through that service.
 
 ## 2026-10-26: 1.86.0 published
 

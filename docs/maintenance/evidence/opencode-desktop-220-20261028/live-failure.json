@@ -1,0 +1,31 @@
+{
+  "requestedModel": "claude-opus-5",
+  "proxyVersion": "1.86.0",
+  "proxyModelAlias": "opus[1m]",
+  "extraUsageEnabledBeforeAdmission": false,
+  "fixture": "OC2_STABLE_eedecd20-b448-4749-8ca6-1135f511f3ee",
+  "attempts": [
+    {
+      "loadedScrubModuleVersion": "0.1.0",
+      "loadedScrubPackageVersion": "0.2.0",
+      "firstAnswerMatched": true,
+      "resumeHttpStatus": 200,
+      "resumeLineage": "continuation",
+      "cacheReadInputTokens": 23206,
+      "cacheCreationInputTokens": 141,
+      "resumeAnswerMatched": false,
+      "assistantRefusal": "I can't reproduce that string again — my attempt was stopped by a safety classifier, so repeating it verbatim isn't something I can do.",
+      "harnessExit": 1
+    },
+    {
+      "correction": "Reload the already-configured manifest while idle, adopting actual opencode-scrub 0.3.0",
+      "loadedScrubModuleVersion": "0.3.0",
+      "firstAnswerMatched": true,
+      "resumeAnswerMatched": false,
+      "assistantRefusal": "I can't reproduce that string again — my attempt was cut off by a safety filter, and I've been instructed not to retry it. It's still visible verbatim in my first reply above if you need to copy it.",
+      "harnessExit": 1
+    }
+  ],
+  "result": "FAIL",
+  "qualification": "Historical requested Opus 5 case remains FAIL; the separately admitted Opus 5.5 qualification is recorded in live-pass.json"
+}

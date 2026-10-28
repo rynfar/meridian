@@ -45,8 +45,10 @@ describe("meridian setup CLI", () => {
       ...process.env,
       FORCE_COLOR: "0",
       OPENCODE_CONFIG_DIR: configDir,
+      MERIDIAN_CONFIG_DIR: join(root, "meridian"),
     }
     delete env.OPENCODE_BIN
+    delete env.MERIDIAN_OPENCODE_ATTESTATION_KEY
     return spawnSync(process.execPath, [cliPath, "setup", ...args], {
       cwd: repoRoot,
       env,
@@ -84,6 +86,38 @@ describe("meridian setup CLI", () => {
     expect(result.stdout).toContain("configured for OpenCode V1")
     const config = JSON.parse(readFileSync(configPath, "utf8"))
     expect(config.plugin[0]).toEndWith(join("plugin", "meridian"))
+  })
+
+  test("upgrades the Desktop 2.2.0 configuration to exactly one V2 plugin", () => {
+    const binary = writeVersionCommand(root, "opencode v2.2.0")
+    const original = {
+      model: "openai/keep-model",
+      providers: { openai: { settings: { timeout: 1234 } } },
+      plugin: ["keep-legacy", "/old/dist/meridian"],
+      plugins: ["keep-current"],
+    }
+    writeFileSync(configPath, `${JSON.stringify(original)}\n`)
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = runSetup(["--v2", "--opencode-bin", binary])
+      expect(result.status).toBe(0)
+      const config = JSON.parse(readFileSync(configPath, "utf8"))
+      expect(config.model).toBe(original.model)
+      expect(config.providers).toEqual(original.providers)
+      expect(config.plugin).toEqual(["keep-legacy"])
+      expect(config.plugins).toEqual(["keep-current", join(repoRoot, "plugin", "meridian-v2")])
+    }
+  })
+
+  test("still rejects an unqualified 2.2 patch without touching config", () => {
+    const binary = writeVersionCommand(root, "opencode v2.2.1")
+    const original = '{"plugins":["keep-me"]}\n'
+    writeFileSync(configPath, original)
+
+    const result = runSetup(["--v2", "--opencode-bin", binary])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("2.2.1 is not supported")
+    expect(readFileSync(configPath, "utf8")).toBe(original)
   })
 
   test("rejects an invalid explicit version probe without touching config", () => {

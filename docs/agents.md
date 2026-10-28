@@ -49,18 +49,26 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 
 #### Host support policy
 
-Meridian qualifies the released `@opencode/cli@2.0.16` and the earlier public
+Meridian qualifies Desktop/CLI **2.2.0** on Darwin arm64 with Opus 5.5, released
+CLI versions **2.0.16, 2.0.21 and 2.0.31**, and the earlier public
 `@opencode-ai/cli` betas `0.0.0-beta-18314`, `0.0.0-beta-18866`, and
 `0.0.0-beta-19271`. The 2.0.16 plugin API moved catalog editing into separate
 provider and model domains; the bundled plugin selects the matching host API
 at load time while keeping the beta path.
+
+The 2.2.0 qualification uses the app's actual bundled CLI, an independently
+installed V2 package, and real Opus 5.5 through the SDK. The earlier Opus 5
+marker refusal remains a separate retained observation, not a claim of a
+fixed upstream classifier. Other platforms and unpinned priority failback
+are not certified by this run. See the
+[evidence and scope](maintenance/evidence/opencode-desktop-220-20261028/README.md).
 
 Because upstream V2 plugin interfaces, session headers, subagent tracking, and
 compaction hooks are under active iteration, Meridian enforces a strict
 fail-closed policy rather than permitting wildcard or unverified host versions.
 A V2 release is only added to `SUPPORTED_OPENCODE_V2_VERSIONS` after passing the
 matching headless package gate (`scripts/e2e-opencode-v2-package.mjs --live --extended`
-for the betas; `scripts/e2e-opencode-v2-stable-live.mjs` for 2.0.16).
+for the betas; `scripts/e2e-opencode-v2-stable-live.mjs` for stable versions).
 Across these gates, we verify:
 
 1. **Plugin configuration & loading:** bundled and source plugin installation via `meridian setup --v2`.
@@ -69,7 +77,7 @@ Across these gates, we verify:
 4. **Subagent & agent isolation:** detached title/summary work, independent concurrent subagents, and compaction.
 5. **Model discovery & effort variants:** `GET /v1/models` catalog synchronization, cold-start cache seeding, and cache invalidation.
 
-The 2.0.16 gate exercises its real setup, title and generate jobs, resume,
+The stable gate exercises its real setup, title and generate jobs, resume,
 read-tool result, fork, compaction, and discovered effort variant. The beta
 gate additionally exercises undo, concurrent subagents, and cache invalidation;
 those checks have not yet been repeated on the released host.
@@ -77,11 +85,17 @@ those checks have not yet been repeated on the released host.
 Unverified releases, phantom versions, and nightly/dev builds are rejected by
 `meridian setup --v2` with an informative message listing the verified releases.
 
-Install the qualified 2.0.16 release and select its executable:
+For a build that includes Desktop 2.2.0 support, select the app's
+bundled executable on macOS (older published Meridian builds reject this host):
 
 ```bash
-npm install -g --prefix ~/.local @opencode/cli@2.0.16
-meridian setup --v2 --opencode-bin ~/.local/bin/opencode
+meridian setup --v2 --opencode-bin /Applications/OpenCode.app/Contents/Resources/opencode-cli
+```
+
+For the terminal client, select its executable:
+
+```bash
+meridian setup --v2 --opencode-bin "$(command -v opencode)"
 ```
 
 For an earlier beta, use its matching executable:
@@ -104,8 +118,9 @@ Configure V2's Anthropic provider to use Meridian. Keep the existing settings in
 
 ```json
 {
+  "$schema": "https://opencode.ai/config.json",
   "model": "anthropic/claude-opus-4-6",
-  "small_model": "anthropic/claude-haiku-5-5",
+  "agents": { "title": { "model": "anthropic/claude-haiku-5-5" } },
   "providers": {
     "anthropic": {
       "settings": {
@@ -121,13 +136,17 @@ Configure V2's Anthropic provider to use Meridian. Keep the existing settings in
 }
 ```
 
-V2 renamed these keys: it reads `providers` and `settings`, where V1 read
-`provider` and `options`. A V1-shaped block is silently ignored, so the client
-would talk to the real Anthropic API instead of Meridian. Anything you put under
+Native V2 uses `providers` and `settings`, where V1 used `provider` and
+`options`. OpenCode 2.2 also normalizes supported V1 configuration; its plugin
+API is not backward-compatible, so a V1 Meridian plugin must still be replaced
+by setup. Verify the effective provider endpoint rather than assuming the
+plugin redirects requests: the plugin adds identity headers, not the base URL.
+Anything you put under
 `models` is your own override and wins over both the built-in catalog and
 Meridian's advertised models.
 
-Then start the selected client (`opencode` for 2.0.16, `opencode2` for a beta):
+Then use Desktop or start the selected terminal client (`opencode`, or
+`opencode2` for an earlier beta):
 
 ```bash
 OPENCODE_DISABLE_AUTOUPDATE=1 ~/.local/bin/opencode
@@ -177,8 +196,9 @@ For either generation, the plugin enables:
 - **Model defaults** — Opus requests 1M context; Sonnet 5+ has a native 1M window, while Sonnet 4.x uses 200k by default ([defaults and account eligibility](configuration.md#configuration))
 - **Subagent model selection** — subagents use the 200k tier, preserving rate-limit budget
 
-If the plugin is missing, Meridian warns at request time. Restart OpenCode after
-running setup so it loads the selected plugin.
+If the plugin is missing, Meridian warns at request time. OpenCode 2.2 watches
+configuration and reloads plugins after setup; `/reload` forces a reload. Older
+clients may require a restart.
 
 #### oh-my-opencagent (OMO)
 
@@ -928,7 +948,7 @@ letting the header decide.
 
 | Agent | Status | Notes |
 |-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1, three pinned V2 betas, and released 2.0.16; use the matching `meridian setup` mode ([setup](#opencode)). The [V2 host policy](#host-support-policy) lists version-specific live coverage. |
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1, three pinned V2 betas, and released 2.0.16/2.0.21/2.0.31; Desktop 2.2.0 qualified on Darwin arm64 with Opus 5.5. Use the matching `meridian setup` mode ([setup](#opencode)); the [V2 host policy](#host-support-policy) lists coverage and limits. |
 | [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — passthrough tool execution, session resume, streaming |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see [Agent Setup](#agent-setup)) — full tool support, session resume, streaming |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — full tool support, session resume, headless `crush run` |

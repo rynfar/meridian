@@ -14,7 +14,7 @@ conversation identity and the right request shape:
 
 - `meridian.ts` / `meridian/` — OpenCode V1 plugin: session, request and
   agent-mode headers on every Anthropic request (installed by `meridian setup`).
-- `meridian-v2.ts` / `meridian-v2/` — OpenCode V2 beta plugin: detaches hidden
+- `meridian-v2.ts` / `meridian-v2/` — OpenCode V2 plugin (qualified betas and stable hosts): detaches hidden
   title/summary one-shots from the visible conversation before they reach the
   proxy, enforcing identity again at the final HTTP boundary.
 - `pi/` — Pi extension: registers a `meridian` provider from Meridian's model
@@ -48,6 +48,23 @@ conversation identity and the right request shape:
 Every live OpenCode test through Meridian's Claude path uses the matching
 plugin generation (see `E2E.md` → *Required Meridian OpenCode plugin
 preflight*).
+
+## Qualified hosts
+
+Setup admits exact tested versions, not a semver range. OpenCode Desktop 2.2.0
+uses the same stable provider/model domains and session hooks already supported
+by the V2 bundle; it does not need a separate Desktop plugin. Qualify the app's
+actual bundled CLI with `scripts/e2e-opencode-v2-stable-live.mjs`, including an
+independently installed Meridian package. Its `--fixture` mode exercises client
+protocol without inference; a fixture pass does not replace the live gate.
+Unqualified patches and nightlies remain rejected. Provider endpoint settings
+remain explicit user configuration, separate from plugin installation.
+The 2.2.0 live gate closed on Darwin arm64 with the independently installed
+client plugin, actual Opus 5.5 and supported public-SDK history witnesses.
+Its controlled route was explicitly profile-pinned; this does not qualify
+unpinned priority failback or another platform. Owner acceptance separately
+covers normal Desktop use with Opus 5.5. Retain earlier failed attempts and
+the exact admitted controller/results in the evidence record.
 
 ## Known limitations
 
