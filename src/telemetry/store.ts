@@ -76,11 +76,12 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   /**
    * Retrieve recent metrics, newest first.
    * @param options.limit - Max entries to return (default: 50)
-   * @param options.since - Only entries after this timestamp
+   * @param options.since - Only entries at or after this timestamp
+   * @param options.until - Only entries before this timestamp
    * @param options.model - Filter by model name
    */
-  getRecent(options: { limit?: number; since?: number; model?: string } = {}): RequestMetric[] {
-    const { limit = 50, since, model } = options
+  getRecent(options: { limit?: number; since?: number; until?: number; model?: string } = {}): RequestMetric[] {
+    const { limit = 50, since, until, model } = options
     const results: RequestMetric[] = []
 
     // Walk backwards from most recent entry
@@ -89,6 +90,7 @@ export class MemoryTelemetryStore implements ITelemetryStore {
       const metric = this.buffer[idx]
       if (!metric) continue
       if (since && metric.timestamp < since) break // ring buffer is time-ordered
+      if (until !== undefined && metric.timestamp >= until) continue
       if (model && metric.model !== model) continue
       results.push(metric)
     }

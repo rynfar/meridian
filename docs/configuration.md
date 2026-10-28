@@ -345,6 +345,7 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /telemetry` | Performance dashboard |
 | `GET /telemetry/requests` | Recent request metrics (JSON) |
 | `GET /telemetry/summary` | Aggregate statistics (JSON) |
+| `GET /telemetry/timeseries` | Requests, errors, tokens, cache hit rate, p50 latency and estimated cost per time bucket (JSON); see [Monitoring](../MONITORING.md#diagnostic-queries) |
 | `GET /telemetry/logs` | Diagnostic logs (JSON) |
 | `GET /metrics` | Prometheus exposition format metrics |
 | `GET /profiles` | Profile management page |

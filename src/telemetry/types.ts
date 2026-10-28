@@ -411,10 +411,12 @@ export interface ITelemetryStore {
   readonly size: number
   /** What this store holds and for how long — see TelemetryRetention. */
   describe(): TelemetryRetention
-  /** Retrieve recent metrics, newest first. */
+  /** Retrieve recent metrics, newest first. `since` is inclusive; `until` is
+   *  exclusive, and rows at or after it do not count toward `limit`. */
   getRecent(options?: {
     limit?: number
     since?: number
+    until?: number
     model?: string
   }): RequestMetric[]
   /** Find the latest successful metric for a given SDK session. */

@@ -257,14 +257,18 @@ class SqliteTelemetryStore implements ITelemetryStore {
     return total
   }
 
-  getRecent(options: { limit?: number; since?: number; model?: string } = {}): RequestMetric[] {
-    const { limit = 50, since, model } = options
+  getRecent(options: { limit?: number; since?: number; until?: number; model?: string } = {}): RequestMetric[] {
+    const { limit = 50, since, until, model } = options
     const conditions: string[] = []
     const params: Record<string, unknown> = { limit }
 
     if (since !== undefined) {
       conditions.push("timestamp >= @since")
       params.since = since
+    }
+    if (until !== undefined) {
+      conditions.push("timestamp < @until")
+      params.until = until
     }
     if (model !== undefined) {
       conditions.push("model = @model")

@@ -70,6 +70,26 @@ Record what Meridian did and show it to the operator:
   reached upstream carries status `0` and its reason in `error`, and is shown
   as skipped, not as an error.
 
+- **`/telemetry/timeseries` buckets what `/summary` counts.** It serves the
+  desktop app's history charts: `start`/`end`/`bucket` (or `window` instead of
+  `start`), buckets aligned to `start` over `[start, end)` so a client's local
+  midnight yields local-hour buckets, every bucket present. Rows are the raw
+  store rows with keepalive beats excluded, NOT collapsed route chains, because
+  `computeSummary` does not collapse either; a failover's hops count once each,
+  so the buckets of a range sum to the summary's requests, errors and token
+  totals. Hit rate is summary's mean per-row rate, p50 uses
+  `computePercentiles`, cost is `computeCostEstimate` with the user overrides:
+  `costUsd` is `null` only when every request in the bucket is unpriced, and
+  `unpricedRequests` labels a partial figure (an empty bucket costs `0`).
+  Ranges over 31 days or 1,000 buckets are refused, which bounds the response;
+  the read goes through `getRecent` with an exclusive `until`, so rows after
+  `end` do not spend the 100,000-row bound (summary's SQLite bound).
+  `truncated` is set when that bound is hit, when a full memory ring's oldest
+  row is newer than `start`, or when `start` reaches past SQLite retention and
+  the oldest held row is newer than it. A ring that is not full has dropped
+  nothing, so a range before the first request is empty, not truncated. The
+  bucketing is pure (`timeseries.ts`); the route only parses and reads.
+
 User-facing behavior is documented in `MONITORING.md`.
 
 ## Known limitations

@@ -339,6 +339,7 @@ src/
 │   ├── index.ts               ← Barrel export
 │   ├── store.ts               ← Request metrics storage
 │   ├── routes.ts              ← Telemetry API endpoints
+│   ├── timeseries.ts          ← Bucketing for /telemetry/timeseries (pure)
 │   ├── logStore.ts            ← Diagnostic log ring buffer
 │   ├── dashboard.ts           ← HTML dashboard
 │   ├── pricing.ts             ← Static API list prices + cost estimation (pure)

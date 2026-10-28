@@ -181,9 +181,12 @@ curl -s 'http://127.0.0.1:3456/v1/usage/quota/all' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/requests?limit=10' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/logs?category=token' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/summary?window=3600000' | python3 -m json.tool
+curl -s 'http://127.0.0.1:3456/telemetry/timeseries?window=86400000&bucket=3600000' | python3 -m json.tool
 ```
 
 Request queries support `limit` (up to 500), `since` (epoch milliseconds), and `model`. Logs support `limit` (up to 500), `since`, and `category`. Summary `window` is milliseconds and defaults to one hour.
+
+Timeseries covers `start` (inclusive) to `end` (exclusive, default now) in buckets of `bucket` milliseconds (default one hour, at least one minute) aligned to `start`, so passing local midnight yields local-hour buckets. `window` (default 24 hours) can replace `start`. A range over 31 days or 1,000 buckets, or with `start` not before `end`, answers 400 with `{error}`. Every bucket is returned, empty ones included, with `requests`, `errors`, the four token totals, `cacheHitRate`, `p50TotalMs`, `p50TtfbMs`, `costUsd` and `unpricedRequests`; the rates and latencies are `null` where a bucket has nothing to measure, and `costUsd` is `null` when every request in the bucket is unpriced. Buckets count what summary counts, so they sum to its totals for the same range. `truncated: true` means the store no longer holds the whole range (the in-memory ring has evicted older rows, or the range reaches past SQLite retention) or the read hit its 100,000-row bound.
 
 The CLI writes logs to stderr. The supervisor/service may redirect them to `~/.cache/meridian/proxy.err`; this is not a universal CLI log file. Use `docker logs <container>` or `journalctl --user -u meridian` for those deployments.
 
