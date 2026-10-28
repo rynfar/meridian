@@ -860,6 +860,14 @@ category preferences, burst thresholds and persisted cooldown timestamps prevent
 per-request alerts. Recovery exhaustion is critical; individual child exits remain
 in the in-app history.
 
+`rendererRecovery.ts` owns bounded, per-window UI recovery independently of the
+managed service. Main-process Electron events trigger trusted-local reloads;
+show/resume/unlock probes leave healthy forms untouched. Renderer termination
+handles persistent hangs. The controller fences stale asynchronous completions,
+bounds load/probe waits, and never resets its rolling retry budget on page load.
+Native retry controls work without a renderer; no service action or model call
+is involved. See the [desktop spec](apps/desktop/SPEC.md) for bounds and limits.
+
 ## Auth-status refresh lifetime
 
 Auth-status caches remain shared by profile/default context. Each proxy instance

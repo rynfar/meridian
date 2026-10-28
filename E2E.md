@@ -1,3 +1,22 @@
+## Desktop renderer recovery (macOS)
+
+Build `apps/desktop`, then run `scripts/e2e-desktop-renderer-recovery.cjs` through
+its actual Electron executable, with `ELECTRON_RUN_AS_NODE` unset. Repeat with
+`E2E_RECOVERY_CASE=signals`. `E2E_DESKTOP_MAIN` selects an unchanged/released
+main bundle for the same negative control. The harness isolates all preferences
+and needs no credentials or model calls.
+
+Require recovery from actual renderer termination in **both** windows and an
+actual JavaScript hang, unchanged main PID/native window identities, working
+state IPC, and no hidden-window activation or healthy-wake reload. The signal
+arm checks negative controls, blank-DOM wake recovery, GPU-event wiring and the
+native reload menu. Rolling retry bounds, hung/rejected loads, stale completion
+and shutdown are covered by `desktop-renderer-recovery.test.ts`.
+
+This does **not** simulate a WindowServer restart or prove recovery from a
+silently broken native compositor surface. See the [before/after receipts,
+review findings and missing gates](docs/maintenance/evidence/desktop-renderer-recovery-20261028.md).
+
 ## Pi extension (#1408)
 
 Two harnesses use the actual Pi CLI with the extension that
