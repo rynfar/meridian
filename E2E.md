@@ -5310,15 +5310,22 @@ domain API. Its committed headless gate launches an isolated OpenCode client,
 installs the bundled plugin through `meridian setup --v2`, and forwards its real
 Anthropic traffic to a real Meridian SDK/model through a local relay. It checks
 title and generate detachment, signed primary headers, a resumed session's prior
-user input, cold model discovery of `#xhigh`, a real read-tool result, a fork
+user input, model discovery/adoption of `#xhigh`, a real read-tool result, a fork
 that cannot advance or attest as the original root, and compaction that remains
 on the root and keeps the conversation's model tier (`fork-compaction`; the
-routed model is read from Meridian's request log, and
+routed model is read from telemetry correlated by the exact request ID, and
 `E2E_EXPECT_COMPACTION_MODEL=opus[1m]` asserts it for an Opus run; `E2E_COMPACTION_SOURCE`
-observes an older plugin build as a control). On a Claude subscription set
-`E2E_PLUGIN_PATH` to the installed OpenCode server scrub, which the harness loads into its
-isolated Meridian config; without it Claude can refuse the client as third-party
-("extra usage"). The relay stores sanitized request facts
+observes an older plugin build as a control). The stable gate now requires an
+explicit `--fixture` or `--live`. Live mode uses an already-running,
+operator-authorized, dedicated single-profile loopback proxy (`E2E_PROXY_URL`);
+it rejects pools and unknown/future usage observations and never creates a proxy
+with ambient owner credentials. Pin the loaded server scrub with
+`E2E_SCRUB_VERSION`, set `E2E_ALLOW_LIVE_MODEL=1`, and supply the proxy's shared
+test attestation key privately in `E2E_ATTESTATION_KEY`. Before inference it
+requires fresh included-capacity evidence, disabled paid Extra Usage, the actual
+active scrub, and an active exact-path client plugin in the generating server.
+The final scrub identity/error/invocation checks are retained even on failure.
+The relay stores sanitized request facts
 and system-block lengths, and the per-turn client output remains in its isolated
 artifact directory. Model wording is not used as the sole assertion.
 
@@ -5326,7 +5333,9 @@ artifact directory. Model wording is not used as the sole assertion.
 npm install --prefix /tmp/opencode-2016 @opencode/cli@2.0.16
 npm run build
 E2E_OPENCODE_BIN=/tmp/opencode-2016/node_modules/.bin/opencode \
-  bun scripts/e2e-opencode-v2-stable-live.mjs
+  bun scripts/e2e-opencode-v2-stable-live.mjs --fixture
+# For an admitted live run, supply the external proxy/key and scrub pin above,
+# replace --fixture with --live, and set E2E_ALLOW_LIVE_MODEL=1.
 # Repeat with @opencode/cli@2.0.21 and E2E_OPENCODE_VERSION=2.0.21.
 # Repeat with @opencode/cli@2.0.31 and E2E_OPENCODE_VERSION=2.0.31.
 # With E2E_MERIDIAN_ROOT pointing at an independently installed npm pack
@@ -5334,12 +5343,22 @@ E2E_OPENCODE_BIN=/tmp/opencode-2016/node_modules/.bin/opencode \
 # with a fresh registry install before closing a release gate.
 ```
 
-For a Linux client in a container, install the same pack and 2.0.16 binary in
-that container. `E2E_PROXY_URL` can point the probe at an independently started
-candidate Meridian proxy; set `E2E_ATTESTATION_KEY` to the same test key on both
-sides. The normal invocation starts its own isolated proxy. A container client
-with a macOS proxy verifies the Linux client path, while a full Linux deployment
-requires the proxy and its SDK credentials to run there too.
+The stable gate records original client/server process exit, close and captured
+pipe joins, validates signatures rather than header presence, requires assistant
+answers rather than tool-output receipts, and checks completed compaction state.
+It does not establish cold unseeded startup or a Meridian restart; the beta gate
+retains those separate arms. An external proxy's native SDK child custody and
+actual provider model identity need their own evidence, not the requested model
+ID in this report. A container client with a forwarded loopback macOS proxy
+verifies the Linux client path, not a full Linux deployment.
+
+For the unreleased Desktop 2.2.0 candidate, pin
+`E2E_OPENCODE_VERSION=2.2.0` and
+`E2E_OPENCODE_BIN=/Applications/OpenCode.app/Contents/Resources/opencode-cli`.
+The source and independently installed package fixture runs pass on Darwin
+arm64; the live Opus marker-resume acceptance gate remains open after a safety
+refusal. Preserve that failure rather than substituting the fixture pass. See
+[the candidate evidence](docs/maintenance/evidence/opencode-desktop-220-20261028/README.md).
 
 The reporter's exact captured OpenCode 2.0.16 system block for issue #1094 has
 not been provided. The gate measures and forwards the actual client-generated
