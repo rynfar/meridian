@@ -57,11 +57,12 @@ export function Today({ navigate }: { navigate: Navigate }) {
 
         <div className="mt-[26px]">
           <div className="flex items-baseline gap-3.5">
-            <Label>Prompt tokens per {series ? bucketWord(series.series.bucketMs) : 'hour'}{series?.estimated ? <span className="text-t4" title={series.note}>· estimated from recent requests</span> : null}</Label>
-            <RibbonLegend requests className="ml-auto" />
+            <Label className="shrink-0 whitespace-nowrap">Prompt tokens per {series ? bucketWord(series.series.bucketMs) : 'hour'}</Label>
+            <RibbonLegend requests className="ml-auto flex-nowrap whitespace-nowrap" />
           </div>
           {series ? <DayStrip columns={columns} now={nowFraction(kind, now)} className="mt-2.5" /> : <Skeleton className="mt-2.5 h-[111px]" />}
           <AxisLabels labels={labels} quarters={kind === 'today'} />
+          {series?.estimated ? <div className="mt-1 text-meta text-t4" title={series.note}>Estimated from the latest requests; this Meridian has no hourly history.</div> : null}
         </div>
 
         <div className="mt-6 flex min-h-0 flex-1 flex-col">
