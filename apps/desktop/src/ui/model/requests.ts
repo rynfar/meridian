@@ -1,6 +1,7 @@
 /** One normalized shape for /telemetry/requests rows, plus the pure helpers around it. */
 import { number, object, rows, text } from '../../core'
 import { modelName } from './format'
+import { CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER, estimateRequestCostUsd, normalizeModelKey, resolveRequestPricing, type ModelPricing } from '../../../../../src/telemetry/pricing'
 
 export interface RouteHopView { profile: string; ok: boolean; status: number | null; error: string; refusedBucket: string }
 export interface RequestRow {
@@ -54,30 +55,36 @@ export function requestRows(value: unknown): RequestRow[] {
   return rows(value).map(requestRow).filter(row => row.id || row.timestamp).sort((a, b) => b.timestamp - a.timestamp)
 }
 
-export interface Pricing { inputPerMTok: number; outputPerMTok: number; cacheReadPerMTok: number; cacheWritePerMTok: number }
-/** Effective rates from GET /settings/api/pricing: overrides win over built-ins. */
-export function pricingTable(value: unknown): Record<string, Pricing> {
-  const body = object(value)
-  const table: Record<string, Pricing> = {}
-  for (const source of [object(body.builtin), object(body.overrides)]) {
-    for (const [model, raw] of Object.entries(source)) {
-      const rates = object(raw)
-      const input = number(rates.inputPerMTok), output = number(rates.outputPerMTok)
-      if (input === undefined || output === undefined) continue
-      table[model] = { inputPerMTok: input, outputPerMTok: output, cacheReadPerMTok: number(rates.cacheReadPerMTok) ?? input * 0.1, cacheWritePerMTok: number(rates.cacheWritePerMTok) ?? input * 1.25 }
-    }
+/** User pricing overrides keyed by normalized model, as computeCostEstimate takes them. */
+export type PricingOverrides = Record<string, ModelPricing>
+/**
+ * The overrides from GET /settings/api/pricing, validated as pricingStore
+ * validates them. Built-in rates (and their long-context tiers) come from the
+ * bundled src/telemetry/pricing, not the response, so a request is valued the
+ * way the server's computeCostEstimate values it.
+ */
+export function pricingTable(value: unknown): PricingOverrides {
+  const overrides: PricingOverrides = {}
+  for (const [model, raw] of Object.entries(object(object(value).overrides))) {
+    const rates = object(raw)
+    const input = rate(rates.inputPerMTok), output = rate(rates.outputPerMTok)
+    if (input === undefined || output === undefined) continue
+    overrides[normalizeModelKey(model)] = { inputPerMTok: input, outputPerMTok: output, cacheReadPerMTok: rate(rates.cacheReadPerMTok) ?? input * CACHE_READ_MULTIPLIER, cacheWritePerMTok: rate(rates.cacheWritePerMTok) ?? input * CACHE_WRITE_MULTIPLIER }
   }
-  return table
+  return overrides
 }
-export function ratesFor(table: Record<string, Pricing>, ...models: string[]): Pricing | undefined {
-  for (const model of models) if (model && table[model]) return table[model]
-  return undefined
-}
-/** API-equivalent list price of one request, null when its model has no price. Base rates only. */
-export function requestCost(row: RequestRow, table: Record<string, Pricing>): number | null {
-  const rates = ratesFor(table, row.requestModel, row.raw.model === undefined ? '' : text(row.raw.model), row.model)
-  if (!rates) return null
-  return (row.inputTokens * rates.inputPerMTok + row.outputTokens * rates.outputPerMTok + row.cacheRead * rates.cacheReadPerMTok + row.cacheWrite * rates.cacheWritePerMTok) / 1e6
+const rate = (value: unknown) => { const n = number(value); return n !== undefined && n >= 0 ? n : undefined }
+
+/**
+ * API-equivalent list price of one request, null when its model has no price
+ * (the server counts those as unpriced, never $0). Same resolution as the
+ * server: request-key override, recorded SDK pin, family fallback, GPT suffix
+ * stripping, Haiku and long-context tiers.
+ */
+export function requestCost(row: RequestRow, overrides: PricingOverrides): number | null {
+  const pricing = resolveRequestPricing({ model: text(row.raw.model), requestModel: row.requestModel || undefined, resolvedModel: text(row.raw.resolvedModel) || undefined }, overrides)
+  if (!pricing) return null
+  return estimateRequestCostUsd({ inputTokens: row.inputTokens, outputTokens: row.outputTokens, cacheReadInputTokens: row.cacheRead, cacheCreationInputTokens: row.cacheWrite }, pricing)
 }
 
 export interface WaterfallSegment { key: 'queue' | 'proxy' | 'first-token' | 'generation'; label: string; ms: number }

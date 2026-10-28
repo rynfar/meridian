@@ -1,6 +1,7 @@
 /** Cache screen: totals, savings vs no cache, keepalive and the misses with their likely cause. Pure. */
 import { number, object } from '../../core'
-import { ratesFor, type Pricing, type RequestRow } from './requests'
+import { resolveModelPricing } from '../../../../../src/telemetry/pricing'
+import type { PricingOverrides, RequestRow } from './requests'
 
 export interface CacheTotals { hit: number | null; read: number; write: number; uncached: number; output: number; missesOnResume: number }
 export function cacheTotals(summary: unknown): CacheTotals | null {
@@ -20,14 +21,15 @@ export interface Savings { savedUsd: number; writePremiumUsd: number; netUsd: nu
  * What caching saved at list prices: every cache read billed as uncached input
  * instead, minus the premium cache writes cost over uncached input.
  */
-export function cacheSavings(summary: unknown, pricing: Record<string, Pricing>): Savings | null {
+export function cacheSavings(summary: unknown, overrides: PricingOverrides): Savings | null {
   const byModel = object(object(object(summary).costEstimate).byModel)
   const models = Object.entries(byModel)
-  if (!models.length || !Object.keys(pricing).length) return null
+  if (!models.length) return null
   let saved = 0, premium = 0, partial = false, priced = 0
   for (const [model, raw] of models) {
     const m = object(raw)
-    const rates = ratesFor(pricing, model)
+    // byModel is keyed by requestModel || model; base rates, as the server resolves them.
+    const rates = resolveModelPricing(model, overrides)
     if (!rates) { partial = true; continue }
     priced++
     saved += (number(m.cacheReadTokens) ?? 0) * (rates.inputPerMTok - rates.cacheReadPerMTok) / 1e6

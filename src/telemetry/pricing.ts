@@ -218,10 +218,11 @@ function isOpenAiModel(model: string): boolean {
  * request an OpenAI model served is priced as that model, and a GPT id that
  * Claude answered (the OpenAI-compatible endpoints accept them and record the
  * Claude tier as `model`) gets no built-in OpenAI rate, only a user override
- * or its recorded SDK pin.
+ * or its recorded SDK pin. Exported for Meridian Desktop's per-request cost,
+ * which must value each request as computeCostEstimate does.
  */
-function resolveRequestPricing(
-  metric: RequestMetric,
+export function resolveRequestPricing(
+  metric: Pick<RequestMetric, "model" | "requestModel" | "resolvedModel">,
   overrides?: Record<string, ModelPricing>,
 ): ModelPricing | null {
   if (isOpenAiModel(metric.model)) return resolveModelPricing(metric.model, overrides)

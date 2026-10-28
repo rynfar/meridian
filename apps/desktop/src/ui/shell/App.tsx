@@ -19,7 +19,7 @@ import { Logs } from '../screens/Logs'
 import { Service } from '../screens/service/Service'
 
 export function App() {
-  const { state, notice, dismiss, run, busy } = useDesktop()
+  const { state, notice, dismiss } = useDesktop()
   const { accounts, serving } = useModels()
   const [page, setPage] = useState<Page>('today')
   const [focus, setFocus] = useState<Focus>({})
@@ -28,19 +28,20 @@ export function App() {
   // Partial failures while the service itself answers: say which, never hide them.
   const partial = state?.connection.kind === 'ok' ? state.dataErrors : []
 
-  // ⌘1–⌘6 open the screens; ⌘R refreshes the data (not the page).
+  // ⌘1–⌘6 open the screens. ⌘R belongs to the application menu's "Refresh
+  // data" (main.ts): left unhandled here, so it reaches the menu whichever
+  // sees the key first, and refreshes exactly once.
   useEffect(() => {
     const mac = state?.platform ? state.platform === 'darwin' : true
     const onKey = (event: KeyboardEvent) => {
       const shortcut = shortcutFor(event, mac)
-      if (!shortcut) return
+      if (shortcut?.kind !== 'page') return
       event.preventDefault()
-      if (shortcut.kind === 'page') navigate(shortcut.page)
-      else if (state && !busy) void run('refresh')
+      navigate(shortcut.page)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, run, busy, state])
+  }, [navigate, state?.platform])
 
   return (
     <div className="grid h-full grid-cols-[216px_minmax(0,1fr)]">

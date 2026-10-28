@@ -14,13 +14,15 @@ import { ConnectionProblem, Empty, Skeleton } from '../components/state'
 import { fmtInt, pct, plural, usd, when } from '../model/format'
 import { untilText } from '../model/pace'
 import { utilTone } from '../model/tone'
-import { limitPill, moveInOrder, type AccountProvider, type AccountView, type LimitWindow } from '../model/accounts'
+import { accountAction, chatGptManaged, limitPill, moveInOrder, ownerCommands, type AccountProvider, type AccountView, type ChatGptOwnerView, type OwnerCommand } from '../model/accounts'
+import { accountsRead, providerState } from '../model/status'
+import { Glyph } from '../components/glyph'
 import { object } from '../../core'
 import type { Navigate } from '../shell/nav'
 
 const providerName: Record<AccountProvider, string> = { claude: 'Claude', chatgpt: 'ChatGPT', antigravity: 'Antigravity' }
 const providerNote: Record<AccountProvider, string> = { claude: 'Anthropic subscription', chatgpt: 'OpenAI subscription', antigravity: 'Google subscription · signed in through the Antigravity CLI' }
-type Dialog = { kind: 'add'; provider: 'claude' | 'chatgpt' } | { kind: 'rename'; account: AccountView } | { kind: 'remove'; account: AccountView } | null
+type Dialog = { kind: 'add'; provider: 'claude' | 'chatgpt' } | { kind: 'rename'; account: AccountView } | { kind: 'remove'; account: AccountView } | { kind: 'owner'; owner: ChatGptOwnerView | null; account?: AccountView } | null
 const NAME = /^[a-zA-Z0-9_-]{1,64}$/
 
 export function Accounts({ navigate }: { navigate: Navigate }) {
@@ -33,7 +35,9 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   if (data.kind === 'loading' || !state) return <div className="grid grid-cols-2 gap-4 px-[26px] pt-[22px]">{[0, 1, 2, 3].map(index => <Panel key={index} className="flex flex-col gap-3"><Skeleton className="h-8 w-40" /><Skeleton className="h-10" /><Skeleton className="h-4 w-32" /></Panel>)}</div>
 
   const providers = (['claude', 'chatgpt', 'antigravity'] as const).filter(id => accounts.accounts.some(account => account.provider === id))
-  const chatgptServed = Boolean(object(object(state.profiles).chatgpt).owner) || object(state.settings.values.chatgpt).enabled === true
+  // Meridian signs ChatGPT seats in only where it owns their logins; elsewhere the owner's commands do.
+  const chatgptOwner = accounts.chatgpt?.owner ?? null
+  const read = accountsRead(state, accounts.accounts.length)
   const health = object(state.health)
   const claudeServed = health.backend !== 'antigravity'
   const visible = (filter === 'all' ? providers : providers.filter(id => id === filter))
@@ -46,23 +50,28 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
         {accounts.routing ? <Tip content="How requests choose an account. Change it in Service → Routing."><button type="button" onClick={() => navigate('service', { section: 'routing' })} className="text-cap text-t3 transition-colors hover:text-accent">Routing <span className="font-medium text-t1">{accounts.routing}</span></button></Tip> : null}
         <span className="flex-1" />
         {claudeServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'claude' })} disabled={busy || Boolean(state.login)}><Plus />Add Claude account</Button> : null}
-        {chatgptServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'chatgpt' })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}
+        {chatgptOwner ? <Button variant="text" size="sm" onClick={() => setDialog(chatGptManaged(chatgptOwner) ? { kind: 'add', provider: 'chatgpt' } : { kind: 'owner', owner: chatgptOwner })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}
       </div>
       {accounts.follow ? <div className="mb-5 flex items-center gap-2 text-cap text-t2"><Dot tone="accent" size={6} />Following the active account from <span className="font-mono text-xs text-t1">{accounts.follow.url}</span>{accounts.follow.stale ? <span className="text-yellow">(stale)</span> : null}<span className="text-t3">· switching is controlled there.</span></div> : null}
 
-      {!accounts.accounts.length ? <Empty title="No accounts on this service" detail="Add a Claude account to start serving requests.">{claudeServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'claude' })}><Plus />Add Claude account</Button> : null}</Empty> : null}
+      {read.kind === 'loading' ? <div className="grid grid-cols-2 gap-4">{[0, 1].map(index => <Panel key={index} className="flex flex-col gap-3"><Skeleton className="h-8 w-40" /><Skeleton className="h-10" /><Skeleton className="h-4 w-32" /></Panel>)}</div>
+        : read.kind === 'failed' ? <Empty title="Could not read the accounts" detail={<span className="selectable">{read.message}</span>}><Button onClick={() => { void run('refresh') }} disabled={busy}><RefreshCw />Refresh</Button></Empty>
+        : !accounts.accounts.length ? <Empty title="No accounts on this service" detail="Add a Claude account to start serving requests.">{claudeServed ? <Button onClick={() => setDialog({ kind: 'add', provider: 'claude' })}><Plus />Add Claude account</Button> : null}</Empty>
+        : read.warning ? <div role="status" className="mb-5 flex items-center gap-2 text-meta text-yellow"><Glyph kind="warn" /><span className="selectable truncate" title={read.warning}>Some account data could not be read: {read.warning}</span></div> : null}
 
       {visible.map(provider => {
         const list = accounts.accounts.filter(account => account.provider === provider)
         const ids = list.map(account => account.id)
+        const status = providerState(state, provider)
         return (
           <section key={provider} className="mb-7">
-            <Label className="mb-2.5 px-0.5"><span className={`brand-${provider} brand-swatch size-2 rounded-xs`} /><span className="text-t2">{providerName[provider]}</span><span className="font-normal">· {providerNote[provider]} · {plural(list.length, 'account')}</span></Label>
+            <Label className="mb-2.5 px-0.5"><span className={`brand-${provider} brand-swatch size-2 rounded-xs`} /><span className="text-t2">{providerName[provider]}</span><span className="font-normal">· {providerNote[provider]} · {plural(list.length, 'account')}</span>{status ? <span title={status.text} className={cn('min-w-0 truncate font-normal', status.failing ? 'text-yellow' : 'text-t3')}>· {status.text}</span> : null}</Label>
             <div className="grid grid-cols-2 gap-4">
               {list.map((account, index) => (
                 <AccountCard key={account.id} account={account} now={now} busy={busy} switchable={switchable && provider !== 'antigravity'} follow={Boolean(accounts.follow)}
                   first={index === 0} last={index === list.length - 1}
                   onUse={() => { void run('switch-profile', account.id) }}
+                  onCommands={account.provider === 'chatgpt' && !chatGptManaged(account.owner) ? () => setDialog({ kind: 'owner', owner: account.owner ?? null, account }) : undefined}
                   onLogin={() => { void run(provider === 'chatgpt' ? 'chatgpt-connect' : 'login-profile', provider === 'chatgpt' ? { profile: account.id } : account.id) }}
                   onRenew={() => { void run('chatgpt-refresh', account.id) }}
                   onRename={() => setDialog({ kind: 'rename', account })}
@@ -78,15 +87,19 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
       <AddSheet dialog={dialog?.kind === 'add' ? dialog : null} onClose={() => setDialog(null)} />
       <RenameSheet account={dialog?.kind === 'rename' ? dialog.account : null} onClose={() => setDialog(null)} />
       <RemoveSheet account={dialog?.kind === 'remove' ? dialog.account : null} onClose={() => setDialog(null)} />
+      <OwnerSheet dialog={dialog?.kind === 'owner' ? dialog : null} onClose={() => setDialog(null)} />
     </div>
   )
 }
 
 /** One account as a raised panel: identity, limits with pace, then plain-text actions and a ⋯ menu. */
-function AccountCard({ account, now, busy, switchable, follow, first, last, canReorder, onUse, onLogin, onRenew, onRename, onRemove, onMove }: {
+function AccountCard({ account, now, busy, switchable, follow, first, last, canReorder, onUse, onLogin, onRenew, onRename, onRemove, onMove, onCommands }: {
   account: AccountView; now: number; busy: boolean; switchable: boolean; follow: boolean; first: boolean; last: boolean; canReorder: boolean;
-  onUse(): void; onLogin(): void; onRenew(): void; onRename(): void; onRemove(): void; onMove(direction: -1 | 1): void
+  onUse(): void; onLogin(): void; onRenew(): void; onRename(): void; onRemove(): void; onMove(direction: -1 | 1): void;
+  /** A ChatGPT seat whose login another tool owns: its sign-in steps replace Sign in again and Renew. */
+  onCommands?: () => void
 }) {
+  const action = accountAction(account, follow, now)
   const primary = account.windows.filter(window => window.primary)
   const extra = account.windows.filter(window => !window.primary)
   const manageable = account.provider !== 'antigravity'
@@ -111,8 +124,10 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
         {manageable ? (
           <Menu trigger={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${account.id}`}><Ellipsis /></Button>}>
             {!account.active ? <MenuItem disabled={!switchable || busy} onSelect={onUse}><LogIn />Use this account</MenuItem> : null}
-            <MenuItem disabled={busy} onSelect={onLogin}><RefreshCw />Sign in again</MenuItem>
-            {account.provider === 'chatgpt' ? <MenuItem disabled={busy} onSelect={onRenew}><RefreshCw />Renew seat</MenuItem> : null}
+            {onCommands ? <MenuItem onSelect={onCommands}><RefreshCw />Sign-in steps…</MenuItem> : <>
+              <MenuItem disabled={busy} onSelect={onLogin}><RefreshCw />Sign in again</MenuItem>
+              {account.provider === 'chatgpt' ? <MenuItem disabled={busy} onSelect={onRenew}><RefreshCw />Renew seat</MenuItem> : null}
+            </>}
             <MenuItem disabled={busy} onSelect={onRename}><Pencil />Rename…</MenuItem>
             {canReorder ? <><MenuSeparator /><MenuItem disabled={busy || first} onSelect={() => onMove(-1)}><ArrowUp />Move earlier in the pool</MenuItem><MenuItem disabled={busy || last} onSelect={() => onMove(1)}><ArrowDown />Move later in the pool</MenuItem></> : null}
             <MenuSeparator />
@@ -135,8 +150,8 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
         {account.served !== undefined || account.refused ? <span>{fmtInt(account.served ?? 0)} served{account.refused ? <> · <span className="text-red">{fmtInt(account.refused)} refused</span></> : null}</span> : <span className="text-t4">No requests in this window</span>}
         {account.costUsd !== undefined ? <span className="text-t4">· {usd(account.costUsd)} API-equivalent</span> : null}
         <span className="flex-1" />
-        {account.needsLogin && manageable ? <Button variant="text" size="sm" onClick={onLogin} disabled={busy}>Sign in</Button>
-          : !account.active && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy || Boolean(account.limited)} aria-label={`Use ${account.id}`}>Use</Button> : null}
+        {action.kind === 'sign-in' ? <Button variant="text" size="sm" onClick={onCommands ?? onLogin} disabled={busy && !onCommands}>Sign in</Button>
+          : action.kind === 'use' && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy} aria-label={`Use ${account.id}`}>Use</Button> : null}
       </div>
     </Panel>
   )
@@ -188,6 +203,13 @@ function RemoveSheet({ account, onClose }: { account: AccountView | null; onClos
   // Claude accounts have no HTTP removal route: on an attached service the command runs on its host.
   const viaHost = account?.provider === 'claude' && state?.preferences.mode !== 'managed'
   const command = `meridian profile remove ${account?.id ?? ''}`
+  // A seat whose login another tool owns is removed there; the server says how.
+  const elsewhere = account?.provider === 'chatgpt' && !chatGptManaged(account.owner) ? account.removal || (account.owner?.remove ? `Run \`${account.owner.remove}\` in an opencode session.` : 'Remove it where its login is kept.') : ''
+  if (elsewhere) return (
+    <Sheet open={Boolean(account)} onClose={onClose} title={`Remove ${account?.id ?? ''}`} description="Meridian only reads this seat's login, so it cannot remove the seat." footer={<Button variant="subtle" onClick={onClose}>Done</Button>}>
+      <p className="selectable text-base text-t2 [text-wrap:pretty]">{elsewhere}</p>
+    </Sheet>
+  )
   return (
     <Sheet open={Boolean(account)} onClose={onClose} title={`Remove ${account?.id ?? ''}?`}
       description={viaHost ? 'This service runs outside the app, and Claude accounts are removed on its host.' : account?.provider === 'chatgpt' ? 'The seat stops serving requests and its sign-in is deleted from this service.' : 'The account stops serving requests and its stored sign-in is deleted.'}
@@ -200,3 +222,26 @@ function RemoveSheet({ account, onClose }: { account: AccountView | null; onClos
   )
 }
 
+
+/** Where another tool owns ChatGPT logins: the commands to run there, as selectable text. */
+function OwnerSheet({ dialog, onClose }: { dialog: { owner: ChatGptOwnerView | null; account?: AccountView } | null; onClose(): void }) {
+  const owner = dialog?.owner
+  const account = dialog?.account
+  const commands: OwnerCommand[] = ownerCommands(owner, account ? { label: account.label, expired: account.tokenState === 'expired' } : undefined)
+  const holder = owner?.name === 'meridian' ? 'Meridian' : owner?.name ?? ''
+  return (
+    <Sheet open={Boolean(dialog)} onClose={onClose} title={account ? `Sign ${account.label} in again` : 'Add a ChatGPT seat'}
+      description={!owner ? undefined : owner.name === 'meridian' ? 'Meridian holds the ChatGPT logins here but cannot sign seats in over HTTP. Bring a signed-in account into its store:' : `${holder} owns the ChatGPT logins this Meridian serves. Run these in a terminal on the machine running Meridian; it picks the seat up by itself.`}
+      footer={<Button variant="subtle" onClick={onClose}>Done</Button>}>
+      {commands.length ? <div className="flex flex-col gap-3">
+        {commands.map(command => (
+          <div key={command.label}>
+            <div className="text-sm font-medium text-t2">{command.label}</div>
+            <pre className="selectable mt-1 whitespace-pre-wrap break-all rounded-md bg-well px-2.5 py-2 font-mono text-xs text-t1">{command.command}</pre>
+            {command.note ? <p className="mt-1 text-xs text-t3">{command.note}</p> : null}
+          </div>
+        ))}
+      </div> : <p className="text-base text-t3">This service does not say how its ChatGPT seats are signed in.</p>}
+    </Sheet>
+  )
+}

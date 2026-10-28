@@ -6,13 +6,17 @@
 import { number, object, rows, text } from '../../core'
 import type { DesktopState } from '../../contracts'
 import { sortProfilesByConfiguredOrder } from '../../uiData'
+import { untilText } from './pace'
 
 export type AccountProvider = 'claude' | 'chatgpt' | 'antigravity'
 export interface LimitWindow {
   type: string; label: string; short: string; group?: string;
   utilization: number | null; resetsAt: number | null;
   /** The reading is old or its reset already passed: never show it as free capacity. */
-  stale: boolean; primary: boolean;
+  stale: boolean;
+  /** Its reset already passed: the figure describes the previous window, so it never limits the account. */
+  expired: boolean;
+  primary: boolean;
 }
 export interface AccountLimit { window: string; label: string; short: string; resetsAt: number | null; stale: boolean; source: 'usage' | 'refusing'; rationale?: string }
 export interface AccountView {
@@ -23,15 +27,45 @@ export interface AccountView {
   /** Usage data could not be read; windows may be last-known. */
   usageNote: string; fetchedAt: number | null;
   windows: LimitWindow[]; fiveHour?: LimitWindow; weekly?: LimitWindow;
-  /** Worst primary-window utilization, null when unknown. */
+  /** Worst primary-window utilization of the current windows, null when unknown. */
   peak: number | null;
+  /** The peak comes from an old reading or a window awaiting its post-reset reading. */
+  peakStale: boolean;
+  /** The window behind `peak` (or, when every window has reset, the last one read), for a mini track. */
+  peakWindow?: LimitWindow;
+  /** At a current primary limit or refusing; a window whose reset passed never counts. */
   limited: AccountLimit | null;
-  extraUsage: { enabled: boolean; text: string } | null;
+  /** `text` names dollars (Accounts only); `summary` never does (Today, DESIGN: no dollars in heroes). */
+  extraUsage: { enabled: boolean; text: string; summary: string } | null;
   duplicateOf: string[]; duplicateTitle: string; aliases: string[];
   renewal: { days: number | null; soon: boolean };
   served?: number; refused?: number; costUsd?: number;
   seat?: string;
+  /** ChatGPT seats: who holds the login, the token state and what removes the seat when Meridian cannot. */
+  owner?: ChatGptOwnerView | null; tokenState?: string; removal?: string;
 }
+/** /profiles/list `chatgpt.owner` (and each seat's `owner`): who signs ChatGPT seats in. */
+export interface ChatGptOwnerView { name: string; webSignIn: boolean; login: string; loginMethod: string; refresh: string; refreshTool: string; remove: string; importCommand: string }
+export function chatGptOwner(value: unknown): ChatGptOwnerView | null {
+  const owner = object(value)
+  if (!text(owner.name)) return null
+  return { name: text(owner.name), webSignIn: owner.webSignIn === true, login: text(owner.login), loginMethod: text(owner.loginMethod), refresh: text(owner.refresh), refreshTool: text(owner.refreshTool), remove: text(owner.remove), importCommand: text(owner.importCommand) }
+}
+/** Meridian holds the seats' logins and signs them in over HTTP: Add, Sign in again, Renew and Remove work here. */
+export function chatGptManaged(owner: ChatGptOwnerView | null | undefined): boolean {
+  return owner?.name === 'meridian' && owner.webSignIn
+}
+export interface OwnerCommand { label: string; command: string; note: string }
+/** What to run where Meridian cannot sign a seat in itself, as /profiles shows it. */
+export function ownerCommands(owner: ChatGptOwnerView | null | undefined, seat?: { label: string; expired: boolean }): OwnerCommand[] {
+  if (!owner || chatGptManaged(owner)) return []
+  if (owner.name === 'meridian') return owner.importCommand ? [{ label: 'Import', command: owner.importCommand, note: 'Sign the account in with opencode first, then bring it into Meridian’s store.' }] : []
+  const commands: OwnerCommand[] = []
+  if (owner.login) commands.push({ label: seat ? 'Sign in again' : 'Sign in', command: owner.login, note: [owner.loginMethod && `choose ${owner.loginMethod}`, seat ? `pick ${seat.label}` : 'then Add account', `at ${owner.name}`].filter(Boolean).join(' · ') })
+  if (owner.refresh && (!seat || seat.expired)) commands.push({ label: 'Renew', command: owner.refresh, note: owner.refreshTool ? `or the ${owner.refreshTool} tool in an opencode session` : '' })
+  return commands
+}
+export interface AccountsChatGpt { owner: ChatGptOwnerView | null }
 export interface AccountsModel {
   accounts: AccountView[];
   /** Active id per provider. */
@@ -40,6 +74,8 @@ export interface AccountsModel {
   /** Configured pool order (Claude ids and ChatGPT seats), for reorder. */
   order: string[];
   routing: string;
+  /** Present when the service serves ChatGPT (/profiles/list `chatgpt`). */
+  chatgpt?: AccountsChatGpt;
 }
 
 const STALE_MS = 90_000
@@ -76,11 +112,13 @@ function planWord(profile: Record<string, unknown>): string {
 function extraUsage(value: unknown): AccountView['extraUsage'] {
   const eu = object(value)
   if (eu.isEnabled === undefined) return null
-  if (eu.isEnabled !== true) return { enabled: false, text: 'Extra Usage off · no paid overage' }
+  if (eu.isEnabled !== true) return { enabled: false, text: 'Extra Usage off · no paid overage', summary: 'Extra Usage off · no paid overage' }
   const currency = text(eu.currency) === 'USD' ? '$' : text(eu.currency) ? `${text(eu.currency)} ` : '$'
   const limit = number(eu.monthlyLimit) ?? 0
   const used = number(eu.usedCredits) ?? 0
-  return { enabled: true, text: limit > 0 ? `Extra Usage on · ${currency}${used.toFixed(2)} of ${currency}${limit.toFixed(2)} this month` : 'Extra Usage on · no monthly limit' }
+  if (limit <= 0) return { enabled: true, text: 'Extra Usage on · no monthly limit', summary: 'Extra Usage on · no monthly limit' }
+  const share = number(eu.utilization) ?? used / limit
+  return { enabled: true, text: `Extra Usage on · ${currency}${used.toFixed(2)} of ${currency}${limit.toFixed(2)} this month`, summary: `Extra Usage on · ${Math.round(share * 100)}% of the monthly limit used` }
 }
 
 function limitWindows(raw: unknown, now: number, staleReading: boolean): LimitWindow[] {
@@ -90,9 +128,34 @@ function limitWindows(raw: unknown, now: number, staleReading: boolean): LimitWi
     const resetsAt = number(item.resetsAt) ?? null
     const { label, short } = windowLabel(type)
     const group = text(item.group) || undefined
-    return { type, label: group ? `${group} · ${label}` : label, short, group, utilization, resetsAt, stale: staleReading || (resetsAt !== null && resetsAt <= now), primary: PRIMARY.includes(type) || /(^|-)(5h|weekly)$/.test(type) }
+    const expired = resetsAt !== null && resetsAt <= now
+    return { type, label: group ? `${group} · ${label}` : label, short, group, utilization, resetsAt, stale: staleReading || expired, expired, primary: PRIMARY.includes(type) || /(^|-)(5h|weekly)$/.test(type) }
   })
 }
+
+const FIVE_HOUR = new Set(['five_hour', '5h', 'gemini-5h', '3p-5h'])
+const WEEKLY = new Set(['seven_day', '7d', 'gemini-weekly', '3p-weekly'])
+const byUse = (a: LimitWindow, b: LimitWindow) => (b.utilization ?? -1) - (a.utilization ?? -1)
+/** The worst window of a kind (Antigravity reports one per model group), current readings first. */
+function pick(windows: readonly LimitWindow[], types: ReadonlySet<string>): LimitWindow | undefined {
+  const matching = windows.filter(w => types.has(w.type))
+  return [...matching.filter(w => !w.expired)].sort(byUse)[0] ?? [...matching].sort(byUse)[0]
+}
+
+/**
+ * Peak and limit from usage windows. A window whose reset passed is awaiting
+ * a new reading: it neither limits the account nor reads as free capacity.
+ */
+function usage(windows: readonly LimitWindow[]): Pick<AccountView, 'peak' | 'peakStale' | 'peakWindow'> & { full?: LimitWindow } {
+  const read = windows.filter(w => w.primary && w.utilization !== null)
+  const current = read.filter(w => !w.expired).sort(byUse)
+  const worst = current[0]
+  const full = current.filter(w => (w.utilization ?? 0) >= 1).sort((a, b) => (FIVE_HOUR.has(a.type) ? -1 : 0) - (FIVE_HOUR.has(b.type) ? -1 : 0))[0]
+  return { peak: worst?.utilization ?? null, peakStale: read.some(w => w.stale), peakWindow: worst ?? [...read].sort(byUse)[0], full }
+}
+
+const usageLimit = (full: LimitWindow | undefined): AccountLimit | null =>
+  full ? { window: full.type, label: full.label, short: full.short, resetsAt: full.resetsAt, stale: full.stale, source: 'usage' } : null
 
 function spentLimit(spent: Record<string, unknown>, now: number): AccountLimit | null {
   if (!Object.keys(spent).length) return null
@@ -136,13 +199,12 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
     const isActive = typeof activeProfiles[provider] === 'string' ? activeProfiles[provider] === id
       : profile.isActive === true || quota.isActive === true || (provider === 'claude' && profilesBody.activeProfile === id)
     if (isActive && !active[provider]) active[provider] = id
-    const fiveHour = windows.find(w => w.type === 'five_hour')
-    const weekly = windows.find(w => w.type === 'seven_day')
-    const primary = windows.filter(w => w.primary && w.utilization !== null)
-    const peak = primary.length ? Math.max(...primary.map(w => w.utilization ?? 0)) : null
+    const fiveHour = pick(windows, FIVE_HOUR)
+    const weekly = pick(windows, WEEKLY)
+    const { full, ...peak } = usage(windows)
+    // A refusal counts while its `until` is ahead; spentLimit drops it after.
     const spent = spentLimit(object(quota.spent), now) ?? spentLimit(spentList.find(item => text(item.profileId) === id) ?? {}, now)
-    const full = primary.filter(w => (w.utilization ?? 0) >= 1).sort((a, b) => (a.type === 'five_hour' ? -1 : 0) - (b.type === 'five_hour' ? -1 : 0))[0]
-    const limited: AccountLimit | null = spent ?? (full ? { window: full.type, label: full.label, short: full.short, resetsAt: full.resetsAt, stale: full.stale, source: 'usage' } : null)
+    const limited: AccountLimit | null = spent ?? usageLimit(full)
     const usageNote = needsLogin ? 'Sign-in required'
       : !windows.length && quota.error ? 'Usage unavailable'
       : staleReading && windows.length ? failure === 'rate_limited' ? 'Last reading (usage reads are rate limited)' : 'Last reading'
@@ -154,7 +216,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
       email: text(profile.email), organization: text(profile.organizationName),
       plan: planWord(profile), planDetail: text(profile.planName) || text(profile.planLabel),
       active: isActive, loggedIn: profile.loggedIn !== false, needsLogin,
-      usageNote, fetchedAt, windows, fiveHour, weekly, peak, limited,
+      usageNote, fetchedAt, windows, fiveHour, weekly, ...peak, limited,
       extraUsage: extraUsage(quota.extraUsage),
       duplicateOf,
       duplicateTitle: duplicateOf.length ? `Signed in to ${DUPLICATE_BASIS[text(profile.duplicateBasis)] ?? 'the same account'} as ${duplicateOf.join(', ')}: one account and one quota under ${duplicateOf.length + 1} names.` : '',
@@ -162,6 +224,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
       renewal: { days: number(profile.daysUntilRenewal) ?? null, soon: profile.renewalRequiredSoon === true },
       served: number(t.served), refused: number(t.refused), costUsd: number(object(costs[id]).estimatedUsd),
       seat: typeof profile.seat === 'string' ? profile.seat : undefined,
+      ...(provider === 'chatgpt' ? { owner: chatGptOwner(profile.owner) ?? chatGptOwner(object(profilesBody.chatgpt).owner), tokenState: text(profile.tokenState), removal: text(profile.removal) || undefined } : {}),
     }
   })
 
@@ -171,19 +234,20 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
     for (const account of provider.accounts) {
       const staleReading = Boolean(account.error) || !account.fetchedAt || (state.providers?.fetchedAt ?? now) - account.fetchedAt > STALE_MS
       const windows = limitWindows(account.windows, now, staleReading)
-      const primary = windows.filter(w => w.utilization !== null)
-      const peak = primary.length ? Math.max(...primary.map(w => w.utilization ?? 0)) : null
-      const full = primary.find(w => (w.utilization ?? 0) >= 1)
+      // Every Antigravity window is a quota window (5h and weekly per model group).
+      const { full, ...peak } = usage(windows.map(w => ({ ...w, primary: true })))
       if (account.active && !active.antigravity) active.antigravity = account.id
       accounts.push({
         id: account.id, provider: 'antigravity', label: account.label ?? account.id, email: '', organization: '', plan: 'Google', planDetail: '',
         active: account.active === true, loggedIn: true, needsLogin: false, usageNote: account.error ?? '', fetchedAt: account.fetchedAt ?? null,
-        windows, peak, limited: full ? { window: full.type, label: full.label, short: full.short, resetsAt: full.resetsAt, stale: full.stale, source: 'usage' } : null,
+        windows, fiveHour: pick(windows, FIVE_HOUR), weekly: pick(windows, WEEKLY), ...peak, limited: usageLimit(full),
         extraUsage: null, duplicateOf: [], duplicateTitle: '', aliases: [], renewal: { days: null, soon: false },
       })
     }
   }
-  return { accounts, active, follow, order: configured.length ? sortProfilesByConfiguredOrder(ids, configured) : ids, routing: text(routing.routing) || text(profilesBody.routing) }
+  const chatgptBody = object(profilesBody.chatgpt)
+  const chatgpt = Object.keys(chatgptBody).length ? { owner: chatGptOwner(chatgptBody.owner) } : undefined
+  return { accounts, active, follow, chatgpt, order: configured.length ? sortProfilesByConfiguredOrder(ids, configured) : ids, routing: text(routing.routing) || text(profilesBody.routing) }
 }
 
 /** The account serving requests now: the active Claude account, else the active ChatGPT seat. */
@@ -208,6 +272,21 @@ export function moveInOrder(order: readonly string[], id: string, direction: -1 
   next[from] = next[to] ?? id
   next[to] = id
   return next
+}
+
+export type AccountAction =
+  | { kind: 'serving' } | { kind: 'sign-in' } | { kind: 'held'; text: string } | { kind: 'followed' } | { kind: 'use' } | { kind: 'none' }
+/**
+ * The one action beside an account on Today, Accounts and the menu bar.
+ * Antigravity accounts are never switched from here; an account whose reset
+ * passed is not held, so it offers Use.
+ */
+export function accountAction(account: Pick<AccountView, 'active' | 'needsLogin' | 'limited' | 'provider'>, follow: boolean, now: number): AccountAction {
+  if (account.active) return { kind: 'serving' }
+  if (account.needsLogin) return account.provider === 'antigravity' ? { kind: 'none' } : { kind: 'sign-in' }
+  if (account.limited) return { kind: 'held', text: untilText(account.limited.resetsAt, now) }
+  if (account.provider === 'antigravity') return { kind: 'none' }
+  return follow ? { kind: 'followed' } : { kind: 'use' }
 }
 
 /** Mockup copy for a limit: "5h limit", "weekly limit". */

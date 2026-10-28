@@ -8,16 +8,16 @@ import { Button } from '../components/button'
 import { Kbd, Tip } from '../components/controls'
 import { Avatar } from '../components/brand'
 import { GlyphItem } from '../components/glyph'
-import { LimitBar, LimitTrack } from '../components/limit'
+import { LimitBar, LimitTrack, windowTitle } from '../components/limit'
 import { PromptRibbon, RibbonCell, RibbonLegend } from '../components/ribbon'
 import { ConnectionProblem, Skeleton } from '../components/state'
 import { AxisLabels, DayStrip } from '../charts/spark'
 import { fmtInt, fmtTok, hhmm, pct, plural, relative, seconds } from '../model/format'
 import { promptShare, stripColumns } from '../model/prompt'
-import { untilText } from '../model/pace'
 import { axisLabels, bucketWord, chartSeries, firstFutureSlot, nowFraction, slots } from '../model/series'
 import { attention, attentionFootnote, feedRows, hero, heroPromptDetail } from '../model/today'
-import type { AccountView } from '../model/accounts'
+import { accountAction, type AccountView } from '../model/accounts'
+import { accountsRead } from '../model/status'
 import { pageShortcut, type Navigate } from '../shell/nav'
 
 export function Today({ navigate }: { navigate: Navigate }) {
@@ -74,7 +74,7 @@ export function Today({ navigate }: { navigate: Navigate }) {
             <div className="scroll-y -mx-2 mt-0.5 min-h-0 flex-1">
               {feed.map(row => (
                 <button key={row.id || row.timestamp} type="button" onClick={() => navigate('traffic', { request: row.id })}
-                  className="num grid h-[29px] w-full animate-fade grid-cols-[44px_92px_minmax(0,1fr)_150px_44px_52px] items-center gap-x-3.5 rounded-md px-2 text-left text-base transition-colors duration-150 hover:bg-hover">
+                  className="num grid h-[29px] w-full animate-fade grid-cols-[44px_92px_minmax(0,1fr)_150px_44px_52px] items-center gap-x-3.5 rounded-md px-2 text-left text-base transition-colors duration-150 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
                   <span className="text-t4">{hhmm(row.timestamp)}</span>
                   <span className="truncate font-medium text-t1">{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold tracking-[0.02em] text-t4">1M</sup> : null}</span>
                   <span className="truncate text-t3">{row.client} · {row.profile}{row.lineage ? ` · ${row.lineage}` : ''}</span>
@@ -121,19 +121,16 @@ function LatencySplit({ ttfb, generating }: { ttfb: number | null; generating: n
   )
 }
 
-/** The worse of the 5-hour and weekly windows, for a mini track. */
-function peakWindow(account: AccountView) {
-  const windows = [account.fiveHour, account.weekly].filter(window => window !== undefined)
-  return windows.sort((a, b) => (b.utilization ?? -1) - (a.utilization ?? -1))[0]
-}
-
 /** The one raised panel: the account serving requests, its limits with pace, and the others. */
 function ServingPanel({ serving, others, navigate }: { serving: AccountView | undefined; others: AccountView[]; navigate: Navigate }) {
   const { state, now, run, busy } = useDesktop()
   const { accounts } = useModels()
+  const read = state ? accountsRead(state, accounts.accounts.length) : { kind: 'loading' as const }
   if (!serving) return (
     <Panel className="flex flex-col items-center gap-2 py-6 text-center text-cap text-t3">
-      {state?.profiles === null ? <Skeleton className="h-24 w-full" /> : <>No accounts on this service yet.<Button onClick={() => navigate('accounts')}>Add an account</Button></>}
+      {read.kind === 'loading' ? <Skeleton className="h-24 w-full" />
+        : read.kind === 'failed' ? <><span className="text-t1">Could not read the accounts</span><span className="selectable text-xs">{read.message}</span><Button variant="subtle" disabled={busy} onClick={() => { void run('refresh') }}>Refresh</Button></>
+        : <>No accounts on this service yet.<Button onClick={() => navigate('accounts')}>Add an account</Button></>}
     </Panel>
   )
   const provider = serving.provider === 'chatgpt' ? 'ChatGPT' : serving.provider === 'antigravity' ? 'Google' : 'Claude'
@@ -155,23 +152,25 @@ function ServingPanel({ serving, others, navigate }: { serving: AccountView | un
         <LimitBar name="5-hour" window={serving.fiveHour} now={now} className="mt-3.5" />
         <LimitBar name="Weekly" window={serving.weekly} now={now} className="mt-3.5" />
       </>}
-      {serving.extraUsage ? <div className="mt-2.5 text-xs text-t4">{serving.extraUsage.text}</div> : null}
+      {serving.extraUsage ? <div className="mt-2.5 text-xs text-t4">{serving.extraUsage.summary}</div> : null}
       {serving.usageNote && !serving.needsLogin ? <div className="mt-1 text-xs text-t4">{serving.usageNote}</div> : null}
       {others.length ? <>
         <div className="-mx-4 mb-1 mt-3.5 h-[.5px] bg-ring" />
         <div className="scroll-y -mr-1 max-h-[184px] pr-1">
           {others.map(account => {
-            const window = peakWindow(account)
+            const window = account.peakWindow
+            const action = accountAction(account, Boolean(accounts.follow), now)
             return (
               <div key={account.id} className="grid h-[30px] grid-cols-[minmax(0,1fr)_54px_78px] items-center gap-2.5 text-cap">
                 <span className="truncate font-medium text-t1" title={account.email}>{account.id}<small className="ml-[5px] text-xs font-normal text-t4">{account.plan}</small></span>
-                <Tip content={`5h ${pct(account.fiveHour?.utilization)} · weekly ${pct(account.weekly?.utilization)}${account.usageNote ? ` · ${account.usageNote}` : ''}`}>
+                <Tip content={`${[account.fiveHour, account.weekly].filter(w => w !== undefined).map(w => windowTitle(w, now)).join(' · ') || 'No reading'}${account.usageNote ? ` · ${account.usageNote}` : ''}`}>
                   <div><LimitTrack window={window} now={now} label={`${account.id} usage`} /></div>
                 </Tip>
                 <span className="text-right text-meta font-medium">
-                  {account.needsLogin ? <span className="text-red">needs sign-in</span>
-                    : account.limited ? <span className="text-yellow">{untilText(account.limited.resetsAt, now)}</span>
-                    : accounts.follow ? <span className="font-normal text-t4">followed</span>
+                  {action.kind === 'sign-in' ? <span className="text-red">needs sign-in</span>
+                    : action.kind === 'held' ? <span className="text-yellow">{action.text}</span>
+                    : action.kind === 'followed' ? <span className="font-normal text-t4">followed</span>
+                    : action.kind !== 'use' ? null
                     : <Button variant="text" size="sm" className="text-meta" disabled={!canSwitch} onClick={() => { void run('switch-profile', account.id) }} aria-label={`Use ${account.id}`}>Use</Button>}
                 </span>
               </div>

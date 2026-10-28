@@ -21,6 +21,21 @@ export function filterRows<T extends RequestRow>(rows: readonly T[], filter: Req
   })
 }
 
+/** The request table covers the selected window, like the stats and chart above it. */
+export function rowsInWindow<T extends RequestRow>(rows: readonly T[], since: number): T[] {
+  return rows.filter(row => row.timestamp >= since)
+}
+
+/**
+ * A deep-linked request comes from every loaded request, not only the
+ * window: one outside it still opens, with a quiet note saying so.
+ */
+export function findRequest<T extends RequestRow>(rows: readonly T[], id: string, since: number): { row: T; note?: string } | undefined {
+  const row = id ? rows.find(candidate => candidate.id === id) : undefined
+  if (!row) return undefined
+  return row.timestamp < since ? { row, note: 'outside the selected window' } : { row }
+}
+
 export function facets(rows: readonly RequestRow[]): { providers: string[]; clients: string[]; profiles: string[] } {
   const distinct = (values: string[]) => [...new Set(values.filter(Boolean))].sort()
   return { providers: distinct(rows.map(row => row.provider)), clients: distinct(rows.map(row => row.adapter || row.source)), profiles: distinct(rows.map(row => row.profile)) }

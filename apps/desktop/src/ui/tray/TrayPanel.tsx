@@ -8,15 +8,14 @@ import { Label, Swatch } from '../components/card'
 import { Dot } from '../components/pill'
 import { Tip } from '../components/controls'
 import { GlyphItem } from '../components/glyph'
-import { LimitTrack } from '../components/limit'
+import { LimitTrack, windowTitle } from '../components/limit'
 import { PromptRibbon } from '../components/ribbon'
 import { Skeleton } from '../components/state'
-import { fmtInt, fmtTok, hhmm, pct, relative, when } from '../model/format'
+import { fmtInt, fmtTok, hhmm, when } from '../model/format'
 import { healthChip, host } from '../model/status'
 import { lastFailure } from '../model/failures'
 import { promptShare } from '../model/prompt'
-import { untilText } from '../model/pace'
-import { type AccountView } from '../model/accounts'
+import { accountAction, type AccountView } from '../model/accounts'
 import { hero } from '../model/today'
 import type { WindowKind } from '../../uiData'
 
@@ -50,7 +49,8 @@ export function TrayPanel() {
   // The same token-weighted share as the window's Today hero and sidebar.
   const prompt = promptShare(state?.summary)
   const failure = lastFailure(requests)
-  const list = accounts.accounts.filter(account => account.provider !== 'antigravity')
+  // Quota groups stay apart: Claude and ChatGPT share a pool; Antigravity's Google allowance is its own and is never switched here.
+  const groups = ([['pool', accounts.accounts.filter(account => account.provider !== 'antigravity')], ['antigravity', accounts.accounts.filter(account => account.provider === 'antigravity')]] as const).filter(([, list]) => list.length)
   const [label, ...context] = chip.label.split(' · ')
   const quiet = (state?.preferences.quietUntil ?? 0) > now
   const loadingFigures = data.kind === 'loading' || state?.summary === null
@@ -96,12 +96,16 @@ export function TrayPanel() {
         </div>
       )}
 
-      {list.length ? (
-        <div>
-          <div className="mb-0.5 grid grid-cols-[minmax(0,1fr)_54px_54px_74px] gap-2.5 text-xs text-t3"><span>Accounts</span><span>5-hour</span><span>Weekly</span><span /></div>
-          <div className="scroll-y -mx-1 flex max-h-[220px] flex-col">
-            {list.map(account => <TrayAccount key={account.id} account={account} now={now} canSwitch={!busy && data.kind === 'ready' && !accounts.follow} onUse={() => { void run('switch-profile', account.id) }} followed={Boolean(accounts.follow)} />)}
-          </div>
+      {groups.length ? (
+        <div className="scroll-y -mx-1 flex max-h-[260px] flex-col gap-2 px-1">
+          {groups.map(([group, list]) => (
+            <div key={group}>
+              <div className="mb-0.5 grid grid-cols-[minmax(0,1fr)_54px_54px_74px] gap-2.5 text-xs text-t3"><span>{group === 'antigravity' ? 'Antigravity · Google' : 'Accounts'}</span><span>5-hour</span><span>Weekly</span><span /></div>
+              <div className="-mx-1 flex flex-col">
+                {list.map(account => <TrayAccount key={account.id} account={account} now={now} canSwitch={!busy && data.kind === 'ready' && !accounts.follow} onUse={() => { void run('switch-profile', account.id) }} followed={Boolean(accounts.follow)} />)}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
 
@@ -131,8 +135,8 @@ export function TrayPanel() {
 
 /** Name + plan, two mini tracks with pace ticks (no caption), and the action as text. */
 function TrayAccount({ account, now, canSwitch, onUse, followed }: { account: AccountView; now: number; canSwitch: boolean; onUse(): void; followed: boolean }) {
-  const describe = (name: string, window: AccountView['fiveHour']) => window ? `${name} ${pct(window.utilization)} used · ${window.resetsAt ? window.stale ? 'last reading' : `resets ${relative(window.resetsAt, now)}` : 'reset unknown'}` : `${name}: no reading`
-  const title = `${account.id} · ${describe('5h', account.fiveHour)} · ${describe('weekly', account.weekly)}`
+  const title = `${account.id} · ${account.fiveHour ? windowTitle(account.fiveHour, now) : '5-hour: no reading'} · ${account.weekly ? windowTitle(account.weekly, now) : 'Weekly: no reading'}`
+  const action = accountAction(account, followed, now)
   return (
     <div className="grid h-[30px] grid-cols-[minmax(0,1fr)_54px_54px_74px] items-center gap-2.5 rounded-md px-1 text-cap transition-colors duration-150 hover:bg-hover" aria-label={title} title={title}>
       <span className="flex min-w-0 items-center gap-1.5">
@@ -143,10 +147,11 @@ function TrayAccount({ account, now, canSwitch, onUse, followed }: { account: Ac
       <LimitTrack window={account.fiveHour} now={now} label={`${account.id} 5-hour usage`} />
       <LimitTrack window={account.weekly} now={now} label={`${account.id} weekly usage`} />
       <span className={cn('truncate text-right text-meta font-medium')}>
-        {account.active ? <span className="font-normal text-t3">{followed ? 'following' : 'serving'}</span>
-          : account.needsLogin ? <span className="text-red">sign in</span>
-          : account.limited ? <span className="text-yellow">{untilText(account.limited.resetsAt, now)}</span>
-          : followed ? <span className="font-normal text-t4">followed</span>
+        {action.kind === 'serving' ? <span className="font-normal text-t3">{followed && account.provider !== 'antigravity' ? 'following' : 'serving'}</span>
+          : action.kind === 'sign-in' ? <span className="text-red">sign in</span>
+          : action.kind === 'held' ? <span className="text-yellow">{action.text}</span>
+          : action.kind === 'followed' ? <span className="font-normal text-t4">followed</span>
+          : action.kind !== 'use' ? null
           : <Button variant="text" size="sm" className="text-meta" onClick={onUse} disabled={!canSwitch} aria-label={`Use ${account.id}`}>Use</Button>}
       </span>
     </div>

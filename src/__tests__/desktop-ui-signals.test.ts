@@ -116,7 +116,8 @@ describe('pace ticks', () => {
     expect(resetText({ resetsAt: new Date(2026, 10, 1, 10, 0).getTime(), stale: false }, NOW)).toBe('resets Sun 10:00')
     expect(resetText({ resetsAt: null, stale: false }, NOW)).toBe('reset unknown')
     expect(resetText(undefined, NOW)).toBe('no reading')
-    expect(resetText({ resetsAt: NOW - MIN, stale: true }, NOW)).toBe('reset passed')
+    // A passed reset names its time; the bar says it awaits a new reading.
+    expect(resetText({ resetsAt: NOW - MIN, stale: true }, NOW)).toBe('reset at 10:16')
     expect(untilText(new Date(2026, 9, 28, 10, 59).getTime(), NOW)).toBe('until 10:59')
     expect(untilText(new Date(2026, 9, 29, 9, 0).getTime() + DAY, NOW)).toBe('until Fri')
     expect(untilText(null, NOW)).toBe('limited')

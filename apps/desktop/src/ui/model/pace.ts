@@ -41,17 +41,22 @@ export function pace(window: Pick<LimitWindow, 'type' | 'utilization' | 'resetsA
 
 const weekday = (t: number) => new Date(t).toLocaleDateString('en-US', { weekday: 'short' })
 
-/** Clock time when the reset is within a day, else weekday + time: "14:59", "Sun 10:00". */
+/** Clock time when the reset is within a day of now, else weekday + time: "14:59", "Sun 10:00". */
 export function resetClock(resetsAt: number, now: number): string {
-  return resetsAt - now < DAY ? hhmm(resetsAt) : `${weekday(resetsAt)} ${hhmm(resetsAt)}`
+  return Math.abs(resetsAt - now) < DAY ? hhmm(resetsAt) : `${weekday(resetsAt)} ${hhmm(resetsAt)}`
 }
 
-/** Beneath a limit bar: "resets 14:59", "resets Sun 10:00", or why there is no time. */
+/** Beneath a limit bar: "resets 14:59", "resets Sun 10:00", "reset at 10:00" once passed, or why there is no time. */
 export function resetText(window: Pick<LimitWindow, 'resetsAt' | 'stale'> | undefined, now: number): string {
   if (!window) return 'no reading'
   if (window.resetsAt === null) return 'reset unknown'
-  if (window.resetsAt <= now) return 'reset passed'
+  if (window.resetsAt <= now) return `reset at ${resetClock(window.resetsAt, now)}`
   return `resets ${resetClock(window.resetsAt, now)}`
+}
+
+/** Said of a window whose reset passed: "reset at 10:00, awaiting a new reading". */
+export function awaitingText(window: Pick<LimitWindow, 'resetsAt'>, now: number): string {
+  return window.resetsAt === null ? 'awaiting a new reading' : `reset at ${resetClock(window.resetsAt, now)}, awaiting a new reading`
 }
 
 /** A held account's action text: "until 10:59" today, "until Wed" later, "limited" when unknown. */

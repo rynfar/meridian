@@ -326,8 +326,11 @@ rows and request detail, Cache totals and per-bucket chart), and the *limit bar
 with a pace tick* marks how much of the window has elapsed (1 − time left ÷
 window length; 5 hours, 7 days, 30 days) with "on pace / ahead of pace / under
 pace" (±5 points) and the reset time beneath. A stale reading, unknown reset or
-unknown window draws no tick; a stale reading keeps its usage colour, dimmed,
-so a full account never reads as free. "Prompt from cache" is always the
+unknown window draws no tick; a stale reading keeps a warning colour, dimmed,
+so a full account never reads as free, and turns grey rather than green. A
+window whose reset passed is grey, captioned "awaiting a reading · reset at
+10:00" (tooltip: "reset at 10:00, awaiting a new reading"), and never holds the
+account. "Prompt from cache" is always the
 token-weighted share, cache read ÷ (read + write + uncached input) from the
 summary — the Today and Cache heroes, the sidebar Cache count and the
 menu-bar tile agree; the per-request mean is labelled "mean per request".
@@ -341,7 +344,8 @@ selected version). Attention items are a glyph list (warn triangle, bad
 circle-x, ok check). Health is a status line — dot, state, context — never a
 boxed chip. Settings follow macOS Settings: grouped inset panels, label left,
 control right, help text t3 beneath, the section index beside them.
-Shortcut hints use `kbd`; ⌘1–⌘6 open the six screens and ⌘R refreshes.
+Shortcut hints use `kbd`; ⌘1–⌘6 open the six screens and ⌘R refreshes the
+data (⇧⌘R reloads the window).
 
 The window keeps its structure: a 216px glass sidebar with SF-style line icons,
 counts in t4 (Cache in violet, a limited count as a warn dot and number) and a
@@ -365,10 +369,16 @@ The menu-bar panel prioritizes cache reuse, connection health and account
 limits in the same language: a status line, two raised tiles ("Prompt from
 cache" with a mini ribbon; requests with the failed count), account rows with
 5-hour and weekly mini tracks carrying pace ticks (no caption), the last
-failure as a glyph item and plain text buttons in the footer. Account switching
-and owned service controls remain available without opening the dashboard.
-Escape or loss of focus dismisses the panel; missing or stale quota data never
-looks like unused capacity. Each limit keeps its full reset detail in the row's
+failure as a glyph item and plain text buttons in the footer. Claude and
+ChatGPT accounts form one group; Antigravity accounts (a Google allowance) a
+separate one beneath, with tracks but never a switch action. Each row ends in
+one plain-text state: "serving", "until 10:59" for a held account, "sign in",
+or *Use* for Claude and ChatGPT. Account switching and owned service controls
+remain available without opening the dashboard. Escape or loss of focus
+dismisses the panel; missing or stale quota data never looks like unused
+capacity, and a window whose reset passed is grey and holds nothing. Reset
+times are not printed in the rows: each limit keeps its full reset detail
+("resets 14:59", or "reset at 10:00, awaiting a new reading") in the row's
 tooltip and accessible name; the account list scrolls only when it exceeds the
 available space, and service controls stay outside it.
 

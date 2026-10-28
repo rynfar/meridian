@@ -17,6 +17,19 @@ export function dataState(state: DesktopState | undefined): DataState {
   return { kind: 'failed', title, message: connection.message, fix: connection.fix }
 }
 
+/**
+ * Whether the account reads (/profiles/list, /v1/usage/quota/all) produced
+ * something to show. Both null means not read yet or failed — never "no
+ * accounts on this service".
+ */
+export type AccountsRead = { kind: 'ready'; warning: string } | { kind: 'loading' } | { kind: 'failed'; message: string }
+export function accountsRead(state: Pick<DesktopState, 'profiles' | 'quota' | 'dataErrors'>, accounts: number): AccountsRead {
+  const errors = state.dataErrors.filter(error => /\/profiles\/list|\/v1\/usage\/quota/.test(error))
+  const message = errors.join(' · ')
+  if (state.profiles !== null || state.quota !== null || accounts > 0) return { kind: 'ready', warning: message }
+  return errors.length ? { kind: 'failed', message } : { kind: 'loading' }
+}
+
 export function host(baseUrl: string | undefined): string {
   if (!baseUrl) return ''
   try { return new URL(baseUrl).host } catch { return baseUrl }
@@ -38,9 +51,24 @@ export function healthChip(state: DesktopState | undefined, serving: AccountView
   const suffix = account ? ` · ${account}` : ''
   if (text(upstream.state) === 'failing' || text(upstream.state) === 'down') return { tone: 'red', label: `Claude connection failed${suffix}`, title: text(upstream.lastErrorKind) || 'Recent requests could not reach Claude.' }
   if (text(upstream.state) && text(upstream.state) !== 'ok') return { tone: 'yellow', label: `Rechecking Claude${suffix}`, title: `Upstream state: ${text(upstream.state)}` }
+  const provider = failingProvider(state)
+  if (provider) return { tone: text(health.backend) === 'antigravity' ? 'red' : 'yellow', label: `${provider.name} unavailable · ${provider.error || provider.status}`, title: provider.error || `${provider.name} reports ${provider.status}.` }
   if (text(health.status) && text(health.status) !== 'healthy') return { tone: 'yellow', label: `${text(health.status).replace(/^./, c => c.toUpperCase())}${suffix}`, title: state.connection.message }
   if (serving?.limited && serving.active) return { tone: 'yellow', label: `Limited${suffix}`, title: `${serving.id} reached its ${serving.limited.label.toLowerCase()} limit` }
   return { tone: 'green', label: `Working${suffix}`, title: state.connection.message }
+}
+
+/** An enabled non-Claude provider (Antigravity) that reports a failure; Claude's own state comes from /health. */
+export function failingProvider(state: Pick<DesktopState, 'providers'>): { name: string; status: string; error: string } | undefined {
+  const provider = state.providers?.providers.find(p => p.enabled && p.id !== 'claude' && (p.status === 'unavailable' || Boolean(p.error)))
+  return provider ? { name: provider.name || provider.id, status: provider.status, error: provider.error ?? '' } : undefined
+}
+
+/** A provider's own state for its Accounts section header: "unavailable · agy is not signed in". Null when healthy or unknown. */
+export function providerState(state: Pick<DesktopState, 'providers'>, id: string): { text: string; failing: boolean } | null {
+  const provider = state.providers?.providers.find(p => p.id === id)
+  if (!provider?.enabled || (provider.status === 'healthy' && !provider.error)) return null
+  return { text: [provider.status, provider.error].filter(Boolean).join(' · '), failing: provider.status === 'unavailable' || Boolean(provider.error) }
 }
 
 /** Sidebar footer: which instance is being viewed and how. */

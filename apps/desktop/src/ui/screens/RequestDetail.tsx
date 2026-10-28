@@ -27,7 +27,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Per-request detail as a raised side panel: timing, the prompt ribbon, lineage, routing chain and ids. */
-export function RequestDetail({ row, cost, now, onClose }: { row: RequestRow; cost: number | null; now: number; onClose(): void }) {
+export function RequestDetail({ row, cost, now, onClose, note }: { row: RequestRow; cost: number | null; now: number; onClose(): void; note?: string }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -44,6 +44,7 @@ export function RequestDetail({ row, cost, now, onClose }: { row: RequestRow; co
             <span className={cn('num text-meta font-medium', row.failed ? 'text-red' : 'text-t4')}>{row.failed ? failureText(row) : row.status ?? ''}</span>
           </div>
           <div className="num mt-0.5 text-meta text-t3">{when(row.timestamp, now)} · {[row.adapter || row.source, row.profile].filter(Boolean).join(' · ')}</div>
+          {note ? <div className="mt-0.5 text-xs text-t4">{note}</div> : null}
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Close detail" onClick={onClose}><X /></Button>
       </div>

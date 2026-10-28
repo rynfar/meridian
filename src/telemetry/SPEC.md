@@ -21,7 +21,9 @@ Record what Meridian did and show it to the operator:
   shared site header (`profileBar.ts`), which is the single home of the color
   tokens;
 - pure presentation shared with the desktop app (`providerView.ts`,
-  `providerSetup.ts`);
+  `providerSetup.ts`, `settingRow.ts`), and the pure cost valuation in
+  `pricing.ts`, whose `resolveRequestPricing` the desktop uses to value each
+  request exactly as `computeCostEstimate` does;
 - the shared `settingRow` presentation (`settingRow.ts`) every `/settings`
   row renders through: label and control on one line, description, status and
   env-override lines below. The override line credits an env var only when the

@@ -25,8 +25,11 @@ notifications from a window and a menu-bar panel.
   `GET /telemetry/timeseries` (owner-approved 2026-10-28, see
   [`telemetry-ui`](../../src/telemetry/SPEC.md)); against an older Meridian the
   charts are estimated from the latest 500 requests and say so. It may import
-  only pure shared presentation from `src/telemetry` (`providerView`,
-  `providerSetup`, `profileBar` tokens).
+  only pure shared modules from `src/telemetry`: `providerView`,
+  `providerSetup`, `profileBar` tokens, `settingRow` (the settings page's own
+  env-override wording) and `pricing` (each request is valued exactly as the
+  server's `computeCostEstimate` values it — pin, family fallback, tiers —
+  with the overrides from `GET /settings/api/pricing`).
 - **Sandboxed renderers** reach a narrow preload interface; IPC accepts only the
   exact main frame and local entry URL of its own windows. Clipboard requests
   carry choices, revalidated by the main process — never arbitrary text.
@@ -45,7 +48,16 @@ notifications from a window and a menu-bar panel.
 - **Account and settings parity over HTTP.** Switch, rename, reorder, ChatGPT
   seat sign-in/renew/remove, Claude sign-in (paste-code routes) and
   `/settings/api/*` writes go through the viewed server in either mode. Only
-  Claude account removal needs the managed CLI (no HTTP route exists).
+  Claude account removal needs the managed CLI (no HTTP route exists). ChatGPT
+  seats are added, signed in, renewed and removed here only where Meridian owns
+  their logins (`chatgpt.owner.name === 'meridian'` with `webSignIn`);
+  otherwise the app shows the owner's login/refresh/import commands as
+  selectable text and the seat's `removal` text, as `/profiles` does.
+- **Limits are current or say they are not.** A window whose reset has passed
+  never limits an account (no limited badge, no Needs attention item, Use
+  stays offered); it reads "reset at HH:MM, awaiting a new reading" in grey. A
+  stale reading never draws as free capacity: warning colours stay dimmed,
+  green turns grey. A refusal (`spent`) holds the account until its `until`.
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives
@@ -59,14 +71,21 @@ notifications from a window and a menu-bar panel.
   React, Radix, TanStack Table, Recharts and Tailwind are build-time
   dependencies of this package only.
 - **One purpose per screen, nothing repeated** (owner decision 2026-10-28):
-  *Today* (health, cache hit and requests heroes, serving account, latency,
-  live feed, needs attention), *Traffic* (window stats, requests chart, the
+  *Today* (health, "Prompt from cache" — the token-weighted share — and
+  requests heroes, the day strip, serving account with limits and pace, live
+  feed, needs attention; Extra Usage as a share of its monthly limit, never
+  dollars), *Traffic* (window stats, requests chart, the
   request table and detail with waterfall and routing chain), *Cache* (hit
   rate and tokens over time, savings, keepalive, low-cache continuations),
   *Accounts* (the only provider/account grid), *Logs*, *Service* (connection,
   process, versions, plugins, every server setting, desktop preferences). The
   time window (1h / Today / 24h / 7d, default since local midnight) applies to
   every windowed figure, including the request table.
+- **Keyboard.** ⌘1–⌘6 open the screens; ⌘R is the application menu's
+  *Refresh data* (the renderer leaves it to the menu, so it refreshes once) and
+  ⇧⌘R *Reload window*. Request rows on Today and Traffic open with Enter or
+  Space and show the accent focus ring. A deep link to a request opens it even
+  outside the time window, noting so.
 - Visual rules follow [`design-language`](../../DESIGN.md) → *Native desktop
   preview*.
 

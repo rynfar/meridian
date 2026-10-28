@@ -16,7 +16,7 @@ import { fmtInt, fmtTok, hhmm, ms, pct, seconds, usd } from '../model/format'
 import { bucketWord, chartSeries } from '../model/series'
 import { requestCost, type RequestRow } from '../model/requests'
 import { failureText } from '../model/today'
-import { accountTrafficRows, emptyFilter, facets, filterRows, lineageCounts, modelRows, percentileRows, trafficStats, type RequestFilter, type RequestKind } from '../model/traffic'
+import { accountTrafficRows, emptyFilter, facets, filterRows, findRequest, lineageCounts, modelRows, percentileRows, rowsInWindow, trafficStats, type RequestFilter, type RequestKind } from '../model/traffic'
 import { windowRange } from '../../uiData'
 import type { Navigate } from '../shell/nav'
 
@@ -25,7 +25,8 @@ const helper = createColumnHelper<typeof features, RequestRow & { cost: number |
 const num = (value: number | null) => value ?? undefined
 const columns = helper.columns([
   helper.accessor('timestamp', { header: 'Time', sortFn: 'basic', cell: info => <span className="text-t4">{hhmm(info.getValue())}</span> }),
-  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <span className="font-medium text-t1">{info.getValue()}{info.row.original.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</span> }),
+  // The model cell is the row's keyboard target: Tab reaches it, Enter or Space opens the detail.
+  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <button type="button" data-open-request={info.row.original.id} aria-label={`Open request ${info.getValue()} at ${hhmm(info.row.original.timestamp)}`} className="rounded-sm font-medium text-t1 focus-visible:outline-2 focus-visible:outline-accent">{info.getValue()}{info.row.original.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</button> }),
   helper.accessor(row => row.adapter || row.source, { id: 'client', header: 'Client', sortFn: 'text', cell: info => <span className="text-t3">{info.getValue() || '—'}</span> }),
   helper.accessor(row => row.profile, { id: 'account', header: 'Account', sortFn: 'text', cell: info => {
     const row = info.row.original
@@ -67,8 +68,10 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
   // The table covers the selected window, like the stats and chart above it.
   const kind = state?.window.kind ?? 'today'
   const since = windowRange(kind, now).start
-  const inWindow = useMemo(() => requests.filter(row => row.timestamp >= since), [requests, since])
+  const inWindow = useMemo(() => rowsInWindow(requests, since), [requests, since])
   const priced = useMemo(() => inWindow.map(row => ({ ...row, cost: requestCost(row, pricing) })), [inWindow, pricing])
+  // The detail resolves against every loaded request, so a deep link outside the window still opens.
+  const found = useMemo(() => findRequest(requests, selected, since), [requests, selected, since])
   const rows = useMemo(() => filterRows(priced, filter), [priced, filter])
   const options = useMemo(() => facets(inWindow), [inWindow])
   useEffect(() => setPagination(current => ({ ...current, pageIndex: 0 })), [filter])
@@ -79,7 +82,6 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
   if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-4 px-[26px] pt-[22px]"><div className="flex gap-8">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-11 w-24" />)}</div><Skeleton className="h-24" /><Skeleton className="h-96" /></div>
 
   const stats = trafficStats(state.summary, state.routesSummary)
-  const detail = selected ? priced.find(row => row.id === selected) : undefined
   const set = (patch: Partial<RequestFilter>) => setFilter(current => ({ ...current, ...patch }))
   const filtered = filter.query || filter.kind !== 'all' || filter.provider !== 'all' || filter.client !== 'all' || filter.profile !== 'all'
 
@@ -163,7 +165,7 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
         </TabPanel>
       </Tabs>
 
-      {detail ? <RequestDetail row={detail} cost={detail.cost} now={now} onClose={() => setSelected('')} /> : null}
+      {found ? <RequestDetail row={found.row} cost={requestCost(found.row, pricing)} note={found.note} now={now} onClose={() => setSelected('')} /> : null}
     </div>
   )
 }
