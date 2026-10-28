@@ -129,7 +129,7 @@ function limitWindows(raw: unknown, now: number, staleReading: boolean): LimitWi
     const { label, short } = windowLabel(type)
     const group = text(item.group) || undefined
     const expired = resetsAt !== null && resetsAt <= now
-    return { type, label: group ? `${group} · ${label}` : label, short, group, utilization, resetsAt, stale: staleReading || expired, expired, primary: PRIMARY.includes(type) || /(^|-)(5h|weekly)$/.test(type) }
+    return { type, label: group ? `${group} · ${label}` : label, short, group, utilization, resetsAt, stale: staleReading || expired, expired, primary: PRIMARY.includes(type) || FIVE_HOUR.has(type) || WEEKLY.has(type) || /(^|-)(5h|weekly)$/.test(type) }
   })
 }
 

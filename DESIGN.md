@@ -309,8 +309,9 @@ behind text. Provider brands appear only as a quiet tint on account avatars.
 border on content. Content sits on the canvas, separated by space and
 sentence-case section labels; there is no card per metric. A raised panel marks
 only what the user acts on — on Today the account serving requests, on Accounts
-each account, on Service each settings group — plus sheets, menus, popovers and
-the request-detail side panel. Sidebar active rows are a raised fill with the
+each account, on Service each settings group — plus sheets, menus, popovers,
+the request-detail side panel and, as the one exception, the menu-bar panel's
+two hero tiles, which separate its figures from the glass behind them. Sidebar active rows are a raised fill with the
 ring, not a blue wash.
 
 **Type.** System font, set as an explicit family list (Chromium drops
@@ -373,6 +374,7 @@ failure as a glyph item and plain text buttons in the footer. Claude and
 ChatGPT accounts form one group; Antigravity accounts (a Google allowance) a
 separate one beneath, with tracks but never a switch action. Each row ends in
 one plain-text state: "serving", "until 10:59" for a held account, "sign in",
+"following" / "followed" when this instance follows another's active account,
 or *Use* for Claude and ChatGPT. Account switching and owned service controls
 remain available without opening the dashboard. Escape or loss of focus
 dismisses the panel; missing or stale quota data never looks like unused

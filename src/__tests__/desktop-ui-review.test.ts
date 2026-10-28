@@ -92,6 +92,12 @@ describe('stale readings and refusals', () => {
     const account = buildAccounts(accountsInput([{ id: 'w', fetchedAt: NOW - 10 * MIN, windows: [{ type: 'five_hour', utilization: 1, resetsAt: NOW + HOUR }] }], [{ id: 'w' }]), NOW).accounts[0]!
     expect(account.limited?.stale).toBe(true)
   })
+  test('a ChatGPT seat at 100% of its 7d window is held, not offered', () => {
+    const seat = buildAccounts(accountsInput([{ id: 'gpt', fetchedAt: NOW, windows: [{ type: '5h', utilization: 0.2, resetsAt: NOW + HOUR }, { type: '7d', utilization: 1, resetsAt: NOW + 48 * HOUR }] }], [{ id: 'gpt', seat: 'seat-1', provider: 'chatgpt' }]), NOW).accounts[0]!
+    expect(seat.limited?.window).toBe('7d')
+    expect(seat.peak).toBe(1)
+    expect(accountAction(seat, false, NOW).kind).toBe('held')
+  })
   test('a spent (refusing) limit counts while its until is ahead, and not after', () => {
     const spent = (until: number) => buildAccounts(accountsInput([{ id: 'w', fetchedAt: NOW, windows: [{ type: 'five_hour', utilization: 0.3, resetsAt: NOW + HOUR }] }], [{ id: 'w' }],
       { spent: [{ profileId: 'w', until, diagnosis: { bucket: 'seven_day', rationale: 'Refused with a weekly limit' } }] }), NOW).accounts[0]!
