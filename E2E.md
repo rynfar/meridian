@@ -8422,8 +8422,9 @@ python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
 ```
 
 `shoot.py` screenshots every screen in light and dark (ok data, the estimated
-timeseries fallback, stopped, unauthorized, loading, and partial — one read
-failing while `/health` answers) plus the tray, and
+timeseries fallback, stopped, unauthorized, loading, partial — one read
+failing while `/health` answers — and switched, where the selection differs
+from the account that served the latest request) plus the tray, and
 exits 1 on any console error, page error or CSP violation.
 
 **Verified 2026-10-28** (maintainer, macOS arm64, Electron 44.3.0): the built
@@ -8454,6 +8455,16 @@ saved-key binding, failed-read states, partial history, benched accounts and
 DST slots are covered by HTTP tests against in-test services and by the preview
 harness's `partial` fixture (one read failing while `/health` answers); none of
 them can be produced on the owner's service without changing it.
+
+**Active account on Accounts, verified 2026-10-30** (same setup, read-only):
+on the owner's service (routing `active`) exactly one card carried the accent
+ring and "Serving now" — `personal`, the selected account — with "Active" in
+its action slot and "Routing active · serving personal" in the header; no
+mismatch note, since `personal` also served the latest request; zero console
+problems. The mismatch notes ("Latest request went to …" / "Served the latest
+request · … is selected") are covered by model tests and the preview harness's
+`switched` fixture, since producing one live would mean switching the owner's
+account.
 
 ## SDK ping idle regression (#1177)
 
