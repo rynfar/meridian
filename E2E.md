@@ -8422,7 +8422,8 @@ python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
 ```
 
 `shoot.py` screenshots every screen in light and dark (ok data, the estimated
-timeseries fallback, stopped, unauthorized and loading) plus the tray, and
+timeseries fallback, stopped, unauthorized, loading, and partial — one read
+failing while `/health` answers) plus the tray, and
 exits 1 on any console error, page error or CSP violation.
 
 **Verified 2026-10-28** (maintainer, macOS arm64, Electron 44.3.0): the built
@@ -8437,6 +8438,22 @@ with zero console or CSP problems; the estimated-history fallback showed for
 *Reload window*. The installed app's `desktop.json` hash was unchanged and no
 process outlived the run. `/telemetry/timeseries` was covered by HTTP tests
 only, since that service predates it.
+
+**Post-merge review follow-up, verified 2026-10-29** (maintainer, macOS arm64,
+Electron 44.3.0): the fixes from two adversarial post-merge reviews were
+launched the same way (isolated `--user-data-dir`, read-only GETs only) against
+the owner's launchd Meridian 1.86.0 on 127.0.0.1:3456. Detection attached to
+the launchd job without starting a managed copy (nothing listened on :3489);
+the connection read `ok` with 500 requests, no data errors and no API key
+sent; Today, Traffic, Cache and Accounts rendered real traffic with zero
+console or CSP problems; Traffic showed the retention line ("3,507 requests
+in SQLite · 7d retention · …"); Today and Cache said the history is estimated
+for 1.86.0; the explicit *Refresh* action advanced `lastChecked`. The installed
+app's `desktop.json` hash was unchanged and no process outlived the run. The
+saved-key binding, failed-read states, partial history, benched accounts and
+DST slots are covered by HTTP tests against in-test services and by the preview
+harness's `partial` fixture (one read failing while `/health` answers); none of
+them can be produced on the owner's service without changing it.
 
 ## SDK ping idle regression (#1177)
 
