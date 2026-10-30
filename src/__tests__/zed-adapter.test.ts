@@ -10,7 +10,6 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { existsSync } from "node:fs"
 import type { Context } from "hono"
 import {
-  extractZedFileChanges,
   extractZedRootDirectory,
   extractZedSessionId,
   extractZedSystemText,
@@ -113,17 +112,11 @@ describe("Zed adapter — tool configuration", () => {
     expect(zedAdapter.usesPassthrough!()).toBe(true)
     expect(zedAdapter.getSettingSources!()).toHaveLength(0)
     expect(zedAdapter.supportsThinking!()).toBe(true)
-    expect(zedAdapter.shouldTrackFileChanges!()).toBe(true)
+    // Zed's panel shows every edit as a tool card; no synthetic "Files changed:" block.
+    expect(zedAdapter.shouldTrackFileChanges!()).toBe(false)
   })
 
-  it("maps Zed's editing tools to file changes", () => {
-    expect(extractZedFileChanges("create_file", { path: "src/a.ts", contents: "" })).toEqual([{ operation: "wrote", path: "src/a.ts" }])
-    expect(extractZedFileChanges("edit_file", { path: "src/a.ts", display_description: "x" })).toEqual([{ operation: "edited", path: "src/a.ts" }])
-    expect(extractZedFileChanges("terminal", { command: "ls" })).toEqual([])
-    expect(extractZedFileChanges("edit_file", {})).toEqual([])
-  })
-
-  it("keeps OpenCode's tool pipeline but un-defers the catalog and tracks file changes", () => {
+  it("keeps OpenCode's tool pipeline but un-defers the catalog and leaves the file-change summary off", () => {
     const ctx = runTransformHook(getAdapterTransforms("zed"), "onRequest", createRequestContext({
       adapter: "zed",
       body: { tools: [] },
@@ -136,8 +129,8 @@ describe("Zed adapter — tool configuration", () => {
     expect(ctx.passthrough).toBe(true)
     expect(ctx.coreToolNames).toBeUndefined()
     expect(ctx.settingSources).toHaveLength(0)
-    expect(ctx.shouldTrackFileChanges).toBe(true)
+    expect(ctx.shouldTrackFileChanges).toBe(false)
     expect(ctx.supportsThinking).toBe(true)
-    expect(ctx.extractFileChangesFromToolUse!("create_file", { path: "x" })).toEqual([{ operation: "wrote", path: "x" }])
+    expect(ctx.extractFileChangesFromToolUse).toBeUndefined()
   })
 })

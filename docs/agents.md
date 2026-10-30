@@ -407,6 +407,7 @@ Zed is detected by its `Zed/<version>` User-Agent; explicit selection uses `x-me
 - **Title and summary one-shots.** Zed generates the thread title and a summary with extra requests that carry the same thread id and the thread's messages but no agent system prompt. They are auxiliary: a fresh session each, never stored or resumed, so they cannot share a session with the thread.
 - **Nothing from the proxy host.** Zed ships your personal `AGENTS.md` and the open project's rules inside its own system prompt, so the Claude Code preset and host `CLAUDE.md` stay off, and the SDK subprocess runs in an empty directory under Meridian's config dir (`workdir`), on any host, including a container. The model is told the project root Zed reports through the working-directory note.
 - **Thinking.** On by default and forwarded as `reasoning_content`, which the panel renders. Effort defaults to `high`, because Zed's `openai_compatible` provider does not forward the `reasoning_effort` on the model entry; a request that does carry an effort keeps it. Change the default under **Default Effort** at `/settings` (`defaultEffort` in `sdk-features.json`).
+- **No `Files changed:` summary.** Zed's panel already shows every `create_file` and `edit_file` call as a tool card, so Meridian does not append its synthetic list of edited files to the answer, as for OpenCode and Claude Code.
 
 ### Cherry Studio
 
