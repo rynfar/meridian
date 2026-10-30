@@ -1028,7 +1028,7 @@ export class Manager {
       const agent = await this.supervisor.discoverLaunchAgent(servicePort)
       if (agent?.label === journal.agent.label && agent.fingerprint === journal.agent.fingerprint) {
         try {
-          const response = await fetch(journal.previous.endpoint + '/health', { headers: journal.previous.apiKey && journal.previousKeyFor === journal.previous.endpoint ? { 'x-api-key': journal.previous.apiKey } : {}, signal: AbortSignal.timeout(2000) })
+          const response = await fetch(journal.previous.endpoint + '/health', { headers: journal.previous.apiKey && journal.previousKeyFor !== undefined && journal.previousKeyFor === serviceKey(journal.previous.endpoint) ? { 'x-api-key': journal.previous.apiKey } : {}, signal: AbortSignal.timeout(2000) })
           if (response.ok && isMeridianHealth(await response.json())) { restored = true; break }
         } catch { /* The restored process may still be initializing HTTP. */ }
       }
