@@ -60,6 +60,10 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
 | `MERIDIAN_DEFER_TOOL_THRESHOLD` | — | `15` | Number of tools before non-core tools are deferred via ToolSearch. A client that marks any tool `defer_loading: true` manages deferral itself and is never auto-deferred. Set to `0` to disable. |
+| `MERIDIAN_MAX_TOOL_RESULT_PCT` | — | `5` | Largest client tool result passed to the model, as a percentage of the model's context window (tokens estimated at 2 bytes each: 100 KB on a 1M window, 20 KB on 200k). A larger result is replaced by a notice naming the size, the limit and a sample — see [Oversized tool results](#oversized-tool-results). `0` disables. |
+| `MERIDIAN_MAX_TURN_RESULTS_PCT` | — | `20` | Same, for all tool results of the live turn together. `0` disables. |
+| `MERIDIAN_MAX_TOOL_RESULT_BYTES` | — | unset | Absolute per-result limit in bytes; overrides `MERIDIAN_MAX_TOOL_RESULT_PCT`. `0` disables. |
+| `MERIDIAN_NO_TOOL_RESULT_NOTE` | — | unset | Set to `1` to drop the `[meridian] Withheld …` note prepended to an answer when tool results were withheld for that request. The model's notice and the log line stay. |
 | `MERIDIAN_TELEMETRY_PERSIST` | `CLAUDE_PROXY_TELEMETRY_PERSIST` | unset | Enable SQLite telemetry persistence. Data survives proxy restarts. |
 | `MERIDIAN_TELEMETRY_DB` | `CLAUDE_PROXY_TELEMETRY_DB` | `~/.config/meridian/telemetry.db` | SQLite database path (when persistence is enabled) |
 | `MERIDIAN_TELEMETRY_RETENTION_DAYS` | `CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS` | `7` | Days to retain telemetry data before cleanup |
@@ -1740,6 +1744,14 @@ A lifted budget still stops at the tool boundary. Deferred tools and an advisor 
 > safe precisely because nothing had reached the client yet. An explicit
 > `MERIDIAN_PASSTHROUGH_MAX_TURNS` suppresses the reissue too: the budget is
 > then the operator's, and a second identical attempt would only spend a turn.
+
+### Oversized tool results
+
+A client that runs its own tools sends every result back verbatim, and some tools have no ceiling of their own: Zed's `grep` paginates by match count, not size, so a few matches on a file with multi-megabyte lines come back as one multi-megabyte result. Observed live: a 3.8 MB `grep` result landed on a 176k-token thread and every retry failed with `Prompt is too long`, because the client resends its history on each turn — the replay budget can drop earlier history, but never the live turn that carries the result.
+
+Meridian therefore bounds client tool results before they reach the model, on resumed continuations as well as on fresh replays. A result above `MERIDIAN_MAX_TOOL_RESULT_PCT` of the model's context window (default 5%, tokens estimated at 2 bytes each: 100 KB on a 1M window, 20 KB on 200k), or beyond what `MERIDIAN_MAX_TURN_RESULTS_PCT` (default 20%) leaves for the live turn's results together, is replaced by a `[Tool result withheld by the proxy]` notice marked as a tool error: the tool, the size, the limit, how to narrow the call and a sample of at most 2 KB. The model treats the call as failed and narrows it; the client keeps showing its own full copy. The per-result limit applies to replayed history too; the per-turn limit only to the messages after the last assistant turn, so a fresh replay keeps its newest results. `MERIDIAN_MAX_TOOL_RESULT_BYTES` pins an absolute per-result size instead of the percentage; `0` in any of the three variables disables that limit.
+
+Every cut is logged as `tool_result_withheld` in `/telemetry/logs` and as `session.tool_result_withheld` in the structured log, and the answer of that request starts with a one-line `[meridian] Withheld …` note naming each tool, its size and the limit, so the person sees in the client what the model did not get. `MERIDIAN_NO_TOOL_RESULT_NOTE=1` drops the note; structured-output answers never carry it.
 
 ### Silent turns
 

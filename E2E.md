@@ -1,6 +1,6 @@
 ## Zed adapter
 
-Real SDK/model gate for `adapters/zed.ts`: detection by the `Zed/` User-Agent, session identity from `prompt_cache_key`, a streamed tool call forwarded to the client and its `tool` message fed back into the resumed session, the neutral SDK working directory under the config dir, and a title one-shot (same thread id, no agent system prompt) that runs in its own session without disturbing the thread's.
+Real SDK/model gate for `adapters/zed.ts`: detection by the `Zed/` User-Agent, session identity from `prompt_cache_key`, a streamed tool call forwarded to the client and its `tool` message fed back into the resumed session, the neutral SDK working directory under the config dir, a title one-shot (same thread id, no agent system prompt) that runs in its own session without disturbing the thread's, and a fourth tool round whose `tool` message (~300 KB) is far above the per-result limit: the proxy withholds it, the streamed answer starts with the `[meridian] Withheld …` note, and the thread still resumes with its prompt cache.
 
 ```bash
 npm run build && node scripts/e2e-zed-client.mjs          # dist/, under node
