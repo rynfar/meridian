@@ -1,5 +1,4 @@
 import type { Transform, RequestContext } from "../transform"
-import { extractZedFileChanges } from "../adapters/zed"
 
 /**
  * Zed rides the OpenAI-compatible endpoint and reuses OpenCode's tool
@@ -22,9 +21,10 @@ export const zedTransforms: Transform[] = [
         // NOTE: Zed-specific. Nothing from the proxy host: Zed ships the
         // user's AGENTS.md and the project's rules in its own system prompt.
         settingSources: [],
-        // Zed shows no file-change summary of its own.
-        shouldTrackFileChanges: true,
-        extractFileChangesFromToolUse: extractZedFileChanges,
+        // NOTE: Zed-specific. Zed's panel shows every file edit as a tool
+        // card; Meridian's "Files changed:" block would only duplicate it.
+        shouldTrackFileChanges: false,
+        extractFileChangesFromToolUse: undefined,
       }
     },
   },
