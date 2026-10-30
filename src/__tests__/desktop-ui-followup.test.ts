@@ -3,17 +3,19 @@
  * scope, truncated history, keepalive beats, failure outcomes, benched
  * accounts, rounding, DST days and text contrast. All pure view models.
  */
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
+import { join } from 'node:path'
 import { buildAccounts, accountAction, limitPill } from '../../apps/desktop/src/ui/model/accounts'
 import { requestRows, type RequestRow } from '../../apps/desktop/src/ui/model/requests'
 import { cacheMisses } from '../../apps/desktop/src/ui/model/cache'
 import { groupFailures } from '../../apps/desktop/src/ui/model/failures'
 import { sourceRead, summaryScope } from '../../apps/desktop/src/ui/model/status'
-import { chartSeries, firstFutureSlot, historyNote, nowFraction, slots } from '../../apps/desktop/src/ui/model/series'
+import { chartSeries, historyNote } from '../../apps/desktop/src/ui/model/series'
 import { retentionLine, rowsInWindow, trafficStats } from '../../apps/desktop/src/ui/model/traffic'
 import { attention, attentionFootnote, requestCoverage } from '../../apps/desktop/src/ui/model/today'
 import { fmtTok, pct, percentFigure } from '../../apps/desktop/src/ui/model/format'
-import { bucketRequests, type Timeseries, type TimeseriesBucket } from '../../apps/desktop/src/uiData'
+import { bucketRequests, type Timeseries } from '../../apps/desktop/src/uiData'
 import { desktopThemeCss } from '../telemetry/profileBar'
 
 const NOW = new Date(2026, 9, 28, 10, 17).getTime()
@@ -144,30 +146,34 @@ describe('figures never round into a claim', () => {
 })
 
 describe('Today on a daylight-saving day', () => {
-  const originalTz = process.env.TZ
-  afterEach(() => { if (originalTz === undefined) delete process.env.TZ; else process.env.TZ = originalTz })
-  const bucket = (start: number): TimeseriesBucket => ({ start, requests: 1, errors: 0, inputTokens: 1, cacheReadTokens: 1, cacheCreationTokens: 0, outputTokens: 1, cacheHitRate: 0.5, p50TotalMs: 100, p50TtfbMs: 10, costUsd: null })
-  const hourly = (midnight: number, hours: number): Timeseries => ({ start: midnight, end: midnight + hours * HOUR, bucketMs: HOUR, truncated: false, buckets: Array.from({ length: hours }, (_, index) => bucket(midnight + index * HOUR)) })
+  // Run in a child process started with TZ set: a process-wide TZ change made
+  // mid-suite is not reliably honoured once other tests have used the clock.
+  const series = join(import.meta.dir, '../../apps/desktop/src/ui/model/series.ts')
+  const probe = `
+    const { slots, nowFraction, firstFutureSlot } = await import(${JSON.stringify(series)})
+    const HOUR = 3_600_000
+    const bucket = start => ({ start, requests: 1, errors: 0, inputTokens: 1, cacheReadTokens: 1, cacheCreationTokens: 0, outputTokens: 1, cacheHitRate: 0.5, p50TotalMs: 100, p50TtfbMs: 10, costUsd: null })
+    const day = (y, m, d, hours) => {
+      const midnight = new Date(y, m, d).getTime()
+      const series = { start: midnight, end: midnight + hours * HOUR, bucketMs: HOUR, truncated: false, buckets: Array.from({ length: hours }, (_, i) => bucket(midnight + i * HOUR)) }
+      const slotted = slots(series, 'today', new Date(y, m, d, 23, 59).getTime())
+      return { length: slotted.length, total: slotted.reduce((t, s) => t + (s ? s.requests : 0), 0), one: slotted[1] ? slotted[1].requests : null, two: slotted[2], threeStart: slotted[3] ? slotted[3].start : null, threeLocal: new Date(y, m, d, 3).getTime(), noon: nowFraction('today', new Date(y, m, d, 12).getTime()), future: firstFutureSlot('today', new Date(y, m, d, 12, 30).getTime()) }
+    }
+    console.log(JSON.stringify({ fall: day(2026, 10, 1, 25), spring: day(2026, 2, 8, 23) }))
+  `
+  const run = () => {
+    const result = spawnSync(process.execPath, ['-e', probe], { env: { ...process.env, TZ: 'America/New_York' }, encoding: 'utf8' })
+    if (result.status !== 0) throw new Error(result.stderr)
+    return JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '{}') as Record<'fall' | 'spring', { length: number; total: number; one: number | null; two: unknown; threeStart: number | null; threeLocal: number; noon: number; future: number }>
+  }
   test('the 25-hour fall-back day keeps every hour; the repeated hour holds both', () => {
-    process.env.TZ = 'America/New_York'
-    const midnight = new Date(2026, 10, 1).getTime()
-    const end = new Date(2026, 10, 1, 23, 59).getTime()
-    const day = slots(hourly(midnight, 25), 'today', end)
-    expect(day).toHaveLength(24)
-    expect(day.reduce((total, slot) => total + (slot?.requests ?? 0), 0)).toBe(25)
-    expect(day[1]?.requests).toBe(2)
-    expect(nowFraction('today', new Date(2026, 10, 1, 12).getTime())).toBe(0.5)
-    expect(firstFutureSlot('today', new Date(2026, 10, 1, 12, 30).getTime())).toBe(13)
+    const { fall } = run()
+    expect(fall).toMatchObject({ length: 24, total: 25, one: 2, noon: 0.5, future: 13 })
   })
   test('the 23-hour spring-forward day leaves the skipped hour empty and keeps labels on the clock', () => {
-    process.env.TZ = 'America/New_York'
-    const midnight = new Date(2026, 2, 8).getTime()
-    const end = new Date(2026, 2, 8, 23, 59).getTime()
-    const day = slots(hourly(midnight, 23), 'today', end)
-    expect(day.reduce((total, slot) => total + (slot?.requests ?? 0), 0)).toBe(23)
-    expect(day[2]).toBeNull()
-    expect(day[3]?.start).toBe(new Date(2026, 2, 8, 3).getTime())
-    expect(nowFraction('today', new Date(2026, 2, 8, 12).getTime())).toBe(0.5)
+    const { spring } = run()
+    expect(spring).toMatchObject({ length: 24, total: 23, two: null, noon: 0.5 })
+    expect(spring.threeStart).toBe(spring.threeLocal)
   })
 })
 
