@@ -91,7 +91,8 @@ export type {
 // transforms through the same runner meridian uses internally.
 export { runTransformHook, runObserveHook, buildPipeline, createRequestContext } from "./transform"
 import { claudeLog } from "../logger"
-import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
+import { contextWindowFor, replayBudgetFor, trimReplayHistory } from "./replayBudget"
+import { capClientToolResults, formatBytes, formatWithheldNote, resolveToolResultLimits, type ToolResultCut, type ToolResultLimits } from "./toolResultLimits"
 import { haikuThinkingCompatibilityError } from "./haikuCompatibility"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
@@ -605,7 +606,17 @@ function buildFreshPrompt(
   renderToolName?: (name: string) => string,
   budget?: number,
   attempt = "fallback",
+  toolResultLimits?: ToolResultLimits,
 ): string | AsyncIterable<any> {
+  if (toolResultLimits) {
+    // Bound client tool results before the replay budget estimates them: a
+    // result the model will never see must not drop history to make room.
+    const capped = capClientToolResults(messages, toolResultLimits, buildToolUseIndex(messages))
+    messages = capped.messages
+    for (const cut of capped.cuts) {
+      claudeLog("session.tool_result_withheld", { ...cut, windowTokens: toolResultLimits.windowTokens, attempt })
+    }
+  }
   if (budget !== undefined) {
     const trimmed = trimReplayHistory(messages, budget)
     messages = trimmed.messages
@@ -661,6 +672,17 @@ function buildFreshPrompt(
       return { role: m.role, text: flattenUserContent(m.content, sanitizeOpts, toolIndex, renderToolName) }
     })
   )
+}
+
+/** Log every client tool result the proxy replaced while building a prompt. */
+function logToolResultCuts(cuts: readonly ToolResultCut[], limits: ToolResultLimits, requestId: string): void {
+  for (const cut of cuts) {
+    const scope = cut.reason === "result" ? "per-result" : "per-turn"
+    const message = `${requestId} tool_result_withheld: ${cut.tool} result of ${formatBytes(cut.originalBytes)} exceeds the ${scope} limit of ${formatBytes(cut.limitBytes)} (${limits.windowTokens.toLocaleString("en-US")}-token window)`
+    plog(`[PROXY] ${message}`)
+    diagnosticLog.log({ level: "warn", category: "token", message, requestId })
+    claudeLog("session.tool_result_withheld", { ...cut, windowTokens: limits.windowTokens, attempt: "primary" })
+  }
 }
 
 function logLateIdleDeadline(mode: string): (late: LateIdleDeadline) => void {
@@ -3940,6 +3962,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
       }
 
+      // Client tool results are bounded by a fraction of this model's context
+      // window before anything estimates or renders them: a result the model
+      // will never see must neither drop history to make room nor overflow the
+      // live turn, which no replay budget can shorten (toolResultLimits.ts).
+      // Lineage and the SDK UUID mapping keep the client's original messages.
+      const toolResultLimits = resolveToolResultLimits(
+        contextWindowFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel()),
+      )
+      const cappedToolResults = capClientToolResults(messagesToConvert, toolResultLimits, buildToolUseIndex(executionMessages))
+      messagesToConvert = cappedToolResults.messages
+      logToolResultCuts(cappedToolResults.cuts, toolResultLimits, requestMeta.requestId)
+      // Shown to the person at the top of the answer; the model's own notice is
+      // already in the prompt. MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
+      const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE
+        ? ""
+        : formatWithheldNote(cappedToolResults.cuts, toolResultLimits)
+
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
       const freshReplay = !isResume && !resumeSessionId
@@ -4987,7 +5026,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_resume_replay"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_resume_replay", toolResultLimits),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5048,7 +5087,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_model_fallback"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_model_fallback", toolResultLimits),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5608,6 +5647,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             claudeLog("response.fallback_used", { mode: "non_stream", reason: "no_content_blocks" })
           }
 
+          // Tool results withheld while building this prompt: tell the person,
+          // as the first text of the answer. Structured output is one JSON
+          // value, so it carries no note.
+          if (withheldNote && !outputFormat) {
+            contentBlocks.unshift({ type: "text", text: withheldNote })
+            claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.cuts.length })
+          }
+
           const totalDurationMs = Date.now() - requestStartAt
 
           claudeLog("response.completed", {
@@ -5881,6 +5928,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             let currentClientAssistantUuid: string | null = null
 
             let messageStartEmitted = false
+            let withheldNoteEmitted = false
             // Claude Code re-sends a turn without streaming when its stream fails
             // before message_start (a burst rate_limit_error does this). Such a
             // turn arrives only as assistant messages, never as stream events, so
@@ -6065,6 +6113,28 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               : undefined
             let nextClientBlockIndex = 0
 
+            // Tool results withheld while building this prompt: tell the person
+            // as the first text block of the answer, right after message_start.
+            // The cuts are known before generation, so the note also reaches
+            // tool-call turns, which close the stream before any trailing
+            // block. Structured output is one JSON value, so it carries no note.
+            const emitWithheldNote = (source: string): void => {
+              if (!withheldNote || withheldNoteEmitted || outputFormat) return
+              withheldNoteEmitted = true
+              const noteIndex = nextClientBlockIndex++
+              const frames: Array<[string, Record<string, unknown>]> = [
+                ["content_block_start", { type: "content_block_start", index: noteIndex, content_block: { type: "text", text: "" } }],
+                ["content_block_delta", { type: "content_block_delta", index: noteIndex, delta: { type: "text_delta", text: withheldNote } }],
+                ["content_block_stop", { type: "content_block_stop", index: noteIndex }],
+              ]
+              for (const [frameType, data] of frames) {
+                if (!safeEnqueue(encoder.encode(`event: ${frameType}\ndata: ${JSON.stringify(data)}\n\n`), `withheld_note_${frameType}`)) return
+                eventsForwarded += 1
+                if (frameType === "content_block_start") contentBlocksForwarded += 1
+              }
+              claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.cuts.length })
+            }
+
             // Call only after shouldEarlyStop(earlyStop) returned true.
             const freezeEarlyStopCheckpoint = (): void => {
               nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
@@ -6115,6 +6185,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               ), "unstreamed_message_start")) {
                 messageStartEmitted = true
                 eventsForwarded += 1
+                emitWithheldNote("unstreamed_envelope")
               }
               for (const turn of turns) {
                 for (const block of turn.content ?? []) {
@@ -6337,7 +6408,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay", toolResultLimits),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -6394,7 +6465,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback", toolResultLimits),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -6880,6 +6951,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       }
                       eventsForwarded += 1
                       if (eventType === "content_block_start") contentBlocksForwarded += 1
+                      if (eventType === "message_start") emitWithheldNote("stream_event")
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.

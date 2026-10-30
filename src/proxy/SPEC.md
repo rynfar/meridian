@@ -38,10 +38,10 @@ The server and the default Claude request path:
 
 - `server.ts` **orchestrates**; route handlers stay thin and delegate to
   extracted modules. New pure logic becomes a new leaf module with unit tests.
-- Leaf modules (`errors`, `retryAfter`, `toolInputJson`, `models`, `tools`,
+- Leaf modules (`errors`, `retryAfter`, `toolInputJson`, `toolResultLimits`, `models`, `tools`,
   `messages`, `profiles`, `profileCli`, `buildInfo`, `updateCheck`,
   `pluginUpdateCheck`, `sseFailureSniff`) never import `server.ts`, `session/` or `adapter.ts`;
-  `buildInfo`, `retryAfter`, `toolInputJson` are additionally pure.
+  `buildInfo`, `retryAfter`, `toolInputJson`, `toolResultLimits` are additionally pure.
 - `query.ts` builds SDK options **through the adapter interface**, never from
   tool constants directly.
 - No `as any`, `@ts-ignore`, `@ts-expect-error` or empty catch blocks.
@@ -202,6 +202,22 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     (the single-turn cap's `max_turns`, the single-step abort) keeps the
     session tracked, since an agent waiting at a tool call is the main case.
     Only a client abort, which evicts the session, drops tracking.
+- **Client tool results are bounded by a fraction of the context window
+  (`toolResultLimits.ts`).** Clients that run their own tools send results
+  verbatim and some tools have no ceiling (Zed's `grep` paginates by match
+  count, so a few matches on a file with megabyte lines is one multi-megabyte
+  result); one such result overflowed a 1M window on every retry, and the
+  replay budget cannot help because it never drops the live turn. A result
+  above 5% of the window (20% for the live turn's results together, tokens
+  estimated at 2 bytes) becomes an `is_error` notice with size, limit, how to
+  narrow the call and a sample; the person gets a `[meridian] Withheld …` line
+  at the top of that answer. The cap runs once per request on the messages
+  that become the prompt — before the replay budget estimates them and before
+  lineage-neutral rendering — and again inside `buildFreshPrompt` for the
+  fallback replays. Fractions, not bytes, so the limits follow the window
+  table; the per-turn limit spares replayed history so a fresh replay keeps
+  its newest results. Lineage and the SDK UUID mapping keep the client's
+  original messages.
 
 ## Codex Responses wire contract
 
