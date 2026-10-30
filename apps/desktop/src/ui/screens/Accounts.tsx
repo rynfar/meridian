@@ -29,7 +29,7 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   const { state, now, run, busy } = useDesktop()
   const { data, accounts, requests } = useModels()
   const [filter, setFilter] = useState<'all' | AccountProvider>('all')
-  const latest = useMemo(() => latestServed(requests), [requests])
+  const latest = useMemo(() => latestServed(requests, accounts.accounts), [requests, accounts.accounts])
   const [dialog, setDialog] = useState<Dialog>(null)
 
   if (data.kind === 'failed' && state) return <div className="px-[26px] py-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
@@ -43,13 +43,14 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
   const claudeServed = health.backend !== 'antigravity'
   const visible = (filter === 'all' ? providers : providers.filter(id => id === filter))
   const switchable = state.connection.kind === 'ok' && !accounts.follow
+  const serving = servingLine(accounts, { providers: visible, follow: Boolean(accounts.follow) })
 
   return (
     <div className="scroll-y h-full px-[26px] pb-6 pt-[22px]">
       <div className="mb-5 flex items-center gap-4">
         {providers.length > 1 ? <Segmented<'all' | AccountProvider> label="Provider" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, ...providers.map(id => ({ value: id, label: providerName[id] }))]} /> : null}
         {accounts.routing ? <Tip content="How requests choose an account. Change it in Service → Routing."><button type="button" onClick={() => navigate('service', { section: 'routing' })} className="text-cap text-t3 transition-colors hover:text-accent">Routing <span className="font-medium text-t1">{accounts.routing}</span></button></Tip> : null}
-        {servingLine(accounts) ? <span className="flex items-center gap-1.5 text-cap text-t2"><Dot tone="accent" size={6} />{accounts.follow ? servingLine(accounts).replace(/^serving/, 'following') : servingLine(accounts)}</span> : null}
+        {serving ? <span className="flex items-center gap-1.5 text-cap text-t2"><Dot tone="accent" size={6} />{serving}</span> : null}
         <span className="flex-1" />
         {claudeServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'claude' })} disabled={busy || Boolean(state.login)}><Plus />Add Claude account</Button> : null}
         {chatgptOwner ? <Button variant="text" size="sm" onClick={() => setDialog(chatGptManaged(chatgptOwner) ? { kind: 'add', provider: 'chatgpt' } : { kind: 'owner', owner: chatgptOwner })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}

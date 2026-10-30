@@ -82,11 +82,14 @@ notifications from a window and a menu-bar panel.
   Accounts, the selected account of each provider (what *Use* switches) keeps
   its place in pool order but carries the accent ring, "Serving now"
   ("Following" in follow mode) and "Active" where the others offer *Use*; the
-  header reads "Routing active · serving personal". When the newest successful
-  client request of that provider went to another account (failover, pool
-  routing, or a switch since), both cards say so: "Latest request went to
-  work · 14:02" and "Served the latest request · 14:02 · personal is
-  selected".
+  header reads "Routing active · serving personal" (Claude and ChatGPT
+  selections of the providers shown; Antigravity is never switched here). When
+  the newest successful client request of that provider went to another
+  account (failover, pool routing, or a switch since), both cards say so:
+  "Latest request went to work · 14:02" and "Served the latest request ·
+  14:02 · personal is selected". A request's provider is the provider of the
+  account it names — ChatGPT turns are recorded without one — and rows naming
+  no listed account (Antigravity's) are ignored.
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives

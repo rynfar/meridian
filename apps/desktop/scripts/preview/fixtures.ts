@@ -64,7 +64,8 @@ function switchedProfiles(value: unknown, id: string): unknown {
   const body = value as Record<string, unknown>
   const activeProfiles = body.activeProfiles && typeof body.activeProfiles === 'object' ? { ...body.activeProfiles as Record<string, unknown>, claude: id } : body.activeProfiles
   // Flags on each entry move with the selection, as the server reports them.
-  const profiles = Array.isArray(body.profiles) ? body.profiles.map(entry => entry && typeof entry === 'object' && 'isActive' in entry ? { ...entry, isActive: (entry as { id?: unknown }).id === id } : entry) : body.profiles
+  // Claude entries only: ChatGPT seats (`seat`) keep their own selection.
+  const profiles = Array.isArray(body.profiles) ? body.profiles.map(entry => entry && typeof entry === 'object' && 'isActive' in entry && !('seat' in entry) ? { ...entry, isActive: (entry as { id?: unknown }).id === id } : entry) : body.profiles
   return { ...body, profiles, ...('activeProfile' in body ? { activeProfile: id } : {}), ...(activeProfiles ? { activeProfiles } : {}) }
 }
 const failed = (kind: DesktopState['connection']['kind'], message: string, fix: string): DesktopState => ({

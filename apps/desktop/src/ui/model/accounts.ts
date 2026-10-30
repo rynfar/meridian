@@ -307,13 +307,20 @@ export function limitPill(limit: AccountLimit): string {
   return `${limit.short} limit`
 }
 
-/** Per provider, the account that served the newest successful client request (keepalive beats excluded). */
+/**
+ * Per provider, the account that served the newest successful client request
+ * (keepalive beats excluded). The provider comes from the account the row
+ * names, not the row: the main service records ChatGPT turns without a
+ * provider, and Antigravity rows name no listed account, so they are skipped.
+ */
 export type LatestServed = Partial<Record<AccountProvider, { profile: string; timestamp: number }>>
-export function latestServed(requests: readonly { provider: string; profile: string; timestamp: number; failed: boolean; keepalive: boolean }[]): LatestServed {
+export function latestServed(requests: readonly { profile: string; timestamp: number; failed: boolean; keepalive: boolean }[], accounts: readonly Pick<AccountView, 'id' | 'provider'>[]): LatestServed {
+  const providerOf = new Map(accounts.map(account => [account.id, account.provider]))
   const latest: LatestServed = {}
   for (const row of requests) {
     if (row.failed || row.keepalive || !row.profile) continue
-    const provider = row.provider === 'chatgpt' || row.provider === 'antigravity' ? row.provider : 'claude'
+    const provider = providerOf.get(row.profile)
+    if (!provider) continue
     const current = latest[provider]
     if (!current || row.timestamp > current.timestamp) latest[provider] = { profile: row.profile, timestamp: row.timestamp }
   }
@@ -334,11 +341,17 @@ export function servingNote(account: Pick<AccountView, 'id' | 'provider' | 'acti
   return null
 }
 
-/** "serving personal", or per provider when several have an active account: "serving personal · ChatGPT seat-b". */
-export function servingLine(model: { active: AccountsModel['active']; accounts: readonly Pick<AccountView, 'provider'>[] }): string {
-  const names: Record<AccountProvider, string> = { claude: 'Claude', chatgpt: 'ChatGPT', antigravity: 'Antigravity' }
-  const active = (['claude', 'chatgpt', 'antigravity'] as const).filter(provider => model.active[provider] && model.accounts.some(account => account.provider === provider))
-  if (!active.length) return ''
-  if (active.length === 1) return `serving ${model.active[active[0]!]}`
-  return `serving ${active.map(provider => `${names[provider]} ${model.active[provider]}`).join(' · ')}`
+/**
+ * The header line: "serving personal" ("following personal" in follow mode),
+ * or per provider when several shown providers have an active account:
+ * "serving Claude personal · ChatGPT seat-b". Antigravity is left out: it is
+ * never switched here and its card already says it is serving.
+ */
+export function servingLine(model: { active: AccountsModel['active']; accounts: readonly Pick<AccountView, 'provider'>[] }, options: { providers?: readonly AccountProvider[]; follow?: boolean } = {}): string {
+  const names: Record<'claude' | 'chatgpt', string> = { claude: 'Claude', chatgpt: 'ChatGPT' }
+  const shown = (['claude', 'chatgpt'] as const).filter(provider => (!options.providers || options.providers.includes(provider)) && model.active[provider] && model.accounts.some(account => account.provider === provider))
+  if (!shown.length) return ''
+  const verb = options.follow ? 'following' : 'serving'
+  if (shown.length === 1) return `${verb} ${model.active[shown[0]!]}`
+  return `${verb} ${shown.map(provider => `${names[provider]} ${model.active[provider]}`).join(' · ')}`
 }

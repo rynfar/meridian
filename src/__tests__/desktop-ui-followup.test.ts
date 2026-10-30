@@ -96,14 +96,23 @@ describe('accounts the pool router benched', () => {
 
 describe('which account is active', () => {
   const model = (active: Partial<Record<'claude' | 'chatgpt' | 'antigravity', string>>, providers: ('claude' | 'chatgpt' | 'antigravity')[]) => ({ active, accounts: providers.map(provider => ({ provider })) })
-  test('the latest successful client request per provider, beats and failures ignored', () => {
+  test('the latest successful client request per provider, as the server records rows', () => {
+    const accounts = [{ id: 'personal', provider: 'claude' as const }, { id: 'work', provider: 'claude' as const }, { id: 'seat-b', provider: 'chatgpt' as const }, { id: 'Antigravity account', provider: 'antigravity' as const }]
     const rows = parsed([
       row({ requestId: 'a', timestamp: NOW - 3 * MIN, profileId: 'work' }),
-      row({ requestId: 'b', timestamp: NOW - MIN, profileId: 'kraken', status: 500, error: 'api_error' }),
-      row({ requestId: 'c', timestamp: NOW, profileId: 'personal', requestSource: 'cache-keepalive' }),
-      row({ requestId: 'd', timestamp: NOW - 2 * MIN, profileId: 'seat-b', provider: 'chatgpt' }),
+      row({ requestId: 'b', timestamp: NOW - 2 * MIN, profileId: 'personal', status: 500, error: 'api_error' }),
+      row({ requestId: 'c', timestamp: NOW - MIN, profileId: 'personal', requestSource: 'cache-keepalive' }),
+      // ChatGPT turns carry the seat's profile and adapter, no provider (recordChatGptTurn).
+      row({ requestId: 'd', timestamp: NOW, profileId: 'seat-b', adapter: 'chatgpt' }),
+      // Antigravity rows name no listed account.
+      row({ requestId: 'e', timestamp: NOW, profileId: 'agy-account', provider: 'antigravity' }),
     ])
-    expect(latestServed(rows)).toEqual({ claude: { profile: 'work', timestamp: NOW - 3 * MIN }, chatgpt: { profile: 'seat-b', timestamp: NOW - 2 * MIN } })
+    expect(latestServed(rows, accounts)).toEqual({ claude: { profile: 'work', timestamp: NOW - 3 * MIN }, chatgpt: { profile: 'seat-b', timestamp: NOW } })
+  })
+  test('a ChatGPT turn never reads as the Claude selection serving elsewhere', () => {
+    const accounts = [{ id: 'personal', provider: 'claude' as const }, { id: 'seat-b', provider: 'chatgpt' as const }]
+    const latest = latestServed(parsed([row({ timestamp: NOW - MIN, profileId: 'personal' }), row({ timestamp: NOW, profileId: 'seat-b', adapter: 'chatgpt' })]), accounts)
+    expect(servingNote({ id: 'personal', provider: 'claude', active: true }, { active: { claude: 'personal', chatgpt: 'seat-b' } }, latest)).toBeNull()
   })
   test('a selection that did not serve the latest request is flagged on both cards', () => {
     const latest = { claude: { profile: 'work', timestamp: NOW } }
@@ -118,6 +127,9 @@ describe('which account is active', () => {
     expect(servingLine(model({ claude: 'personal' }, ['claude']))).toBe('serving personal')
     expect(servingLine(model({ claude: 'personal', chatgpt: 'seat-b' }, ['claude', 'chatgpt']))).toBe('serving Claude personal · ChatGPT seat-b')
     expect(servingLine(model({}, []))).toBe('')
+    expect(servingLine(model({ claude: 'personal' }, ['claude']), { follow: true })).toBe('following personal')
+    expect(servingLine(model({ claude: 'personal', chatgpt: 'seat-b' }, ['claude', 'chatgpt']), { providers: ['claude'] })).toBe('serving personal')
+    expect(servingLine(model({ claude: 'personal', antigravity: 'Antigravity account' }, ['claude', 'antigravity']))).toBe('serving personal')
   })
 })
 
