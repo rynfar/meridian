@@ -1,11 +1,39 @@
 import { installModelsMock, syntheticClaudeBoundary } from "./modelsMock"
 installModelsMock(() => syntheticClaudeBoundary)
-import { describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { createServer } from "node:http"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { DEFAULT_PROXY_CONFIG, type ProxyInstance } from "../proxy/types"
 
 const { createProxyServer, startProxyServer } = await import("../proxy/server")
 const { runCli } = await import("../../bin/cli")
+const { invalidateDiskProfileCache, resetDiskProfileDiscovery } = await import("../proxy/profiles")
+
+const stubStart = (onStart: () => void) => async (): Promise<ProxyInstance> => {
+  onStart()
+  return { server: createServer(), config: DEFAULT_PROXY_CONFIG, close: async () => {} }
+}
 
 describe("proxy async ops", () => {
+  const originalConfigDir = process.env.MERIDIAN_CONFIG_DIR
+  let configDir: string
+
+  beforeEach(() => {
+    configDir = mkdtempSync(join(tmpdir(), "meridian-async-ops-"))
+    process.env.MERIDIAN_CONFIG_DIR = configDir
+    invalidateDiskProfileCache()
+  })
+
+  afterEach(() => {
+    if (originalConfigDir === undefined) delete process.env.MERIDIAN_CONFIG_DIR
+    else process.env.MERIDIAN_CONFIG_DIR = originalConfigDir
+    resetDiskProfileDiscovery()
+    invalidateDiskProfileCache()
+    rmSync(configDir, { recursive: true, force: true })
+  })
+
   it("starts server with async executable resolution", async () => {
     const proxyA = await startProxyServer({ port: 0, host: "127.0.0.1" })
     const proxyB = await startProxyServer({ port: 0, host: "127.0.0.1" })
@@ -105,5 +133,39 @@ describe("proxy async ops", () => {
 
     expect(startCalled).toBe(1)
     expect(errors.some((line) => line.includes("Could not verify Claude auth status"))).toBe(true)
+  })
+
+  it("skips the CLI pre-flight auth check when profiles are configured", async () => {
+    writeFileSync(join(configDir, "profiles.json"), JSON.stringify([{ id: "p", claudeConfigDir: join(configDir, "p") }]))
+
+    let startCalled = 0
+    let authChecks = 0
+    await runCli(
+      stubStart(() => { startCalled += 1 }),
+      async () => {
+        authChecks += 1
+        return { stdout: JSON.stringify({ loggedIn: true, subscriptionType: "max" }) }
+      },
+    )
+
+    expect(startCalled).toBe(1)
+    expect(authChecks).toBe(0)
+  })
+
+  it("runs the CLI pre-flight auth check when a profile uses the default context", async () => {
+    writeFileSync(join(configDir, "profiles.json"), JSON.stringify([{ id: "p", claudeConfigDir: join(configDir, "p") }, { id: "bare" }]))
+
+    let startCalled = 0
+    let authChecks = 0
+    await runCli(
+      stubStart(() => { startCalled += 1 }),
+      async () => {
+        authChecks += 1
+        return { stdout: JSON.stringify({ loggedIn: true, subscriptionType: "max" }) }
+      },
+    )
+
+    expect(startCalled).toBe(1)
+    expect(authChecks).toBe(1)
   })
 })

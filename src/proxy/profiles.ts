@@ -350,6 +350,27 @@ export function resolveProfile(
   return buildResolvedProfile(profile)
 }
 
+export function authKeepaliveTargets(
+  configProfiles: ProfileConfig[] | undefined,
+  defaultProfile: string | undefined,
+): Array<{ profileId?: string; envOverrides?: Record<string, string> }> {
+  const effective = getEffectiveProfiles(configProfiles)
+  if (effective.length === 0) return [{}]
+  return effective
+    .map(profile => resolveProfile(configProfiles, defaultProfile, profile.id))
+    .filter(resolved => Object.keys(resolved.env).length > 0)
+    .map(resolved => ({ profileId: resolved.id, envOverrides: resolved.env }))
+}
+
+export function usesDefaultAuthContext(
+  configProfiles: ProfileConfig[] | undefined,
+  defaultProfile: string | undefined,
+): boolean {
+  const effective = getEffectiveProfiles(configProfiles)
+  if (effective.length === 0) return true
+  return effective.some(profile => Object.keys(resolveProfile(configProfiles, defaultProfile, profile.id).env).length === 0)
+}
+
 /**
  * Look a profile up by id, then by alias. Real profiles ALWAYS win: an alias
  * is only a redirect left behind by a rename, and a stale one must never

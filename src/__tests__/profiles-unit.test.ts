@@ -4,6 +4,8 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { configPath } from "../configDir"
 import {
+  authKeepaliveTargets,
+  usesDefaultAuthContext,
   resolveProfile,
   listProfiles,
   getEffectiveProfiles,
@@ -222,6 +224,46 @@ describe("getEffectiveProfiles", () => {
 
   test("returns empty array for empty config when disk discovery disabled", () => {
     expect(getEffectiveProfiles([])).toEqual([])
+  })
+})
+
+describe("authKeepaliveTargets", () => {
+  test("refreshes the default context when no profiles are configured", () => {
+    expect(authKeepaliveTargets(undefined, undefined)).toEqual([{}])
+  })
+
+  test("refreshes each configured profile and not the default context", () => {
+    const profiles: ProfileConfig[] = [
+      { id: "personal", claudeConfigDir: "/home/.config/meridian/profiles/personal" },
+      { id: "work", claudeConfigDir: "/home/.config/meridian/profiles/work" },
+    ]
+    expect(authKeepaliveTargets(profiles, undefined)).toEqual([
+      { profileId: "personal", envOverrides: { CLAUDE_CONFIG_DIR: "/home/.config/meridian/profiles/personal" } },
+      { profileId: "work", envOverrides: { CLAUDE_CONFIG_DIR: "/home/.config/meridian/profiles/work" } },
+    ])
+  })
+
+  test("skips a profile with no overrides of its own", () => {
+    expect(authKeepaliveTargets([{ id: "bare" }], undefined)).toEqual([])
+  })
+})
+
+describe("usesDefaultAuthContext", () => {
+  const overridden: ProfileConfig[] = [
+    { id: "personal", claudeConfigDir: "/home/.config/meridian/profiles/personal" },
+    { id: "api-test", type: "api", apiKey: "sk-test-123" },
+  ]
+
+  test("is true when no profiles are configured", () => {
+    expect(usesDefaultAuthContext(undefined, undefined)).toBe(true)
+  })
+
+  test("is false when every profile has overrides of its own", () => {
+    expect(usesDefaultAuthContext(overridden, undefined)).toBe(false)
+  })
+
+  test("is true when one profile has no overrides of its own", () => {
+    expect(usesDefaultAuthContext([...overridden, { id: "bare" }], undefined)).toBe(true)
   })
 })
 
