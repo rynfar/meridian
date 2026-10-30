@@ -32,7 +32,6 @@
 
 import type { Context } from "hono"
 import type { AgentAdapter } from "../adapter"
-import type { FileChange } from "../fileChanges"
 import { neutralWorkingDirectory } from "../cwd"
 import { resolvePassthrough } from "../../env"
 import { openAiAdapter } from "./openai"
@@ -94,17 +93,6 @@ export function extractZedRootDirectory(body: unknown): string | undefined {
   return match?.[1]?.trim() || undefined
 }
 
-/** File changes from Zed's own editing tools (`create_file`, `edit_file`). */
-export function extractZedFileChanges(toolName: string, toolInput: unknown): FileChange[] {
-  const input = toolInput as Record<string, unknown> | null | undefined
-  const path = input?.path
-  if (typeof path !== "string" || !path) return []
-  const name = toolName.toLowerCase()
-  if (name === "create_file") return [{ operation: "wrote", path }]
-  if (name === "edit_file") return [{ operation: "edited", path }]
-  return []
-}
-
 export const zedAdapter: AgentAdapter = {
   ...openAiAdapter,
   name: "zed",
@@ -154,12 +142,12 @@ export const zedAdapter: AgentAdapter = {
     return true
   },
 
-  // Zed shows no file-change summary of its own, so Meridian's is useful.
+  /**
+   * NOTE: Zed-specific. Zed's panel shows every create_file/edit_file call as
+   * a tool card, so Meridian's synthetic "Files changed:" block at the end of
+   * the answer would only duplicate it.
+   */
   shouldTrackFileChanges(): boolean {
-    return true
-  },
-
-  extractFileChangesFromToolUse(toolName: string, toolInput: unknown): FileChange[] {
-    return extractZedFileChanges(toolName, toolInput)
+    return false
   },
 }
