@@ -8466,6 +8466,35 @@ request · … is selected") are covered by model tests and the preview harness'
 `switched` fixture, since producing one live would mean switching the owner's
 account.
 
+**Installed from main, 2026-10-30** (maintainer, macOS arm64, Electron 44.3.0):
+`1.87.0-local.2` was built from `5de4cf3ec` (#1473) with the release workflow's
+electron-builder command. It is signed `Developer ID Application: Trevor Walker
+(ZCL6PL2MJJ)` with the hardened runtime and is not notarized: the CI notarization
+key returns 401. `codesign --verify --deep --strict` passed; `spctl -a -vv`
+rejected it as `Unnotarized Developer ID`. It replaced `1.87.0-local.1` in
+`/Applications` and was relaunched normally (launchd parent, no debugging port).
+A shell that sets `ELECTRON_RUN_AS_NODE=1`, as Electron-hosted terminals do,
+passes it through `open`, and the app then exits at once as Node; launch from
+Finder or with a clean environment. Checks were read-only against the owner's
+launchd Meridian 1.86.0 on 127.0.0.1:3456, with the UI read from an isolated
+copy seeded with the same `desktop.json`:
+
+1. The installed app kept its settings (`desktop.json` hash unchanged), held
+   only connections to :3456 and started no child; nothing listened on :3489.
+   The copy attached to the launchd job and read `ok` with 500 requests and no
+   data errors.
+2. On Accounts exactly one Claude card carried the ring, "Serving now" and
+   "Active" — `personal`, the selected account — and the header read "Routing
+   active · serving personal".
+3. Key binding: not applicable; `desktop.json` holds no saved key.
+4. Today, Traffic, Cache and Accounts rendered real data with zero console
+   problems; Traffic showed the retention line; Today and Cache said the
+   history is estimated; ⌘R advanced `lastChecked`.
+5. Not verified: the service is still 1.86.0 (`/telemetry/timeseries` answers
+   404), so the server timeseries and its 24h/7d re-read remain outstanding.
+6. Afterwards only the installed app was running, and the service answered
+   `/health` with 200 under the same process.
+
 ## SDK ping idle regression (#1177)
 
 See [durable evidence](docs/maintenance/evidence/1177-sdk-ping-idle.md).
