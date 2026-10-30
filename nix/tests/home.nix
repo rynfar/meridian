@@ -10,7 +10,8 @@ let
     (home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
       modules = [
-        (import "${self}/nix/modules/home.nix" { meridian = pkgs.emptyDirectory; })
+        self.homeModules.meridian
+        { services.meridian.package = pkgs.emptyDirectory; }
         {
           home = {
             username = "meridian-test";

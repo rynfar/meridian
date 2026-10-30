@@ -46,7 +46,7 @@ opt-in plugins instead:
 | [`@rynfar/meridian-plugin-opencode-scrub`](https://github.com/rynfar/meridian-plugin-opencode-scrub) | Strips OpenCode harness boilerplate from the system prompt before it reaches Claude. |
 | [`@rynfar/meridian-plugin-openclaw-scrub`](https://github.com/rynfar/meridian-plugin-openclaw-scrub) | Removes OpenClaw prompt fingerprints, output directives and stale heartbeat replay. |
 
-**Nix users:** the flake packages hermes-scrub, pi-scrub and opencode-scrub prebuilt — `pkgs.meridianPlugins.<name>` via the `meridian` overlay (or `meridian.legacyPackages.${system}.meridianPlugins`), each exposing `.path` for a `plugins.json` entry or the home-manager `pluginConfig` option. Pins are refreshed by a scheduled workflow that rebuilds every plugin before bumping. openclaw-scrub is not in the flake yet — add it as a `meridian-plugin-openclaw-scrub` input (the packaging is generic; it is picked up by prefix) and relock.
+**Nix users:** the flake packages hermes-scrub, pi-scrub and opencode-scrub prebuilt — `pkgs.meridianPlugins.<name>` via the `meridian` overlay (or `meridian.legacyPackages.${system}.meridianPlugins`), each exposing `.path` for a `plugins.json` entry or the home-manager `pluginConfig` option. Each follows its plugin's release tags, and a scheduled `nix-update` workflow bumps them, rebuilding every plugin before opening a PR. openclaw-scrub is not in the flake yet — add it as `nix/pkgs/meridianPlugins/openclaw-scrub/package.nix`, following the other plugins.
 
 Everyone else: install into Meridian's config dir and register the built file in
 `~/.config/meridian/plugins.json`:
