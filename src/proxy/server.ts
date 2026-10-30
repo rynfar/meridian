@@ -144,6 +144,7 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator, translateAnthropicSseError } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapters/letta"
+import { extractZedSessionId, isZedUserAgent, ZED_SESSION_HEADER } from "./adapters/zed"
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
@@ -3073,6 +3074,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
 
 
+        // Per-adapter default effort, only when the request carries none.
+        // Zed's openai_compatible provider drops the model entry's
+        // `reasoning_effort`, so without this its turns run at the model's
+        // own depth. Applied before the thinking guards below, so an explicit
+        // "disabled" or a stripped thinking beta still drops it.
+        if (!effort && sdkFeatures.defaultEffort) {
+          effort = normalizeEffort(sdkFeatures.defaultEffort)
+          if (effort) plog(`[PROXY] ${requestMeta.requestId} effort=${effort} applied from per-adapter default`)
+        }
         // Resolve thinking against the per-adapter setting.
         //
         // An *explicitly* configured "disabled" is authoritative: it overrides
@@ -11117,7 +11127,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const refused = admissionRefusal(owner, "anthropic")
     if (refused) return refused
     const userAgent = c.req.header("user-agent") ?? ""
-    const jcodeSessionId = userAgent.startsWith("jcode/")
+    // NOTE: Zed-specific. Zed identifies itself by User-Agent and sends its
+    // thread id as `prompt_cache_key`, on thread turns and on its title and
+    // summary one-shots alike. The id is the session key; the one-shots are
+    // told apart by the adapter (no agent system prompt) and never resume or
+    // store. A Zed request keeps its real history even without the id.
+    const isZed = isZedUserAgent(userAgent)
+    const zedSessionId = isZed ? extractZedSessionId(rawBody) : undefined
+    const jcodeSessionId = !isZed && userAgent.startsWith("jcode/")
       ? normalizeJcodeSessionId(c.req.header("x-jcode-session"))
       : undefined
     const isJcode = jcodeSessionId !== undefined
@@ -11129,9 +11146,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // adapters/letta.ts). Parsing it here both selects the adapter and supplies
     // the key: a body without one is not a Letta request and keeps today's
     // generic behaviour.
-    const lettaConversationId = isJcode ? undefined : extractLettaConversationId(rawBody)
+    const lettaConversationId = isJcode || isZed ? undefined : extractLettaConversationId(rawBody)
     const isLetta = lettaConversationId !== undefined
-    const adapterName = isJcode ? "jcode" : isLetta ? "letta" : "openai"
+    const adapterName = isZed ? "zed" : isJcode ? "jcode" : isLetta ? "letta" : "openai"
     // A generic client that carries a session key the adapter recognizes
     // (x-opencode-session / x-session-affinity / x-session-id) keeps its real
     // messages and resumes, like Jcode — packing re-sends the whole conversation as fresh
@@ -11139,7 +11156,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // The key is forwarded on the internal hop below so the inner handler
     // resolves the same session. The forwarded headers are gated on a resolved
     // key below.
-    const openAiHeaderSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
+    const openAiHeaderSessionId = isJcode || isZed ? undefined : openAiAdapter.getSessionId(c)
     // NOTE: agent-specific (OpenAI). A client running its own tool loop and
     // sending no header gets a key derived from the loop's first tool-call id
     // (see deriveToolLoopSessionId).
@@ -11147,12 +11164,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // packed, the headerless-tool-result guard skips lookup, and nothing is
     // stored for the next round. The derived key is a fallback only — a client
     // that sends its own key keeps it, and an ordinary chat derives none.
-    const toolLoopSessionId = isJcode || openAiHeaderSessionId !== undefined
+    const toolLoopSessionId = isJcode || isZed || openAiHeaderSessionId !== undefined
       ? undefined
       : deriveToolLoopSessionId(rawBody)
     const openAiSessionId = openAiHeaderSessionId ?? toolLoopSessionId
     const anthropicBody = translateOpenAiToAnthropic(rawBody, {
-      preserveConversationHistory: isJcode || isLetta || openAiSessionId !== undefined,
+      preserveConversationHistory: isZed || isJcode || isLetta || openAiSessionId !== undefined,
     })
 
     if (!anthropicBody) {
@@ -11210,7 +11227,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,
     }
-    if (jcodeSessionId) {
+    if (zedSessionId) {
+      // Resolved from the OpenAI body above; the inner hop sees the
+      // translated Anthropic body, so hand it the id (see adapters/zed.ts).
+      internalHeaders[ZED_SESSION_HEADER] = zedSessionId
+    } else if (jcodeSessionId) {
       internalHeaders["x-jcode-session"] = jcodeSessionId
     } else if (lettaConversationId) {
       // The inner hop rebuilds headers from scratch, so hand it the id the

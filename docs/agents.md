@@ -7,7 +7,7 @@ This guide covers Claude client setup. For the Antigravity preview, use the
 
 Client configurations and existing verification notes. Examples use a local proxy with authentication disabled; replace placeholder keys with your `MERIDIAN_API_KEY` when enabled. Model lists are examples, not account entitlements: inspect `GET /v1/models` and match the client context window to the proxy's configured window.
 
-[OpenCode](#opencode) · [Crush](#crush) · [Droid](#droid-factory-ai) · [Cline](#cline) · [Aider](#aider) · [Codex](#codex-cli) · [OpenAI clients](#openai-compatible-tools-open-webui-continue-etc) · [Jcode](#jcode) · [Letta Code](#letta-code) · [Cherry Studio](#cherry-studio) · [ForgeCode](#forgecode) · [Pi](#pi) · [Prime Agent](#prime-agent) · [Claude Code](#claude-code) · [Polytoken](#polytoken) · [Hermes](#hermes-agent)
+[OpenCode](#opencode) · [Crush](#crush) · [Droid](#droid-factory-ai) · [Cline](#cline) · [Aider](#aider) · [Codex](#codex-cli) · [OpenAI clients](#openai-compatible-tools-open-webui-continue-etc) · [Jcode](#jcode) · [Letta Code](#letta-code) · [Zed](#zed) · [Cherry Studio](#cherry-studio) · [ForgeCode](#forgecode) · [Pi](#pi) · [Prime Agent](#prime-agent) · [Claude Code](#claude-code) · [Polytoken](#polytoken) · [Hermes](#hermes-agent)
 
 Shell environment examples use POSIX syntax. In PowerShell, set variables with `$env:NAME = "value"` before launching the client.
 
@@ -367,6 +367,46 @@ Its conversation identity is the `conv-<uuid>` id inside the `<system-reminder>`
 Only a `conv-<uuid>` value is accepted. The literal `default` is the id Letta assigns every subagent conversation of an agent — an agent's interactive conversations carry `conv-<uuid>` ids, verified on real traffic — so it is not used as a key: keying all of a parent's subagent conversations to one session would be worse than leaving them unidentified. Requests carrying `default`, and requests with no reminder at all, keep the generic `openai` behaviour.
 
 A request body without such a reminder is not a Letta request; it falls through to the `openai` adapter with unchanged behaviour. There is deliberately no User-Agent match, since Letta shares the generic OpenAI SDK User-Agent with other clients.
+
+### Zed
+
+Zed's agent panel reaches Meridian over `POST /v1/chat/completions` as an `openai_compatible` provider. Add a provider to Zed's `settings.json` (any API key value, or the shared key when `MERIDIAN_API_KEY` is set), then pick one of its models in the agent panel:
+
+```json
+"language_models": {
+  "openai_compatible": {
+    "Meridian": {
+      "api_url": "http://127.0.0.1:3456/v1",
+      "available_models": [
+        {
+          "name": "claude-opus-5-5",
+          "max_tokens": 1000000,
+          "max_output_tokens": 64000,
+          "max_completion_tokens": 64000,
+          "reasoning_effort": "high",
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "parallel_tool_calls": true,
+            "prompt_cache_key": true,
+            "chat_completions": true,
+            "interleaved_reasoning": true
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+Zed is detected by its `Zed/<version>` User-Agent; explicit selection uses `x-meridian-agent: zed` or `MERIDIAN_DEFAULT_AGENT=zed`. What the `zed` adapter does:
+
+- **Passthrough.** Zed executes its own tools: Meridian forwards each tool call and feeds the `tool` message Zed sends back into the resumed session. Zed's catalog is not deferred behind ToolSearch.
+- **Session key.** Zed sends its thread id as `prompt_cache_key` when the model's `prompt_cache_key` capability is on (keep it on). That id keys the session, so the full turn list stays as real messages, turns resume the SDK session and prompt caching carries across them. Without the capability the conversation falls back to the fingerprint (first message plus project root).
+- **Title and summary one-shots.** Zed generates the thread title and a summary with extra requests that carry the same thread id and the thread's messages but no agent system prompt. They are auxiliary: a fresh session each, never stored or resumed, so they cannot share a session with the thread.
+- **Nothing from the proxy host.** Zed ships your personal `AGENTS.md` and the open project's rules inside its own system prompt, so the Claude Code preset and host `CLAUDE.md` stay off, and the SDK subprocess runs in an empty directory under Meridian's config dir (`workdir`), on any host, including a container. The model is told the project root Zed reports through the working-directory note.
+- **Thinking.** On by default and forwarded as `reasoning_content`, which the panel renders. Effort defaults to `high`, because Zed's `openai_compatible` provider does not forward the `reasoning_effort` on the model entry; a request that does carry an effort keeps it. Change the default under **Default Effort** at `/settings` (`defaultEffort` in `sdk-features.json`).
+- **No `Files changed:` summary.** Zed's panel already shows every `create_file` and `edit_file` call as a tool card, so Meridian does not append its synthetic list of edited files to the answer, as for OpenCode and Claude Code.
 
 ### Cherry Studio
 

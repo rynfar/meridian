@@ -73,6 +73,7 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, buildNoClientCwdNote } = await import("../proxy/query")
+const { neutralWorkingDirectory } = await import("../proxy/cwd")
 
 const testProxies: ReturnType<typeof createProxyServer>[] = []
 
@@ -481,6 +482,121 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
     expect(capturedOptionHistory).toHaveLength(2)
     expect(capturedOptionHistory[1]?.resume).toBeUndefined()
     expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
+  })
+})
+
+describe("POST /v1/chat/completions — Zed session continuity", () => {
+  const ZED_HEADERS = { "User-Agent": "Zed/1.25.3 (windows; x86_64)" }
+  // Every thread turn carries Zed's agent system prompt; the title and
+  // summary one-shots do not.
+  const AGENT_SYSTEM = "You are the Zed agent.\n\nThe current project contains the following root directories:\n\n- `/tmp/proj`"
+  const firstTurn = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "system", content: AGENT_SYSTEM },
+      { role: "user", content: "Turn 1" },
+    ],
+  }
+  const secondTurn = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "system", content: AGENT_SYSTEM },
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Turn 2" },
+    ],
+  }
+  const titleOneShot = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Generate a concise 3-7 word title for this conversation, omitting punctuation." },
+    ],
+  }
+
+  beforeEach(async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    capturedPromptMessages = []
+    capturedOptions = null
+    capturedOptionHistory = []
+    await clearSessionCache()
+  })
+
+  it("keys the session by prompt_cache_key and keeps the real history", async () => {
+    const app = createTestApp()
+
+    expect((await postChatCompletion(app, firstTurn, ZED_HEADERS)).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, ZED_HEADERS)).status).toBe(200)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[0]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+    expect(String(capturedOptionHistory[1]?.systemPrompt)).not.toContain("<conversation_history>")
+  })
+
+  it("runs the SDK in Meridian's neutral directory and loads nothing from the host", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+
+    expect(capturedOptions?.cwd).toBe(neutralWorkingDirectory())
+    expect(capturedOptions?.cwd).not.toBe(process.cwd())
+    expect((capturedOptions?.settingSources as unknown[] | undefined) ?? []).toHaveLength(0)
+    expect(capturedOptions?.systemPrompt).not.toEqual(expect.objectContaining({ preset: "claude_code" }))
+  })
+
+  it("treats a title one-shot as auxiliary: fresh session, and the thread still resumes its own", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+    await postChatCompletion(app, titleOneShot, ZED_HEADERS)
+    await postChatCompletion(app, secondTurn, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(3)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[2]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+  })
+
+  it("keeps distinct thread ids isolated", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+    await postChatCompletion(app, { ...secondTurn, prompt_cache_key: "thread-2" }, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+  })
+
+  it("still keeps the real history when Zed sends no prompt_cache_key", async () => {
+    const app = createTestApp()
+    const { prompt_cache_key: _first, ...firstWithoutKey } = firstTurn
+    const { prompt_cache_key: _second, ...secondWithoutKey } = secondTurn
+
+    await postChatCompletion(app, firstWithoutKey, ZED_HEADERS)
+    await postChatCompletion(app, secondWithoutKey, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(String(capturedOptionHistory[1]?.systemPrompt)).not.toContain("<conversation_history>")
+  })
+
+  it("applies the high default effort, since Zed does not forward reasoning_effort", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("keeps an effort the request does carry", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, { ...firstTurn, reasoning_effort: "low" }, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("low")
   })
 })
 

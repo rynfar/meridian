@@ -1,3 +1,15 @@
+## Zed adapter
+
+Real SDK/model gate for `adapters/zed.ts`: detection by the `Zed/` User-Agent, session identity from `prompt_cache_key`, a streamed tool call forwarded to the client and its `tool` message fed back into the resumed session, the neutral SDK working directory under the config dir, and a title one-shot (same thread id, no agent system prompt) that runs in its own session without disturbing the thread's.
+
+```bash
+npm run build && node scripts/e2e-zed-client.mjs          # dist/, under node
+bun scripts/e2e-zed-client.mjs                             # src/, under bun
+E2E_MODEL=claude-opus-5-5 node scripts/e2e-zed-client.mjs  # a different model
+```
+
+Passes when the final line is `{"pass":true,...}`. Each turn prints its telemetry row: `adapter` must be `zed` throughout; `lineage` is `new` on turn 1, anything but `continuation` on the title one-shot (a different `session`), and `continuation` on turns 2 and 3 (each resumed turn runs as a managed fork with a `session` of its own, so continuity shows as `lineage` plus cache reuse, not as one id); turn 2 must finish with `tool_calls` naming `terminal` with a string `command` and, when present, a numeric `timeout_ms` (the nullable schema is advertised with its type); the continuation reports more than 1000 cached prompt tokens. The proxy instance is isolated (ephemeral port, temp config dir); only the host's Claude credentials are shared.
+
 ## Pi extension (#1408)
 
 Two harnesses use the actual Pi CLI with the extension that
