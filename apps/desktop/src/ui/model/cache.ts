@@ -60,7 +60,8 @@ export interface CacheMiss { row: RequestRow; why: string; severity: 'miss' | 'l
  * likely reason from the previous turn of the same session.
  */
 export function cacheMisses(rows: readonly RequestRow[], threshold = 0.5, limit = 50, since = -Infinity): CacheMiss[] {
-  const ordered = [...rows].filter(row => !row.failed).sort((a, b) => a.timestamp - b.timestamp)
+  // Keepalive beats are neither misses nor the "previous turn" of a real request.
+  const ordered = [...rows].filter(row => !row.failed && !row.keepalive).sort((a, b) => a.timestamp - b.timestamp)
   const previous = new Map<string, RequestRow>()
   const misses: CacheMiss[] = []
   for (const row of ordered) {

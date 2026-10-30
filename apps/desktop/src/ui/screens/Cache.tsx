@@ -4,12 +4,13 @@ import { useModels } from '../lib/models'
 import { cn } from '../lib/cn'
 import { Hero, InlineStats, Label, Swatch } from '../components/card'
 import { PromptRibbon, RibbonLegend } from '../components/ribbon'
-import { ConnectionProblem, Empty, Skeleton } from '../components/state'
+import { ConnectionProblem, Empty, ReadFailed, Skeleton } from '../components/state'
 import { CacheTokensChart, HitRateChart } from '../charts/charts'
-import { fmtInt, fmtTok, pct, plural, usd, when } from '../model/format'
+import { fmtInt, fmtTok, pct, percentFigure, plural, usd, when } from '../model/format'
 import { cacheMisses, cacheSavings, cacheTotals, keepalive } from '../model/cache'
 import { promptShare } from '../model/prompt'
-import { bucketWord, chartSeries } from '../model/series'
+import { bucketWord, chartSeries, historyNote } from '../model/series'
+import { sourceRead } from '../model/status'
 import { windowRange } from '../../uiData'
 import type { Navigate } from '../shell/nav'
 
@@ -29,23 +30,30 @@ export function Cache({ navigate }: { navigate: Navigate }) {
   // The same token-weighted definition as Today, the sidebar and the menu bar.
   const prompt = promptShare(state.summary)
   const per = series ? bucketWord(series.series.bucketMs) : 'hour'
+  const summaryRead = sourceRead(state, 'summary')
+  const requestsRead = sourceRead(state, 'requests')
+  const note = historyNote(series)
+  const refresh = () => { void run('refresh') }
 
   return (
     <div className="scroll-y flex h-full min-h-0 flex-col px-[26px] pb-[18px] pt-[22px]">
       {totals ? (
         <div className="grid shrink-0 grid-cols-[1.15fr_1fr] gap-9">
           <Hero label={<><Swatch className="bg-cache" />Prompt from cache</>}
-            figure={prompt.share === null ? '—' : Math.round(prompt.share * 100)} unit={prompt.share === null ? undefined : '%'}
+            figure={prompt.share === null ? '—' : percentFigure(prompt.share)} unit={prompt.share === null ? undefined : '%'}
             strip={<PromptRibbon tokens={prompt} size="hero" />}
             caption={<><b>{fmtTok(prompt.read)}</b> read · {fmtTok(prompt.write)} written · {fmtTok(prompt.fresh)} fresh of {fmtTok(prompt.total)} prompt tokens</>} />
           <InlineStats className="content-start pt-0.5" cells={[
             { label: 'Mean per request', value: <span className="text-cache">{pct(totals.hit)}</span>, detail: 'cache hit, averaged over requests' },
             { label: 'Misses on resume', value: <span className={totals.missesOnResume ? 'text-yellow' : undefined}>{fmtInt(totals.missesOnResume)}</span>, detail: 'resumed with 0% reuse' },
-            savings ? { label: 'Saved by caching', value: usd(savings.netUsd), detail: `${usd(savings.savedUsd)} reads − ${usd(savings.writePremiumUsd)} writes${savings.partial ? ' · partial' : ''}` }
+            // Base list rates per model (summary byModel), not each request's pin or long-context tier.
+            savings ? { label: 'Saved by caching', value: usd(savings.netUsd), detail: `${usd(savings.savedUsd)} reads − ${usd(savings.writePremiumUsd)} writes · base rates${savings.partial ? ' · partial' : ''}` }
               : { label: 'Saved by caching', value: '—', detail: state.settings.unavailable.includes('pricing') ? 'pricing unavailable' : 'needs model pricing' },
           ]} />
         </div>
-      ) : <div className="grid grid-cols-2 gap-9"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>}
+      ) : summaryRead.kind === 'failed' ? <ReadFailed what="the cache totals for this window" message={summaryRead.message} busy={busy} onRetry={refresh} className="py-3" />
+        : summaryRead.kind === 'ready' ? <Empty title="No cache figures" detail="This Meridian’s summary has no token usage to show." />
+        : <div className="grid grid-cols-2 gap-9"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>}
 
       <div className="mt-[26px] grid shrink-0 grid-cols-2 gap-9">
         <section className="min-w-0">
@@ -53,10 +61,12 @@ export function Cache({ navigate }: { navigate: Navigate }) {
           <div className="mt-2">{series ? <CacheTokensChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="h-[150px]" />}</div>
         </section>
         <section className="min-w-0">
-          <div className="flex items-baseline justify-between gap-3"><Label><Swatch className="bg-cache" />Hit rate · mean per request</Label>{series?.estimated ? <span className="text-xs text-t4" title={series.note}>estimated from recent requests</span> : null}</div>
+          <div className="flex items-baseline justify-between gap-3"><Label><Swatch className="bg-cache" />Hit rate · mean per request</Label>{series?.estimated ? <span className="text-xs text-t3" title={series.note}>estimated from recent requests</span> : null}</div>
           <div className="mt-2">{series ? <HitRateChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={150} /> : <Skeleton className="h-[150px]" />}</div>
         </section>
       </div>
+
+      {note ? <div className="mt-2 text-meta text-t3" title={series?.note}>{note}</div> : null}
 
       <div className={cn('mt-6 grid min-h-[220px] flex-1 gap-9', beats ? 'grid-cols-[minmax(0,1fr)_240px]' : 'grid-cols-1')}>
         <section className="flex min-h-0 flex-col">
@@ -64,16 +74,17 @@ export function Cache({ navigate }: { navigate: Navigate }) {
             <Label strong>Low-cache continuations</Label>
             <span className="text-sm text-t3">· resumed conversations that reused ≤ 50% · loaded requests</span>
           </div>
-          {state.requests === null ? <Skeleton className="mt-2 h-32" /> : misses.length ? (
+          {requestsRead.kind === 'failed' ? <ReadFailed what="the latest requests" message={requestsRead.message} busy={busy} onRetry={refresh} className="mt-3" />
+            : state.requests === null ? <Skeleton className="mt-2 h-32" /> : misses.length ? (
             <div className="scroll-y -mx-2 mt-0.5 min-h-0 flex-1">
               {misses.map(({ row, why, severity }) => (
                 <button key={row.id} type="button" onClick={() => navigate('traffic', { request: row.id })}
                   className="num grid h-[29px] w-full grid-cols-[84px_40px_minmax(0,170px)_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-md px-2 text-left text-base transition-colors duration-150 hover:bg-hover">
-                  <span className="text-t4">{when(row.timestamp, now)}</span>
+                  <span className="text-t3">{when(row.timestamp, now)}</span>
                   <span className={cn('text-right font-medium', severity === 'miss' ? 'text-red' : 'text-yellow')}>{pct(row.cacheHit)}</span>
                   <span className="truncate"><span className="font-medium text-t1">{row.model}</span> <span className="text-t3">· {row.adapter || row.source} · {row.profile || 'default'}</span></span>
                   <span className="truncate text-t3" title={why}>{why}</span>
-                  <span className="text-t4">{fmtTok(row.cacheWrite)} written</span>
+                  <span className="text-t3">{fmtTok(row.cacheWrite)} written</span>
                 </button>
               ))}
             </div>

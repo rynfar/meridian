@@ -10,9 +10,9 @@ import { Tip } from '../components/controls'
 import { GlyphItem } from '../components/glyph'
 import { LimitTrack, windowTitle } from '../components/limit'
 import { PromptRibbon } from '../components/ribbon'
-import { Skeleton } from '../components/state'
-import { fmtInt, fmtTok, hhmm, when } from '../model/format'
-import { healthChip, host } from '../model/status'
+import { ReadFailed, Skeleton } from '../components/state'
+import { fmtInt, fmtTok, hhmm, percentFigure, when } from '../model/format'
+import { healthChip, host, sourceRead, summaryScope } from '../model/status'
 import { lastFailure } from '../model/failures'
 import { promptShare } from '../model/prompt'
 import { accountAction, type AccountView } from '../model/accounts'
@@ -53,7 +53,10 @@ export function TrayPanel() {
   const groups = ([['pool', accounts.accounts.filter(account => account.provider !== 'antigravity')], ['antigravity', accounts.accounts.filter(account => account.provider === 'antigravity')]] as const).filter(([, list]) => list.length)
   const [label, ...context] = chip.label.split(' · ')
   const quiet = (state?.preferences.quietUntil ?? 0) > now
-  const loadingFigures = data.kind === 'loading' || state?.summary === null
+  const summaryRead = sourceRead(state, 'summary')
+  const loadingFigures = data.kind === 'loading' || summaryRead.kind !== 'ready'
+  // Antigravity reports totals since it started, whatever the window.
+  const service = summaryScope(state) === 'service'
 
   return (
     <div ref={root} className="tray-root flex flex-col gap-3.5 px-3.5 pb-2.5 pt-3.5 text-base">
@@ -61,7 +64,7 @@ export function TrayPanel() {
         <Dot tone={chip.tone} />
         <span className="min-w-0 truncate font-medium text-t1">{label}{context.length && data.kind === 'ready' ? <span className="font-normal text-t3"> · {context.join(' · ')}</span> : null}</span>
         <span className="flex-1" />
-        {state?.instance ? <Tip content={state.instance.baseUrl}><span className="num text-xs text-t4">:{state.instance.port}</span></Tip> : null}
+        {state?.instance ? <Tip content={state.instance.baseUrl}><span className="num text-xs text-t3">:{state.instance.port}</span></Tip> : null}
       </div>
 
       {data.kind === 'failed' && state ? (
@@ -72,15 +75,17 @@ export function TrayPanel() {
             <Button variant="subtle" onClick={() => { void run('redetect') }} disabled={busy}><Radar />Re-detect</Button>
           </div>
         </div>
+      ) : data.kind === 'ready' && summaryRead.kind === 'failed' ? (
+        <ReadFailed compact what="the totals" message={summaryRead.message} busy={busy} onRetry={() => { void run('refresh') }} />
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
           <div className="lift min-w-0 rounded-xl bg-surface px-3 pb-2.5 pt-2.5">
             <Label className="text-xs"><Swatch className="bg-cache" />Prompt from cache</Label>
             {loadingFigures ? <Skeleton className="mt-1.5 h-7 w-16" /> : (
-              <div className="num mt-1 flex items-baseline font-display text-2xl font-semibold leading-none tracking-hero text-t1">{prompt.share === null ? '—' : Math.round(prompt.share * 100)}{prompt.share === null ? null : <span className="ml-0.5 text-lg font-medium tracking-unit text-t3">%</span>}</div>
+              <div className="num mt-1 flex items-baseline font-display text-2xl font-semibold leading-none tracking-hero text-t1">{prompt.share === null ? '—' : percentFigure(prompt.share)}{prompt.share === null ? null : <span className="ml-0.5 text-lg font-medium tracking-unit text-t3">%</span>}</div>
             )}
             <PromptRibbon tokens={prompt} size="mini" className="mt-2" />
-            <div className="num mt-1.5 truncate text-xs text-t3">{fmtTok(prompt.read)} {reused[kind]}</div>
+            <div className="num mt-1.5 truncate text-xs text-t3">{fmtTok(prompt.read)} {service ? 'reused since start' : reused[kind]}</div>
           </div>
           <div className="lift min-w-0 rounded-xl bg-surface px-3 pb-2.5 pt-2.5">
             <Label className="text-xs">Requests</Label>
@@ -91,7 +96,7 @@ export function TrayPanel() {
               {(h.requests ?? 0) - h.failed > 0 ? <i className="block bg-t4" style={{ flexGrow: (h.requests ?? 0) - h.failed, flexBasis: 0 }} /> : null}
               {h.failed ? <i className="block bg-red" style={{ flexGrow: h.failed, flexBasis: 0, minWidth: 2 }} /> : null}
             </div>
-            <div className="num mt-1.5 truncate text-xs text-t3">{h.failed ? '' : 'none failed · '}{since[kind]}</div>
+            <div className="num mt-1.5 truncate text-xs text-t3">{h.failed ? '' : 'none failed · '}{service ? 'since service start' : since[kind]}</div>
           </div>
         </div>
       )}
@@ -109,7 +114,7 @@ export function TrayPanel() {
         </div>
       ) : null}
 
-      {data.kind === 'ready' ? (
+      {data.kind === 'ready' && state?.requests !== null ? (
         failure ? <GlyphItem kind="bad" title={`Last failure · ${when(failure.row.timestamp, now)}`} detail={<span className="block truncate" title={failure.cause}>{failure.cause}</span>} />
           : <GlyphItem kind="ok" title="No failures" detail="None in the loaded requests." />
       ) : null}
@@ -138,11 +143,11 @@ function TrayAccount({ account, now, canSwitch, onUse, followed }: { account: Ac
   const title = `${account.id} · ${account.fiveHour ? windowTitle(account.fiveHour, now) : '5-hour: no reading'} · ${account.weekly ? windowTitle(account.weekly, now) : 'Weekly: no reading'}`
   const action = accountAction(account, followed, now)
   return (
-    <div className="grid h-[30px] grid-cols-[minmax(0,1fr)_54px_54px_74px] items-center gap-2.5 rounded-md px-1 text-cap transition-colors duration-150 hover:bg-hover" aria-label={title} title={title}>
+    <div role="group" className="grid h-[30px] grid-cols-[minmax(0,1fr)_54px_54px_74px] items-center gap-2.5 rounded-md px-1 text-cap transition-colors duration-150 hover:bg-hover" aria-label={title} title={title}>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="truncate font-medium text-t1">{account.id}</span>
         {account.active ? <Dot tone="accent" size={6} /> : null}
-        <small className="truncate text-xs text-t4">{account.plan}</small>
+        <small className="truncate text-xs text-t3">{account.plan}</small>
       </span>
       <LimitTrack window={account.fiveHour} now={now} label={`${account.id} 5-hour usage`} />
       <LimitTrack window={account.weekly} now={now} label={`${account.id} weekly usage`} />
@@ -150,7 +155,7 @@ function TrayAccount({ account, now, canSwitch, onUse, followed }: { account: Ac
         {action.kind === 'serving' ? <span className="font-normal text-t3">{followed && account.provider !== 'antigravity' ? 'following' : 'serving'}</span>
           : action.kind === 'sign-in' ? <span className="text-red">sign in</span>
           : action.kind === 'held' ? <span className="text-yellow">{action.text}</span>
-          : action.kind === 'followed' ? <span className="font-normal text-t4">followed</span>
+          : action.kind === 'followed' ? <span className="font-normal text-t3">followed</span>
           : action.kind !== 'use' ? null
           : <Button variant="text" size="sm" className="text-meta" onClick={onUse} disabled={!canSwitch} aria-label={`Use ${account.id}`}>Use</Button>}
       </span>

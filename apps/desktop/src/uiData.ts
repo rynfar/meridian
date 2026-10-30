@@ -127,9 +127,11 @@ function median(values: number[]): number | null {
  * Client-side fallback for Meridian versions without /telemetry/timeseries:
  * bucket the recent-requests list over [start, end). Cost is unknown here
  * (no pricing table), so costUsd is null. `truncated` is set when the list
- * hit its fetch limit before reaching back to `start`.
+ * does not reach back to `start` and is either at its fetch limit or holds
+ * fewer requests than `expected` (the summary's total for the window; the list
+ * collapses failover chains, so it can stop short of the limit).
  */
-export function bucketRequests(requests: unknown, range: TimeRange, limit = 500): Timeseries {
+export function bucketRequests(requests: unknown, range: TimeRange, limit = 500, expected?: number): Timeseries {
   const list = rows(requests)
   const count = range.end > range.start ? Math.ceil((range.end - range.start) / range.bucketMs) : 0
   const groups: Record<string, unknown>[][] = Array.from({ length: count }, () => [])
@@ -143,6 +145,7 @@ export function bucketRequests(requests: unknown, range: TimeRange, limit = 500)
     if (timestamp < range.start || timestamp >= range.end) continue
     groups[Math.floor((timestamp - range.start) / range.bucketMs)]?.push(row)
   }
+  const counted = groups.reduce((total, items) => total + items.length, 0)
   const buckets = groups.map((items, index): TimeseriesBucket => {
     const hitRates = items.map(item => number(item.cacheHitRate)).filter((value): value is number => value !== undefined)
     const sum = (key: string) => items.reduce((total, item) => total + (number(item[key]) ?? 0), 0)
@@ -158,5 +161,5 @@ export function bucketRequests(requests: unknown, range: TimeRange, limit = 500)
       costUsd: null,
     }
   })
-  return { start: range.start, end: range.end, bucketMs: range.bucketMs, truncated: list.length >= limit && oldest > range.start, buckets, estimated: true }
+  return { start: range.start, end: range.end, bucketMs: range.bucketMs, truncated: oldest > range.start && (list.length >= limit || (expected !== undefined && counted < expected)), buckets, estimated: true }
 }

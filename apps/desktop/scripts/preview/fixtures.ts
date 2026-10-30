@@ -70,6 +70,8 @@ const fixtures: Record<string, DesktopState> = {
   stopped: failed('stopped', 'Nothing is answering on 127.0.0.1:3456.', 'Start your Meridian service, or choose Re-detect if it moved.'),
   unauthorized: failed('unauthorized', 'Meridian on 127.0.0.1:3456 rejected the API key (401).', 'Enter the key in Service → Connection.'),
   loading: { ...failed('starting', 'Connecting…', ''), instance: null, lastChecked: undefined },
+  // The service answers but two reads fail: each says so instead of an endless skeleton.
+  partial: { ...base, summary: null, requests: null, routesSummary: null, dataErrors: ['Error: /telemetry/summary?window=58665250: HTTP 500 database is locked', 'Error: /telemetry/requests?limit=500: timed out'] },
 }
 
 await mkdir(out, { recursive: true })

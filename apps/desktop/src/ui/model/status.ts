@@ -30,6 +30,28 @@ export function accountsRead(state: Pick<DesktopState, 'profiles' | 'quota' | 'd
   return errors.length ? { kind: 'failed', message } : { kind: 'loading' }
 }
 
+/**
+ * One read the screens depend on: present, failed (its error is in
+ * dataErrors) or not read yet. A failed read is said plainly, never left as a
+ * skeleton that never resolves.
+ */
+export type SourceRead = { kind: 'ready' } | { kind: 'loading' } | { kind: 'failed'; message: string }
+const SOURCE_PATH = { summary: '/telemetry/summary', requests: '/telemetry/requests' } as const
+export function sourceRead(state: Pick<DesktopState, 'summary' | 'requests' | 'dataErrors'> | undefined, source: keyof typeof SOURCE_PATH): SourceRead {
+  if (!state) return { kind: 'loading' }
+  if (state[source] !== null) return { kind: 'ready' }
+  const errors = state.dataErrors.filter(error => error.includes(SOURCE_PATH[source]))
+  return errors.length ? { kind: 'failed', message: errors.join(' · ') } : { kind: 'loading' }
+}
+
+/**
+ * What the summary's totals cover. Antigravity's server ignores the window and
+ * reports totals since it started, so its figures are labelled that way.
+ */
+export function summaryScope(state: Pick<DesktopState, 'health'> | undefined): 'window' | 'service' {
+  return text(object(state?.health).backend) === 'antigravity' ? 'service' : 'window'
+}
+
 export function host(baseUrl: string | undefined): string {
   if (!baseUrl) return ''
   try { return new URL(baseUrl).host } catch { return baseUrl }

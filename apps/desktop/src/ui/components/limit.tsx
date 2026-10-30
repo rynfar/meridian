@@ -45,7 +45,7 @@ export function LimitBar({ name, window, now, className }: { name: string; windo
           <b className={cn('num font-semibold', window?.expired ? 'text-t3' : value !== null && value >= 0.6 && !window?.stale ? toneText[tone] : 'text-t1')}>{pct(value)}</b>
         </div>
         <LimitTrack window={window} now={now} className="mt-1.5" label={`${name} usage`} />
-        <div className="num mt-[5px] flex justify-between gap-2 text-xs text-t4">
+        <div className="num mt-[5px] flex justify-between gap-2 text-xs text-t3">
           <span className={cn('truncate', tick?.state === 'ahead' && 'text-yellow', tick?.state === 'full' && 'text-red')}>{tick?.label ?? (window?.expired ? 'awaiting a reading' : window?.stale ? 'last reading' : '')}</span>
           <span className="truncate">{resetText(window, now)}</span>
         </div>

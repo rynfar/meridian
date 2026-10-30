@@ -113,11 +113,11 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-md font-semibold leading-tight tracking-title text-t1">{account.label}</span>
             {account.active ? <Tip content={follow ? 'Followed from another Meridian' : 'Serving requests now'}><span className="inline-flex items-center gap-1.5 text-xs text-t3"><Dot tone="accent" size={6} />{follow ? 'following' : null}</span></Tip> : null}
-            {plan ? <span className="text-xs text-t4">{plan}</span> : null}
+            {plan ? <span className="text-xs text-t3">{plan}</span> : null}
             {account.needsLogin ? <span className="text-meta font-medium text-red">needs sign-in</span> : null}
             {account.limited ? <Tip content={account.limited.rationale ?? (account.limited.stale ? 'From the last reading; awaiting a fresh one.' : undefined)}><span className="text-meta font-medium text-yellow">{[limitPill(account.limited), untilText(account.limited.resetsAt, now)].filter(text => text !== 'limited').join(' · ')}</span></Tip> : null}
             {account.duplicateOf.length ? <Tip content={account.duplicateTitle}><Pill tone="yellow">duplicate of {account.duplicateOf.join(', ')}</Pill></Tip> : null}
-            {account.aliases.length ? <span className="text-xs text-t4">aka {account.aliases.join(', ')}</span> : null}
+            {account.aliases.length ? <span className="text-xs text-t3">aka {account.aliases.join(', ')}</span> : null}
           </div>
           <div className="mt-0.5 truncate text-meta text-t3">{[account.email, account.organization && account.organization !== `${account.email}'s Organization` ? account.organization : ''].filter(Boolean).join(' · ') || providerName[account.provider]}</div>
         </div>
@@ -143,12 +143,12 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
           {extra.map(window => <span key={window.type} className="text-t3" title={window.resetsAt ? `resets ${when(window.resetsAt, now)}` : undefined}>{window.label} <b className={cn('font-medium', window.stale ? 'text-t3' : (window.utilization ?? 0) >= 0.6 ? toneText[utilTone(window.utilization)] : 'text-t1')}>{pct(window.utilization)}</b></span>)}
         </div>
       ) : null}
-      {account.extraUsage ? <div className="text-xs text-t4">{account.extraUsage.text}</div> : null}
+      {account.extraUsage ? <div className="text-xs text-t3">{account.extraUsage.text}</div> : null}
       {account.renewal.soon ? <div className="text-xs text-yellow">Sign in again {account.renewal.days === null ? 'soon' : account.renewal.days <= 0 ? 'today' : `within ${account.renewal.days} ${account.renewal.days === 1 ? 'day' : 'days'}`} — its sign-in expires.</div> : null}
 
       <div className="num mt-auto flex items-center gap-2 pt-0.5 text-xs text-t3">
-        {account.served !== undefined || account.refused ? <span>{fmtInt(account.served ?? 0)} served{account.refused ? <> · <span className="text-red">{fmtInt(account.refused)} refused</span></> : null}</span> : <span className="text-t4">No requests in this window</span>}
-        {account.costUsd !== undefined ? <span className="text-t4">· {usd(account.costUsd)} API-equivalent</span> : null}
+        {account.served !== undefined || account.refused ? <span>{fmtInt(account.served ?? 0)} served{account.refused ? <> · <span className="text-red">{fmtInt(account.refused)} refused</span></> : null}</span> : <span className="text-t3">No requests in this window</span>}
+        {account.costUsd !== undefined ? <span className="text-t3">· {usd(account.costUsd)} API-equivalent</span> : null}
         <span className="flex-1" />
         {action.kind === 'sign-in' ? <Button variant="text" size="sm" onClick={onCommands ?? onLogin} disabled={busy && !onCommands}>Sign in</Button>
           : action.kind === 'use' && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy} aria-label={`Use ${account.id}`}>Use</Button> : null}

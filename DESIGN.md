@@ -298,7 +298,9 @@ patterns live in `.interface-design/system.md`; this section states the rules.
 
 **Palette.** Canvas, one raised surface and a darker inset *well* (tracks,
 segmented controls, inputs); 0.5px `ring` / `ring-strong` edges and a `hover`
-fill; four text levels t1–t4 (`--text`, `--t2`, `--muted`, `--t4`). Violet
+fill; four text levels t1–t4 (`--text`, `--t2`, `--muted`, `--t4`), where
+t1–t3 meet WCAG AA 4.5:1 on every surface and t4 never carries information
+(marks, placeholders and disabled glyphs only). Violet
 `--accent2` means cache and nothing else (cache read; `--cache-write` is the
 same violet at ~40%; `--fresh` is the neutral for uncached input). Blue
 `--accent` means interactive or active. Green, yellow and red appear only as
@@ -338,7 +340,7 @@ menu-bar tile agree; the per-request mean is labelled "mean per request".
 Lists are native: 29px rows, no borders or zebra, a full-row hover fill,
 sentence-case t3 headers with the sort arrow. Successful rows carry no status
 badge; a failure replaces the ribbon with "HTTP 500 · api_error" in red. Long
-context is a small t4 "1M" suffix, the active account a 6px blue dot, a held
+context is a small t3 "1M" suffix, the active account a 6px blue dot, a held
 account plain text ("until 10:59"). A quiet outlined pill remains only for a
 discrete state that needs naming (a duplicate account, a pricing override, a
 selected version). Attention items are a glyph list (warn triangle, bad
@@ -349,7 +351,7 @@ Shortcut hints use `kbd`; ⌘1–⌘6 open the six screens and ⌘R refreshes th
 data (⇧⌘R reloads the window).
 
 The window keeps its structure: a 216px glass sidebar with SF-style line icons,
-counts in t4 (Cache in violet, a limited count as a warn dot and number) and a
+counts in t3 (Cache in violet, a limited count as a warn dot and number) and a
 footer naming the instance being viewed (supervisor, address, version); a
 toolbar with the page title, the status line ("Working · personal · Max", or the
 plain reason it is not), the time-window segmented control and refresh. Today

@@ -30,7 +30,7 @@ export function Toolbar({ title, chip, showWindow }: { title: string; chip: Heal
       </Tip>
       <span className="flex-1" />
       {working ? <span className="flex items-center gap-1.5 text-meta text-t3"><LoaderCircle className="size-3.5 animate-spin" />{working}…</span>
-        : state?.lastChecked ? <span className="num text-meta text-t4">Updated {hhmm(state.lastChecked)}</span> : null}
+        : state?.lastChecked ? <span className="num text-meta text-t3">Updated {hhmm(state.lastChecked)}</span> : null}
       {showWindow && state ? (
         <Segmented label="Time window" value={state.window.kind} options={windows} onChange={kind => { void run('set-window', kind) }} />
       ) : null}

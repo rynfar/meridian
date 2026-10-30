@@ -18,7 +18,8 @@ export interface LimitWindow {
   expired: boolean;
   primary: boolean;
 }
-export interface AccountLimit { window: string; label: string; short: string; resetsAt: number | null; stale: boolean; source: 'usage' | 'refusing'; rationale?: string }
+/** `benched`: the pool router set the account aside until `resetsAt` (/profiles/list `exhausted`), as the web dashboard shows it. */
+export interface AccountLimit { window: string; label: string; short: string; resetsAt: number | null; stale: boolean; source: 'usage' | 'refusing' | 'benched'; rationale?: string }
 export interface AccountView {
   id: string; provider: AccountProvider; label: string; email: string; organization: string;
   /** "Max", "Team", "Plus"; the provider word is added by callers. */
@@ -167,6 +168,13 @@ function spentLimit(spent: Record<string, unknown>, now: number): AccountLimit |
   return { window: bucket || 'rate', label, short, resetsAt: until, stale: false, source: 'refusing', rationale: text(diagnosis.rationale) || undefined }
 }
 
+/** A pool-routing bench mark; it lapses at `until`, like the server's own snapshot. */
+function benchedLimit(mark: Record<string, unknown> | undefined, now: number): AccountLimit | null {
+  const until = number(mark?.until) ?? null
+  if (!mark || until === null || until <= now) return null
+  return { window: 'benched', label: 'Benched', short: 'benched', resetsAt: until, stale: false, source: 'benched', rationale: text(mark.reason) || undefined }
+}
+
 type Inputs = Pick<DesktopState, 'profiles' | 'quota' | 'providers' | 'routesSummary' | 'summary' | 'settings'>
 
 export function buildAccounts(state: Inputs, now: number): AccountsModel {
@@ -175,6 +183,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
   const quotas = rows(object(state.quota).profiles)
   const activeProfiles = object(profilesBody.activeProfiles)
   const spentList = rows(profilesBody.spent)
+  const benchedList = rows(profilesBody.exhausted)
   const tally = object(object(state.routesSummary).byProfile)
   const costs = object(object(object(state.summary).costEstimate).byProfile)
   const followRaw = object(profilesBody.follow)
@@ -204,7 +213,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
     const { full, ...peak } = usage(windows)
     // A refusal counts while its `until` is ahead; spentLimit drops it after.
     const spent = spentLimit(object(quota.spent), now) ?? spentLimit(spentList.find(item => text(item.profileId) === id) ?? {}, now)
-    const limited: AccountLimit | null = spent ?? usageLimit(full)
+    const limited: AccountLimit | null = spent ?? usageLimit(full) ?? benchedLimit(benchedList.find(item => text(item.id) === id), now)
     const usageNote = needsLogin ? 'Sign-in required'
       : !windows.length && quota.error ? 'Usage unavailable'
       : staleReading && windows.length ? failure === 'rate_limited' ? 'Last reading (usage reads are rate limited)' : 'Last reading'
@@ -292,6 +301,7 @@ export function accountAction(account: Pick<AccountView, 'active' | 'needsLogin'
 /** Mockup copy for a limit: "5h limit", "weekly limit". */
 export function limitPill(limit: AccountLimit): string {
   if (limit.source === 'refusing') return limit.short === 'rate' ? 'refusing' : `refusing · ${limit.short}`
+  if (limit.source === 'benched') return 'benched'
   if (limit.window === 'five_hour') return '5h limit'
   if (limit.window === 'seven_day') return 'weekly limit'
   return `${limit.short} limit`

@@ -641,16 +641,19 @@ export const profileBarJs = `
 `
 
 /** Native desktop chrome: system appearance with the canonical Meridian hues.
- * Web pages continue using themeCss and the shared profile header above. */
+ * Web pages continue using themeCss and the shared profile header above.
+ * Text tokens (t1–t3, accent, status hues) reach WCAG AA 4.5:1 on every
+ * desktop surface (bg, surface, surface2, well); t4 is for marks and
+ * placeholders only, never information. */
 export const desktopThemeCss = `
   :root {
     color-scheme: light dark;
     --bg: #f5f5f6; --surface: #ffffff; --surface2: #f0f0f2; --well: #ebebed;
     --ring: rgba(0,0,0,.075); --ring-strong: rgba(0,0,0,.12); --hover: rgba(0,0,0,.035);
-    --text: #1b1b1e; --t2: #46464c; --muted: #7a7a82; --t4: #a6a6ad;
-    --accent: #1f6fd6; --accent2: #8250b5;
+    --text: #1b1b1e; --t2: #46464c; --muted: #6a6a72; --t4: #a6a6ad;
+    --accent: #1767ce; --accent2: #8250b5;
     --cache-write: color-mix(in srgb, var(--accent2) 42%, transparent); --fresh: #c9c9ce;
-    --green: #2c8a52; --yellow: #a96d00; --red: #cf3f3a;
+    --green: #1c7a42; --yellow: #985c00; --red: #c4342f;
     --sidebar: rgba(236,236,238,.82);
     --lift: 0 0 0 .5px var(--ring), 0 1px 2px rgba(0,0,0,.05);
     --press: 0 0 0 .5px var(--ring-strong), 0 1px 2px rgba(0,0,0,.12);
@@ -660,7 +663,7 @@ export const desktopThemeCss = `
     :root {
       --bg: #161618; --surface: #1d1d20; --surface2: #242428; --well: #111113;
       --ring: rgba(255,255,255,.07); --ring-strong: rgba(255,255,255,.12); --hover: rgba(255,255,255,.035);
-      --text: #ececee; --t2: #b6b6bc; --muted: #86868e; --t4: #5c5c64;
+      --text: #ececee; --t2: #b6b6bc; --muted: #8a8a92; --t4: #5c5c64;
       --accent: #5aa3ff; --accent2: #bc8cff;
       --cache-write: color-mix(in srgb, var(--accent2) 38%, transparent); --fresh: #3b3b41;
       --green: #4cc283; --yellow: #e0a83e; --red: #f2645e;

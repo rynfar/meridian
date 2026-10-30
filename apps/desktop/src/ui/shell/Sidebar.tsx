@@ -43,7 +43,7 @@ export function Sidebar({ page, onNavigate, limited }: { page: Page; onNavigate(
               className={cn('no-drag flex h-7 items-center gap-[9px] rounded-md px-[9px] text-left text-base font-medium transition-colors duration-150', active ? 'lift bg-surface text-t1' : 'text-t2 hover:bg-hover')}>
               <Icon className={cn('size-[15px]', active ? 'text-t1' : 'text-t3')} strokeWidth={1.6} />
               <span className="flex-1">{pageTitles[id]}</span>
-              {badge ? <span className={cn('num flex items-center gap-[5px] text-meta text-t4', badge.className)}>{badge.dot ? <Dot tone={badge.dot} size={6} /> : null}{badge.text}</span> : null}
+              {badge ? <span className={cn('num flex items-center gap-[5px] text-meta text-t3', badge.className)}>{badge.dot ? <Dot tone={badge.dot} size={6} /> : null}{badge.text}</span> : null}
             </button>
           )
         })}

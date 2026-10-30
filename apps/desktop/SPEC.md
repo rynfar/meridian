@@ -42,9 +42,24 @@ notifications from a window and a menu-bar panel.
   listener pid) is attached; a running managed child is drained and the
   managed copy is not started. The managed copy runs only when nothing is
   found. Attaching reads only; it never takes ownership or imports secrets.
+  Detection's read-only commands time out (5 s) and a probed `/health` body is
+  capped at 64 KiB (API reads at 32 MiB): any local listener may answer.
+- **The API key stays with its endpoint.** A key entered in Service →
+  Connection is bound to the endpoint saved with it (`apiKeyFor` in the
+  encrypted blob) and is sent only there; the managed copy's key goes only to
+  the child started with it. Detection switching the viewed service never
+  carries the key along: the new service reads as unauthorized, naming where
+  the saved key belongs, until a key is entered for it.
+- **Configuration errors are scoped.** An unreadable `desktop.json` blocks
+  every write (it holds the encrypted secrets and handoff journal). A failed
+  handoff recovery blocks other changes but not *Return to headless*, which
+  can be retried until the original supervisor is healthy.
 - **Failures are typed.** `DesktopState.connection` is `ok | stopped |
   unauthorized | wrong-port | not-meridian | starting` with message and fix;
-  a failed read leaves `requests` null, never an empty list.
+  a failed read leaves `requests` null, never an empty list. When the service
+  answers but one read fails, the part that needs it says *Could not read …*
+  with the error and Refresh (window and menu bar) instead of a skeleton, and
+  nothing claims "no failures" without the data behind it.
 - **Account and settings parity over HTTP.** Switch, rename, reorder, ChatGPT
   seat sign-in/renew/remove, Claude sign-in (paste-code routes) and
   `/settings/api/*` writes go through the viewed server in either mode. Only
@@ -57,7 +72,9 @@ notifications from a window and a menu-bar panel.
   never limits an account (no limited badge, no Needs attention item, Use
   stays offered); it reads "reset at HH:MM, awaiting a new reading" in grey. A
   stale reading never draws as free capacity: warning colours stay dimmed,
-  green turns grey. A refusal (`spent`) holds the account until its `until`.
+  green turns grey. A refusal (`spent`) holds the account until its `until`,
+  and so does a pool-routing bench (`/profiles/list` `exhausted`), shown as
+  "benched" as the web dashboard does.
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives
@@ -80,7 +97,18 @@ notifications from a window and a menu-bar panel.
   *Accounts* (the only provider/account grid), *Logs*, *Service* (connection,
   process, versions, plugins, every server setting, desktop preferences). The
   time window (1h / Today / 24h / 7d, default since local midnight) applies to
-  every windowed figure, including the request table.
+  every windowed figure, including the request table. Keepalive beats are
+  excluded everywhere except the Cache screen's keepalive panel. Where a
+  figure cannot cover the window it says so: Antigravity totals are labelled
+  "since the service started"; a truncated timeseries, an estimate whose
+  requests stop short of the window, and a table holding only the latest
+  requests of a larger window each carry a note. Today's 24 slots follow the
+  wall clock, so DST days lose or repeat no hour.
+- **Polling respects the live proxy.** State refreshes every 10 s, but the
+  window-scoped reads (summary, timeseries, routes) — synchronous scans in the
+  process serving traffic — are reused within a per-window TTL (1h: none;
+  Today: summary live, series 30 s; 24h: 30 s; 7d: 60 s). A forced refresh, a
+  window change, a moved range start or a failed read re-reads at once.
 - **Keyboard.** ⌘1–⌘6 open the screens; ⌘R is the application menu's
   *Refresh data* (the renderer leaves it to the menu, so it refreshes once) and
   ⇧⌘R *Reload window*. Request rows on Today and Traffic open with Enter or
@@ -98,3 +126,8 @@ application (preview)*; usage in `apps/desktop/README.md`.
   outstanding, and the app labels itself a preview.
 - Crash recovery of an owned service stops after three attempts.
 - The plugin installer never installs into an externally managed service.
+- The web dashboard's *Subtree cancels* card (`summary.sessionTree`) has no
+  desktop equivalent yet.
+- "Saved by caching" prices the summary's per-model totals at base rates, so
+  it can differ slightly from the per-request cost column (SDK pins and
+  long-context tiers).
