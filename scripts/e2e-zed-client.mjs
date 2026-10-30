@@ -190,6 +190,52 @@ try {
   assert(turn3.cached > 1000, "the tool-result continuation did not reuse the prompt cache")
   assert(turn3.message.content.length > 0, "turn 3 gave no answer")
 
+  // Turn 4: another tool round, whose result is far above the per-result
+  // limit (5% of the window: 100 KB on 1M). The proxy must withhold it, say
+  // so at the top of the answer, and still resume the thread.
+  const history3 = [
+    { role: "system", content: agentSystem },
+    { role: "user", content: "Reply with exactly ALPHA." },
+    { role: "assistant", content: turn1.message.content },
+    { role: "user", content: "Run `echo hi` in the project root with the terminal tool, with a 5 second timeout. Call the tool now; do not answer in prose." },
+    { role: "assistant", content: null, tool_calls: [{ id: call.id, type: "function", function: { name: "terminal", arguments: call.function.arguments } }] },
+    { role: "tool", tool_call_id: call.id, content: "hi\n" },
+    { role: "assistant", content: turn3.message.content },
+  ]
+  await sleep(2000)
+  const turn4Call = await chat("turn-4-tool-call", {
+    prompt_cache_key: threadId,
+    tools: [terminalTool],
+    messages: [
+      ...history3,
+      { role: "user", content: "Now run `cat build.log` in the project root with the terminal tool. Call the tool now; do not answer in prose." },
+    ],
+  }, { stream: true })
+  assert.equal(turn4Call.finish, "tool_calls", "the model did not call the tool on turn 4")
+  const call4 = turn4Call.message.tool_calls[0]
+  assert.equal(call4?.function?.name, "terminal")
+  const hugeResult = ("[build] " + "x".repeat(191) + "\n").repeat(1500) // 300,000 bytes
+  await sleep(2000)
+  const turn4 = await chat("turn-4-oversized-result", {
+    prompt_cache_key: threadId,
+    tools: [terminalTool],
+    messages: [
+      ...history3,
+      { role: "user", content: "Now run `cat build.log` in the project root with the terminal tool. Call the tool now; do not answer in prose." },
+      { role: "assistant", content: null, tool_calls: [{ id: call4.id, type: "function", function: { name: "terminal", arguments: call4.function.arguments } }] },
+      { role: "tool", tool_call_id: call4.id, content: hugeResult },
+    ],
+  }, { stream: true })
+  assert.equal(turn4.row.adapter, "zed")
+  assert.equal(turn4.row.lineageType, "continuation", "turn 4 did not resume the thread")
+  assert(turn4.cached > 1000, "the oversized-result continuation did not reuse the prompt cache")
+  // The limit itself depends on the model's window (100 KB on 1M, 20 KB on 200k).
+  assert(turn4.message.content.startsWith("[meridian] Withheld 1 tool result before they reached the model: terminal 300 KB. Limit: "),
+    `turn 4 did not start with the withheld note: ${turn4.message.content.slice(0, 200)}`)
+  assert(turn4.message.content.includes(" per result ("), "the note did not name the per-result limit")
+  // The model may quote the 2 KB sample the notice carries; the 300 KB result itself must not come back.
+  assert(turn4.message.content.length < 20_000, `the oversized result leaked into the answer (${turn4.message.content.length} chars)`)
+
   console.log(JSON.stringify({ pass: true, model, meridianRoot, serverModule, root, threadId, session: turn1.row.sdkSessionId }))
 } finally {
   await instance.close()
