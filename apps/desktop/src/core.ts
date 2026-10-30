@@ -120,6 +120,8 @@ export interface ConnectionInput {
   dataStatus?: number;
   /** Another Meridian that detection verified, when the viewed one fails. */
   alternative?: string;
+  /** A saved key exists but belongs to this other endpoint, so it is not sent here. */
+  keyElsewhere?: string;
 }
 /**
  * Classify the viewed service. Pure: callers pass what they observed, the UI
@@ -128,7 +130,11 @@ export interface ConnectionInput {
 export function classifyConnection(input: ConnectionInput): ConnectionStatus {
   const where = host(input.baseUrl)
   const start = input.managed ? 'Start the app-managed copy in Service, or start your own Meridian and choose Re-detect.' : 'Start your Meridian service (launchd, Docker or a terminal), then choose Re-detect.'
-  const unauthorized = (status: number): ConnectionStatus => ({ kind: 'unauthorized', message: input.hasApiKey ? `Meridian on ${where} rejected the API key (${status}).` : `Meridian on ${where} requires an API key (${status}).`, fix: 'Enter the key in Service → Connection.' })
+  const unauthorized = (status: number): ConnectionStatus => ({
+    kind: 'unauthorized',
+    message: input.hasApiKey ? `Meridian on ${where} rejected the API key (${status}).` : `Meridian on ${where} requires an API key (${status}).${input.keyElsewhere ? ` The saved key was entered for ${host(input.keyElsewhere)} and is never sent to another service.` : ''}`,
+    fix: input.keyElsewhere && !input.hasApiKey ? `Enter the key for ${where} in Service → Connection.` : 'Enter the key in Service → Connection.',
+  })
   const elsewhere = (reason: string): ConnectionStatus | undefined => input.alternative && input.alternative !== input.baseUrl
     ? { kind: 'wrong-port', message: `${reason}, but Meridian is running on ${host(input.alternative)}.`, fix: `Choose Re-detect to view ${host(input.alternative)}, or change the address in Service → Connection.` }
     : undefined

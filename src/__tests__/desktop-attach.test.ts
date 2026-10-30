@@ -1,10 +1,10 @@
 import { describe, test, expect, afterEach } from 'bun:test'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { createServer as createNetServer } from 'node:net'
 import { createServer, type Server } from 'node:http'
-import { Manager } from '../../apps/desktop/src/manager'
+import { Manager, type ManagerOptions } from '../../apps/desktop/src/manager'
 import type { Detection, DetectedService } from '../../apps/desktop/src/detect'
 import type { DesktopState } from '../../apps/desktop/src/contracts'
 
@@ -24,7 +24,7 @@ async function freePort() {
 }
 
 interface FakeOptions { apiKey?: string; timeseries?: boolean }
-interface Fake { baseUrl: string; port: number; calls: { method: string; url: string; body: unknown }[]; options: FakeOptions }
+interface Fake { baseUrl: string; port: number; calls: { method: string; url: string; body: unknown; key?: string }[]; options: FakeOptions }
 /** A minimal Meridian: public /health, keyed /telemetry and /profiles, the routes the desktop calls. */
 async function fakeMeridian(options: FakeOptions = {}): Promise<Fake> {
   const port = await freePort()
@@ -33,7 +33,7 @@ async function fakeMeridian(options: FakeOptions = {}): Promise<Fake> {
     let raw = ''
     for await (const chunk of req) raw += chunk
     const url = req.url ?? '/'
-    fake.calls.push({ method: req.method ?? 'GET', url, body: raw ? JSON.parse(raw) : undefined })
+    fake.calls.push({ method: req.method ?? 'GET', url, body: raw ? JSON.parse(raw) : undefined, ...(typeof req.headers['x-api-key'] === 'string' ? { key: req.headers['x-api-key'] } : {}) })
     const json = (status: number, body: unknown) => { res.statusCode = status; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(body)) }
     const path = url.split('?')[0] ?? ''
     if (path === '/health') return json(200, { status: 'healthy', version: '9.9.9', build: { source: 'npm', version: '9.9.9' } })
@@ -68,10 +68,10 @@ function service(baseUrl: string, extra: Partial<DetectedService> = {}): Detecte
   return { baseUrl, port: Number(new URL(baseUrl).port), sources: ['launchd: com.test.meridian'], probe: { status: 'meridian', version: '9.9.9' }, supervisor: { kind: 'launchd', label: 'com.test.meridian', plistPath: '/tmp/x.plist' }, ...extra }
 }
 
-async function makeManager(directory: string, detect: () => Detection | Promise<Detection>, states: DesktopState[] = []) {
+async function makeManager(directory: string, detect: () => Detection | Promise<Detection>, states: DesktopState[] = [], extra: Partial<ManagerOptions> = {}) {
   const runner = join(directory, 'runner.mjs')
   await writeFile(runner, await readFile(join(import.meta.dir, '../../apps/desktop/src/runner.ts'), 'utf8'))
-  const manager = new Manager({ directory, runner, node: 'node', npm: 'unused', desktopVersion: 'test', encrypt: value => Buffer.from(value).toString('base64'), decrypt: value => Buffer.from(value, 'base64').toString(), changed: state => states.push(state), notify: () => {}, detect: async () => detect() })
+  const manager = new Manager({ directory, runner, node: 'node', npm: 'unused', desktopVersion: 'test', encrypt: value => Buffer.from(value).toString('base64'), decrypt: value => Buffer.from(value, 'base64').toString(), changed: state => states.push(state), notify: () => {}, detect: async () => detect(), ...extra })
   cleanup.push(async () => {
     const deadline = Date.now() + 5000
     while (manager.state.busy && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50))
@@ -335,5 +335,103 @@ describe('saving preferences', () => {
     expect(saved.window).toBe('24h')
     expect(manager.snapshot().window.kind).toBe('24h')
     expect(manager.snapshot().timeseries?.bucketMs).toBe(60 * 60 * 1000)
+  }, 15_000)
+})
+
+const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64')
+const secretOf = async (directory: string) => JSON.parse(Buffer.from((JSON.parse(await readFile(join(directory, 'desktop.json'), 'utf8')) as { secret: string }).secret, 'base64').toString()) as Record<string, unknown>
+
+describe('the saved API key', () => {
+  test('is only sent to the endpoint it was entered for, never to a newly detected service', async () => {
+    const directory = await tempDirectory()
+    const a = await fakeMeridian({ apiKey: 'key-a' })
+    const b = await fakeMeridian({ apiKey: 'key-b' })
+    let target = a
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(target.baseUrl)], rejected: [] }))
+    await manager.init()
+    await manager.configure({ mode: 'attached', endpoint: a.baseUrl, apiKey: 'key-a' })
+    expect(manager.state.connection.kind).toBe('ok')
+    expect((await secretOf(directory)).apiKeyFor).toBe(a.baseUrl)
+
+    target = b
+    await manager.redetect()
+    expect(manager.preferences.endpoint).toBe(b.baseUrl)
+    expect(b.calls.length).toBeGreaterThan(0)
+    expect(b.calls.filter(call => call.key !== undefined)).toEqual([])
+    expect(manager.state.connection.kind).toBe('unauthorized')
+    expect(manager.state.connection.message).toContain(`entered for 127.0.0.1:${a.port}`)
+    expect(manager.snapshot().hasApiKey).toBe(false)
+    // Saving the detected address without a key does not carry the old key over.
+    await manager.configure({ mode: 'attached', endpoint: b.baseUrl })
+    expect(b.calls.filter(call => call.key !== undefined)).toEqual([])
+
+    target = a
+    await manager.redetect()
+    expect(manager.state.connection.kind).toBe('ok')
+    expect(a.calls.at(-1)?.key).toBe('key-a')
+
+    // Entering a key for the viewed service binds it there.
+    target = b
+    await manager.redetect()
+    await manager.configure({ mode: 'attached', endpoint: b.baseUrl, apiKey: 'key-b' })
+    expect(manager.state.connection.kind).toBe('ok')
+    expect(new Set(a.calls.map(call => call.key).filter(Boolean))).toEqual(new Set(['key-a']))
+  }, 30_000)
+
+  test('a key saved for the app-managed copy is never sent to an attached service', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ apiKey: 'child-key' })
+    await writeFile(join(directory, 'desktop.json'), JSON.stringify({ mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: await freePort(), autoStart: false, secret: b64({ apiKey: 'child-key' }) }))
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init(); await manager.refresh()
+    expect(manager.preferences.mode).toBe('attached')
+    expect(external.calls.length).toBeGreaterThan(0)
+    expect(external.calls.filter(call => call.key !== undefined)).toEqual([])
+    expect(manager.state.connection.kind).toBe('unauthorized')
+  }, 15_000)
+
+  test('a key saved before keys were bound stays with the endpoint it was saved with', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ apiKey: 'legacy' })
+    await writeFile(join(directory, 'desktop.json'), JSON.stringify({ mode: 'attached', endpoint: external.baseUrl, port: 3489, autoStart: true, secret: b64({ apiKey: 'legacy' }) }))
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init(); await manager.refresh()
+    expect(manager.state.connection.kind).toBe('ok')
+    expect(manager.snapshot().hasApiKey).toBe(true)
+  }, 15_000)
+})
+
+describe('handoff recovery', () => {
+  test('returning to headless can be retried after recovery fails at launch', async () => {
+    const directory = await tempDirectory()
+    const original = await fakeMeridian()
+    const agent = { label: 'com.test.meridian', plist: join(homedir(), 'Library/LaunchAgents/com.test.meridian.plist'), pid: 4242, fingerprint: 'a'.repeat(64), environment: {}, workingDirectory: '/tmp' }
+    const journal = { mode: 'managed', endpoint: original.baseUrl, port: original.port, autoStart: true, secret: b64({ adopted: agent, handoff: { phase: 'returning', agent, previous: { mode: 'attached', endpoint: original.baseUrl, port: original.port } } }) }
+    await writeFile(join(directory, 'desktop.json'), JSON.stringify(journal))
+    let healthy = false
+    const restored: string[] = []
+    const manager = await makeManager(directory, none, [], {
+      supervisor: {
+        listeningPid: async () => undefined, waitForExit: async () => {}, suspendAgent: async () => {},
+        restoreAgent: async item => { restored.push(item.label) },
+        discoverLaunchAgent: async () => healthy ? agent : undefined,
+        restoreTimeoutMs: 300,
+      },
+    })
+    await manager.init()
+    expect(manager.state.error).toContain('Handoff recovery needs attention')
+    expect(JSON.parse(await readFile(join(directory, 'desktop.json'), 'utf8'))).toEqual(journal)
+
+    healthy = true
+    await manager.returnHeadless()
+    expect(restored).toEqual(['com.test.meridian', 'com.test.meridian'])
+    expect(manager.preferences).toMatchObject({ mode: 'attached', endpoint: original.baseUrl })
+    expect(manager.state.error).toBeUndefined()
+    const secret = await secretOf(directory).catch(() => ({}))
+    expect(secret).not.toHaveProperty('handoff')
+    expect(secret).not.toHaveProperty('adopted')
+    // The recovery gate is cleared once the original supervisor is back.
+    await manager.configure({ notifications: false })
+    expect(manager.preferences.notifications).toBe(false)
   }, 15_000)
 })

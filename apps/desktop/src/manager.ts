@@ -7,7 +7,8 @@ import { mkdir, readFile, readdir, rename, rm, writeFile, stat, open } from 'nod
 import { dirname, join, isAbsolute, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { createServer } from 'node:net'
-import { discoverLaunchAgent, suspendAgent, restoreAgent, listeningPid, savedAgent, waitForExit, type LaunchAgent } from './migration'
+import * as launchd from './migration'
+import { savedAgent, type LaunchAgent } from './migration'
 import { randomBytes } from 'node:crypto'
 import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus } from './core'
 import { NotificationGate } from './notifications'
@@ -30,6 +31,17 @@ export interface ManagerOptions {
   changed(state: DesktopState): void; notify(incident: Incident): void;
   /** Service detection; tests inject a fake. Defaults to the real launchd/client-config scan. */
   detect?(options: DetectOptions): Promise<Detection>;
+  /** launchd/port inspection and handoff steps; tests inject fakes. Defaults to ./migration. */
+  supervisor?: Partial<Supervisor>;
+}
+export interface Supervisor {
+  discoverLaunchAgent(port: number): Promise<LaunchAgent | undefined>;
+  suspendAgent(agent: LaunchAgent, port: number): Promise<void>;
+  restoreAgent(agent: LaunchAgent): Promise<void>;
+  listeningPid(port: number): Promise<number | undefined>;
+  waitForExit(pid: number): Promise<void>;
+  /** How long a restored supervisor has to become healthy. */
+  restoreTimeoutMs: number;
 }
 export class Manager {
   preferences: Preferences = { ...defaults }
@@ -44,12 +56,22 @@ export class Manager {
   private incidentWrites: Promise<void> = Promise.resolve()
   private closing = false
   private desiredRunning = false
-  private configurationError?: string
+  /** desktop.json exists but could not be read: every write would replace its secrets and journal. */
+  private loadError?: string
+  /** The handoff journal could not be restored; returning to headless may still be retried. */
+  private recoveryError?: string
+  private get configurationError() { return this.loadError ?? this.recoveryError }
+  /**
+   * The attached endpoint the saved API key was entered for. The key is only
+   * sent there (or to the app's own child, which is started with it); detection
+   * switching the viewed service never carries the key to another listener.
+   */
+  private keyFor?: string
   private detector = new IncidentDetector()
   private notificationGate = new NotificationGate()
   private inheritedEnvironment: Record<string, string> = {}
   private adopted?: LaunchAgent
-  private handoff?: { phase: 'prepared' | 'managed' | 'returning'; previous: Preferences; agent: LaunchAgent }
+  private handoff?: { phase: 'prepared' | 'managed' | 'returning'; previous: Preferences; agent: LaunchAgent; previousKeyFor?: string }
   private candidate?: LaunchAgent
   private detection?: Detection
   private detectionNote = ''
@@ -59,7 +81,9 @@ export class Manager {
   private settingsFetchedAt = 0
   private httpLogin?: { kind: 'claude-login' | 'claude-add' | 'chatgpt'; id: string }
   private chatGptTimer?: ReturnType<typeof setTimeout>
+  private supervisor: Supervisor
   constructor(readonly options: ManagerOptions) {
+    this.supervisor = { discoverLaunchAgent: launchd.discoverLaunchAgent, suspendAgent: launchd.suspendAgent, restoreAgent: launchd.restoreAgent, listeningPid: launchd.listeningPid, waitForExit: pid => launchd.waitForExit(pid), restoreTimeoutMs: 45000, ...options.supervisor }
     this.state = { desktopVersion: options.desktopVersion, platform: process.platform, glass: 'Standard appearance', preferences: defaults, hasApiKey: false, installed: [], available: [], owned: false, health: null, quota: null, requests: null, summary: null, logs: [], profiles: null, plugins: null, catalog: pluginCatalog, features: null, dataErrors: [], incidents: [], serviceLog: [], connection: { kind: 'stopped', message: 'Looking for Meridian…', fix: '' }, instance: null, window: { kind: defaults.window }, timeseries: null, settings: { values: {}, unavailable: [], errors: [] } }
   }
   async init() {
@@ -75,15 +99,22 @@ export class Manager {
         if (secrets.handoff) {
           const journal = object(secrets.handoff)
           if (!['prepared', 'managed', 'returning'].includes(text(journal.phase))) throw new Error('Invalid handoff phase.')
-          this.handoff = { phase: journal.phase as 'prepared' | 'managed' | 'returning', agent: savedAgent(journal.agent), previous: { ...this.validatePreferences(journal.previous), apiKey: text(object(journal.previous).apiKey) || undefined } }
+          const previous = { ...this.validatePreferences(journal.previous), apiKey: text(object(journal.previous).apiKey) || undefined }
+          // Journals written before keys were bound: the key was in use with that endpoint.
+          this.handoff = { phase: journal.phase as 'prepared' | 'managed' | 'returning', agent: savedAgent(journal.agent), previous, previousKeyFor: 'previousKeyFor' in journal ? text(journal.previousKeyFor) || undefined : previous.endpoint }
         }
+        // Files written before keys were bound: an attached key belongs to the
+        // saved endpoint; a managed key is the app-managed child's.
+        this.keyFor = 'apiKeyFor' in secrets ? text(secrets.apiKeyFor) || undefined
+          : this.handoff ? this.handoff.previousKeyFor
+          : this.preferences.mode === 'attached' ? this.preferences.endpoint : undefined
       }
-    } catch (error) { if (object(error).code !== 'ENOENT') this.state.error = this.configurationError = `Could not load preferences: ${String(error)}. Resolve the saved configuration before managing a service.` }
+    } catch (error) { if (object(error).code !== 'ENOENT') this.state.error = this.loadError = `Could not load preferences: ${String(error)}. Resolve the saved configuration before managing a service.` }
     try { this.state.incidents = incidents(JSON.parse(await readFile(join(this.options.directory, 'incidents.json'), 'utf8'))) } catch (error) { if (object(error).code !== 'ENOENT') this.log('Could not read incident history.') }
     try { this.notificationGate = new NotificationGate(JSON.parse(await readFile(join(this.options.directory, 'notification-history.json'), 'utf8'))) } catch (error) { if (object(error).code !== 'ENOENT') this.log('Could not read notification history.') }
     await this.inventory()
     if (this.handoff && this.handoff.phase !== 'managed' && !this.configurationError) {
-      try { await this.restoreHandoff() } catch (error) { this.state.error = this.configurationError = `Handoff recovery needs attention: ${String(error)}` }
+      try { await this.restoreHandoff() } catch (error) { this.state.error = this.recoveryError = `Handoff recovery needs attention: ${String(error)}` }
     }
     this.state.window = { kind: this.preferences.window }
     // View the Meridian the clients use. Attaching never takes over a service
@@ -206,19 +237,21 @@ export class Manager {
   }
   /**
    * Persist preferences. Refuses while the saved configuration could not be
-   * read (writing would replace its encrypted secrets and handoff journal), and
+   * read (writing would replace its encrypted secrets and handoff journal). A
+   * failed handoff recovery does not block writes: retrying the return to
+   * headless must update the journal it read successfully. Also
    * serializes writes so overlapping saves cannot interleave on the temp file;
    * each write snapshots the preferences when it runs, so the last one wins.
    */
   private save(): Promise<void> {
-    if (this.configurationError) return Promise.reject(new Error(this.configurationError))
+    if (this.loadError) return Promise.reject(new Error(this.loadError))
     const write = this.saving.then(() => this.writePreferences(), () => this.writePreferences())
     this.saving = write.then(() => undefined, () => undefined)
     return write
   }
   private async writePreferences() {
     const { apiKey, ...preferences } = this.preferences
-    const secret = apiKey || this.adopted || this.handoff || Object.keys(this.inheritedEnvironment).length ? this.options.encrypt(JSON.stringify({ apiKey, environment: this.inheritedEnvironment, adopted: this.adopted, handoff: this.handoff })) : undefined
+    const secret = apiKey || this.adopted || this.handoff || Object.keys(this.inheritedEnvironment).length ? this.options.encrypt(JSON.stringify({ apiKey, apiKeyFor: apiKey ? this.keyFor ?? '' : '', environment: this.inheritedEnvironment, adopted: this.adopted, handoff: this.handoff ? { ...this.handoff, previousKeyFor: this.handoff.previousKeyFor ?? '' } : undefined })) : undefined
     const content = { ...preferences, secret }
     const file = join(this.options.directory, 'desktop.json')
     const handle = await open(file + '.tmp', 'w', 0o600)
@@ -230,18 +263,23 @@ export class Manager {
     await this.refreshPromise
     const input = object(value)
     const next = this.validatePreferences({ ...input, selected: undefined, previous: undefined })
+    // Entering a key binds it to the endpoint being saved with it. Changing the
+    // address alone keeps the key with the endpoint it was entered for.
+    const keyEntered = typeof input.apiKey === 'string'
     if (typeof input.apiKey === 'string') next.apiKey = input.apiKey.trim() || undefined
+    const nextKeyFor = !next.apiKey ? undefined : keyEntered ? (next.mode === 'attached' ? next.endpoint : undefined) : this.keyFor
     const connectionChanged = next.persistAntigravityHistory !== this.preferences.persistAntigravityHistory || next.allowAntigravityBrowser !== this.preferences.allowAntigravityBrowser || next.allowAntigravitySubagents !== this.preferences.allowAntigravitySubagents || next.backend !== this.preferences.backend || next.allowAntigravityTools !== this.preferences.allowAntigravityTools || next.mode !== this.preferences.mode || next.port !== this.preferences.port || next.endpoint !== this.preferences.endpoint || next.apiKey !== this.preferences.apiKey
     if ((this.child || this.adopted) && connectionChanged) throw new Error('Stop the managed service, or return the adopted service to headless, before changing its connection.')
     const previous = this.preferences
-    this.preferences = next
-    try { await this.save() } catch (error) { this.preferences = previous; throw error }
+    const previousKeyFor = this.keyFor
+    this.preferences = next; this.keyFor = nextKeyFor
+    try { await this.save() } catch (error) { this.preferences = previous; this.keyFor = previousKeyFor; throw error }
     if (connectionChanged) { this.state.providers = undefined; this.detector = new IncidentDetector(); this.state.incidents = []; await this.persistIncidents() }
     await this.refresh()
   }
   snapshot(): DesktopState {
     const { apiKey, ...preferences } = this.preferences
-    return { ...this.state, preferences, hasApiKey: Boolean(apiKey), owned: Boolean(this.child) }
+    return { ...this.state, preferences, hasApiKey: Boolean(apiKey) && this.keyApplies(), owned: Boolean(this.child) }
   }
   publish() { this.options.changed(this.snapshot()) }
   log(line: string) { this.state.serviceLog.push(redact(line).slice(0, 2000)); this.state.serviceLog = this.state.serviceLog.slice(-300); this.publish() }
@@ -254,9 +292,21 @@ export class Manager {
     finally { this.state.busy = undefined; this.publish() }
   }
   baseUrl() { return this.preferences.mode === 'managed' ? this.ownBaseUrl() : this.preferences.endpoint }
+  /** Whether the saved key belongs to the selected service (the app's own child, or the endpoint it was entered for). */
+  private keyApplies() { return this.preferences.mode === 'managed' || this.keyFor === this.preferences.endpoint }
+  /** The key to send to the viewed service, if any. */
+  private sendableKey() {
+    const key = this.preferences.apiKey
+    if (!key) return undefined
+    // The managed key is only ever sent to the child the app started with it.
+    if (this.preferences.mode === 'managed') return this.child ? key : undefined
+    return this.keyFor === this.preferences.endpoint ? key : undefined
+  }
+  /** The other endpoint a saved key belongs to, when it is withheld from the viewed one. */
+  private keyElsewhere() { return this.preferences.apiKey && !this.keyApplies() ? this.keyFor : undefined }
   /** HTTP to the viewed Meridian. Failures are ApiError (status/code) so callers can classify them. */
   async api(path: string, method = 'GET', body?: unknown, timeout = 8000): Promise<unknown> {
-    const key = this.preferences.apiKey
+    const key = this.sendableKey()
     let response: Response
     try {
       response = await fetch(this.baseUrl() + path, { method, redirect: 'error', headers: { ...(key ? { 'x-api-key': key } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(timeout) })
@@ -278,7 +328,8 @@ export class Manager {
   }
   private async readState() {
     const baseUrl = this.baseUrl()
-    const hasApiKey = Boolean(this.preferences.apiKey)
+    const hasApiKey = Boolean(this.preferences.apiKey) && this.keyApplies()
+    const keyElsewhere = this.keyElsewhere()
     const managed = this.preferences.mode === 'managed'
     const now = Date.now()
     const window = this.preferences.window
@@ -332,7 +383,7 @@ export class Manager {
         catch (error) { this.state.dataErrors.push(redact(`Antigravity requests: ${String(error)}`)) }
       }
       if (!denied) await this.readSettings()
-      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, health, dataStatus: denied })
+      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, health, dataStatus: denied, ...(keyElsewhere ? { keyElsewhere } : {}) })
       if (this.state.requests !== null) for (const incident of this.detector.collect(this.state.requests, this.state.quota)) this.addIncident(incident)
       this.state.lastChecked = Date.now()
       // Handoff inspection failing (e.g. ambiguous listeners) must not blank readable data.
@@ -343,7 +394,7 @@ export class Manager {
       this.state.quota = null; this.state.requests = null; this.state.summary = null; this.state.logs = []; this.state.profiles = null; this.state.plugins = null; this.state.features = null; this.state.routesSummary = null; this.state.retention = null
       this.state.timeseries = null; this.state.timeseriesNote = undefined
       const failure = object(error)
-      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, alternative: this.alternative(baseUrl), ...(failure.healthError !== undefined ? { healthError: failure.healthError } : failure.notMeridian ? { health } : { healthError: error }) })
+      this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, alternative: this.alternative(baseUrl), ...(keyElsewhere ? { keyElsewhere } : {}), ...(failure.healthError !== undefined ? { healthError: failure.healthError } : failure.notMeridian ? { health } : { healthError: error }) })
       this.state.dataErrors = [redact(`Cannot read ${baseUrl}: ${String(failure.healthError ?? error)}`)]
     } finally {
       if (this.starting) this.state.connection = startingConnection(baseUrl)
@@ -778,7 +829,7 @@ export class Manager {
         try {
           const health = await this.api('/health')
           if (!isMeridianHealth(health) || object(health).version !== selected) throw new Error('The service did not report the selected Meridian version.')
-          if (process.platform === 'darwin' && await listeningPid(this.preferences.port) !== child.pid) throw new Error('The listening process is not owned by this app.')
+          if (process.platform === 'darwin' && await this.supervisor.listeningPid(this.preferences.port) !== child.pid) throw new Error('The listening process is not owned by this app.')
           reportedBackend = text(object(health).backend)
           ready = true; break
         } catch (error) { lastError = String(error) }
@@ -886,7 +937,7 @@ export class Manager {
   async inspectOwnership() {
     if (this.adopted) { this.state.migration = { label: this.adopted.label, canAdopt: false, adopted: true }; return }
     if (this.preferences.mode !== 'attached' || !this.state.running) { this.state.migration = undefined; return }
-    this.candidate = await discoverLaunchAgent(Number(new URL(this.baseUrl()).port) || 80)
+    this.candidate = await this.supervisor.discoverLaunchAgent(Number(new URL(this.baseUrl()).port) || 80)
     this.state.migration = this.candidate ? { label: this.candidate.label, canAdopt: true, adopted: false } : undefined
   }
   async takeOwnership(expectedLabel?: string) {
@@ -902,12 +953,12 @@ export class Manager {
     await this.install(currentVersion)
     // The encrypted journal is durable BEFORE any launchd mutation. A crash
     // anywhere in the handoff restores the previous supervisor on next launch.
-    this.handoff = { phase: 'prepared', previous: old, agent: candidate }
+    this.handoff = { phase: 'prepared', previous: old, agent: candidate, ...(this.keyFor ? { previousKeyFor: this.keyFor } : {}) }
     await this.save()
     try {
-      await suspendAgent(candidate, servicePort)
-      await waitForExit(candidate.pid)
-      if (await listeningPid(servicePort)) throw new Error('Another process took the port during handoff.')
+      await this.supervisor.suspendAgent(candidate, servicePort)
+      await this.supervisor.waitForExit(candidate.pid)
+      if (await this.supervisor.listeningPid(servicePort)) throw new Error('Another process took the port during handoff.')
       this.adopted = candidate; this.inheritedEnvironment = candidate.environment
       this.preferences = { ...this.preferences, mode: 'managed', port: port(servicePort), selected: currentVersion, autoStart: true, apiKey: candidate.environment.MERIDIAN_API_KEY || candidate.environment.CLAUDE_PROXY_API_KEY || old.apiKey }
       await this.start()
@@ -926,23 +977,23 @@ export class Manager {
     if (!journal) throw new Error('No original supervisor recorded.')
     const servicePort = Number(new URL(journal.previous.endpoint).port) || 80
     // A child from a crashed desktop may still be draining via its watchdog.
-    const current = await listeningPid(servicePort)
-    const restoredAgent = current ? await discoverLaunchAgent(servicePort) : undefined
+    const current = await this.supervisor.listeningPid(servicePort)
+    const restoredAgent = current ? await this.supervisor.discoverLaunchAgent(servicePort) : undefined
     const alreadyRestored = restoredAgent?.label === journal.agent.label && restoredAgent.fingerprint === journal.agent.fingerprint
     if (current && current !== journal.agent.pid && !alreadyRestored) {
-      await waitForExit(current)
-      if (await listeningPid(servicePort)) throw new Error('The port is occupied. The original supervisor was not restarted.')
+      await this.supervisor.waitForExit(current)
+      if (await this.supervisor.listeningPid(servicePort)) throw new Error('The port is occupied. The original supervisor was not restarted.')
     }
-    await restoreAgent(journal.agent)
+    await this.supervisor.restoreAgent(journal.agent)
     // bootstrap returns before the replacement listener is ready. Keep the
     // recovery journal until the original supervisor owns a healthy service.
-    const deadline = Date.now() + 45000
+    const deadline = Date.now() + this.supervisor.restoreTimeoutMs
     let restored = false
     while (Date.now() < deadline) {
-      const agent = await discoverLaunchAgent(servicePort)
+      const agent = await this.supervisor.discoverLaunchAgent(servicePort)
       if (agent?.label === journal.agent.label && agent.fingerprint === journal.agent.fingerprint) {
         try {
-          const response = await fetch(journal.previous.endpoint + '/health', { headers: journal.previous.apiKey ? { 'x-api-key': journal.previous.apiKey } : {}, signal: AbortSignal.timeout(2000) })
+          const response = await fetch(journal.previous.endpoint + '/health', { headers: journal.previous.apiKey && journal.previousKeyFor === journal.previous.endpoint ? { 'x-api-key': journal.previous.apiKey } : {}, signal: AbortSignal.timeout(2000) })
           if (response.ok && isMeridianHealth(await response.json())) { restored = true; break }
         } catch { /* The restored process may still be initializing HTTP. */ }
       }
@@ -952,9 +1003,11 @@ export class Manager {
     const previous = this.preferences
     const adopted = this.adopted
     const environment = this.inheritedEnvironment
-    this.preferences = journal.previous; this.adopted = undefined; this.inheritedEnvironment = {}; this.handoff = undefined
+    const keyFor = this.keyFor
+    this.preferences = journal.previous; this.keyFor = journal.previousKeyFor; this.adopted = undefined; this.inheritedEnvironment = {}; this.handoff = undefined
     try { await this.save() }
-    catch (error) { this.preferences = previous; this.adopted = adopted; this.inheritedEnvironment = environment; this.handoff = journal; throw error }
+    catch (error) { this.preferences = previous; this.keyFor = keyFor; this.adopted = adopted; this.inheritedEnvironment = environment; this.handoff = journal; throw error }
+    if (this.recoveryError) { if (this.state.error === this.recoveryError) this.state.error = undefined; this.recoveryError = undefined }
     await this.refresh(); await this.inspectOwnership()
   }
   async returnHeadless() {
