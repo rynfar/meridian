@@ -8,6 +8,8 @@ import { readFile, realpath } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { object, text } from './core'
 const exec = promisify(execFile)
+/** Read-only inspection commands are bounded: a hung lsof (stale network mount) must not stall launch. */
+const query = (file: string, args: string[]) => exec(file, args, { timeout: 5000, maxBuffer: 8 * 1024 * 1024 })
 export interface LaunchAgent { label: string; plist: string; pid: number; fingerprint: string; environment: Record<string, string>; workingDirectory: string }
 export function savedAgent(value: unknown): LaunchAgent {
   const input = object(value)
@@ -23,7 +25,7 @@ export function savedAgent(value: unknown): LaunchAgent {
 }
 export async function listeningPid(port: number): Promise<number | undefined> {
   try {
-    const { stdout } = await exec('/usr/sbin/lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'])
+    const { stdout } = await query('/usr/sbin/lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'])
     const ids = [...new Set(stdout.trim().split('\n'))]
     if (ids.length !== 1) throw new Error('Multiple listeners share the port; ownership is ambiguous.')
     return Number(ids[0]) || undefined
@@ -32,7 +34,7 @@ export async function listeningPid(port: number): Promise<number | undefined> {
 async function fingerprint(plist: string) { return createHash('sha256').update(await readFile(plist)).digest('hex') }
 /** A launchd plist as JSON. Shared with service detection (detect.ts). */
 export async function plistJson(plist: string): Promise<Record<string, unknown>> {
-  const { stdout } = await exec('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plist])
+  const { stdout } = await query('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plist])
   return object(JSON.parse(stdout))
 }
 /** Where a launchd-run Meridian listens, from its environment (plist
@@ -42,13 +44,13 @@ export function agentAddress(environment: Record<string, unknown>): { host: stri
   const port = Number(environment.MERIDIAN_PORT ?? environment.CLAUDE_PROXY_PORT ?? 3456)
   return { host, port }
 }
-/** `launchctl` output; throws when the job or command fails. */
-export async function launchctl(args: string[]): Promise<string> { return (await exec('/bin/launchctl', args)).stdout }
+/** Read-only `launchctl` output (list, print); throws when the job or command fails or hangs. */
+export async function launchctl(args: string[]): Promise<string> { return (await query('/bin/launchctl', args)).stdout }
 export async function discoverLaunchAgent(port: number): Promise<LaunchAgent | undefined> {
   if (process.platform !== 'darwin') return undefined
   const pid = await listeningPid(port)
   if (!pid) return undefined
-  const { stdout } = await exec('/bin/launchctl', ['list'])
+  const { stdout } = await query('/bin/launchctl', ['list'])
   const row = stdout.split('\n').find(line => Number(line.trim().split(/\s+/)[0]) === pid)
   const label = row?.trim().split(/\s+/)[2]
   if (!label || !/^[\w.-]+$/.test(label)) return undefined

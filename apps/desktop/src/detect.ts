@@ -17,7 +17,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { endpoint, isMeridianHealth, object, text } from './core'
+import { endpoint, HEALTH_BODY_LIMIT, isMeridianHealth, object, readBody, text } from './core'
 import { agentAddress, launchctl, launchDomain, listeningPid, plistJson } from './migration'
 
 export type SupervisorKind = 'launchd' | 'docker' | 'app' | 'unknown'
@@ -217,8 +217,10 @@ export interface DetectIO {
 
 export async function probeHealth(baseUrl: string, timeout = 1500): Promise<Probe> {
   try {
-    const response = await fetch(baseUrl + '/health', { redirect: 'error', signal: AbortSignal.timeout(timeout) })
-    const body: unknown = await response.json().catch(() => undefined)
+    const signal = AbortSignal.timeout(timeout)
+    const response = await fetch(baseUrl + '/health', { redirect: 'error', signal })
+    // Any local listener may answer: read at most 64 KiB of it.
+    const body: unknown = await readBody(response, HEALTH_BODY_LIMIT).then(raw => JSON.parse(raw) as unknown, () => undefined)
     if (isMeridianHealth(body)) return { status: 'meridian', version: text(object(body).version) }
     return { status: 'not-meridian', error: `HTTP ${response.status}` }
   } catch (error) { return { status: 'unreachable', error: error instanceof Error ? error.message : String(error) } }
@@ -247,7 +249,7 @@ export function nodeDetectIO(): DetectIO {
     plist: path => plistJson(path),
     probe: baseUrl => probeHealth(baseUrl),
     listenerPid: port => process.platform === 'darwin' ? listeningPid(port).catch(() => undefined) : Promise.resolve(undefined),
-    processCommand: pid => exec('/bin/ps', ['-o', 'comm=', '-p', String(pid)]).then(result => result.stdout.trim() || undefined, () => undefined),
+    processCommand: pid => exec('/bin/ps', ['-o', 'comm=', '-p', String(pid)], { timeout: 5000 }).then(result => result.stdout.trim() || undefined, () => undefined),
   }
 }
 

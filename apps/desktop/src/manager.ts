@@ -10,7 +10,7 @@ import { createServer } from 'node:net'
 import * as launchd from './migration'
 import { savedAgent, type LaunchAgent } from './migration'
 import { randomBytes } from 'node:crypto'
-import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus } from './core'
+import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus, readBody, API_BODY_LIMIT } from './core'
 import { NotificationGate } from './notifications'
 import type { DesktopState, DetectionReport, InstanceInfo, SettingsSection } from './contracts'
 import { attachDecision, detectServices, nodeDetectIO, type Detection, type DetectOptions } from './detect'
@@ -316,7 +316,9 @@ export class Manager {
       const code = failureCode(error)
       throw new ApiError(`${path}: ${code === 'refused' ? 'connection refused' : code === 'timeout' ? 'timed out' : error instanceof Error ? error.message : String(error)}`, path, code)
     }
-    const raw = await response.text()
+    let raw: string
+    try { raw = await readBody(response, API_BODY_LIMIT) }
+    catch (error) { throw new ApiError(`${path}: ${error instanceof Error ? error.message : String(error)}`, path, response.ok ? 'invalid' : 'http', response.status) }
     let data: unknown
     try { data = raw ? JSON.parse(raw) : null } catch { throw new ApiError(`${path}: HTTP ${response.status} (not JSON)`, path, response.ok ? 'invalid' : 'http', response.status) }
     if (!response.ok && path !== '/health') throw new ApiError(`${path}: HTTP ${response.status} ${text(object(data).error) || text(object(object(data).error).message)}`.trim(), path, 'http', response.status, data)

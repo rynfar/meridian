@@ -154,3 +154,28 @@ export function classifyConnection(input: ConnectionInput): ConnectionStatus {
 export function startingConnection(baseUrl: string): ConnectionStatus {
   return { kind: 'starting', message: `Starting the app-managed Meridian on ${host(baseUrl)}.`, fix: 'Wait for startup to finish; requests appear once it is healthy.' }
 }
+/** A /health answer is a few hundred bytes; any local listener may be probed. */
+export const HEALTH_BODY_LIMIT = 64 * 1024
+/** The largest Meridian read (500 requests or logs) is a few MB. */
+export const API_BODY_LIMIT = 32 * 1024 * 1024
+/** Read a response body as text, refusing (and cancelling) anything past `limit` bytes. */
+export async function readBody(response: Response, limit: number): Promise<string> {
+  const tooLarge = () => new Error(`Response is larger than ${limit} bytes.`)
+  const declared = Number(response.headers.get('content-length') ?? Number.NaN)
+  if (Number.isFinite(declared) && declared > limit) { void response.body?.cancel().catch(() => undefined); throw tooLarge() }
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) { void reader.cancel().catch(() => undefined); throw tooLarge() }
+    chunks.push(value)
+  }
+  const joined = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength }
+  return new TextDecoder().decode(joined)
+}
