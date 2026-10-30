@@ -71,6 +71,19 @@ export function windowRange(kind: WindowKind, now: number): TimeRange {
 const rangeMs = (kind: WindowKind, now: number) => Math.max(1, now - windowRange(kind, now).start)
 export function summaryPath(kind: WindowKind, now: number): string { return `/telemetry/summary?window=${rangeMs(kind, now)}` }
 export function routesPath(kind: WindowKind, now: number): string { return `/telemetry/routes?window=${rangeMs(kind, now)}` }
+/**
+ * How long a window-scoped read may be reused between 10 s polls. Each read
+ * scans the window's rows synchronously in the proxy serving live traffic, so
+ * long windows are re-read less often; the totals heroes (summary) stay live
+ * for the short windows. A forced refresh, a window change or a moved range
+ * start always re-reads.
+ */
+export const windowReadTtl: Record<WindowKind, { summary: number; series: number }> = {
+  '1h': { summary: 0, series: 0 },
+  today: { summary: 0, series: 30_000 },
+  '24h': { summary: 30_000, series: 30_000 },
+  '7d': { summary: 60_000, series: 60_000 },
+}
 export function timeseriesPath(kind: WindowKind, now: number): string {
   const range = windowRange(kind, now)
   return `/telemetry/timeseries?start=${range.start}&end=${range.end}&bucket=${range.bucketMs}`

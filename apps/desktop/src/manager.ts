@@ -14,7 +14,7 @@ import { defaults, endpoint, object, port, redact, rows, text, version, Incident
 import { NotificationGate } from './notifications'
 import type { DesktopState, DetectionReport, InstanceInfo, SettingsSection } from './contracts'
 import { attachDecision, detectServices, nodeDetectIO, type Detection, type DetectOptions } from './detect'
-import { parseTimeseries, routesPath, summaryPath, timeseriesPath, type Timeseries } from './uiData'
+import { parseTimeseries, routesPath, summaryPath, timeseriesPath, windowRange, windowReadTtl, type Timeseries } from './uiData'
 
 /** Claude ids are [A-Za-z0-9_-]; ChatGPT seat names may also contain dots. The server validates further. */
 const profileName = /^\w[\w.-]{0,63}$/
@@ -79,6 +79,8 @@ export class Manager {
   private attachedAt = Date.now()
   private starting = false
   private settingsFetchedAt = 0
+  /** When the window-scoped reads were last taken, for windowReadTtl. */
+  private windowRead?: { key: string; summaryAt: number; seriesAt: number }
   private httpLogin?: { kind: 'claude-login' | 'claude-add' | 'chatgpt'; id: string }
   private chatGptTimer?: ReturnType<typeof setTimeout>
   private supervisor: Supervisor
@@ -321,12 +323,13 @@ export class Manager {
     return data
   }
   /** `force` re-reads after an in-flight refresh, e.g. when the window changed under it. */
+  /** `force` also re-reads window-scoped data that windowReadTtl would reuse. */
   refresh(force = false): Promise<void> {
-    if (this.refreshPromise) return force ? this.refreshPromise.then(() => this.refresh()) : this.refreshPromise
-    this.refreshPromise = this.readState().finally(() => { this.refreshPromise = undefined })
+    if (this.refreshPromise) return force ? this.refreshPromise.then(() => this.refresh(true)) : this.refreshPromise
+    this.refreshPromise = this.readState(force).finally(() => { this.refreshPromise = undefined })
     return this.refreshPromise
   }
-  private async readState() {
+  private async readState(force = false) {
     const baseUrl = this.baseUrl()
     const hasApiKey = Boolean(this.preferences.apiKey) && this.keyApplies()
     const keyElsewhere = this.keyElsewhere()
@@ -340,7 +343,14 @@ export class Manager {
       catch (error) { throw Object.assign(new Error(String(error)), { healthError: error }) }
       if (!isMeridianHealth(health)) throw Object.assign(new Error('The endpoint did not return Meridian health data.'), { notMeridian: true })
       const routes = { quota: '/v1/usage/quota/all', requests: '/telemetry/requests?limit=500', summary: summaryPath(window, now), logs: '/telemetry/logs?limit=500', profiles: '/profiles/list', plugins: '/plugins/list', features: '/settings/api/features', routesSummary: routesPath(window, now), retention: '/telemetry/retention' } as const
-      const data = await Promise.all(Object.entries(routes).map(async ([key, route]) => {
+      // Reuse window-scoped reads within their TTL (same service, window and range start).
+      const readKey = `${baseUrl}|${window}|${windowRange(window, now).start}`
+      const ttl = windowReadTtl[window]
+      const previousRead = !force && this.windowRead?.key === readKey ? this.windowRead : undefined
+      const reuseSummary = previousRead !== undefined && now - previousRead.summaryAt < ttl.summary && this.state.summary !== null
+      const reuseSeries = previousRead !== undefined && now - previousRead.seriesAt < ttl.series && (this.state.timeseries !== null || this.state.timeseriesNote !== undefined)
+      const skipped = new Set<string>([...(reuseSummary ? ['summary'] : []), ...(reuseSeries ? ['routesSummary'] : [])])
+      const data = await Promise.all(Object.entries(routes).filter(([key]) => !skipped.has(key)).map(async ([key, route]) => {
         if (object(health).backend === 'antigravity' && (key === 'routesSummary' || key === 'retention')) return { key: key as keyof typeof routes, value: null }
         try { return { key: key as keyof typeof routes, value: await this.api(route) } }
         catch (error) { return { key: key as keyof typeof routes, value: null, error: redact(String(error)), status: httpStatus(error) } }
@@ -359,9 +369,9 @@ export class Manager {
       // Older Meridian has no /telemetry/timeseries: null + note, and the UI
       // buckets `requests` itself (uiData.bucketRequests).
       let timeseriesStatus: number | undefined
-      let timeseries: Timeseries | null = null
-      let timeseriesNote: string | undefined
-      try {
+      let timeseries: Timeseries | null = this.state.timeseries
+      let timeseriesNote: string | undefined = this.state.timeseriesNote
+      if (!reuseSeries) try {
         const series = parseTimeseries(await this.api(timeseriesPath(window, now)))
         timeseries = series ?? null
         timeseriesNote = series ? undefined : 'The timeseries response was not understood; charts use the recent requests list.'
@@ -374,6 +384,14 @@ export class Manager {
       }
       if (this.preferences.window !== window) return // A newer window is being read.
       this.state.timeseries = timeseries; this.state.timeseriesNote = timeseriesNote
+      // A failed read is retried on the next poll, never reused.
+      const summaryRead = data.find(item => item.key === 'summary')
+      const routesRead = data.find(item => item.key === 'routesSummary')
+      this.windowRead = {
+        key: readKey,
+        summaryAt: reuseSummary && previousRead ? previousRead.summaryAt : summaryRead && !summaryRead.error ? now : 0,
+        seriesAt: reuseSeries && previousRead ? previousRead.seriesAt : (timeseriesStatus === undefined || timeseriesStatus === 404) && !routesRead?.error ? now : 0,
+      }
       this.state.health = health
       this.state.running = text(object(health).version)
       for (const item of data) { this.state[item.key] = item.value; if (item.error) this.state.dataErrors.push(item.error) }
@@ -392,7 +410,7 @@ export class Manager {
       this.state.providers = undefined
       this.state.health = null; this.state.running = undefined; this.state.lastChecked = undefined
       this.state.quota = null; this.state.requests = null; this.state.summary = null; this.state.logs = []; this.state.profiles = null; this.state.plugins = null; this.state.features = null; this.state.routesSummary = null; this.state.retention = null
-      this.state.timeseries = null; this.state.timeseriesNote = undefined
+      this.state.timeseries = null; this.state.timeseriesNote = undefined; this.windowRead = undefined
       const failure = object(error)
       this.state.connection = classifyConnection({ baseUrl, hasApiKey, managed, alternative: this.alternative(baseUrl), ...(keyElsewhere ? { keyElsewhere } : {}), ...(failure.healthError !== undefined ? { healthError: failure.healthError } : failure.notMeridian ? { health } : { healthError: error }) })
       this.state.dataErrors = [redact(`Cannot read ${baseUrl}: ${String(failure.healthError ?? error)}`)]

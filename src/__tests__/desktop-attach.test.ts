@@ -435,3 +435,32 @@ describe('handoff recovery', () => {
     expect(manager.preferences.notifications).toBe(false)
   }, 15_000)
 })
+
+describe('window-scoped reads', () => {
+  test('long windows reuse the summary and timeseries between polls; short ones and forced refreshes re-read', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ timeseries: true })
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init()
+    const count = (path: string) => external.calls.filter(call => call.url.startsWith(path)).length
+    await manager.setWindow('24h')
+    const series = count('/telemetry/timeseries'), summary = count('/telemetry/summary'), routes = count('/telemetry/routes')
+    await manager.refresh(); await manager.refresh()
+    expect([count('/telemetry/timeseries'), count('/telemetry/summary'), count('/telemetry/routes')]).toEqual([series, summary, routes])
+    expect(manager.state.timeseries).not.toBeNull()
+    expect(manager.state.summary).not.toBeNull()
+    await manager.refresh(true)
+    expect([count('/telemetry/timeseries'), count('/telemetry/summary'), count('/telemetry/routes')]).toEqual([series + 1, summary + 1, routes + 1])
+
+    await manager.setWindow('today')
+    const todaySeries = count('/telemetry/timeseries'), todaySummary = count('/telemetry/summary')
+    await manager.refresh()
+    expect(count('/telemetry/summary')).toBe(todaySummary + 1)
+    expect(count('/telemetry/timeseries')).toBe(todaySeries)
+
+    await manager.setWindow('1h')
+    const hourSeries = count('/telemetry/timeseries')
+    await manager.refresh()
+    expect(count('/telemetry/timeseries')).toBe(hourSeries + 1)
+  }, 20_000)
+})
