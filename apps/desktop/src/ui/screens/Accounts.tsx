@@ -111,7 +111,7 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
         <Avatar id={account.id} provider={account.provider} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-md font-semibold leading-tight tracking-title text-t1">{account.label}</span>
+            <span className="min-w-0 max-w-full truncate text-md font-semibold leading-tight tracking-title text-t1" title={account.label}>{account.label}</span>
             {account.active ? <Tip content={follow ? 'Followed from another Meridian' : 'Serving requests now'}><span className="inline-flex items-center gap-1.5 text-xs text-t3"><Dot tone="accent" size={6} />{follow ? 'following' : null}</span></Tip> : null}
             {plan ? <span className="text-xs text-t3">{plan}</span> : null}
             {account.needsLogin ? <span className="text-meta font-medium text-red">needs sign-in</span> : null}
