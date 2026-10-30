@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.88.0](https://github.com/rynfar/meridian/compare/meridian-v1.87.0...meridian-v1.88.0) (2026-10-30)
+
+
+### Features
+
+* **desktop:** redesign Meridian Desktop around the service clients use ([#1470](https://github.com/rynfar/meridian/issues/1470)) ([d48599d](https://github.com/rynfar/meridian/commit/d48599db6bbd5d412bb39dd0ef38602fce36ad0a))
+
+
+### Bug Fixes
+
+* **desktop:** address the post-merge review of the redesign ([#1473](https://github.com/rynfar/meridian/issues/1473)) ([5de4cf3](https://github.com/rynfar/meridian/commit/5de4cf3ecdef7afbd1aaa1410018b09996a91f87))
+* support OpenCode Desktop 2.2 ([#1467](https://github.com/rynfar/meridian/issues/1467)) ([034ec11](https://github.com/rynfar/meridian/commit/034ec1112df222b07ad1235a768ea662f17820cc))
+
 ## [1.87.0](https://github.com/rynfar/meridian/compare/meridian-v1.86.0...meridian-v1.87.0) (2026-10-27)
 
 
