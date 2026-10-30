@@ -59,6 +59,14 @@ const base: DesktopState = {
   dataErrors: [], incidents: [], serviceLog: ['[meridian-desktop] Attached to http://127.0.0.1:3456'], lastChecked: now,
 }
 
+function switchedProfiles(value: unknown, id: string): unknown {
+  if (!value || typeof value !== 'object') return value
+  const body = value as Record<string, unknown>
+  const activeProfiles = body.activeProfiles && typeof body.activeProfiles === 'object' ? { ...body.activeProfiles as Record<string, unknown>, claude: id } : body.activeProfiles
+  // Flags on each entry move with the selection, as the server reports them.
+  const profiles = Array.isArray(body.profiles) ? body.profiles.map(entry => entry && typeof entry === 'object' && 'isActive' in entry ? { ...entry, isActive: (entry as { id?: unknown }).id === id } : entry) : body.profiles
+  return { ...body, profiles, ...('activeProfile' in body ? { activeProfile: id } : {}), ...(activeProfiles ? { activeProfiles } : {}) }
+}
 const failed = (kind: DesktopState['connection']['kind'], message: string, fix: string): DesktopState => ({
   ...base, connection: { kind, message, fix }, health: null, quota: null, requests: null, summary: null, logs: null, profiles: null, plugins: null,
   features: null, routesSummary: null, retention: null, providers: undefined, timeseries: null, timeseriesNote: undefined,
@@ -70,6 +78,8 @@ const fixtures: Record<string, DesktopState> = {
   stopped: failed('stopped', 'Nothing is answering on 127.0.0.1:3456.', 'Start your Meridian service, or choose Re-detect if it moved.'),
   unauthorized: failed('unauthorized', 'Meridian on 127.0.0.1:3456 rejected the API key (401).', 'Enter the key in Service → Connection.'),
   loading: { ...failed('starting', 'Connecting…', ''), instance: null, lastChecked: undefined },
+  // Selection switched to another account since the latest request: both cards say so.
+  switched: { ...base, profiles: switchedProfiles(base.profiles, 'work'), quota: switchedProfiles(base.quota, 'work') },
   // The service answers but two reads fail: each says so instead of an endless skeleton.
   partial: { ...base, summary: null, requests: null, routesSummary: null, dataErrors: ['Error: /telemetry/summary?window=58665250: HTTP 500 database is locked', 'Error: /telemetry/requests?limit=500: timed out'] },
 }

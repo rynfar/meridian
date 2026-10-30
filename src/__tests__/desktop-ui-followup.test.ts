@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
-import { buildAccounts, accountAction, limitPill } from '../../apps/desktop/src/ui/model/accounts'
+import { buildAccounts, accountAction, latestServed, limitPill, servingLine, servingNote } from '../../apps/desktop/src/ui/model/accounts'
 import { requestRows, type RequestRow } from '../../apps/desktop/src/ui/model/requests'
 import { cacheMisses } from '../../apps/desktop/src/ui/model/cache'
 import { groupFailures } from '../../apps/desktop/src/ui/model/failures'
@@ -91,6 +91,33 @@ describe('accounts the pool router benched', () => {
     const work = buildAccounts(input(NOW - MIN), NOW).accounts.find(account => account.id === 'work')!
     expect(work.limited).toBeNull()
     expect(accountAction(work, false, NOW).kind).toBe('use')
+  })
+})
+
+describe('which account is active', () => {
+  const model = (active: Partial<Record<'claude' | 'chatgpt' | 'antigravity', string>>, providers: ('claude' | 'chatgpt' | 'antigravity')[]) => ({ active, accounts: providers.map(provider => ({ provider })) })
+  test('the latest successful client request per provider, beats and failures ignored', () => {
+    const rows = parsed([
+      row({ requestId: 'a', timestamp: NOW - 3 * MIN, profileId: 'work' }),
+      row({ requestId: 'b', timestamp: NOW - MIN, profileId: 'kraken', status: 500, error: 'api_error' }),
+      row({ requestId: 'c', timestamp: NOW, profileId: 'personal', requestSource: 'cache-keepalive' }),
+      row({ requestId: 'd', timestamp: NOW - 2 * MIN, profileId: 'seat-b', provider: 'chatgpt' }),
+    ])
+    expect(latestServed(rows)).toEqual({ claude: { profile: 'work', timestamp: NOW - 3 * MIN }, chatgpt: { profile: 'seat-b', timestamp: NOW - 2 * MIN } })
+  })
+  test('a selection that did not serve the latest request is flagged on both cards', () => {
+    const latest = { claude: { profile: 'work', timestamp: NOW } }
+    const accounts = { active: { claude: 'personal' } }
+    expect(servingNote({ id: 'personal', provider: 'claude', active: true }, accounts, latest)).toEqual({ kind: 'elsewhere', other: 'work', timestamp: NOW })
+    expect(servingNote({ id: 'work', provider: 'claude', active: false }, accounts, latest)).toEqual({ kind: 'here', other: 'personal', timestamp: NOW })
+    expect(servingNote({ id: 'kraken', provider: 'claude', active: false }, accounts, latest)).toBeNull()
+    expect(servingNote({ id: 'personal', provider: 'claude', active: true }, accounts, { claude: { profile: 'personal', timestamp: NOW } })).toBeNull()
+    expect(servingNote({ id: 'personal', provider: 'claude', active: true }, accounts, {})).toBeNull()
+  })
+  test('the header names the serving account, per provider when several', () => {
+    expect(servingLine(model({ claude: 'personal' }, ['claude']))).toBe('serving personal')
+    expect(servingLine(model({ claude: 'personal', chatgpt: 'seat-b' }, ['claude', 'chatgpt']))).toBe('serving Claude personal · ChatGPT seat-b')
+    expect(servingLine(model({}, []))).toBe('')
   })
 })
 

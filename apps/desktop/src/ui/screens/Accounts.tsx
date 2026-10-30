@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Ellipsis, LogIn, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useDesktop } from '../lib/desktop'
 import { useModels } from '../lib/models'
@@ -14,7 +14,7 @@ import { ConnectionProblem, Empty, Skeleton } from '../components/state'
 import { fmtInt, pct, plural, usd, when } from '../model/format'
 import { untilText } from '../model/pace'
 import { utilTone } from '../model/tone'
-import { accountAction, chatGptManaged, limitPill, moveInOrder, ownerCommands, type AccountProvider, type AccountView, type ChatGptOwnerView, type OwnerCommand } from '../model/accounts'
+import { accountAction, chatGptManaged, latestServed, limitPill, moveInOrder, ownerCommands, servingLine, servingNote, type AccountProvider, type AccountView, type ChatGptOwnerView, type OwnerCommand } from '../model/accounts'
 import { accountsRead, providerState } from '../model/status'
 import { Glyph } from '../components/glyph'
 import { object } from '../../core'
@@ -27,8 +27,9 @@ const NAME = /^[a-zA-Z0-9_-]{1,64}$/
 
 export function Accounts({ navigate }: { navigate: Navigate }) {
   const { state, now, run, busy } = useDesktop()
-  const { data, accounts } = useModels()
+  const { data, accounts, requests } = useModels()
   const [filter, setFilter] = useState<'all' | AccountProvider>('all')
+  const latest = useMemo(() => latestServed(requests), [requests])
   const [dialog, setDialog] = useState<Dialog>(null)
 
   if (data.kind === 'failed' && state) return <div className="px-[26px] py-5"><ConnectionProblem data={data} state={state} busy={busy} run={action => { void run(action) }} goService={() => navigate('service')} /></div>
@@ -48,6 +49,7 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
       <div className="mb-5 flex items-center gap-4">
         {providers.length > 1 ? <Segmented<'all' | AccountProvider> label="Provider" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, ...providers.map(id => ({ value: id, label: providerName[id] }))]} /> : null}
         {accounts.routing ? <Tip content="How requests choose an account. Change it in Service → Routing."><button type="button" onClick={() => navigate('service', { section: 'routing' })} className="text-cap text-t3 transition-colors hover:text-accent">Routing <span className="font-medium text-t1">{accounts.routing}</span></button></Tip> : null}
+        {servingLine(accounts) ? <span className="flex items-center gap-1.5 text-cap text-t2"><Dot tone="accent" size={6} />{accounts.follow ? servingLine(accounts).replace(/^serving/, 'following') : servingLine(accounts)}</span> : null}
         <span className="flex-1" />
         {claudeServed ? <Button variant="text" size="sm" onClick={() => setDialog({ kind: 'add', provider: 'claude' })} disabled={busy || Boolean(state.login)}><Plus />Add Claude account</Button> : null}
         {chatgptOwner ? <Button variant="text" size="sm" onClick={() => setDialog(chatGptManaged(chatgptOwner) ? { kind: 'add', provider: 'chatgpt' } : { kind: 'owner', owner: chatgptOwner })} disabled={busy || Boolean(state.login)}><Plus />Add ChatGPT seat</Button> : null}
@@ -69,6 +71,7 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
             <div className="grid grid-cols-2 gap-4">
               {list.map((account, index) => (
                 <AccountCard key={account.id} account={account} now={now} busy={busy} switchable={switchable && provider !== 'antigravity'} follow={Boolean(accounts.follow)}
+                  note={servingNote(account, accounts, latest)}
                   first={index === 0} last={index === list.length - 1}
                   onUse={() => { void run('switch-profile', account.id) }}
                   onCommands={account.provider === 'chatgpt' && !chatGptManaged(account.owner) ? () => setDialog({ kind: 'owner', owner: account.owner ?? null, account }) : undefined}
@@ -93,8 +96,10 @@ export function Accounts({ navigate }: { navigate: Navigate }) {
 }
 
 /** One account as a raised panel: identity, limits with pace, then plain-text actions and a ⋯ menu. */
-function AccountCard({ account, now, busy, switchable, follow, first, last, canReorder, onUse, onLogin, onRenew, onRename, onRemove, onMove, onCommands }: {
+function AccountCard({ account, now, busy, switchable, follow, note, first, last, canReorder, onUse, onLogin, onRenew, onRename, onRemove, onMove, onCommands }: {
   account: AccountView; now: number; busy: boolean; switchable: boolean; follow: boolean; first: boolean; last: boolean; canReorder: boolean;
+  /** The selected account did not serve the newest request of its provider. */
+  note: ReturnType<typeof servingNote>;
   onUse(): void; onLogin(): void; onRenew(): void; onRename(): void; onRemove(): void; onMove(direction: -1 | 1): void;
   /** A ChatGPT seat whose login another tool owns: its sign-in steps replace Sign in again and Renew. */
   onCommands?: () => void
@@ -106,13 +111,14 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
   // "Max 20x" already says "Max": show the detail alone when it contains the plan word.
   const plan = account.planDetail && account.planDetail.toLowerCase().includes(account.plan.toLowerCase()) ? account.planDetail : [account.plan, account.planDetail].filter(Boolean).join(' · ')
   return (
-    <Panel className="flex flex-col gap-3">
+    // The selected account carries the accent ring (blue = active) and says so in words.
+    <Panel className={cn('flex flex-col gap-3', account.active && 'outline outline-[1.5px] -outline-offset-[0.5px] outline-accent')} aria-current={account.active ? 'true' : undefined}>
       <div className="flex items-start gap-2.5">
         <Avatar id={account.id} provider={account.provider} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="min-w-0 max-w-full truncate text-md font-semibold leading-tight tracking-title text-t1" title={account.label}>{account.label}</span>
-            {account.active ? <Tip content={follow ? 'Followed from another Meridian' : 'Serving requests now'}><span className="inline-flex items-center gap-1.5 text-xs text-t3"><Dot tone="accent" size={6} />{follow ? 'following' : null}</span></Tip> : null}
+            {account.active ? <Tip content={follow ? 'Followed from another Meridian: switching is controlled there' : 'Requests go to this account. Use on another account switches.'}><span className="inline-flex items-center gap-1.5 text-meta font-medium text-accent"><Dot tone="accent" size={6} />{follow ? 'Following' : 'Serving now'}</span></Tip> : null}
             {plan ? <span className="text-xs text-t3">{plan}</span> : null}
             {account.needsLogin ? <span className="text-meta font-medium text-red">needs sign-in</span> : null}
             {account.limited ? <Tip content={account.limited.rationale ?? (account.limited.stale ? 'From the last reading; awaiting a fresh one.' : undefined)}><span className="text-meta font-medium text-yellow">{[limitPill(account.limited), untilText(account.limited.resetsAt, now)].filter(text => text !== 'limited').join(' · ')}</span></Tip> : null}
@@ -120,6 +126,7 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
             {account.aliases.length ? <span className="text-xs text-t3">aka {account.aliases.join(', ')}</span> : null}
           </div>
           <div className="mt-0.5 truncate text-meta text-t3">{[account.email, account.organization && account.organization !== `${account.email}'s Organization` ? account.organization : ''].filter(Boolean).join(' · ') || providerName[account.provider]}</div>
+          {note ? <div className="mt-1 text-xs text-t3">{note.kind === 'elsewhere' ? <>Latest request went to <span className="font-medium text-t2">{note.other}</span> · {when(note.timestamp, now)}</> : <>Served the latest request · {when(note.timestamp, now)} · <span className="font-medium text-t2">{note.other}</span> is selected</>}</div> : null}
         </div>
         {manageable ? (
           <Menu trigger={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${account.id}`}><Ellipsis /></Button>}>
@@ -151,7 +158,8 @@ function AccountCard({ account, now, busy, switchable, follow, first, last, canR
         {account.costUsd !== undefined ? <span className="text-t3">· {usd(account.costUsd)} API-equivalent</span> : null}
         <span className="flex-1" />
         {action.kind === 'sign-in' ? <Button variant="text" size="sm" onClick={onCommands ?? onLogin} disabled={busy && !onCommands}>Sign in</Button>
-          : action.kind === 'use' && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy} aria-label={`Use ${account.id}`}>Use</Button> : null}
+          : action.kind === 'use' && switchable ? <Button variant="text" size="sm" onClick={onUse} disabled={busy} aria-label={`Use ${account.id}`}>Use</Button>
+          : action.kind === 'serving' ? <span className="text-meta font-medium text-t2">{follow && account.provider !== 'antigravity' ? 'Followed' : 'Active'}</span> : null}
       </div>
     </Panel>
   )

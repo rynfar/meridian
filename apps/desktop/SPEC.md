@@ -78,6 +78,15 @@ notifications from a window and a menu-bar panel.
   green turns grey. A refusal (`spent`) holds the account until its `until`,
   and so does a pool-routing bench (`/profiles/list` `exhausted`), shown as
   "benched" as the web dashboard does.
+- **The active account is unmistakable** (owner decision 2026-10-30). On
+  Accounts, the selected account of each provider (what *Use* switches) keeps
+  its place in pool order but carries the accent ring, "Serving now"
+  ("Following" in follow mode) and "Active" where the others offer *Use*; the
+  header reads "Routing active · serving personal". When the newest successful
+  client request of that provider went to another account (failover, pool
+  routing, or a switch since), both cards say so: "Latest request went to
+  work · 14:02" and "Served the latest request · 14:02 · personal is
+  selected".
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives

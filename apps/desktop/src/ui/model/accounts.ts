@@ -306,3 +306,39 @@ export function limitPill(limit: AccountLimit): string {
   if (limit.window === 'seven_day') return 'weekly limit'
   return `${limit.short} limit`
 }
+
+/** Per provider, the account that served the newest successful client request (keepalive beats excluded). */
+export type LatestServed = Partial<Record<AccountProvider, { profile: string; timestamp: number }>>
+export function latestServed(requests: readonly { provider: string; profile: string; timestamp: number; failed: boolean; keepalive: boolean }[]): LatestServed {
+  const latest: LatestServed = {}
+  for (const row of requests) {
+    if (row.failed || row.keepalive || !row.profile) continue
+    const provider = row.provider === 'chatgpt' || row.provider === 'antigravity' ? row.provider : 'claude'
+    const current = latest[provider]
+    if (!current || row.timestamp > current.timestamp) latest[provider] = { profile: row.profile, timestamp: row.timestamp }
+  }
+  return latest
+}
+
+/**
+ * When the selected account did not serve the newest request of its provider
+ * (failover, pool routing, or a switch made since), say so on both cards.
+ * Neutral by design: in pool routing another account serving is normal.
+ */
+export function servingNote(account: Pick<AccountView, 'id' | 'provider' | 'active'>, model: Pick<AccountsModel, 'active'>, latest: LatestServed): { kind: 'elsewhere' | 'here'; other: string; timestamp: number } | null {
+  const served = latest[account.provider]
+  const selected = model.active[account.provider]
+  if (!served || !selected || served.profile === selected) return null
+  if (account.active) return { kind: 'elsewhere', other: served.profile, timestamp: served.timestamp }
+  if (account.id === served.profile) return { kind: 'here', other: selected, timestamp: served.timestamp }
+  return null
+}
+
+/** "serving personal", or per provider when several have an active account: "serving personal · ChatGPT seat-b". */
+export function servingLine(model: { active: AccountsModel['active']; accounts: readonly Pick<AccountView, 'provider'>[] }): string {
+  const names: Record<AccountProvider, string> = { claude: 'Claude', chatgpt: 'ChatGPT', antigravity: 'Antigravity' }
+  const active = (['claude', 'chatgpt', 'antigravity'] as const).filter(provider => model.active[provider] && model.accounts.some(account => account.provider === provider))
+  if (!active.length) return ''
+  if (active.length === 1) return `serving ${model.active[active[0]!]}`
+  return `serving ${active.map(provider => `${names[provider]} ${model.active[provider]}`).join(' · ')}`
+}

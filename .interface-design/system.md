@@ -100,6 +100,9 @@ padding 14×16px. Radii: panel 10, row/hover 6, segmented 7/5, tracks 2, ribbons
   check) + title 500 + detail t3 + outcome in ok/warn text.
 - **Account row** — name 500 + plan t3 (11px) + 54px mini track + action text
   ("Use" accent, "until 10:59" warn). Active = blue 6px dot after the name.
+- **Account card** (Accounts) — raised panel; the selected account adds a
+  1.5px accent outline, "Serving now" (accent, 12/500, with the 6px dot) after
+  the name and "Active" (t2, 500) in the action slot. Cards stay in pool order.
 - **Shortcut hint** — `kbd`: 10.5/500 t3, ring-strong inset, radius 4.
 - **Sidebar nav** — 28px rows, 15px stroke icons (1.6), active = raised fill
   + ring, t1; counts t3 tabular; limited = warn dot + count.
