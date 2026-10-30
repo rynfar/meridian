@@ -88,8 +88,10 @@ notifications from a window and a menu-bar panel.
   account (failover, pool routing, or a switch since), both cards say so:
   "Latest request went to work · 14:02" and "Served the latest request ·
   14:02 · personal is selected". A request's provider is the provider of the
-  account it names — ChatGPT turns are recorded without one — and rows naming
-  no listed account (Antigravity's) are ignored.
+  account it names (current id or an alias from a rename) — ChatGPT turns are
+  recorded without one — and rows naming no listed account (Antigravity's) are
+  ignored. If a Claude profile later takes an id a ChatGPT seat held, that
+  seat's older rows read as Claude until the next request.
 - **Ownership is explicit.** Docker, Nix and other external supervisors keep
   ownership when the app connects; only compatible macOS LaunchAgents can be
   transferred, via a confirmed action and an encrypted journal that survives

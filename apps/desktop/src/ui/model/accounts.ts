@@ -314,15 +314,18 @@ export function limitPill(limit: AccountLimit): string {
  * provider, and Antigravity rows name no listed account, so they are skipped.
  */
 export type LatestServed = Partial<Record<AccountProvider, { profile: string; timestamp: number }>>
-export function latestServed(requests: readonly { profile: string; timestamp: number; failed: boolean; keepalive: boolean }[], accounts: readonly Pick<AccountView, 'id' | 'provider'>[]): LatestServed {
-  const providerOf = new Map(accounts.map(account => [account.id, account.provider]))
+export function latestServed(requests: readonly { profile: string; timestamp: number; failed: boolean; keepalive: boolean }[], accounts: readonly Pick<AccountView, 'id' | 'provider' | 'aliases'>[]): LatestServed {
+  // Rows keep the id an account had when they were recorded: a renamed
+  // account's old ids (aliases) still name it, under its current id.
+  const byId = new Map<string, Pick<AccountView, 'id' | 'provider'>>()
+  for (const account of accounts) for (const id of [...account.aliases, account.id]) byId.set(id, account)
   const latest: LatestServed = {}
   for (const row of requests) {
     if (row.failed || row.keepalive || !row.profile) continue
-    const provider = providerOf.get(row.profile)
-    if (!provider) continue
-    const current = latest[provider]
-    if (!current || row.timestamp > current.timestamp) latest[provider] = { profile: row.profile, timestamp: row.timestamp }
+    const account = byId.get(row.profile)
+    if (!account) continue
+    const current = latest[account.provider]
+    if (!current || row.timestamp > current.timestamp) latest[account.provider] = { profile: account.id, timestamp: row.timestamp }
   }
   return latest
 }

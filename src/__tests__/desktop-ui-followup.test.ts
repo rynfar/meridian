@@ -97,7 +97,7 @@ describe('accounts the pool router benched', () => {
 describe('which account is active', () => {
   const model = (active: Partial<Record<'claude' | 'chatgpt' | 'antigravity', string>>, providers: ('claude' | 'chatgpt' | 'antigravity')[]) => ({ active, accounts: providers.map(provider => ({ provider })) })
   test('the latest successful client request per provider, as the server records rows', () => {
-    const accounts = [{ id: 'personal', provider: 'claude' as const }, { id: 'work', provider: 'claude' as const }, { id: 'seat-b', provider: 'chatgpt' as const }, { id: 'Antigravity account', provider: 'antigravity' as const }]
+    const accounts = [{ id: 'personal', provider: 'claude' as const, aliases: [] }, { id: 'work', provider: 'claude' as const, aliases: [] }, { id: 'seat-b', provider: 'chatgpt' as const, aliases: [] }, { id: 'Antigravity account', provider: 'antigravity' as const, aliases: [] }]
     const rows = parsed([
       row({ requestId: 'a', timestamp: NOW - 3 * MIN, profileId: 'work' }),
       row({ requestId: 'b', timestamp: NOW - 2 * MIN, profileId: 'personal', status: 500, error: 'api_error' }),
@@ -109,8 +109,14 @@ describe('which account is active', () => {
     ])
     expect(latestServed(rows, accounts)).toEqual({ claude: { profile: 'work', timestamp: NOW - 3 * MIN }, chatgpt: { profile: 'seat-b', timestamp: NOW } })
   })
+  test('rows recorded under a renamed account\'s old id count for it, under its current id', () => {
+    const accounts = [{ id: 'home', provider: 'claude' as const, aliases: ['personal'] }, { id: 'work', provider: 'claude' as const, aliases: [] }]
+    const latest = latestServed(parsed([row({ timestamp: NOW - 5 * MIN, profileId: 'work' }), row({ timestamp: NOW, profileId: 'personal' })]), accounts)
+    expect(latest).toEqual({ claude: { profile: 'home', timestamp: NOW } })
+    expect(servingNote({ id: 'home', provider: 'claude', active: true }, { active: { claude: 'home' } }, latest)).toBeNull()
+  })
   test('a ChatGPT turn never reads as the Claude selection serving elsewhere', () => {
-    const accounts = [{ id: 'personal', provider: 'claude' as const }, { id: 'seat-b', provider: 'chatgpt' as const }]
+    const accounts = [{ id: 'personal', provider: 'claude' as const, aliases: [] }, { id: 'seat-b', provider: 'chatgpt' as const, aliases: [] }]
     const latest = latestServed(parsed([row({ timestamp: NOW - MIN, profileId: 'personal' }), row({ timestamp: NOW, profileId: 'seat-b', adapter: 'chatgpt' })]), accounts)
     expect(servingNote({ id: 'personal', provider: 'claude', active: true }, { active: { claude: 'personal', chatgpt: 'seat-b' } }, latest)).toBeNull()
   })
