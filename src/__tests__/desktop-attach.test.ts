@@ -378,7 +378,7 @@ describe('the saved API key', () => {
     expect(new Set(a.calls.map(call => call.key).filter(Boolean))).toEqual(new Set(['key-a']))
   }, 30_000)
 
-  test('a key saved for the app-managed copy is never sent to an attached service', async () => {
+  test('a managed-mode key saved for one endpoint is not sent to a service detected elsewhere', async () => {
     const directory = await tempDirectory()
     const external = await fakeMeridian({ apiKey: 'child-key' })
     await writeFile(join(directory, 'desktop.json'), JSON.stringify({ mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: await freePort(), autoStart: false, secret: b64({ apiKey: 'child-key' }) }))
@@ -401,7 +401,61 @@ describe('the saved API key', () => {
   }, 15_000)
 })
 
+describe('the saved API key across address spellings and legacy files', () => {
+  test('a key entered for localhost keeps working once detection names the service 127.0.0.1', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ apiKey: 'local' })
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init()
+    await manager.configure({ mode: 'attached', endpoint: `http://localhost:${external.port}`, apiKey: 'local' })
+    await manager.redetect()
+    expect(manager.preferences.endpoint).toBe(external.baseUrl)
+    expect(manager.state.connection.kind).toBe('ok')
+    expect(external.calls.at(-1)?.key).toBe('local')
+  }, 15_000)
+
+  test('a legacy managed-mode key stays with the endpoint it was entered for', async () => {
+    const directory = await tempDirectory()
+    const external = await fakeMeridian({ apiKey: 'legacy' })
+    await writeFile(join(directory, 'desktop.json'), JSON.stringify({ mode: 'managed', endpoint: external.baseUrl, port: await freePort(), autoStart: false, secret: b64({ apiKey: 'legacy' }) }))
+    const manager = await makeManager(directory, () => ({ at: Date.now(), services: [service(external.baseUrl)], rejected: [] }))
+    await manager.init(); await manager.refresh()
+    expect(manager.preferences.mode).toBe('attached')
+    expect(manager.state.connection.kind).toBe('ok')
+  }, 15_000)
+
+  test('a stalled body is a timeout, not "not Meridian"', async () => {
+    const directory = await tempDirectory()
+    const port = await freePort()
+    const server = createServer((_req, res) => { res.setHeader('content-type', 'application/json'); res.write('{"status":') })
+    await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve))
+    cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()) }))
+    const manager = await makeManager(directory, none)
+    await manager.init()
+    await manager.configure({ mode: 'attached', endpoint: `http://127.0.0.1:${port}` }).catch(() => undefined)
+    const failure = await manager.api('/health', 'GET', undefined, 300).then(() => undefined, (error: unknown) => error)
+    expect(failure).toMatchObject({ code: 'timeout' })
+  }, 15_000)
+})
+
 describe('handoff recovery', () => {
+  for (const [label, previousKeyFor, expected] of [['the original endpoint', true, 'ok'], ['no endpoint', false, 'unauthorized']] as const) {
+    test(`after a takeover the original key goes back to its service only when it was bound there (${label})`, async () => {
+      const directory = await tempDirectory()
+      const original = await fakeMeridian({ apiKey: 'orig' })
+      const agent = { label: 'com.test.meridian', plist: join(homedir(), 'Library/LaunchAgents/com.test.meridian.plist'), pid: 4242, fingerprint: 'a'.repeat(64), environment: {}, workingDirectory: '/tmp' }
+      await writeFile(join(directory, 'desktop.json'), JSON.stringify({ mode: 'managed', endpoint: original.baseUrl, port: original.port, autoStart: true, secret: b64({ apiKey: 'child', apiKeyFor: previousKeyFor ? original.baseUrl : '', adopted: agent, handoff: { phase: 'managed', agent, previous: { mode: 'attached', endpoint: original.baseUrl, port: original.port, apiKey: 'orig' }, previousKeyFor: previousKeyFor ? original.baseUrl : '' } }) }))
+      const manager = await makeManager(directory, none, [], {
+        supervisor: { listeningPid: async () => undefined, waitForExit: async () => {}, suspendAgent: async () => {}, restoreAgent: async () => {}, discoverLaunchAgent: async () => agent, restoreTimeoutMs: 1000 },
+      })
+      await manager.init()
+      await manager.returnHeadless()
+      expect(manager.preferences).toMatchObject({ mode: 'attached', endpoint: original.baseUrl, apiKey: 'orig' })
+      expect(manager.state.connection.kind).toBe(expected)
+      expect(original.calls.some(call => call.key === 'child')).toBe(false)
+    }, 15_000)
+  }
+
   test('returning to headless can be retried after recovery fails at launch', async () => {
     const directory = await tempDirectory()
     const original = await fakeMeridian()

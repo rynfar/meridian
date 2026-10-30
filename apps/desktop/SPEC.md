@@ -46,14 +46,17 @@ notifications from a window and a menu-bar panel.
   capped at 64 KiB (API reads at 32 MiB): any local listener may answer.
 - **The API key stays with its endpoint.** A key entered in Service →
   Connection is bound to the endpoint saved with it (`apiKeyFor` in the
-  encrypted blob) and is sent only there; the managed copy's key goes only to
-  the child started with it. Detection switching the viewed service never
+  encrypted blob; `localhost` and `127.0.0.1` count as one service) and is
+  sent only there; in managed mode it goes only to the running child started
+  with it. Detection switching the viewed service never
   carries the key along: the new service reads as unauthorized, naming where
   the saved key belongs, until a key is entered for it.
 - **Configuration errors are scoped.** An unreadable `desktop.json` blocks
   every write (it holds the encrypted secrets and handoff journal). A failed
-  handoff recovery blocks other changes but not *Return to headless*, which
-  can be retried until the original supervisor is healthy.
+  handoff recovery blocks other changes but not writing the journal, so
+  *Return to headless* (shown once a takeover completed) can be retried until
+  the original supervisor is healthy. A takeover that crashed before it
+  completed is retried on the next launch.
 - **Failures are typed.** `DesktopState.connection` is `ok | stopped |
   unauthorized | wrong-port | not-meridian | starting` with message and fix;
   a failed read leaves `requests` null, never an empty list. When the service

@@ -237,6 +237,14 @@ describe('probeHealth bounds what a local listener can send', () => {
     const server = await listener(res => { res.setHeader('content-length', String(10 * 1024 * 1024)); res.write('{') })
     try { expect((await probeHealth(server.baseUrl, 5000)).status).toBe('not-meridian') } finally { await server.close() }
   })
+  test('a non-JSON or empty answer is a listener that is not Meridian, not unreachable', async () => {
+    const html = await listener(res => { res.setHeader('content-type', 'text/html'); res.end('<html>hello</html>') })
+    const empty = await listener(res => { res.statusCode = 204; res.end() })
+    try {
+      expect((await probeHealth(html.baseUrl)).status).toBe('not-meridian')
+      expect((await probeHealth(empty.baseUrl)).status).toBe('not-meridian')
+    } finally { await html.close(); await empty.close() }
+  })
   test('a normal health answer still verifies', async () => {
     const server = await listener(res => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ status: 'healthy', version: '1.2.3', build: { source: 'npm', version: '1.2.3' } })) })
     try { expect(await probeHealth(server.baseUrl)).toEqual({ status: 'meridian', version: '1.2.3' }) } finally { await server.close() }

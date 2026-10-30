@@ -220,7 +220,8 @@ export async function probeHealth(baseUrl: string, timeout = 1500): Promise<Prob
     const signal = AbortSignal.timeout(timeout)
     const response = await fetch(baseUrl + '/health', { redirect: 'error', signal })
     // Any local listener may answer: read at most 64 KiB of it.
-    const body: unknown = await readBody(response, HEALTH_BODY_LIMIT).then(raw => JSON.parse(raw) as unknown, () => undefined)
+    // Unreadable, oversized or non-JSON bodies answer, but not as Meridian.
+    const body: unknown = await readBody(response, HEALTH_BODY_LIMIT).then(raw => JSON.parse(raw) as unknown).catch(() => undefined)
     if (isMeridianHealth(body)) return { status: 'meridian', version: text(object(body).version) }
     return { status: 'not-meridian', error: `HTTP ${response.status}` }
   } catch (error) { return { status: 'unreachable', error: error instanceof Error ? error.message : String(error) } }

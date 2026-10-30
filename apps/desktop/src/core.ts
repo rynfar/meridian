@@ -158,9 +158,10 @@ export function startingConnection(baseUrl: string): ConnectionStatus {
 export const HEALTH_BODY_LIMIT = 64 * 1024
 /** The largest Meridian read (500 requests or logs) is a few MB. */
 export const API_BODY_LIMIT = 32 * 1024 * 1024
+export class ResponseTooLarge extends Error {}
 /** Read a response body as text, refusing (and cancelling) anything past `limit` bytes. */
 export async function readBody(response: Response, limit: number): Promise<string> {
-  const tooLarge = () => new Error(`Response is larger than ${limit} bytes.`)
+  const tooLarge = () => new ResponseTooLarge(`Response is larger than ${limit} bytes.`)
   const declared = Number(response.headers.get('content-length') ?? Number.NaN)
   if (Number.isFinite(declared) && declared > limit) { void response.body?.cancel().catch(() => undefined); throw tooLarge() }
   if (!response.body) return ''

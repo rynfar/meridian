@@ -35,11 +35,12 @@ export function RequestDetail({ row, cost, now, onClose, note }: { row: RequestR
   }, [onClose])
   // Keyboard users land in the panel when it opens and return to where they were when it closes.
   const panel = useRef<HTMLElement>(null)
+  // The opener is captured once, when the panel opens; switching rows keeps it.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    panel.current?.focus({ preventScroll: true })
     return () => { if (opener && opener !== document.body && document.contains(opener)) opener.focus({ preventScroll: true }) }
-  }, [row.id])
+  }, [])
+  useEffect(() => { panel.current?.focus({ preventScroll: true }) }, [row.id])
   const segments = waterfall(row)
   const total = Math.max(1, segments.reduce((sum, segment) => sum + segment.ms, 0))
   return (

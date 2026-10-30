@@ -10,10 +10,10 @@ import { createServer } from 'node:net'
 import * as launchd from './migration'
 import { savedAgent, type LaunchAgent } from './migration'
 import { randomBytes } from 'node:crypto'
-import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus, readBody, API_BODY_LIMIT } from './core'
+import { defaults, endpoint, object, port, redact, rows, text, version, IncidentDetector, type Preferences, type Incident, incidents, isMeridianHealth, ApiError, failureCode, classifyConnection, startingConnection, windowKind, httpStatus, readBody, API_BODY_LIMIT, ResponseTooLarge } from './core'
 import { NotificationGate } from './notifications'
 import type { DesktopState, DetectionReport, InstanceInfo, SettingsSection } from './contracts'
-import { attachDecision, detectServices, nodeDetectIO, type Detection, type DetectOptions } from './detect'
+import { attachDecision, detectServices, loopbackBase, nodeDetectIO, type Detection, type DetectOptions } from './detect'
 import { parseTimeseries, routesPath, summaryPath, timeseriesPath, windowRange, windowReadTtl, type Timeseries } from './uiData'
 
 /** Claude ids are [A-Za-z0-9_-]; ChatGPT seat names may also contain dots. The server validates further. */
@@ -22,6 +22,15 @@ const settingsRoutes: Record<SettingsSection, string> = { routing: '/settings/ap
 /** The same methods the web settings page uses; pricing has its own per-model actions. */
 const settingsWrites: Record<Exclude<SettingsSection, 'pricing'>, 'PUT' | 'PATCH'> = { routing: 'PUT', telemetry: 'PUT', transcripts: 'PUT', updates: 'PUT', header: 'PUT', layout: 'PUT', 'claude-executable': 'PUT', chatgpt: 'PATCH' }
 const SETTINGS_TTL = 60_000
+
+/**
+ * The identity a saved key is bound to: the endpoint as detection names it
+ * (`localhost` and `127.0.0.1` are one service), else the URL as saved.
+ */
+function serviceKey(url: string | undefined): string | undefined {
+  if (!url) return undefined
+  try { return loopbackBase(url) } catch { return url }
+}
 
 export interface ManagerOptions {
   /** Trusted harness overrides; never exposed through IPC. */
@@ -103,13 +112,13 @@ export class Manager {
           if (!['prepared', 'managed', 'returning'].includes(text(journal.phase))) throw new Error('Invalid handoff phase.')
           const previous = { ...this.validatePreferences(journal.previous), apiKey: text(object(journal.previous).apiKey) || undefined }
           // Journals written before keys were bound: the key was in use with that endpoint.
-          this.handoff = { phase: journal.phase as 'prepared' | 'managed' | 'returning', agent: savedAgent(journal.agent), previous, previousKeyFor: 'previousKeyFor' in journal ? text(journal.previousKeyFor) || undefined : previous.endpoint }
+          this.handoff = { phase: journal.phase as 'prepared' | 'managed' | 'returning', agent: savedAgent(journal.agent), previous, previousKeyFor: serviceKey('previousKeyFor' in journal ? text(journal.previousKeyFor) || undefined : previous.endpoint) }
         }
-        // Files written before keys were bound: an attached key belongs to the
-        // saved endpoint; a managed key is the app-managed child's.
-        this.keyFor = 'apiKeyFor' in secrets ? text(secrets.apiKeyFor) || undefined
+        // Files written before keys were bound: the key was entered for the
+        // saved endpoint (the only place the UI takes a key), in either mode.
+        this.keyFor = serviceKey('apiKeyFor' in secrets ? text(secrets.apiKeyFor) || undefined
           : this.handoff ? this.handoff.previousKeyFor
-          : this.preferences.mode === 'attached' ? this.preferences.endpoint : undefined
+          : this.preferences.apiKey ? this.preferences.endpoint : undefined)
       }
     } catch (error) { if (object(error).code !== 'ENOENT') this.state.error = this.loadError = `Could not load preferences: ${String(error)}. Resolve the saved configuration before managing a service.` }
     try { this.state.incidents = incidents(JSON.parse(await readFile(join(this.options.directory, 'incidents.json'), 'utf8'))) } catch (error) { if (object(error).code !== 'ENOENT') this.log('Could not read incident history.') }
@@ -269,7 +278,7 @@ export class Manager {
     // address alone keeps the key with the endpoint it was entered for.
     const keyEntered = typeof input.apiKey === 'string'
     if (typeof input.apiKey === 'string') next.apiKey = input.apiKey.trim() || undefined
-    const nextKeyFor = !next.apiKey ? undefined : keyEntered ? (next.mode === 'attached' ? next.endpoint : undefined) : this.keyFor
+    const nextKeyFor = !next.apiKey ? undefined : keyEntered ? serviceKey(next.endpoint) : this.keyFor
     const connectionChanged = next.persistAntigravityHistory !== this.preferences.persistAntigravityHistory || next.allowAntigravityBrowser !== this.preferences.allowAntigravityBrowser || next.allowAntigravitySubagents !== this.preferences.allowAntigravitySubagents || next.backend !== this.preferences.backend || next.allowAntigravityTools !== this.preferences.allowAntigravityTools || next.mode !== this.preferences.mode || next.port !== this.preferences.port || next.endpoint !== this.preferences.endpoint || next.apiKey !== this.preferences.apiKey
     if ((this.child || this.adopted) && connectionChanged) throw new Error('Stop the managed service, or return the adopted service to headless, before changing its connection.')
     const previous = this.preferences
@@ -295,14 +304,14 @@ export class Manager {
   }
   baseUrl() { return this.preferences.mode === 'managed' ? this.ownBaseUrl() : this.preferences.endpoint }
   /** Whether the saved key belongs to the selected service (the app's own child, or the endpoint it was entered for). */
-  private keyApplies() { return this.preferences.mode === 'managed' || this.keyFor === this.preferences.endpoint }
+  private keyApplies() { return this.preferences.mode === 'managed' || (this.keyFor !== undefined && this.keyFor === serviceKey(this.preferences.endpoint)) }
   /** The key to send to the viewed service, if any. */
   private sendableKey() {
     const key = this.preferences.apiKey
     if (!key) return undefined
     // The managed key is only ever sent to the child the app started with it.
     if (this.preferences.mode === 'managed') return this.child ? key : undefined
-    return this.keyFor === this.preferences.endpoint ? key : undefined
+    return this.keyFor !== undefined && this.keyFor === serviceKey(this.preferences.endpoint) ? key : undefined
   }
   /** The other endpoint a saved key belongs to, when it is withheld from the viewed one. */
   private keyElsewhere() { return this.preferences.apiKey && !this.keyApplies() ? this.keyFor : undefined }
@@ -318,7 +327,12 @@ export class Manager {
     }
     let raw: string
     try { raw = await readBody(response, API_BODY_LIMIT) }
-    catch (error) { throw new ApiError(`${path}: ${error instanceof Error ? error.message : String(error)}`, path, response.ok ? 'invalid' : 'http', response.status) }
+    catch (error) {
+      if (error instanceof ResponseTooLarge) throw new ApiError(`${path}: ${error.message}`, path, response.ok ? 'invalid' : 'http', response.status)
+      // A body that stalls or resets is a connection failure, not a non-Meridian answer.
+      const code = failureCode(error)
+      throw new ApiError(`${path}: ${code === 'timeout' ? 'timed out' : error instanceof Error ? error.message : String(error)}`, path, code, response.status)
+    }
     let data: unknown
     try { data = raw ? JSON.parse(raw) : null } catch { throw new ApiError(`${path}: HTTP ${response.status} (not JSON)`, path, response.ok ? 'invalid' : 'http', response.status) }
     if (!response.ok && path !== '/health') throw new ApiError(`${path}: HTTP ${response.status} ${text(object(data).error) || text(object(object(data).error).message)}`.trim(), path, 'http', response.status, data)
@@ -333,7 +347,8 @@ export class Manager {
   }
   private async readState(force = false) {
     const baseUrl = this.baseUrl()
-    const hasApiKey = Boolean(this.preferences.apiKey) && this.keyApplies()
+    // What is actually sent: a managed key with no child running is not.
+    const hasApiKey = Boolean(this.sendableKey())
     const keyElsewhere = this.keyElsewhere()
     const managed = this.preferences.mode === 'managed'
     const now = Date.now()
@@ -973,7 +988,7 @@ export class Manager {
     await this.install(currentVersion)
     // The encrypted journal is durable BEFORE any launchd mutation. A crash
     // anywhere in the handoff restores the previous supervisor on next launch.
-    this.handoff = { phase: 'prepared', previous: old, agent: candidate, ...(this.keyFor ? { previousKeyFor: this.keyFor } : {}) }
+    this.handoff = { phase: 'prepared', previous: old, agent: candidate, ...(this.keyFor !== undefined ? { previousKeyFor: this.keyFor } : {}) }
     await this.save()
     try {
       await this.supervisor.suspendAgent(candidate, servicePort)
