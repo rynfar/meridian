@@ -38,10 +38,10 @@ The server and the default Claude request path:
 
 - `server.ts` **orchestrates**; route handlers stay thin and delegate to
   extracted modules. New pure logic becomes a new leaf module with unit tests.
-- Leaf modules (`errors`, `retryAfter`, `toolInputJson`, `toolResultLimits`, `models`, `tools`,
+- Leaf modules (`errors`, `retryAfter`, `toolInputJson`, `toolResultLimits`, `compactionNote`, `models`, `tools`,
   `messages`, `profiles`, `profileCli`, `buildInfo`, `updateCheck`,
   `pluginUpdateCheck`, `sseFailureSniff`) never import `server.ts`, `session/` or `adapter.ts`;
-  `buildInfo`, `retryAfter`, `toolInputJson`, `toolResultLimits` are additionally pure.
+  `buildInfo`, `retryAfter`, `toolInputJson`, `toolResultLimits`, `compactionNote` are additionally pure.
 - `query.ts` builds SDK options **through the adapter interface**, never from
   tool constants directly.
 - No `as any`, `@ts-ignore`, `@ts-expect-error` or empty catch blocks.
@@ -218,6 +218,16 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   table; the per-turn limit spares replayed history so a fresh replay keeps
   its newest results. Lineage and the SDK UUID mapping keep the client's
   original messages.
+- **Compactions are announced (`compactionNote.ts`).** Claude Code compacts a
+  session's context on its own and the SDK only reports it as a
+  `system`/`compact_boundary` message, so from the client the thread looks
+  intact while the model now sees the older turns as a summary. The boundary
+  becomes a `[meridian] Claude Code compacted …` text block of its own with
+  the trigger and the token counts before and after: the first block of the
+  answer when it precedes `message_start`, between blocks when it happens
+  mid-turn, prepended on the non-stream path. `MERIDIAN_NO_COMPACTION_NOTE`
+  keeps only the `context_compacted` log line; structured output never
+  carries a note.
 
 ## Codex Responses wire contract
 
