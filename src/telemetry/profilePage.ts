@@ -1196,7 +1196,7 @@ function render(data, quotaData) {
   meridianPatch.html(document.getElementById('content'), html);
   meridianReorder.restoreFocus(refocusId);
   if (anyUpdating && !updatePollTimer) {
-    updatePollTimer = setTimeout(function () { updatePollTimer = null; refresh(); }, 1500);
+    updatePollTimer = setTimeout(pollUpdate, 1500);
   }
   // The markup carries placeholder hrefs. Restore them from the cache, then top
   // up anything missing or near expiry in the background.
@@ -2410,6 +2410,16 @@ if (!restorePendingAdd()) resetAddForm('');
 function pollRefresh() {
   if (document.visibilityState !== 'visible' || meridianReorder.dragging()
     || activeLogin || activeAdd || activeChatGptRelogin) return;
+  refresh();
+}
+// The 1.5s poll while a card updates: a hidden tab keeps the timer, not the
+// request, so the update resumes within 1.5s of the tab being shown again.
+function pollUpdate() {
+  if (document.visibilityState !== 'visible') {
+    updatePollTimer = setTimeout(pollUpdate, 1500);
+    return;
+  }
+  updatePollTimer = null;
   refresh();
 }
 setInterval(pollRefresh, 10000);
