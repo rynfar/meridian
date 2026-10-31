@@ -94,6 +94,7 @@ export { runTransformHook, runObserveHook, buildPipeline, createRequestContext }
 import { claudeLog } from "../logger"
 import { contextWindowFor, replayBudgetFor, trimReplayHistory } from "./replayBudget"
 import { capClientToolResults, formatBytes, formatWithheldNote, resolveToolResultLimits, type ToolResultCut, type ToolResultLimits } from "./toolResultLimits"
+import { describeCompaction, extractCompaction, formatCompactionNote, type Compaction } from "./compactionNote"
 import { haikuThinkingCompatibilityError } from "./haikuCompatibility"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
@@ -694,6 +695,18 @@ function logToolResultCuts(cuts: readonly ToolResultCut[], limits: ToolResultLim
     diagnosticLog.log({ level: "warn", category: "token", message, requestId })
     claudeLog("session.tool_result_withheld", { ...cut, windowTokens: limits.windowTokens, attempt: "primary" })
   }
+}
+
+/** Log a compaction Claude Code ran inside this request's session. */
+function logCompaction(compaction: Compaction, requestId: string): void {
+  const message = `${requestId} ${describeCompaction(compaction)}`
+  plog(`[PROXY] ${message}`)
+  diagnosticLog.log({ level: "info", category: "token", message, requestId })
+}
+
+/** The person's note for a compaction, unless MERIDIAN_NO_COMPACTION_NOTE turns it off. */
+function compactionNoteFor(compaction: Compaction): string {
+  return process.env.MERIDIAN_NO_COMPACTION_NOTE ? "" : formatCompactionNote(compaction)
 }
 
 function logLateIdleDeadline(mode: string): (late: LateIdleDeadline) => void {
@@ -4865,6 +4878,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
         if (!stream) {
           const contentBlocks: Array<Record<string, unknown>> = []
+          // Notes for the person about compactions Claude Code ran during this turn.
+          const compactionNotes: string[] = []
           let assistantMessages = 0
           let hasStructuredOutput = false
           let structuredOutput: unknown
@@ -5272,6 +5287,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   ? managedForkTarget.sessionId
                   : returnedSessionId
                 validateManagedForkResult(returnedSessionId)
+              }
+              // Claude Code compacted the session's context: tell the person
+              // at the top of the answer, once it is assembled.
+              const compaction = extractCompaction(message)
+              if (compaction) {
+                logCompaction(compaction, requestMeta.requestId)
+                const note = compactionNoteFor(compaction)
+                if (note) compactionNotes.push(note)
               }
               // Passthrough single-turn guard: once the model re-emits a call it
               // already made (detected in the PreToolUse hook between turns), it
@@ -5705,8 +5728,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }
           }
 
-          // If no content at all, add a fallback text block
-          if (contentBlocks.length === 0) {
+          // If no content at all, add a fallback text block. A turn that only
+          // compacted the context (a manual `/compact`) answers with its note.
+          if (contentBlocks.length === 0 && compactionNotes.length === 0) {
             contentBlocks.push({
               type: "text",
               text: "I can help with that. Could you provide more details about what you'd like me to do?"
@@ -5714,12 +5738,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             claudeLog("response.fallback_used", { mode: "non_stream", reason: "no_content_blocks" })
           }
 
-          // Tool results withheld while building this prompt: tell the person,
-          // as the first text of the answer. Structured output is one JSON
-          // value, so it carries no note.
-          if (withheldNote && !outputFormat) {
-            contentBlocks.unshift({ type: "text", text: withheldNote })
-            claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.cuts.length })
+          // Tool results withheld while building this prompt, and compactions
+          // Claude Code ran during the turn: tell the person, as the first
+          // text of the answer. Structured output is one JSON value, so it
+          // carries no note.
+          if (!outputFormat) {
+            if (withheldNote) {
+              claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.cuts.length })
+            }
+            if (compactionNotes.length > 0) {
+              claudeLog("response.context_compacted", { mode: "non_stream", count: compactionNotes.length })
+            }
+            const leadingNotes = withheldNote + compactionNotes.join("")
+            if (leadingNotes) contentBlocks.unshift({ type: "text", text: leadingNotes })
           }
 
           const totalDurationMs = Date.now() - requestStartAt
@@ -6072,6 +6103,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
             let messageStartEmitted = false
             let withheldNoteEmitted = false
+            // Compaction notes seen before the client's message started; they
+            // go out with its first block.
+            const pendingCompactionNotes: string[] = []
             // Claude Code re-sends a turn without streaming when its stream fails
             // before message_start (a burst rate_limit_error does this). Such a
             // turn arrives only as assistant messages, never as stream events, so
@@ -6257,26 +6291,42 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               : undefined
             let nextClientBlockIndex = 0
 
+            // A note from the proxy to the person, as a text block of its own.
+            // Only between blocks, once message_start has gone out. Structured
+            // output is one JSON value, so it carries no note.
+            const emitProxyNote = (text: string, source: string): boolean => {
+              if (outputFormat) return false
+              const noteIndex = nextClientBlockIndex++
+              const frames: Array<[string, Record<string, unknown>]> = [
+                ["content_block_start", { type: "content_block_start", index: noteIndex, content_block: { type: "text", text: "" } }],
+                ["content_block_delta", { type: "content_block_delta", index: noteIndex, delta: { type: "text_delta", text } }],
+                ["content_block_stop", { type: "content_block_stop", index: noteIndex }],
+              ]
+              for (const [frameType, data] of frames) {
+                if (!safeEnqueue(encoder.encode(`event: ${frameType}\ndata: ${JSON.stringify(data)}\n\n`), `${source}_${frameType}`)) return false
+                eventsForwarded += 1
+                if (frameType === "content_block_start") contentBlocksForwarded += 1
+              }
+              return true
+            }
+
             // Tool results withheld while building this prompt: tell the person
             // as the first text block of the answer, right after message_start.
             // The cuts are known before generation, so the note also reaches
             // tool-call turns, which close the stream before any trailing
-            // block. Structured output is one JSON value, so it carries no note.
-            const emitWithheldNote = (source: string): void => {
-              if (!withheldNote || withheldNoteEmitted || outputFormat) return
-              withheldNoteEmitted = true
-              const noteIndex = nextClientBlockIndex++
-              const frames: Array<[string, Record<string, unknown>]> = [
-                ["content_block_start", { type: "content_block_start", index: noteIndex, content_block: { type: "text", text: "" } }],
-                ["content_block_delta", { type: "content_block_delta", index: noteIndex, delta: { type: "text_delta", text: withheldNote } }],
-                ["content_block_stop", { type: "content_block_stop", index: noteIndex }],
-              ]
-              for (const [frameType, data] of frames) {
-                if (!safeEnqueue(encoder.encode(`event: ${frameType}\ndata: ${JSON.stringify(data)}\n\n`), `withheld_note_${frameType}`)) return
-                eventsForwarded += 1
-                if (frameType === "content_block_start") contentBlocksForwarded += 1
+            // block. Compactions seen before the message started follow it.
+            const emitLeadingNotes = (source: string): void => {
+              if (withheldNote && !withheldNoteEmitted && !outputFormat) {
+                withheldNoteEmitted = true
+                if (emitProxyNote(withheldNote, "withheld_note")) {
+                  claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.cuts.length })
+                }
               }
-              claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.cuts.length })
+              for (const note of pendingCompactionNotes.splice(0)) {
+                if (emitProxyNote(note, "compaction_note")) {
+                  claudeLog("response.context_compacted", { mode: "stream", source, placement: "leading" })
+                }
+              }
             }
 
             // Call only after shouldEarlyStop(earlyStop) returned true.
@@ -6329,7 +6379,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               ), "unstreamed_message_start")) {
                 messageStartEmitted = true
                 eventsForwarded += 1
-                emitWithheldNote("unstreamed_envelope")
+                emitLeadingNotes("unstreamed_envelope")
               }
               for (const turn of turns) {
                 for (const block of turn.content ?? []) {
@@ -6784,6 +6834,25 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       : returnedSessionId
                     validateManagedForkResult(returnedSessionId)
                   }
+
+                  // Claude Code compacted the session's context. The boundary
+                  // arrives between API calls, so no content block is open: once
+                  // the client's message has started the note goes out at once;
+                  // before that it waits for message_start, like the withheld note.
+                  const compaction = extractCompaction(message)
+                  if (compaction) {
+                    logCompaction(compaction, requestMeta.requestId)
+                    const note = compactionNoteFor(compaction)
+                    if (note) {
+                      if (messageStartEmitted) {
+                        if (emitProxyNote(note, "compaction_note")) {
+                          claudeLog("response.context_compacted", { mode: "stream", source: "sdk_message", placement: "inline" })
+                        }
+                      } else {
+                        pendingCompactionNotes.push(note)
+                      }
+                    }
+                  }
                   let assistantAddedForwardedCall = false
                   if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
                     const expectedBefore = earlyStop.expected.size
@@ -7099,7 +7168,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       if (eventType === "content_block_start" && (event as { content_block?: { type?: unknown } }).content_block?.type === "tool_use") {
                         clientToolUseExposed = true
                       }
-                      if (eventType === "message_start") emitWithheldNote("stream_event")
+                      if (eventType === "message_start") emitLeadingNotes("stream_event")
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.
@@ -7836,6 +7905,29 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
               if (!streamClosed) {
                 const unstreamedStopReason = openUnstreamedEnvelope()
+
+                // A turn that only compacted the context (a manual `/compact`)
+                // produced no assistant message, so nothing opened the envelope:
+                // open one for the note, or the person sees an empty answer. No
+                // SDK message_delta was seen either, so the terminal delta below
+                // needs an explicit end_turn.
+                let noteOnlyStopReason: string | undefined
+                if (!messageStartEmitted && pendingCompactionNotes.length > 0 && !outputFormat) {
+                  if (safeEnqueue(encoder.encode(
+                    `event: message_start\ndata: ${JSON.stringify({
+                      type: "message_start",
+                      message: {
+                        id: `msg_${Date.now()}`, type: "message", role: "assistant", model,
+                        content: [], stop_reason: null, stop_sequence: null, usage: lastUsage ?? {},
+                      },
+                    })}\n\n`
+                  ), "compaction_note_message_start")) {
+                    messageStartEmitted = true
+                    eventsForwarded += 1
+                    noteOnlyStopReason = "end_turn"
+                    emitLeadingNotes("compaction_only_turn")
+                  }
+                }
                 const unseenToolUses = capturedToolUses.filter(tu => !streamedToolUseIds.has(tu.id))
 
                 // In passthrough mode, emit captured tool_use blocks as stream events
@@ -7925,7 +8017,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 assertPriorityPublicationReady()
                 await finalizePriorityPublication()
                 if (messageStartEmitted) {
-                  sendTerminalDelta(streamedToolUseIds.size > 0 ? "tool_use" : unstreamedStopReason)
+                  sendTerminalDelta(streamedToolUseIds.size > 0 ? "tool_use" : unstreamedStopReason ?? noteOnlyStopReason)
                   sendTerminalStop("final_message_stop")
                 }
 

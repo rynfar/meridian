@@ -64,6 +64,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_MAX_TURN_RESULTS_PCT` | — | `20` | Same, for all tool results of the live turn together. `0` disables. |
 | `MERIDIAN_MAX_TOOL_RESULT_BYTES` | — | unset | Absolute per-result limit in bytes; overrides `MERIDIAN_MAX_TOOL_RESULT_PCT`. `0` disables. |
 | `MERIDIAN_NO_TOOL_RESULT_NOTE` | — | unset | Set to `1` to drop the `[meridian] Withheld …` note prepended to an answer when tool results were withheld for that request. The model's notice and the log line stay. |
+| `MERIDIAN_NO_COMPACTION_NOTE` | — | unset | Set to `1` to drop the `[meridian] Claude Code compacted …` note added to an answer when Claude Code compacted the session's context during that request — see [Compaction notice](#compaction-notice). The log line stays. |
 | `MERIDIAN_TELEMETRY_PERSIST` | `CLAUDE_PROXY_TELEMETRY_PERSIST` | unset | Enable SQLite telemetry persistence. Data survives proxy restarts. |
 | `MERIDIAN_TELEMETRY_DB` | `CLAUDE_PROXY_TELEMETRY_DB` | `~/.config/meridian/telemetry.db` | SQLite database path (when persistence is enabled) |
 | `MERIDIAN_TELEMETRY_RETENTION_DAYS` | `CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS` | `7` | Days to retain telemetry data before cleanup |
@@ -1752,6 +1753,12 @@ A client that runs its own tools sends every result back verbatim, and some tool
 Meridian therefore bounds client tool results before they reach the model, on resumed continuations as well as on fresh replays. A result above `MERIDIAN_MAX_TOOL_RESULT_PCT` of the model's context window (default 5%, tokens estimated at 2 bytes each: 100 KB on a 1M window, 20 KB on 200k), or beyond what `MERIDIAN_MAX_TURN_RESULTS_PCT` (default 20%) leaves for the live turn's results together, is replaced by a `[Tool result withheld by the proxy]` notice marked as a tool error: the tool, the size, the limit, how to narrow the call and a sample of at most 2 KB. The model treats the call as failed and narrows it; the client keeps showing its own full copy. The per-result limit applies to replayed history too; the per-turn limit only to the messages after the last assistant turn, so a fresh replay keeps its newest results. `MERIDIAN_MAX_TOOL_RESULT_BYTES` pins an absolute per-result size instead of the percentage; `0` in any of the three variables disables that limit.
 
 Every cut is logged as `tool_result_withheld` in `/telemetry/logs` and as `session.tool_result_withheld` in the structured log, and the answer of that request starts with a one-line `[meridian] Withheld …` note naming each tool, its size and the limit, so the person sees in the client what the model did not get. `MERIDIAN_NO_TOOL_RESULT_NOTE=1` drops the note; structured-output answers never carry it.
+
+### Compaction notice
+
+Claude Code compacts a session's context on its own once it grows past its auto-compact threshold, and the SDK reports it as a `system` message with subtype `compact_boundary`. Nothing else tells the client: the thread looks intact while the model now reaches the earlier turns only through a summary, which is where a long conversation starts to lose details the person still sees on screen.
+
+Meridian turns that message into a one-line `[meridian] Claude Code compacted this conversation's context …` note with the trigger (automatically or on request) and the token counts before and after, emitted as a text block of its own: the first block of the answer when the compaction ran before the model answered, between blocks when it happened mid-turn, prepended on the non-streamed path. The compaction is also logged as `context_compacted` in `/telemetry/logs` and as `response.context_compacted` in the structured log. A `/compact` typed as a message reaches Claude Code as its slash command; such a turn produces no model message, so its answer is the note alone. `MERIDIAN_NO_COMPACTION_NOTE=1` drops the note; structured-output answers never carry it.
 
 ### Silent turns
 
