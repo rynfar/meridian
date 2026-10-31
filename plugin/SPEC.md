@@ -42,6 +42,9 @@ conversation identity and the right request shape:
   title/summary) keep the base (200k) subagent tier.
 - The Pi model catalog mirrors the server's effort list (`VALID_EFFORTS`); a
   test keeps them identical.
+- Pi's `allowNetwork: false` phase is cache-only, even when the stored catalog
+  is missing, expired or belongs to a different Meridian URL. Discovery runs
+  only when Pi permits network access.
 - `plugin/` ships in the npm package; the V1/V2 plugins are bundled into
   `dist/` by `scripts/build.ts`.
 
@@ -68,6 +71,9 @@ the exact admitted controller/results in the evidence record.
 
 ## Known limitations
 
+- A cold noninteractive Pi invocation cannot select an uncached Meridian model.
+  Populate the catalog in an interactive or RPC session before using print mode;
+  the cache-only startup phase does not contact Meridian to bootstrap it.
 - The OpenCode **V1** plugin still declares compaction as a subagent
   (`plugin/meridian.ts`), so V1 compaction of an Opus/Fable `[1m]`
   conversation runs on the 200k tier. Unlike V2 it changes agent mode, which

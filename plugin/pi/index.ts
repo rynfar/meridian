@@ -44,16 +44,10 @@ export default function meridian(pi: ExtensionAPI): void {
     state.session = ctx.sessionManager
   })
 
-  /**
-   * Restore Pi's stored snapshot first, then discover from Meridian. Pi only
-   * refreshes from the network in interactive and RPC modes, so a cold start
-   * with nothing stored also tries discovery once: Meridian is a local service,
-   * and without it a first `pi -p --model meridian/…` would find no models.
-   */
   const refreshModels = async (context: RefreshModelsContext): Promise<MeridianModelConfig[]> => {
     const baseUrl = normalizeBaseUrl(context.baseUrl ?? process.env.MERIDIAN_BASE_URL)
     const restored = restoreModels(context.stored, baseUrl, Date.now())
-    if (!context.allowNetwork && (restored || process.env.PI_OFFLINE !== undefined)) return restored ?? []
+    if (!context.allowNetwork) return restored ?? []
 
     const apiKey = context.credential?.type === "api_key" ? context.credential.key : process.env.MERIDIAN_API_KEY
     try {
@@ -67,8 +61,7 @@ export default function meridian(pi: ExtensionAPI): void {
       return models
     } catch (error) {
       if (restored) return restored
-      if (context.allowNetwork) throw error
-      return []
+      throw error
     }
   }
 

@@ -134,6 +134,15 @@ const report = { pi: version, meridianUrl: "loopback", cases: [] }
 let scrubList
 try {
   verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub)
+  const { default: meridian } = await import("../plugin/pi/index.ts")
+  let provider
+  meridian({ on() {}, registerProvider(_id, config) { provider = config } })
+  await provider.refreshModels({
+    allowNetwork: true,
+    baseUrl: `http://127.0.0.1:${recorder.port}`,
+    signal: AbortSignal.timeout(10_000),
+    publish: async ({ persist }) => writeFileSync(join(agentDir, "models-store.json"), JSON.stringify({ meridian: persist })),
+  })
   report.cases.push(await turn({
     name: "primary turn with a tool loop",
     model: "meridian/claude-haiku-5-5",
