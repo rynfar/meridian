@@ -61,6 +61,13 @@ Record what Meridian did and show it to the operator:
   exempts an updating card from the search (not from the provider chips). An
   updating card dims only its figures; its name row and active border never
   dim.
+- **`/` and `/profiles` stop polling while their tab is hidden.** Both read
+  `/v1/usage/quota/all`, and Meridian caches each Claude profile's usage for
+  only 30 s. One forgotten background tab polling every 10 s therefore asks
+  Anthropic's OAuth usage endpoint for every profile about twice a minute,
+  enough to keep it answering 429 for the CLIs and widgets that share it. A
+  hidden tab skips its timed polls, and `visibilitychange` refreshes the page
+  as soon as it is shown again.
 
 - **Keepalive beats are not requests.** Rows with
   `requestSource: "cache-keepalive"` answered no client, so `computeSummary`

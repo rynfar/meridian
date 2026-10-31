@@ -271,7 +271,8 @@ account card on the home page (or the Profiles page). The header chip only
    snippets, and integration guides belong in the README — the app links
    to them instead of embedding them.
 4. **Live, not stale.** Pages poll their JSON endpoints (~10s) and render
-   client-side. Always `esc()` interpolated data.
+   client-side; a page whose poll reaches Anthropic (usage quota) pauses
+   while its tab is hidden. Always `esc()` interpolated data.
 5. **Consistency beats novelty.** Before styling something new, find the
    existing component that does the same job and reuse its pattern.
 

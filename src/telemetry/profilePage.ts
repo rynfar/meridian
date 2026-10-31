@@ -1196,7 +1196,7 @@ function render(data, quotaData) {
   meridianPatch.html(document.getElementById('content'), html);
   meridianReorder.restoreFocus(refocusId);
   if (anyUpdating && !updatePollTimer) {
-    updatePollTimer = setTimeout(function () { updatePollTimer = null; refresh(); }, 1500);
+    updatePollTimer = setTimeout(pollUpdate, 1500);
   }
   // The markup carries placeholder hrefs. Restore them from the cache, then top
   // up anything missing or near expiry in the background.
@@ -2405,10 +2405,25 @@ if (!restorePendingAdd()) resetAddForm('');
 // operated on: mid-drag it replaces the cards being dragged, and mid-login or
 // mid-add it wipes the panel the code is being pasted into. Each panel keeps
 // its own state, so each needs its own term - resetAddForm nulls activeAdd,
-// which is the addId the paste is about to be sent with.
-setInterval(function () {
-  if (!meridianReorder.dragging() && !activeLogin && !activeAdd && !activeChatGptRelogin) refresh();
-}, 10000);
+// which is the addId the paste is about to be sent with. A hidden tab skips
+// polls and catches up when it is shown again.
+function pollRefresh() {
+  if (document.visibilityState !== 'visible' || meridianReorder.dragging()
+    || activeLogin || activeAdd || activeChatGptRelogin) return;
+  refresh();
+}
+// The 1.5s poll while a card updates: a hidden tab keeps the timer, not the
+// request, so the update resumes within 1.5s of the tab being shown again.
+function pollUpdate() {
+  if (document.visibilityState !== 'visible') {
+    updatePollTimer = setTimeout(pollUpdate, 1500);
+    return;
+  }
+  updatePollTimer = null;
+  refresh();
+}
+setInterval(pollRefresh, 10000);
+document.addEventListener('visibilitychange', pollRefresh);
 ` + profileBarJs + `
 </script>
 </body>
