@@ -236,6 +236,58 @@ try {
   // The model may quote the 2 KB sample the notice carries; the 300 KB result itself must not come back.
   assert(turn4.message.content.length < 20_000, `the oversized result leaked into the answer (${turn4.message.content.length} chars)`)
 
+  // Turn 5: close the round the model opened after the notice (it usually
+  // narrows the call), as Zed would, so the thread is back at a user turn.
+  const history4 = [
+    ...history3,
+    { role: "user", content: "Now run `cat build.log` in the project root with the terminal tool. Call the tool now; do not answer in prose." },
+    { role: "assistant", content: null, tool_calls: [{ id: call4.id, type: "function", function: { name: "terminal", arguments: call4.function.arguments } }] },
+    { role: "tool", tool_call_id: call4.id, content: hugeResult },
+  ]
+  const call5 = turn4.message.tool_calls[0]
+  if (call5) {
+    history4.push(
+      { role: "assistant", content: turn4.message.content || null, tool_calls: [{ id: call5.id, type: "function", function: { name: "terminal", arguments: call5.function.arguments } }] },
+      { role: "tool", tool_call_id: call5.id, content: "[build] done\n" },
+    )
+    await sleep(2000)
+    const turn5 = await chat("turn-5-narrowed-result", { prompt_cache_key: threadId, tools: [terminalTool], messages: history4 }, { stream: true })
+    assert.equal(turn5.row.lineageType, "continuation", "turn 5 did not resume the thread")
+    history4.push({ role: "assistant", content: turn5.message.content })
+  } else {
+    history4.push({ role: "assistant", content: turn4.message.content })
+  }
+
+  // Turn 6: `/compact` typed as a message reaches Claude Code as its slash
+  // command. The turn produces no model message, only the compaction: the
+  // answer must be the proxy's note, not an empty bubble.
+  await sleep(2000)
+  const turn6 = await chat("turn-6-compact", {
+    prompt_cache_key: threadId,
+    tools: [terminalTool],
+    messages: [...history4, { role: "user", content: "/compact" }],
+  }, { stream: true })
+  assert.equal(turn6.row.lineageType, "continuation", "the /compact turn did not resume the thread")
+  assert(turn6.message.content.startsWith("[meridian] Claude Code compacted this conversation's context on request: "),
+    `turn 6 did not start with the compaction note: ${turn6.message.content.slice(0, 200)}`)
+  assert(/ tokens before, [\d,]+ tokens after\. /.test(turn6.message.content), "the note did not carry both token counts")
+  assert.equal(turn6.finish, "stop", "the /compact turn did not end with a finish_reason")
+
+  // Turn 7: the thread goes on after the compaction, and the summary kept the first turn.
+  await sleep(2000)
+  const turn7 = await chat("turn-7-after-compaction", {
+    prompt_cache_key: threadId,
+    tools: [terminalTool],
+    messages: [
+      ...history4,
+      { role: "user", content: "/compact" },
+      { role: "assistant", content: turn6.message.content },
+      { role: "user", content: "What was the very first thing I asked you to reply with? Answer with that word only." },
+    ],
+  })
+  assert.equal(turn7.row.lineageType, "continuation", "turn 7 did not resume the thread")
+  assert(turn7.message.content.includes("ALPHA"), `the compacted thread lost its first turn: ${turn7.message.content.slice(0, 200)}`)
+
   console.log(JSON.stringify({ pass: true, model, meridianRoot, serverModule, root, threadId, session: turn1.row.sdkSessionId }))
 } finally {
   await instance.close()
