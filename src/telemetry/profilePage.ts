@@ -2405,10 +2405,15 @@ if (!restorePendingAdd()) resetAddForm('');
 // operated on: mid-drag it replaces the cards being dragged, and mid-login or
 // mid-add it wipes the panel the code is being pasted into. Each panel keeps
 // its own state, so each needs its own term - resetAddForm nulls activeAdd,
-// which is the addId the paste is about to be sent with.
-setInterval(function () {
-  if (!meridianReorder.dragging() && !activeLogin && !activeAdd && !activeChatGptRelogin) refresh();
-}, 10000);
+// which is the addId the paste is about to be sent with. A hidden tab skips
+// polls and catches up when it is shown again.
+function pollRefresh() {
+  if (document.visibilityState !== 'visible' || meridianReorder.dragging()
+    || activeLogin || activeAdd || activeChatGptRelogin) return;
+  refresh();
+}
+setInterval(pollRefresh, 10000);
+document.addEventListener('visibilitychange', pollRefresh);
 ` + profileBarJs + `
 </script>
 </body>

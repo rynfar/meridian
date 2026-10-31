@@ -752,7 +752,12 @@ document.getElementById('content').addEventListener('keydown',function(e){
 viewSort=readStoredSort()||viewSort;
 meridianReorder.init({onSaved:refresh});
 refresh();
-setInterval(function(){if(!meridianReorder.dragging() && !infoPopOpen())refresh()},10000);
+function pollRefresh(){
+  if(document.visibilityState!=='visible'||meridianReorder.dragging()||infoPopOpen())return;
+  refresh();
+}
+setInterval(pollRefresh,10000);
+document.addEventListener('visibilitychange',pollRefresh);
 ` + profileBarJs + `
 </script>
 </body>
