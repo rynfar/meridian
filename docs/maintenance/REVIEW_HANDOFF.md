@@ -1,6 +1,50 @@
-# Meridian review checkpoint — 2026-10-28 UTC
+# Meridian review checkpoint — 2026-11-01 UTC
 
-Last code delivery: `94725800af58015daae796be04034ae03d2fec73` (release 1.87.0, #1457). The 2026-10-26/27 owner-authorized backlog run is recorded first; older sections below are unchanged history. The previous checkpoint is [immutable at a12b53bb](https://github.com/rynfar/meridian/blob/a12b53bb3b/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `84043282aec4c83e29bc052943140abdeca8754a` (#1477). The 2026-11-01 review of the new contributor PRs is recorded first; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-11-01: new contributor PRs reviewed, #1471 and #1477 merged
+
+The owner asked to review the new contributor PRs, merge the ready ones, put corrections on the contributors' branches, and keep their credit, following this guidance. No PR comment, release, account switch or credential change was made. The review base was `origin/main` `4d16958a`.
+
+- **Queue:** #1471, #1475, #1476, #1477 and #1478 (opened 2026-10-29 to 31).
+  - Not reviewed: #1464 (Zed adapter) is the contributor's draft; Release Please #1469 and the owner's draft #1468 are out of scope.
+  - Each PR had an independent adversarial review in an isolated worktree, local gates, and model-free E2E. Per-PR records: [review-20261101](evidence/review-20261101/).
+- **Merged, contributor as Git Author.** Each was an exact-head squash, and each landed tree equals the reviewed parent merged with the validated head.
+  - [#1471](https://github.com/rynfar/meridian/pull/1471) `6056b54a`, Author Connor Grady: a profiles-only deployment no longer checks or keeps warm the unused default auth context. The maintainer added a keepalive test and a spec decision on his branch. Merge state was `CLEAN`. [Record](evidence/review-20261101/pr-1471.md).
+  - [#1477](https://github.com/rynfar/meridian/pull/1477) `84043282`, Author Máté Rémiás: `/`, `/profiles` and, through the maintainer's correction, `/providers` stop polling usage while their tab is hidden. Merged `--admin` under the step-3 `bad_email` exception, after every check on head `7183e85a` passed. [Record](evidence/review-20261101/pr-1477.md).
+  - On the combined main, typecheck, a certified build and both PRs' targeted tests pass.
+- **Corrected, held for owner decisions:** [#1475](https://github.com/rynfar/meridian/pull/1475), head `c353a485`, all checks green, `CLEAN`.
+  - Maintainer fixes are on Connor's branch for the Home Manager env harness, the manual `nix-update` command and the E2E.md plugin path.
+  - Validated on aarch64-linux Nix, including consumer overlays and the claude-code floor. [Record](evidence/review-20261101/pr-1475.md).
+- **Corrected, live gate open:** [#1478](https://github.com/rynfar/meridian/pull/1478), head `1718878b`, all checks green, merge blocked only by unsigned commits.
+  - The maintainer correction makes the rendered `tool_reference` text name the registered tool (#1107 class).
+  - Model-free runs pass: real Claude Code 2.1.316 against a scripted upstream, with before/after, sequential, parallel and fresh-replay cases and an OpenCode-shaped negative control.
+  - Live Sonnet/Opus 5.5 runs and the four E41 modes could not run: the active Claude account answered "You've hit your weekly limit · resets Nov 4". [Record](evidence/review-20261101/pr-1478.md).
+- **Deferred, design decision:** [#1476](https://github.com/rynfar/meridian/pull/1476), head `ef3ac97e`, nothing pushed. The change honours Pi's cache-only startup phase, but without a usable catalog `--model meridian/…` then fails in every Pi mode. With `defaultProvider: meridian`, Pi silently starts on its direct Anthropic provider. `scripts/e2e-pi-extension-side-calls.mjs` breaks. [Record and options](evidence/review-20261101/pr-1476.md).
+- **Live model use:** one real-model run of #1476's modified `scripts/e2e-pi-extension.mjs` passed (4 Pi requests, no refusal). One #1478 request was refused by the weekly limit, and live calls stopped there. Meridian reports quota utilization as 0..1: `1` means 100%, not 1%.
+- **Owner decisions:**
+  1. **#1475:** keep `packages.<system>.meridian` requiring `NIXPKGS_ALLOW_UNFREE=1 --impure`, with docs steering NixOS configurations to the overlay (recommended)? How should the release notes name the consumer-facing changes, given `refactor` is hidden there (recommended: a `fix(nix):` title)? Should Connor make the `src`-before-version reorder in `nix/pkgs/claude-code/package.nix`, or should it be a follow-up?
+  2. **#1478:** run the live gate on another profile with included usage now, or on the current account after the Nov 4 reset?
+  3. **#1476:** the strict cache-only phase as proposed, a bounded (about 1 s) cold-start fetch (recommended, which should go to the contributor first), or decline?
+  4. **Comments:** draft review comments for all five PRs are prepared but not posted. Posting needs authorization. #1471's description says the instance exits at startup; with the bundled CLI it warns and keeps running.
+- **Follow-ups:**
+  - The CLI start-up check treats `claude auth status` exiting 1 as "could not verify", so a logged-out instance with no profiles warns instead of exiting. Fix this after #1471.
+  - `proxy-async-ops.test.ts`'s first test reads the default credential store (the macOS login Keychain) during local `npm test`.
+  - Meridian Desktop's main process polls usage every 10 s while its window is hidden.
+  - ARCHITECTURE.md's agent-specific table is titled for OpenCode and cannot list #1478's `clientOwnsToolSearch`.
+  - Escrow #1478's Claude Code tool-search harness in a maintainer PR once its live gate runs.
+- **Attribution audit:** `scripts/attribution-audit.mjs` reran on main `84043282` in an isolated blob-less clone, and [the ledger](ATTRIBUTION_LEDGER.md) is regenerated.
+  - #1471 and #1477 are classified `merged`.
+  - "Re-landed with the maintainer as Author" stays at 137, so there is no new maintainer re-land.
+  - The one new "Closed in favor of a maintainer PR" row is the earlier owner-approved #1243 decline (closed 2026-10-21, whose comment cites #1433). It is not from this run.
+- **Workspace:**
+  - Removed: the #1471/#1477 review worktrees, their local branches, the baseline worktree and the #1471 base copy.
+  - Kept for continuation, under `/Volumes/DevSSD/meridian`: the review worktrees `wt-review-1475`, `wt-review-1476` and `wt-review-1478`, with sanitized local evidence in `evidence/review-20261101/`, and the Docker volume `pr1475-nix` holding #1475's Nix store.
+  - The owner's checkout was not touched.
+- **Local test environment (this Mac):**
+  - Bun 1.3.14 loads Apple's SQLite 3.51.0, which the bookkeeping engine refuses: about 1,054 tests fail on unchanged main. Use `MERIDIAN_TEST_SQLITE_LIBRARY=/opt/homebrew/opt/sqlite/lib/libsqlite3.3.53.4.dylib`.
+  - The `npm test` script chains its 26 groups with `&&`, so a group-0 failure hides groups 1–25. Run each group separately.
+  - Under concurrent load, real-process and real-socket tests in error-reporting, stream-idle-guard, plugin-update-routes and cross-process-turn-coordinator fail on unchanged main too.
 
 ## 2026-10-26/27: backlog run and 1.87.0 published
 
