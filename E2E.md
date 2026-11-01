@@ -1,7 +1,21 @@
 ## Pi extension (#1408)
 
-Two harnesses use the actual Pi CLI with the extension that
-`meridian setup --client pi` installs into a scratch `PI_CODING_AGENT_DIR`:
+Three harnesses use the actual Pi CLI with the extension that
+`meridian setup --client pi` installs, or loads directly, in a scratch
+`PI_CODING_AGENT_DIR`:
+
+- `node scripts/e2e-pi-startup.mjs --pi=<pi>` needs no credentials or internet
+  access and makes no model calls (#1476). Against a loopback Meridian that
+  accepts connections but never replies, Pi must answer RPC `get_state` within
+  2 s: with a cold catalog, with a stored one, and offline without contacting
+  Meridian. With a cold catalog it must also select a built-in Meridian model,
+  through `--model meridian/…` and through `defaultProvider`/`defaultModel`
+  beside an Anthropic key. It must keep that model after the background
+  discovery is abandoned, and in print mode send the turn to Meridian without
+  requesting its catalog. Against a responsive stub it must persist the
+  discovered catalog. Every case runs and reports.
+  `--extension=<dir>/plugin/pi/index.ts` runs it against another tree's
+  extension.
 
 - `bun scripts/e2e-pi-extension-side-calls.mjs --pi=<pi>` needs no
   credentials. It drives Pi's RPC mode against a recording stub with canned SSE
@@ -16,13 +30,42 @@ Two harnesses use the actual Pi CLI with the extension that
   in-process Meridian and real Claude: a Haiku tool loop, a
   `MERIDIAN_SOURCE=subagent-e2e` child and Opus 5.5 at high effort. Meridian
   loads only the named Pi scrub (`E2E_SCRUB_VERSION` pins its version), which
-  must be active and must process the requests. It asserts model discovery,
-  the wire identity and Meridian's adapter/source telemetry, and reports
-  generation separately.
+  must be active and must process the requests. Print mode never discovers,
+  so the harness first runs the extension's discovery against that Meridian
+  and stores the result; `--cold-catalog` skips that, runs every turn on the
+  extension's built-in catalog and asserts that no Meridian catalog is
+  persisted. (That print mode requests no catalog is asserted by the startup
+  harness.) It asserts the wire identity and Meridian's adapter/source
+  telemetry, and reports generation separately.
 
 Pass the Pi executable explicitly. A version manager can select a
 project-local Pi from the working directory. Run under a qualified SQLite
 runtime (see `src/proxy/session/bookkeeping/nativeDatabase.ts`).
+
+Recorded 2026-11-01 on Darwin arm64, Node 22.22.3, Pi 1.4.0 and 1.3.0 (#1476):
+- **Startup harness:** all seven cases pass with the built-in catalog.
+  - main's extension, which fetches the catalog during the cache-only phase,
+    waits 3.6–3.9 s for the hung Meridian and fails every cold Meridian-model
+    case. In print mode it requests the catalog, and on some runs Pi exits
+    before the catalog arrives.
+  - The PR's first head (strict cache-only, `ef3ac97e`) fails the three cold
+    Meridian-model cases.
+- **Interactive mode** has no harness and was checked by hand.
+  - Setup: a scratch `PI_CODING_AGENT_DIR` holding only `settings.json` (and
+    the Anthropic store seed the startup harness writes). `MERIDIAN_BASE_URL`
+    points at a loopback server that accepts connections and never replies.
+  - Run Pi under a terminal (or `python3 -c 'import pty,sys; pty.spawn(sys.argv[1:])' pi …`)
+    with `--no-session --no-extensions -e plugin/pi/index.ts
+    --model meridian/claude-haiku-5-5`.
+  - Result: with the built-in catalog the TUI stays up past 8 s; `ef3ac97e`
+    exits 1 with `Model … not found`.
+- **Side-call harness:** passes on both versions.
+- **Live run:** the Claude harness with `--cold-catalog` (pi-scrub 0.2.3,
+  Pi 1.4.0, read-only credentials, included usage) ran from a cold catalog.
+  The Haiku tool loop stayed on one signed turn, the `subagent-e2e` child kept
+  its source, and Opus 5.5 at high effort answered, with every identity
+  assertion passing. No Meridian catalog was persisted. The scrub processed
+  all 4 requests.
 
 Recorded 2026-10-25 on Darwin arm64, Bun 1.3.14, Node 22.22.3: the side-call
 harness passed on Pi 1.4.0 and 1.3.0, with two compaction requests each. The
