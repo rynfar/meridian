@@ -109,6 +109,19 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
 - **Sticky routing is stateless** (rendezvous hashing): stickiness survives
   restarts without a persisted map, and adding a profile moves only the
   sessions that hash to it.
+- **The default Claude context is checked only while a request can reach it**
+  (#1471). With profiles configured, `resolveProfile` never yields the implicit
+  `default`, so the CLI's start-up `claude auth status` pre-flight runs only
+  when no profile exists or an effective profile has no credential override of
+  its own (a bare `claude-max` profile, or an `api`/`oauth-token` one without
+  its key or token), and the 45 s auth keepalive refreshes the default context
+  only once no profile is left (`usesDefaultAuthContext`,
+  `authKeepaliveTargets`). A signed-out host login therefore neither stops nor
+  warns a profiles-only instance; the active profile's sign-in state surfaces
+  on `/health`, and every profile's on `/profiles/list` and in the keepalive's
+  log. A profile without an override is cached under its own id, which the
+  default-context refresh never served, so the keepalive skips it and requests
+  refresh it.
 - **Banked resets are explicit-only** (owner-approved 2026-10-26, #1429).
   `GET /v1/usage/quota/all` lists each Claude profile's grants; only
   `POST /v1/usage/quota/reset` with an explicit `profile`, `grantId` and
