@@ -92,10 +92,11 @@ PR if the result differs from what is committed.
 Each plugin's `package.nix` fetches its repository at the tag
 `<pname>-v<version>`. The `Update plugins` workflow runs `nix-update` on each
 plugin for its latest release, rebuilds it and opens a PR. To update one by
-hand:
+hand, name the attribute for the system you run on, because `nix-update`
+prefetches the source for that attribute's system:
 
 ```sh
-nix run --inputs-from . nixpkgs#nix-update -- --flake --version-regex 'meridian-plugin-<name>-v(.*)' legacyPackages.x86_64-linux.meridianPlugins.<name>
+nix run --inputs-from . nixpkgs#nix-update -- --flake --version-regex 'meridian-plugin-<name>-v(.*)' legacyPackages."$(nix eval --impure --raw --expr builtins.currentSystem)".meridianPlugins.<name>
 ```
 
 The builder's install check fails if the version the installed plugin reports
