@@ -13,6 +13,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
+  shouldEvictInterruptedMapping,
   coalesceCompleteToolResultContinuation,
   settlesCheckpointThenContinues,
   isMidConvoEffortSystemMessage,
@@ -75,6 +76,42 @@ describe("isClientForwardedToolUse", () => {
 
   it("excludes tool_use blocks with no id (can't be tracked)", () => {
     expect(isClientForwardedToolUse({ type: "tool_use", name: "read" })).toBe(false)
+  })
+})
+
+describe("shouldEvictInterruptedMapping", () => {
+  const base = {
+    keepSessionOnClientAbort: true,
+    managedFork: true,
+    managedForkPublished: false,
+    clientAssistantContentExposed: true,
+    abortCause: "client_abort" as const,
+  }
+
+  it("keeps the mapping when a client disconnects from an unpublished fork and the operator opted in", () => {
+    expect(shouldEvictInterruptedMapping(base)).toBe(false)
+    expect(shouldEvictInterruptedMapping({ ...base, abortCause: "stream_cancel" })).toBe(false)
+  })
+
+  it("evicts a turn the client saw by default", () => {
+    expect(shouldEvictInterruptedMapping({ ...base, keepSessionOnClientAbort: false })).toBe(true)
+  })
+
+  it("keeps the mapping for any abort before output reached the client", () => {
+    expect(shouldEvictInterruptedMapping({
+      ...base, keepSessionOnClientAbort: false, clientAssistantContentExposed: false, abortCause: "process_shutdown",
+    })).toBe(false)
+  })
+
+  it("stays destructive once the turn could have moved the mapped transcript", () => {
+    expect(shouldEvictInterruptedMapping({ ...base, managedFork: false })).toBe(true)
+    expect(shouldEvictInterruptedMapping({ ...base, managedForkPublished: true })).toBe(true)
+  })
+
+  it("stays destructive for aborts the client did not ask for", () => {
+    for (const abortCause of ["process_shutdown", "session_watchdog", "subtree_cancel", "unknown_abort", "none"] as const) {
+      expect(shouldEvictInterruptedMapping({ ...base, abortCause })).toBe(true)
+    }
   })
 })
 

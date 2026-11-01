@@ -104,7 +104,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, shouldEvictInterruptedMapping, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -5735,6 +5735,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           resolveStreamCompletion = resolve
         })
         let clientAssistantContentExposed = false
+        const mayEvictInterruptedMapping = (): boolean => shouldEvictInterruptedMapping({
+          keepSessionOnClientAbort: env("KEEP_SESSION_ON_CLIENT_ABORT") === "1",
+          managedFork: managedForkTarget !== undefined,
+          managedForkPublished,
+          clientAssistantContentExposed,
+          abortCause: durableWritesRevoked ? "process_shutdown" : requestAbort.abortSnapshot().cause,
+        })
         const readable = new ReadableStream({
           start(controller) {
             let terminateFailedStream = (error: unknown): void => controller.error(error)
@@ -7723,11 +7730,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // destructive: a client-visible interrupted turn cannot leave its
               // previously published source mapping resumable.
               const failedResumedTurn = isResume && !managedForkTarget && !sawCanonicalResult
-              const interruptedMappingMayBeAdvanced =
-                !managedForkTarget || managedForkPublished || clientAssistantContentExposed
               if (
                 (requestAbort.controller.signal.aborted || durableWritesRevoked || failedResumedTurn)
-                && interruptedMappingMayBeAdvanced
+                && mayEvictInterruptedMapping()
                 && !isIndependentSession
               ) {
                 await evictSession(
@@ -7763,9 +7768,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
                   passthrough,
                 })
-                const mayEvictInterruptedMapping =
-                  !managedForkTarget || managedForkPublished || clientAssistantContentExposed
-                if (disposition.action === "evict" && mayEvictInterruptedMapping) {
+                const evictInterruptedMapping = mayEvictInterruptedMapping()
+                if (disposition.action === "evict" && evictInterruptedMapping) {
                   await evictSession(
                     profileSessionId,
                     profileScopedCwd,
@@ -7774,7 +7778,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   )
                 }
                 claudeLog("passthrough.client_abort_settled", {
-                  action: disposition.action === "evict" && !mayEvictInterruptedMapping
+                  action: disposition.action === "evict" && !evictInterruptedMapping
                     ? "preserve_managed_source"
                     : disposition.action,
                 })
@@ -8558,9 +8562,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // cancelled here as well, latched so a real socket teardown —
             // which trips both this and the request signal — propagates once.
             requestMeta.cascadeSubtreeCancel?.("stream_cancel")
-            if (!isIndependentSession && (
-              !managedForkTarget || managedForkPublished || clientAssistantContentExposed
-            )) {
+            if (!isIndependentSession && mayEvictInterruptedMapping()) {
               // A direct resume or already-published target may have advanced.
               // An unpublished managed fork writes only its isolated target, so
               // preserve the still-authoritative source mapping and abandon it.

@@ -43,6 +43,8 @@
  * Pure module — no I/O, no imports from server.ts or session/.
  */
 
+import type { RequestAbortCause } from "./requestAbort"
+
 /** Default passthrough MCP prefix — mirrors PASSTHROUGH_MCP_PREFIX in
  *  passthroughTools. Duplicated here (with a cross-check test) to keep this
  *  module leaf-pure. An adapter with its own namespace passes it in instead
@@ -467,6 +469,29 @@ export function shouldEarlyStop(tracker: EarlyStopTracker): boolean {
 }
 
 /** What a client-aborted stream must do with its session mapping. */
+/**
+ * Whether an interrupted streaming turn must give up its session mapping.
+ *
+ * Every resume writes an isolated fork, so until that fork is published the
+ * mapped transcript still ends at the last completed turn. By default a turn
+ * whose output reached the client is evicted anyway, because a client that keeps
+ * the partial output would resume without the model seeing it. An operator whose
+ * clients discard partial output can keep the session after a client disconnect.
+ * Proxy-initiated aborts stay destructive.
+ */
+export function shouldEvictInterruptedMapping(input: {
+  keepSessionOnClientAbort: boolean
+  managedFork: boolean
+  managedForkPublished: boolean
+  clientAssistantContentExposed: boolean
+  abortCause: RequestAbortCause | "none"
+}): boolean {
+  if (!input.managedFork || input.managedForkPublished) return true
+  if (!input.clientAssistantContentExposed) return false
+  if (!input.keepSessionOnClientAbort) return true
+  return input.abortCause !== "client_abort" && input.abortCause !== "stream_cancel"
+}
+
 export type ClientAbortDisposition =
   | { action: "evict" }
   | { action: "none" }
@@ -478,8 +503,9 @@ export type ClientAbortDisposition =
  * A client abort leaves the SDK session ending in an interrupted tail. Even an
  * assistant UUID already seen in the iterator is not known durable until the
  * canonical result: the live PTY regression yielded that UUID but never wrote
- * it durably after abort. Therefore every owned mapping is evicted; a replay
- * costs one cache miss but cannot wedge on a missing or interrupted boundary.
+ * it durably after abort. Therefore every owned mapping that may have advanced
+ * is evicted (see shouldEvictInterruptedMapping); a replay costs one cache
+ * miss but cannot wedge on a missing or interrupted boundary.
  */
 export function clientAbortDisposition(input: {
   isIndependentSession: boolean
