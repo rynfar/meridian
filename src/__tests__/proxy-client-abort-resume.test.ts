@@ -128,7 +128,10 @@ describe.each([
 ] as const)("client abort on %s", (_route, request) => {
   const app = () => createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
 
+  let originalPassthrough: string | undefined
+
   beforeEach(async () => {
+    originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
     process.env.MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT = "1"
     behaviors = []
@@ -137,6 +140,8 @@ describe.each([
   })
 
   afterEach(() => {
+    if (originalPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = originalPassthrough
     delete process.env.MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT
   })
 
