@@ -333,6 +333,7 @@ Meridian speaks the OpenAI protocol natively — no LiteLLM or translation proxy
 **`POST /v1/chat/completions`** — accepts OpenAI chat format, returns OpenAI completion format (streaming and non-streaming)
 
 - `image_url` parts are supported when provided as **data URLs** (`data:image/...;base64,...`)
+- `file` parts are supported for PDFs sent inline as a **data URL** in `file_data` (`data:application/pdf;base64,...`); Claude receives them as documents, titled with `filename`. An uploaded `file_id`, another file type, or any other part Meridian cannot deliver (such as `input_audio`) is replaced by a short omission note, so the model knows the input is missing
 - multimodal tool flows where a tool returns `tool_result.content = [text, image]` are preserved through the structured multimodal path instead of being flattened to text
 
 **`GET /v1/models`** — returns available Claude models in OpenAI format
@@ -345,7 +346,7 @@ Set the OpenAI API base to `http://127.0.0.1:3456/v1` (clients append `/chat/com
 # OpenAI SDK: base_url="http://127.0.0.1:3456/v1", api_key="x"
 ```
 
-> **Note:** A request without a session key has its prior turns packed into the system prompt and runs on a fresh SDK session — the client replays the full history itself. A request keyed by `x-opencode-session`, `x-session-affinity` or `x-session-id` (Jcode: `x-jcode-session`) keeps its real messages and resumes one SDK session per key, under the contract every keyed client has:
+> **Note:** A request without a session key has its prior turns packed into the system prompt and runs on a fresh SDK session — the client replays the full history itself. Images and PDFs from earlier turns are packed as `[Image attached]` / `[Document attached]` placeholders, so only the latest message's attachments reach the model. A request keyed by `x-opencode-session`, `x-session-affinity` or `x-session-id` (Jcode: `x-jcode-session`) keeps its real messages and resumes one SDK session per key, under the contract every keyed client has:
 >
 > - turns under one key are serialized; a turn that lost the race and no longer holds the committed history is refused with HTTP 400 (`This session advanced while the request was waiting`) — retry it with the latest history;
 > - the history per key must be append-only: an edited turn forks at the edit as an undo, a rewritten middle replays fresh;

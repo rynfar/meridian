@@ -395,6 +395,35 @@ describe("POST /v1/chat/completions — non-streaming", () => {
       parent_tool_use_id: null,
     }])
   })
+
+  it("preserves base64 PDF file parts as document blocks for the SDK prompt", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "summarize this" },
+          { type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" } },
+        ],
+      }],
+    })
+
+    expect(res.status).toBe(200)
+    expect(capturedPromptMessages).toEqual([{
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "summarize this" },
+          { type: "document", title: "report.pdf", source: { type: "base64", media_type: "application/pdf", data: "JVBERi0x" } },
+        ],
+      },
+      parent_tool_use_id: null,
+    }])
+  })
 })
 
 describe("POST /v1/chat/completions — Jcode session continuity", () => {
