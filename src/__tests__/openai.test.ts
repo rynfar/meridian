@@ -402,6 +402,20 @@ describe("translateOpenAiToAnthropic", () => {
     }])
   })
 
+  // `refusal` is the spec's other assistant part type: its text is what the
+  // assistant said, so it is not an unsupported part.
+  it("keeps assistant refusal parts as assistant text", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        { role: "user", content: "do the thing" },
+        { role: "assistant", content: [{ type: "refusal", refusal: "I can't help with that." }] },
+        { role: "user", content: "ok" },
+      ],
+    }, { preserveConversationHistory: true })
+
+    expect(result!.messages[1]).toEqual({ role: "assistant", content: "I can't help with that." })
+  })
+
   it("sets stream from body", () => {
     const resultStream = translateOpenAiToAnthropic({
       messages: [{ role: "user", content: "Hi" }],

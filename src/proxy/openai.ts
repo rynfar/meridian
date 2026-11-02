@@ -51,6 +51,8 @@ export interface OpenAiContentPart {
     filename?: string
     file_id?: string
   }
+  /** Assistant `refusal` part text. */
+  refusal?: string
 }
 
 export interface OpenAiMessage {
@@ -467,6 +469,11 @@ function translateOpenAiContentToAnthropic(content: string | OpenAiContentPart[]
   for (const part of content) {
     if (part.type === "text" && typeof part.text === "string") {
       parts.push({ type: "text", text: part.text })
+      continue
+    }
+
+    if (part.type === "refusal" && typeof part.refusal === "string") {
+      parts.push({ type: "text", text: part.refusal })
       continue
     }
 
