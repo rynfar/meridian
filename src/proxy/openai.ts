@@ -45,6 +45,14 @@ export interface OpenAiContentPart {
   image_url?: {
     url?: string
   }
+  /** Chat Completions file input; only base64 PDF `file_data` is inlined. */
+  file?: {
+    file_data?: string
+    filename?: string
+    file_id?: string
+  }
+  /** Assistant `refusal` part text. */
+  refusal?: string
 }
 
 export interface OpenAiMessage {
@@ -394,6 +402,7 @@ export function extractOpenAiContent(content: string | OpenAiContentPart[]): str
     .map((p) => {
       if (p.type === "text" && typeof p.text === "string") return p.text
       if (p.type === "image_url") return "[Image attached]"
+      if (p.type === "file") return "[Document attached]"
       return ""
     })
     .filter(Boolean)
@@ -463,6 +472,11 @@ function translateOpenAiContentToAnthropic(content: string | OpenAiContentPart[]
       continue
     }
 
+    if (part.type === "refusal" && typeof part.refusal === "string") {
+      parts.push({ type: "text", text: part.refusal })
+      continue
+    }
+
     if (part.type === "image_url") {
       const url = part.image_url?.url
       if (typeof url === "string") {
@@ -473,6 +487,20 @@ function translateOpenAiContentToAnthropic(content: string | OpenAiContentPart[]
         }
       }
       parts.push({ type: "text", text: "[Unsupported image_url omitted: only data URLs are currently supported]" })
+      continue
+    }
+
+    if (part.type === "file") {
+      const data = part.file?.file_data
+      const document = typeof data === "string" ? parseDataUrlPdf(data, part.file?.filename) : null
+      parts.push(document ?? { type: "text", text: "[Unsupported file omitted: only base64 PDF data URLs are currently supported]" })
+      continue
+    }
+
+    // Dropping an unknown part silently hides input the client believes the
+    // model received; leave a visible note instead.
+    if (part.type !== "text") {
+      parts.push({ type: "text", text: `[Unsupported ${part.type} content part omitted]` })
     }
   }
 
@@ -496,6 +524,7 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
             .join("")
       }
       if (part.type === "image") return "[Image attached]"
+      if (part.type === "document") return "[Document attached]"
       return ""
     })
     .filter(Boolean)

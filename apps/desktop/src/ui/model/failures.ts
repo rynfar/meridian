@@ -45,7 +45,8 @@ export function groupFailures(requests: readonly RequestRow[], range?: { start: 
   const inRange = (row: RequestRow) => !range || (row.timestamp >= range.start && row.timestamp < range.end)
   const groups = new Map<string, RequestRow[]>()
   for (const row of requests) {
-    if (!row.failed || !inRange(row)) continue
+    // Cache-keepalive beats are not client requests; the summary excludes them too.
+    if (!row.failed || row.keepalive || !inRange(row)) continue
     const cause = failureCause(row)
     groups.set(cause, [...(groups.get(cause) ?? []), row])
   }
@@ -62,7 +63,9 @@ export function groupFailures(requests: readonly RequestRow[], range?: { start: 
     const who = profiles.length === 1 ? profiles[0] : 'the service'
     const served = later.filter(row => !row.failed).length
     if (later.length && served === later.length) outcome = { state: 'cleared', text: `Cleared on its own · ${who} has served every request since` }
-    else if (served > 0) outcome = { state: 'cleared', text: `Mostly cleared · ${served} of ${plural(later.length, 'request')} since succeeded` }
+    // "Cleared" needs most later requests to have worked; one success in 41 is still failing.
+    else if (served * 2 > later.length) outcome = { state: 'cleared', text: `Mostly cleared · ${served} of ${plural(later.length, 'request')} since succeeded` }
+    else if (served > 0) outcome = { state: 'ongoing', text: `Still failing · only ${served} of ${plural(later.length, 'request')} since succeeded` }
     else if (later.length) outcome = { state: 'ongoing', text: `Still failing · every request since has failed` }
     else if (laterAny.some(row => !row.failed)) outcome = { state: 'cleared', text: 'Requests have succeeded since on other accounts' }
     else outcome = { state: 'unknown', text: 'No requests since — it may still be failing' }

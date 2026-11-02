@@ -71,6 +71,19 @@ export function windowRange(kind: WindowKind, now: number): TimeRange {
 const rangeMs = (kind: WindowKind, now: number) => Math.max(1, now - windowRange(kind, now).start)
 export function summaryPath(kind: WindowKind, now: number): string { return `/telemetry/summary?window=${rangeMs(kind, now)}` }
 export function routesPath(kind: WindowKind, now: number): string { return `/telemetry/routes?window=${rangeMs(kind, now)}` }
+/**
+ * How long a window-scoped read may be reused between 10 s polls. Each read
+ * scans the window's rows synchronously in the proxy serving live traffic, so
+ * long windows are re-read less often; the totals heroes (summary) stay live
+ * for the short windows. A forced refresh, a window change or a moved range
+ * start always re-reads.
+ */
+export const windowReadTtl: Record<WindowKind, { summary: number; series: number }> = {
+  '1h': { summary: 0, series: 0 },
+  today: { summary: 0, series: 30_000 },
+  '24h': { summary: 30_000, series: 30_000 },
+  '7d': { summary: 60_000, series: 60_000 },
+}
 export function timeseriesPath(kind: WindowKind, now: number): string {
   const range = windowRange(kind, now)
   return `/telemetry/timeseries?start=${range.start}&end=${range.end}&bucket=${range.bucketMs}`
@@ -114,9 +127,11 @@ function median(values: number[]): number | null {
  * Client-side fallback for Meridian versions without /telemetry/timeseries:
  * bucket the recent-requests list over [start, end). Cost is unknown here
  * (no pricing table), so costUsd is null. `truncated` is set when the list
- * hit its fetch limit before reaching back to `start`.
+ * does not reach back to `start` and is either at its fetch limit or holds
+ * fewer requests than `expected` (the summary's total for the window; the list
+ * collapses failover chains, so it can stop short of the limit).
  */
-export function bucketRequests(requests: unknown, range: TimeRange, limit = 500): Timeseries {
+export function bucketRequests(requests: unknown, range: TimeRange, limit = 500, expected?: number): Timeseries {
   const list = rows(requests)
   const count = range.end > range.start ? Math.ceil((range.end - range.start) / range.bucketMs) : 0
   const groups: Record<string, unknown>[][] = Array.from({ length: count }, () => [])
@@ -130,6 +145,7 @@ export function bucketRequests(requests: unknown, range: TimeRange, limit = 500)
     if (timestamp < range.start || timestamp >= range.end) continue
     groups[Math.floor((timestamp - range.start) / range.bucketMs)]?.push(row)
   }
+  const counted = groups.reduce((total, items) => total + items.length, 0)
   const buckets = groups.map((items, index): TimeseriesBucket => {
     const hitRates = items.map(item => number(item.cacheHitRate)).filter((value): value is number => value !== undefined)
     const sum = (key: string) => items.reduce((total, item) => total + (number(item[key]) ?? 0), 0)
@@ -145,5 +161,5 @@ export function bucketRequests(requests: unknown, range: TimeRange, limit = 500)
       costUsd: null,
     }
   })
-  return { start: range.start, end: range.end, bucketMs: range.bucketMs, truncated: list.length >= limit && oldest > range.start, buckets, estimated: true }
+  return { start: range.start, end: range.end, bucketMs: range.bucketMs, truncated: oldest > range.start && (list.length >= limit || (expected !== undefined && counted < expected)), buckets, estimated: true }
 }

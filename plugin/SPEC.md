@@ -42,6 +42,25 @@ conversation identity and the right request shape:
   title/summary) keep the base (200k) subagent tier.
 - The Pi model catalog mirrors the server's effort list (`VALID_EFFORTS`); a
   test keeps them identical.
+- Pi's `allowNetwork: false` phase is cache-only and never contacts Meridian
+  (#1476), so a slow or hung Meridian cannot delay Pi's startup. Its answer is
+  never empty (`cacheOnlyModels`): the catalog last discovered from the same
+  Meridian URL while it is fresh; once expired, only while it still lists
+  every built-in model, since a catalog that lacks one usually predates the
+  Meridian version that ran setup; otherwise the built-in catalog. An
+  empty answer would leave Pi with no Meridian models on a fresh install or a
+  new URL: `--model meridian/…` would fail in every mode, and a
+  `defaultProvider`/`defaultModel` naming a Meridian model would start Pi on
+  its direct Anthropic provider, silently, whenever an Anthropic credential is
+  configured.
+- Discovery runs only when Pi permits network access, and only its result is
+  persisted. When it fails, or lists no Claude models, the extension answers
+  with the stored catalog if it is fresh (7 days); otherwise it throws, and Pi
+  records the error and keeps the list its cache-only phase published.
+- The built-in catalog mirrors what `/v1/models` serves without the legacy
+  Opus 4.6 1M entitlement or the 1M opt-out (`buildModelList(false)`); a test
+  keeps them identical. Setup installs it with the rest of the extension, so it
+  describes the Meridian version that ran setup.
 - `plugin/` ships in the npm package; the V1/V2 plugins are bundled into
   `dist/` by `scripts/build.ts`.
 
@@ -68,6 +87,23 @@ the exact admitted controller/results in the evidence record.
 
 ## Known limitations
 
+- With no catalog discovered from the configured URL, the built-in catalog
+  stands in until a discovery succeeds (interactive and RPC modes discover;
+  print mode never does). It shows Opus 4.6 at 200k even with the legacy 1M
+  entitlement, and 1M windows even under the 1M opt-out, where Meridian then
+  rejects requests past 200k instead of Pi compacting first. A Meridian of
+  another version at that URL (remote, or upgraded without rerunning setup)
+  may serve models it lacks, or lack models it lists. In that case the
+  coverage test can misjudge an expired catalog: one from a Meridian that has
+  removed a model gives way to the built-in catalog, and one that still lists
+  every built-in model keeps any model its Meridian has since removed. Within
+  the 7 days, a fresh catalog wins even if it lacks a model an upgrade added,
+  so print mode sees that model only after an interactive or RPC run or once
+  the catalog expires.
+- Pi updates a running session's model only when a provider is registered, not
+  when a discovery publishes a new catalog. A session that started on a
+  built-in or expired definition keeps it until the model is selected again
+  or Pi restarts.
 - The OpenCode **V1** plugin still declares compaction as a subagent
   (`plugin/meridian.ts`), so V1 compaction of an Opus/Fable `[1m]`
   conversation runs on the 200k tier. Unlike V2 it changes agent mode, which

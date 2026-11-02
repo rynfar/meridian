@@ -1,12 +1,11 @@
-name: Update plugin inputs
+name: Update plugins
 
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
-  # Event-driven bumps (#650): each meridian-plugin-* repo fires this on
-  # push to its default branch, so a plugin change lands here immediately
-  # instead of up to 24h late. The cron stays as a safety net.
+  # Event-driven runs (#650): each meridian-plugin-* repo fires this on
+  # push to its default branch. The cron stays as a safety net.
   repository_dispatch:
     types: [plugin-updated]
 
@@ -20,11 +19,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
 
-      - name: Bump plugin inputs and verify each still builds
+      - name: Update each plugin to its latest release and verify it still builds
         run: |
-          for input in $(nix flake metadata --json | jq -r '.locks.nodes.root.inputs | keys[] | select(startswith("meridian-plugin-"))'); do
-            nix flake update "$input"
-            nix build ".#meridianPlugins.${input#meridian-plugin-}" --no-link --print-out-paths
+          for plugin in nix/pkgs/meridianPlugins/*/; do
+            name=$(basename "$plugin")
+            nix run --inputs-from . nixpkgs#nix-update -- --flake \
+              --version-regex meridian-plugin-"$name"-v'(.*)' \
+              legacyPackages.x86_64-linux.meridianPlugins."$name"
+            nix build --no-link --print-out-paths .#meridianPlugins."$name"
           done
 
       # All changes reach main through PRs. Re-runs update the same branch.
@@ -33,12 +35,13 @@ jobs:
       # The plugin builds above are an additional gate, not a CI bypass.
       - uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: "chore: update plugin flake inputs"
-          title: "chore: update plugin flake inputs"
+          commit-message: "chore: update plugins"
+          title: "chore: update plugins"
           body: |
-            Automated bump of the `meridian-plugin-*` flake inputs.
-            Every plugin was rebuilt against its new pin before this PR was
-            opened — a failing build blocks the bump entirely.
-          branch: chore/update-plugin-inputs
-          add-paths: flake.lock
+            Automated `nix-update` of the `meridianPlugins` versions and hashes
+            to each plugin's latest release. Every plugin was rebuilt at its new
+            version before this PR was opened — a failing build blocks the bump
+            entirely.
+          branch: chore/update-plugins
+          add-paths: nix/pkgs/meridianPlugins
           delete-branch: true

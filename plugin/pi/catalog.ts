@@ -12,7 +12,11 @@ export type MeridianModelConfig = ProviderChatModelConfig & {
 }
 
 export const DEFAULT_BASE_URL = "http://127.0.0.1:3456"
-/** Bounds how stale a stored catalog can be if discovery never succeeds again. */
+/**
+ * How long a stored catalog stands in for a failed discovery. An older one is
+ * still Pi's startup answer when nothing fresher is stored, but no longer
+ * hides the failure.
+ */
 export const STORED_CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1_000
 
 const UNKNOWN_MAX_TOKENS = 8_192
@@ -32,6 +36,31 @@ export interface CatalogModel {
   enabledThinking?: boolean
   efforts?: readonly Effort[]
 }
+
+const ADAPTIVE_AND_ENABLED = { imageInput: true, thinking: true, adaptiveThinking: true, enabledThinking: true, efforts: MERIDIAN_PI_EFFORTS }
+const ADAPTIVE_ONLY = { ...ADAPTIVE_AND_ENABLED, enabledThinking: false }
+
+/**
+ * The Anthropic models this Meridian version serves, as `/v1/models` lists
+ * them without the legacy Opus 4.6 1M entitlement or the 1M opt-out. Pi's
+ * cache-only phase answers with it when no catalog from this Meridian URL is
+ * stored; it is never persisted. Mirrors `buildModelList(false)` in
+ * `src/proxy/openai.ts`; a test asserts the two stay identical.
+ */
+export const BUILTIN_CATALOG: readonly CatalogModel[] = [
+  { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-sonnet-5", name: "Claude Sonnet 5", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", contextWindow: 200_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-opus-5-5", name: "Claude Opus 5.5", contextWindow: 1_000_000, ...ADAPTIVE_ONLY },
+  { id: "claude-opus-5", name: "Claude Opus 5", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-opus-4-6", name: "Claude Opus 4.6", contextWindow: 200_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-opus-4-7", name: "Claude Opus 4.7", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-opus-4-8", name: "Claude Opus 4.8", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-fable-5-1", name: "Claude Fable 5.1", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-fable-5", name: "Claude Fable 5", contextWindow: 1_000_000, ...ADAPTIVE_AND_ENABLED },
+  { id: "claude-haiku-5-5", name: "Claude Haiku 5.5", contextWindow: 1_000_000, ...ADAPTIVE_ONLY },
+  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", contextWindow: 200_000, ...ADAPTIVE_AND_ENABLED },
+]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -111,6 +140,8 @@ export async function fetchCatalog(
   if (!response.ok) throw new Error(`Meridian model discovery failed with HTTP ${response.status}`)
   const models = parseCatalog(await response.json())
   if (!models) throw new Error("Meridian returned a malformed model catalog")
+  // Meridian always lists its Claude models, so an empty list is not Meridian's.
+  if (models.length === 0) throw new Error("Meridian's model catalog lists no usable Claude models")
   return models
 }
 
@@ -182,15 +213,16 @@ export function catalogStoreEntry(
 /**
  * Models from Pi's stored catalog snapshot, or undefined when there is none
  * usable. A snapshot discovered from another base URL describes another
- * Meridian and is never applied; one older than the TTL is treated as gone.
+ * Meridian and is never applied; one older than `maxAgeMs` is treated as gone.
  */
 export function restoreModels(
   stored: Readonly<ModelsStoreEntry> | undefined,
   baseUrl: string,
   now: number,
+  maxAgeMs = STORED_CATALOG_TTL_MS,
 ): MeridianModelConfig[] | undefined {
   const checkedAt = stored?.checkedAt
-  if (!stored || checkedAt === undefined || checkedAt > now || now - checkedAt > STORED_CATALOG_TTL_MS) return undefined
+  if (!stored || checkedAt === undefined || checkedAt > now || now - checkedAt > maxAgeMs) return undefined
   const models: MeridianModelConfig[] = []
   for (const model of stored.models) {
     if (!isAnthropicModel(model) || model.baseUrl !== baseUrl) return undefined
@@ -198,4 +230,23 @@ export function restoreModels(
     models.push({ ...definition, compat: { ...compat } })
   }
   return models.length > 0 ? models : undefined
+}
+
+/**
+ * Pi's cache-only startup answer, never empty. This URL's catalog while it is
+ * fresh; once expired, only while it still lists every built-in model, so an
+ * upgrade's new models reach print mode once the old catalog expires;
+ * otherwise the built-in catalog.
+ */
+export function cacheOnlyModels(
+  stored: Readonly<ModelsStoreEntry> | undefined,
+  baseUrl: string,
+  now: number,
+  builtIn: readonly MeridianModelConfig[],
+): MeridianModelConfig[] {
+  const fresh = restoreModels(stored, baseUrl, now)
+  if (fresh) return fresh
+  const expired = restoreModels(stored, baseUrl, now, Number.POSITIVE_INFINITY)
+  const ids = new Set(expired?.map((model) => model.id))
+  return expired && builtIn.every((model) => ids.has(model.id)) ? expired : [...builtIn]
 }

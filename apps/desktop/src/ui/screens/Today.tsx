@@ -10,15 +10,16 @@ import { Avatar } from '../components/brand'
 import { GlyphItem } from '../components/glyph'
 import { LimitBar, LimitTrack, windowTitle } from '../components/limit'
 import { PromptRibbon, RibbonCell, RibbonLegend } from '../components/ribbon'
-import { ConnectionProblem, Skeleton } from '../components/state'
+import { ConnectionProblem, ReadFailed, Skeleton } from '../components/state'
 import { AxisLabels, DayStrip } from '../charts/spark'
-import { fmtInt, fmtTok, hhmm, pct, plural, relative, seconds } from '../model/format'
+import { fmtInt, fmtTok, hhmm, pct, percentFigure, plural, relative, seconds } from '../model/format'
 import { promptShare, stripColumns } from '../model/prompt'
-import { axisLabels, bucketWord, chartSeries, firstFutureSlot, nowFraction, slots } from '../model/series'
-import { attention, attentionFootnote, feedRows, hero, heroPromptDetail } from '../model/today'
+import { axisLabels, bucketWord, chartSeries, firstFutureSlot, historyNote, nowFraction, slots } from '../model/series'
+import { attention, attentionFootnote, feedRows, hero, heroPromptDetail, requestCoverage } from '../model/today'
 import { accountAction, type AccountView } from '../model/accounts'
-import { accountsRead } from '../model/status'
+import { accountsRead, sourceRead, summaryScope } from '../model/status'
 import { pageShortcut, type Navigate } from '../shell/nav'
+import { windowRange } from '../../uiData'
 
 export function Today({ navigate }: { navigate: Navigate }) {
   const { state, now, run, busy } = useDesktop()
@@ -36,20 +37,27 @@ export function Today({ navigate }: { navigate: Navigate }) {
   const labels = axisLabels(kind, series?.series, now)
   const feed = feedRows(requests)
   const others = accounts.accounts.filter(account => account.provider !== 'antigravity' && account.id !== serving?.id)
-  const summaryLoading = state.summary === null
+  const summaryRead = sourceRead(state, 'summary')
+  const requestsRead = sourceRead(state, 'requests')
+  const scope = summaryScope(state)
+  const scopeNote = scope === 'service' ? <span className="ml-1 font-normal normal-case tracking-normal text-t3">· since the service started</span> : null
+  const coverage = requestCoverage(requests, state.summary, windowRange(kind, now).start)
+  const note = historyNote(series)
+  const refresh = () => { void run('refresh') }
   const generating = h.totalP50 !== null && h.ttfbP50 !== null ? Math.max(0, h.totalP50 - h.ttfbP50) : null
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_312px]">
       <section className="flex min-h-0 min-w-0 flex-col px-[26px] pb-[18px] pt-[22px]">
         <div className="grid grid-cols-[1.15fr_1fr] gap-9">
-          {summaryLoading ? <><HeroSkeleton /><HeroSkeleton /></> : <>
-            <Hero label={<><Swatch className="bg-cache" />Prompt from cache</>}
-              figure={prompt.share === null ? '—' : Math.round(prompt.share * 100)} unit={prompt.share === null ? undefined : '%'}
+          {summaryRead.kind === 'failed' ? <ReadFailed what="the totals for this window" message={summaryRead.message} busy={busy} onRetry={refresh} className="col-span-2 py-3" />
+            : summaryRead.kind === 'loading' ? <><HeroSkeleton /><HeroSkeleton /></> : <>
+            <Hero label={<><Swatch className="bg-cache" />Prompt from cache{scopeNote}</>}
+              figure={prompt.share === null ? '—' : percentFigure(prompt.share)} unit={prompt.share === null ? undefined : '%'}
               strip={<PromptRibbon tokens={prompt} size="hero" />}
               caption={prompt.total ? <span title={heroPromptDetail(prompt, h.missesOnResume)}><b>{fmtTok(prompt.read)}</b> of {fmtTok(prompt.total)} prompt tokens reused · {plural(h.missesOnResume, 'miss', 'misses')} on resume</span> : 'No prompt tokens in this window yet'} />
-            <Hero label="Requests" figure={fmtInt(h.requests ?? 0)}
-              side={h.failed ? <span className="text-red">{fmtInt(h.failed)} failed</span> : <span className="text-t4">none failed</span>}
+            <Hero label={<>Requests{scopeNote}</>} figure={fmtInt(h.requests ?? 0)}
+              side={h.failed ? <span className="text-red">{fmtInt(h.failed)} failed</span> : <span className="text-t3">none failed</span>}
               strip={<LatencySplit ttfb={h.ttfbP50} generating={generating} />}
               caption={h.totalP50 !== null ? <>median <b>{seconds(h.totalP50)}</b> · first token after {seconds(h.ttfbP50)}</> : 'Timings appear with the first request'} />
           </>}
@@ -62,22 +70,23 @@ export function Today({ navigate }: { navigate: Navigate }) {
           </div>
           {series ? <DayStrip columns={columns} now={nowFraction(kind, now)} className="mt-2.5" /> : <Skeleton className="mt-2.5 h-[111px]" />}
           <AxisLabels labels={labels} quarters={kind === 'today'} />
-          {series?.estimated ? <div className="mt-1 text-meta text-t4" title={series.note}>Estimated from the latest requests; this Meridian has no hourly history.</div> : null}
+          {note ? <div className="mt-1 text-meta text-t3" title={series?.note}>{note}</div> : null}
         </div>
 
         <div className="mt-6 flex min-h-0 flex-1 flex-col">
           <div className="rule-b flex items-baseline gap-2.5 pb-[7px]">
             <Label strong>Live</Label>
-            <span className="num text-sm text-t3">· {feed.length} latest</span>
+            {requestsRead.kind === 'ready' ? <span className="num text-sm text-t3">· {feed.length} latest</span> : null}
             <Button variant="text" size="sm" className="ml-auto gap-1.5" onClick={() => navigate('traffic')}>Open Traffic <Kbd>{pageShortcut.traffic}</Kbd></Button>
           </div>
-          {state.requests === null ? <div className="mt-2 flex flex-col gap-2">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-5" />)}</div> : feed.length ? (
+          {requestsRead.kind === 'failed' ? <ReadFailed what="the latest requests" message={requestsRead.message} busy={busy} onRetry={refresh} className="mt-3" />
+            : state.requests === null ? <div className="mt-2 flex flex-col gap-2">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-5" />)}</div> : feed.length ? (
             <div className="scroll-y -mx-2 mt-0.5 min-h-0 flex-1">
               {feed.map(row => (
                 <button key={row.id || row.timestamp} type="button" onClick={() => navigate('traffic', { request: row.id })}
                   className="num grid h-[29px] w-full animate-fade grid-cols-[44px_92px_minmax(0,1fr)_150px_44px_52px] items-center gap-x-3.5 rounded-md px-2 text-left text-base transition-colors duration-150 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
-                  <span className="text-t4">{hhmm(row.timestamp)}</span>
-                  <span className="truncate font-medium text-t1">{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold tracking-[0.02em] text-t4">1M</sup> : null}</span>
+                  <span className="text-t3">{hhmm(row.timestamp)}</span>
+                  <span className="truncate font-medium text-t1">{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold tracking-[0.02em] text-t3">1M</sup> : null}</span>
                   <span className="truncate text-t3">{row.client} · {row.profile}{row.lineage ? ` · ${row.lineage}` : ''}</span>
                   {row.failed ? <span className="truncate text-red" title={row.failure}>{row.failure}</span> : <RibbonCell tokens={{ read: row.cacheRead, write: row.cacheWrite, fresh: row.inputTokens }} />}
                   <span className="text-right font-medium text-cache">{row.failed || row.cacheHit === null ? '' : pct(row.cacheHit)}</span>
@@ -100,9 +109,10 @@ export function Today({ navigate }: { navigate: Navigate }) {
             ) : (
               <GlyphItem key={`fail-${item.group.cause}`} kind="bad" title={item.group.cause} detail={item.group.detail}
                 outcome={<span className={item.group.outcome.state === 'cleared' ? 'text-green' : item.group.outcome.state === 'ongoing' ? 'text-red' : 'text-t3'}>{item.group.outcome.state === 'cleared' ? '✓ ' : ''}{item.group.outcome.text}</span>} />
-            )) : <GlyphItem kind="ok" title="Nothing needs attention" detail="Accounts have room and no requests failed in this window." />}
+            )) : requestsRead.kind === 'ready' ? <GlyphItem kind="ok" title="Nothing needs attention" detail="Accounts have room and no requests failed in this window." /> : null}
           </div>
-          <button type="button" onClick={() => navigate('traffic', { filter: 'errors' })} className="mt-3 px-0.5 text-left text-xs text-t4 transition-colors hover:text-accent">{attentionFootnote(h.failed, kind)}</button>
+          {/* The count comes from the summary: without it, say nothing rather than "no failed requests". */}
+          {summaryRead.kind === 'ready' ? <button type="button" onClick={() => navigate('traffic', { filter: 'errors' })} className="mt-3 px-0.5 text-left text-xs text-t3 transition-colors hover:text-accent">{attentionFootnote(h.failed, kind, scope)}{coverage.partial && h.failed ? ' · causes above are from the latest requests' : ''}</button> : null}
         </div>
       </aside>
     </div>
@@ -140,9 +150,9 @@ function ServingPanel({ serving, others, navigate }: { serving: AccountView | un
     <Panel className="flex min-h-0 shrink-0 flex-col pb-1.5">
       <div className="flex items-center gap-2.5">
         <Avatar id={serving.id} provider={serving.provider} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-md font-semibold leading-tight tracking-title text-t1">
-            {serving.id}
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5 text-md font-semibold leading-tight tracking-title text-t1">
+            <span className="truncate" title={serving.id}>{serving.id}</span>
             <Tip content={accounts.follow ? 'Following the active account of another Meridian' : 'Serving requests now'}><span className="inline-flex"><Dot tone="accent" size={6} /></span></Tip>
             {accounts.follow ? <span className="text-xs font-normal text-t3">following</span> : null}
           </div>
@@ -153,8 +163,8 @@ function ServingPanel({ serving, others, navigate }: { serving: AccountView | un
         <LimitBar name="5-hour" window={serving.fiveHour} now={now} className="mt-3.5" />
         <LimitBar name="Weekly" window={serving.weekly} now={now} className="mt-3.5" />
       </>}
-      {serving.extraUsage ? <div className="mt-2.5 text-xs text-t4">{serving.extraUsage.summary}</div> : null}
-      {serving.usageNote && !serving.needsLogin ? <div className="mt-1 text-xs text-t4">{serving.usageNote}</div> : null}
+      {serving.extraUsage ? <div className="mt-2.5 text-xs text-t3">{serving.extraUsage.summary}</div> : null}
+      {serving.usageNote && !serving.needsLogin ? <div className="mt-1 text-xs text-t3">{serving.usageNote}</div> : null}
       {others.length ? <>
         <div className="-mx-4 mb-1 mt-3.5 h-[.5px] bg-ring" />
         <div className="scroll-y -mr-1 max-h-[184px] pr-1">
@@ -163,14 +173,14 @@ function ServingPanel({ serving, others, navigate }: { serving: AccountView | un
             const action = accountAction(account, Boolean(accounts.follow), now)
             return (
               <div key={account.id} className="grid h-[30px] grid-cols-[minmax(0,1fr)_54px_78px] items-center gap-2.5 text-cap">
-                <span className="truncate font-medium text-t1" title={account.email}>{account.id}<small className="ml-[5px] text-xs font-normal text-t4">{account.plan}</small></span>
+                <span className="truncate font-medium text-t1" title={account.email}>{account.id}<small className="ml-[5px] text-xs font-normal text-t3">{account.plan}</small></span>
                 <Tip content={`${[account.fiveHour, account.weekly].filter(w => w !== undefined).map(w => windowTitle(w, now)).join(' · ') || 'No reading'}${account.usageNote ? ` · ${account.usageNote}` : ''}`}>
                   <div><LimitTrack window={window} now={now} label={`${account.id} usage`} /></div>
                 </Tip>
                 <span className="text-right text-meta font-medium">
                   {action.kind === 'sign-in' ? <span className="text-red">needs sign-in</span>
                     : action.kind === 'held' ? <span className="text-yellow">{action.text}</span>
-                    : action.kind === 'followed' ? <span className="font-normal text-t4">followed</span>
+                    : action.kind === 'followed' ? <span className="font-normal text-t3">followed</span>
                     : action.kind !== 'use' ? null
                     : <Button variant="text" size="sm" className="text-meta" disabled={!canSwitch} onClick={() => { void run('switch-profile', account.id) }} aria-label={`Use ${account.id}`}>Use</Button>}
                 </span>

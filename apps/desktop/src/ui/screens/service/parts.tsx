@@ -25,7 +25,7 @@ export function SettingRow({ label, htmlFor, control, description, status, env, 
         {control ? <div className="flex shrink-0 items-center gap-2">{control}</div> : null}
       </div>
       {description ? <p className="mt-0.5 max-w-[580px] text-sm leading-relaxed text-t3 [text-wrap:pretty]">{description}</p> : null}
-      {status?.filter(Boolean).map((line, index) => <p key={index} className="num mt-0.5 text-xs text-t4">{line}</p>)}
+      {status?.filter(Boolean).map((line, index) => <p key={index} className="num mt-0.5 text-xs text-t3">{line}</p>)}
       {env ? <p className="mt-0.5 text-xs text-yellow">{env}</p> : null}
     </div>
   )

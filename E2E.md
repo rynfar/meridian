@@ -1,7 +1,21 @@
 ## Pi extension (#1408)
 
-Two harnesses use the actual Pi CLI with the extension that
-`meridian setup --client pi` installs into a scratch `PI_CODING_AGENT_DIR`:
+Three harnesses use the actual Pi CLI with the extension that
+`meridian setup --client pi` installs, or loads directly, in a scratch
+`PI_CODING_AGENT_DIR`:
+
+- `node scripts/e2e-pi-startup.mjs --pi=<pi>` needs no credentials or internet
+  access and makes no model calls (#1476). Against a loopback Meridian that
+  accepts connections but never replies, Pi must answer RPC `get_state` within
+  2 s: with a cold catalog, with a stored one, and offline without contacting
+  Meridian. With a cold catalog it must also select a built-in Meridian model,
+  through `--model meridian/…` and through `defaultProvider`/`defaultModel`
+  beside an Anthropic key. It must keep that model after the background
+  discovery is abandoned, and in print mode send the turn to Meridian without
+  requesting its catalog. Against a responsive stub it must persist the
+  discovered catalog. Every case runs and reports.
+  `--extension=<dir>/plugin/pi/index.ts` runs it against another tree's
+  extension.
 
 - `bun scripts/e2e-pi-extension-side-calls.mjs --pi=<pi>` needs no
   credentials. It drives Pi's RPC mode against a recording stub with canned SSE
@@ -16,13 +30,42 @@ Two harnesses use the actual Pi CLI with the extension that
   in-process Meridian and real Claude: a Haiku tool loop, a
   `MERIDIAN_SOURCE=subagent-e2e` child and Opus 5.5 at high effort. Meridian
   loads only the named Pi scrub (`E2E_SCRUB_VERSION` pins its version), which
-  must be active and must process the requests. It asserts model discovery,
-  the wire identity and Meridian's adapter/source telemetry, and reports
-  generation separately.
+  must be active and must process the requests. Print mode never discovers,
+  so the harness first runs the extension's discovery against that Meridian
+  and stores the result; `--cold-catalog` skips that, runs every turn on the
+  extension's built-in catalog and asserts that no Meridian catalog is
+  persisted. (That print mode requests no catalog is asserted by the startup
+  harness.) It asserts the wire identity and Meridian's adapter/source
+  telemetry, and reports generation separately.
 
 Pass the Pi executable explicitly. A version manager can select a
 project-local Pi from the working directory. Run under a qualified SQLite
 runtime (see `src/proxy/session/bookkeeping/nativeDatabase.ts`).
+
+Recorded 2026-11-01 on Darwin arm64, Node 22.22.3, Pi 1.4.0 and 1.3.0 (#1476):
+- **Startup harness:** all seven cases pass with the built-in catalog.
+  - main's extension, which fetches the catalog during the cache-only phase,
+    waits 3.6–3.9 s for the hung Meridian and fails every cold Meridian-model
+    case. In print mode it requests the catalog, and on some runs Pi exits
+    before the catalog arrives.
+  - The PR's first head (strict cache-only, `ef3ac97e`) fails the three cold
+    Meridian-model cases.
+- **Interactive mode** has no harness and was checked by hand.
+  - Setup: a scratch `PI_CODING_AGENT_DIR` holding only `settings.json` (and
+    the Anthropic store seed the startup harness writes). `MERIDIAN_BASE_URL`
+    points at a loopback server that accepts connections and never replies.
+  - Run Pi under a terminal (or `python3 -c 'import pty,sys; pty.spawn(sys.argv[1:])' pi …`)
+    with `--no-session --no-extensions -e plugin/pi/index.ts
+    --model meridian/claude-haiku-5-5`.
+  - Result: with the built-in catalog the TUI stays up past 8 s; `ef3ac97e`
+    exits 1 with `Model … not found`.
+- **Side-call harness:** passes on both versions.
+- **Live run:** the Claude harness with `--cold-catalog` (pi-scrub 0.2.3,
+  Pi 1.4.0, read-only credentials, included usage) ran from a cold catalog.
+  The Haiku tool loop stayed on one signed turn, the `subagent-e2e` child kept
+  its source, and Opus 5.5 at high effort answered, with every identity
+  assertion passing. No Meridian catalog was persisted. The scrub processed
+  all 4 requests.
 
 Recorded 2026-10-25 on Darwin arm64, Bun 1.3.14, Node 22.22.3: the side-call
 harness passed on Pi 1.4.0 and 1.3.0, with two compaction requests each. The
@@ -48,6 +91,40 @@ base `opus` tier while the parent stayed signed on `opus[1m]`
 A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
+
+## Claude Code's own tool search in passthrough (#1478)
+
+`node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
+against a built Meridian (`npm run build` first). Set `E2E_CLAUDE_BIN` to an
+absolute Claude Code executable. The client gets a stdio MCP server with 22
+`ledger_*` tools and `ENABLE_TOOL_SEARCH` on or off, and is asked to call
+specific tools.
+- **Assertion:** the MCP server's own call log, never model wording. For
+  `--expect=pass`, every target tool was called with the fixture arguments, in
+  order in `--mode=chain`. For `--expect=fail`, none was (the unchanged-main
+  control).
+- **Upstream:** `--upstream=scripted` (the default) points Meridian at a
+  scripted Messages API that applies the API's `tool_reference` rule: a
+  `defer_loading` tool becomes callable only once a reference names it. It
+  needs no credentials and makes no model calls. `--mode=bare-name` scripts a
+  model that copies the name from a `[Tool reference: …]` note verbatim (the
+  #1107 failure). `--upstream=live` uses the default Claude login read-only and
+  requires `E2E_ALLOW_LIVE_MODEL=1`. It sets `MERIDIAN_OPUS_MODEL=opus` so an
+  Opus run cannot bill the `[1m]` variant as Extra Usage.
+- **Exit codes:** 0 for the expected outcome, 1 otherwise, and 2 on a usage,
+  billing or auth refusal. On 2, stop: do not retry on another account.
+
+Recorded 2026-11-02 on Darwin arm64 with Claude Code 2.1.316, Agent SDK 0.2.141
+and Node 22.22.3, during the #1478 review:
+- **Live:** with tool search on, unchanged main fails on Sonnet 5.5, and the
+  fix passes on Sonnet 5.5 and Opus 5.5. The tool-search-off control passes
+  (`deferred=40/44`).
+- **E41:** all four modes pass on the fix and on main.
+- **Scripted:** see the self-test below.
+
+Self-test of this script from the repository, scripted upstream, no model calls:
+- **main `7a971fd1`:** `single`, `chain`, `parallel` and `bare-name` with tool search on, and `single` with it off, all pass. Every rendered reference names the registered `mcp__oc__…` tool.
+- **Before #1478 (`c6ec3a92`):** `single` with tool search on fails as expected: no MCP call, and the inner CLI replaces the reference with `Tool references removed`.
 
 ## Awaited session-cache cleanup (#1244/#1277)
 
@@ -8195,7 +8272,8 @@ from its tarball or the public registry, and pass the absolute path to its
 `dist/index.js` as `E2E_PLUGIN_PATH`. They use isolated config, sessions, ports,
 and project directories and consume Claude Max quota. Keep the generated local
 artifact private because it contains client and proxy logs. For a Nix plugin
-build, point `E2E_PLUGIN_PATH` at the output's `lib/index.js` instead.
+build, point `E2E_PLUGIN_PATH` at the package's `.path`, the output's
+`lib/node_modules/@rynfar/<pname>/dist/index.js`.
 Set `E2E_EXPECT_MERIDIAN_VERSION` for a release gate so the harness asserts
 and reports the exact Meridian package version under test.
 
@@ -8422,7 +8500,9 @@ python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
 ```
 
 `shoot.py` screenshots every screen in light and dark (ok data, the estimated
-timeseries fallback, stopped, unauthorized and loading) plus the tray, and
+timeseries fallback, stopped, unauthorized, loading, partial — one read
+failing while `/health` answers — and switched, where the selection differs
+from the account that served the latest request) plus the tray, and
 exits 1 on any console error, page error or CSP violation.
 
 **Verified 2026-10-28** (maintainer, macOS arm64, Electron 44.3.0): the built
@@ -8437,6 +8517,61 @@ with zero console or CSP problems; the estimated-history fallback showed for
 *Reload window*. The installed app's `desktop.json` hash was unchanged and no
 process outlived the run. `/telemetry/timeseries` was covered by HTTP tests
 only, since that service predates it.
+
+**Post-merge review follow-up, verified 2026-10-29** (maintainer, macOS arm64,
+Electron 44.3.0): the fixes from two adversarial post-merge reviews were
+launched the same way (isolated `--user-data-dir`, read-only GETs only) against
+the owner's launchd Meridian 1.86.0 on 127.0.0.1:3456. Detection attached to
+the launchd job without starting a managed copy (nothing listened on :3489);
+the connection read `ok` with 500 requests, no data errors and no API key
+sent; Today, Traffic, Cache and Accounts rendered real traffic with zero
+console or CSP problems; Traffic showed the retention line ("3,507 requests
+in SQLite · 7d retention · …"); Today and Cache said the history is estimated
+for 1.86.0; the explicit *Refresh* action advanced `lastChecked`. The installed
+app's `desktop.json` hash was unchanged and no process outlived the run. The
+saved-key binding, failed-read states, partial history, benched accounts and
+DST slots are covered by HTTP tests against in-test services and by the preview
+harness's `partial` fixture (one read failing while `/health` answers); none of
+them can be produced on the owner's service without changing it.
+
+**Active account on Accounts, verified 2026-10-30** (same setup, read-only):
+on the owner's service (routing `active`) exactly one card carried the accent
+ring and "Serving now" — `personal`, the selected account — with "Active" in
+its action slot and "Routing active · serving personal" in the header; no
+mismatch note, since `personal` also served the latest request; zero console
+problems. The mismatch notes ("Latest request went to …" / "Served the latest
+request · … is selected") are covered by model tests and the preview harness's
+`switched` fixture, since producing one live would mean switching the owner's
+account.
+
+**Installed from main, 2026-10-30** (maintainer, macOS arm64, Electron 44.3.0):
+`1.87.0-local.2` was built from `5de4cf3ec` (#1473) with the release workflow's
+electron-builder command. It is signed `Developer ID Application: Trevor Walker
+(ZCL6PL2MJJ)` with the hardened runtime and is not notarized: the CI notarization
+key returns 401. `codesign --verify --deep --strict` passed; `spctl -a -vv`
+rejected it as `Unnotarized Developer ID`. It replaced `1.87.0-local.1` in
+`/Applications` and was relaunched normally (launchd parent, no debugging port).
+A shell that sets `ELECTRON_RUN_AS_NODE=1`, as Electron-hosted terminals do,
+passes it through `open`, and the app then exits at once as Node; launch from
+Finder or with a clean environment. Checks were read-only against the owner's
+launchd Meridian 1.86.0 on 127.0.0.1:3456, with the UI read from an isolated
+copy seeded with the same `desktop.json`:
+
+1. The installed app kept its settings (`desktop.json` hash unchanged), held
+   only connections to :3456 and started no child; nothing listened on :3489.
+   The copy attached to the launchd job and read `ok` with 500 requests and no
+   data errors.
+2. On Accounts exactly one Claude card carried the ring, "Serving now" and
+   "Active" — `personal`, the selected account — and the header read "Routing
+   active · serving personal".
+3. Key binding: not applicable; `desktop.json` holds no saved key.
+4. Today, Traffic, Cache and Accounts rendered real data with zero console
+   problems; Traffic showed the retention line; Today and Cache said the
+   history is estimated; ⌘R advanced `lastChecked`.
+5. Not verified: the service is still 1.86.0 (`/telemetry/timeseries` answers
+   404), so the server timeseries and its 24h/7d re-read remain outstanding.
+6. Afterwards only the installed app was running, and the service answered
+   `/health` with 200 under the same process.
 
 ## SDK ping idle regression (#1177)
 

@@ -31,16 +31,21 @@ owner 2026-10-28 from the Today specimen
 | ring | `rgba(0,0,0,.075)` | `rgba(255,255,255,.07)` |
 | ring-strong | `rgba(0,0,0,.12)` | `rgba(255,255,255,.12)` |
 | hover | `rgba(0,0,0,.035)` | `rgba(255,255,255,.035)` |
-| text t1 / t2 / t3 / t4 | `#1b1b1e` `#46464c` `#7a7a82` `#a6a6ad` | `#ececee` `#b6b6bc` `#86868e` `#5c5c64` |
+| text t1 / t2 / t3 / t4 | `#1b1b1e` `#46464c` `#6a6a72` `#a6a6ad` | `#ececee` `#b6b6bc` `#8a8a92` `#5c5c64` |
 | cache (= brand violet `--accent2`) | `#8250b5` | `#bc8cff` |
 | cache-write | cache at 42% | cache at 38% |
 | fresh | `#c9c9ce` | `#3b3b41` |
-| accent (interactive) | `#1f6fd6` | `#5aa3ff` |
-| ok / warn / bad | `#2c8a52` `#a96d00` `#cf3f3a` | `#4cc283` `#e0a83e` `#f2645e` |
+| accent (interactive) | `#1767ce` | `#5aa3ff` |
+| ok / warn / bad | `#1c7a42` `#985c00` `#c4342f` | `#4cc283` `#e0a83e` `#f2645e` |
 
 Colour rules: violet means cache, blue means interactive or active; ok/warn/bad
 appear only as marks (dots, glyphs, small text, bar fills of usage), never as
 tinted backgrounds behind text.
+
+Contrast: t1–t3, accent, cache and ok/warn/bad reach WCAG AA (4.5:1) on every
+surface (canvas, raised, raised-2, well) in both appearances. **t4 never
+carries information**: it is for marks, tick labels' rules, placeholders and
+disabled glyphs only. Times, resets, pace, counts and notes are t3.
 
 ## Depth
 
@@ -56,9 +61,9 @@ per screen region that the user acts on (Today: the serving account).
 | Hero figure | 44 / 600 / t1 | tracking −0.035em, unit at 22 / 500 / t3 |
 | Screen title | 15 / 600 / t1 | tracking −0.01em |
 | Section label | 12 / 500 / t3 (t2 for list headers) | sentence case, never uppercase |
-| Body / rows | 13 / 400–500 | names 500 t1, metadata t3, times t4 |
+| Body / rows | 13 / 400–500 | names 500 t1, metadata and times t3 |
 | Caption | 12.5 / 400 / t3 | key value inside at t2 / 500 |
-| Micro | 11–11.5 / 400 / t4 | resets, pace, legends |
+| Micro | 11–11.5 / 400 / t3 | resets, pace, legends |
 
 All numbers `tabular-nums`. Hierarchy from weight and the four text levels
 before size.
@@ -85,7 +90,7 @@ padding 14×16px. Radii: panel 10, row/hover 6, segmented 7/5, tracks 2, ribbons
   the window already elapsed; beneath: "on pace / ahead of pace (warn) /
   under pace" left, reset time right, both micro.
 - **Native list** — grid rows 29px, no borders or zebra; header underlined by
-  the ring; hover/selection = full-row `hover` fill radius 6; times t4,
+  the ring; hover/selection = full-row `hover` fill radius 6; times t3,
   names 500, metadata t3, numbers right-aligned tabular. Failures replace the
   ribbon with "HTTP 500 · api_error" in bad.
 - **Status line** — dot (7px) + text t2 + context t3; never a boxed chip.
@@ -93,11 +98,14 @@ padding 14×16px. Radii: panel 10, row/hover 6, segmented 7/5, tracks 2, ribbons
   raised with ring-strong + 1px shadow, t1; others t3.
 - **Attention item** — 14px stroke glyph (warn triangle, bad circle-x, ok
   check) + title 500 + detail t3 + outcome in ok/warn text.
-- **Account row** — name 500 + plan t4 (11px) + 54px mini track + action text
+- **Account row** — name 500 + plan t3 (11px) + 54px mini track + action text
   ("Use" accent, "until 10:59" warn). Active = blue 6px dot after the name.
+- **Account card** (Accounts) — raised panel; the selected account adds a
+  1.5px accent outline, "Serving now" (accent, 12/500, with the 6px dot) after
+  the name and "Active" (t2, 500) in the action slot. Cards stay in pool order.
 - **Shortcut hint** — `kbd`: 10.5/500 t3, ring-strong inset, radius 4.
 - **Sidebar nav** — 28px rows, 15px stroke icons (1.6), active = raised fill
-  + ring, t1; counts t4 tabular; limited = warn dot + count.
+  + ring, t1; counts t3 tabular; limited = warn dot + count.
 
 ## Motion
 

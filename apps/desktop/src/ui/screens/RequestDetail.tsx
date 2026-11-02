@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { ArrowRight, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
@@ -33,18 +33,26 @@ export function RequestDetail({ row, cost, now, onClose, note }: { row: RequestR
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+  // Keyboard users land in the panel when it opens and return to where they were when it closes.
+  const panel = useRef<HTMLElement>(null)
+  // The opener is captured once, when the panel opens; switching rows keeps it.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => { if (opener && opener !== document.body && document.contains(opener)) opener.focus({ preventScroll: true }) }
+  }, [])
+  useEffect(() => { panel.current?.focus({ preventScroll: true }) }, [row.id])
   const segments = waterfall(row)
   const total = Math.max(1, segments.reduce((sum, segment) => sum + segment.ms, 0))
   return (
-    <aside aria-label="Request detail" className="pop absolute bottom-2.5 right-2.5 top-2.5 z-20 flex w-[392px] animate-pop flex-col rounded-xl bg-surface">
+    <aside ref={panel} tabIndex={-1} aria-label="Request detail" className="pop outline-none absolute bottom-2.5 right-2.5 top-2.5 z-20 flex w-[392px] animate-pop flex-col rounded-xl bg-surface">
       <div className="flex items-start gap-2 px-4 pb-1 pt-3.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 text-md font-semibold tracking-title text-t1">
-            <span>{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</span>
-            <span className={cn('num text-meta font-medium', row.failed ? 'text-red' : 'text-t4')}>{row.failed ? failureText(row) : row.status ?? ''}</span>
+            <span>{row.model}{row.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t3">1M</sup> : null}</span>
+            <span className={cn('num text-meta font-medium', row.failed ? 'text-red' : 'text-t3')}>{row.failed ? failureText(row) : row.status ?? ''}</span>
           </div>
           <div className="num mt-0.5 text-meta text-t3">{when(row.timestamp, now)} · {[row.adapter || row.source, row.profile].filter(Boolean).join(' · ')}</div>
-          {note ? <div className="mt-0.5 text-xs text-t4">{note}</div> : null}
+          {note ? <div className="mt-0.5 text-xs text-t3">{note}</div> : null}
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Close detail" onClick={onClose}><X /></Button>
       </div>

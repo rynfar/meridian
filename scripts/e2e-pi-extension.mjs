@@ -2,7 +2,7 @@
 // Real Pi 1.x with the Meridian extension → Meridian → Claude.
 //
 // Usage: E2E_PLUGIN_PATH=/abs/path/to/meridian-plugin-pi-scrub/dist/index.js \
-//          bun scripts/e2e-pi-extension.mjs [--pi=/path/to/pi]
+//          bun scripts/e2e-pi-extension.mjs [--pi=/path/to/pi] [--cold-catalog]
 //
 // Installs the extension with `meridian setup --client pi` into a scratch Pi
 // agent directory, starts Meridian in-process on scratch state with only the
@@ -11,14 +11,17 @@
 // each request carries on the wire. Wire identity and attestation are asserted;
 // each request is joined to Meridian's telemetry by its request ID. Generation
 // outcomes are reported, and any that did not succeed make the exit status 1.
+// Print mode never discovers, so the extension's discovery fills the catalog
+// first; --cold-catalog skips that and runs on the built-in catalog instead.
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { configurePiScrub, resolvePiScrub, verifyPiScrub } from "./lib-pi-scrub-preflight.mjs"
 
 const repo = resolve(import.meta.dir, "..")
 const pi = process.argv.find(arg => arg.startsWith("--pi="))?.slice(5) ?? Bun.which("pi")
+const coldCatalog = process.argv.includes("--cold-catalog")
 assert(pi, "pi not found; pass --pi=/path/to/pi")
 // Claude has refused Pi's default system prompt as third-party traffic on a
 // subscription unless the scrub removes its fingerprint (October 2026, Max).
@@ -134,6 +137,17 @@ const report = { pi: version, meridianUrl: "loopback", cases: [] }
 let scrubList
 try {
   verifyPiScrub(await (await fetch(`${meridianUrl}/plugins/list`)).json(), scrub)
+  if (!coldCatalog) {
+    const { default: meridian } = await import("../plugin/pi/index.ts")
+    let provider
+    meridian({ on() {}, registerProvider(_id, config) { provider = config } })
+    await provider.refreshModels({
+      allowNetwork: true,
+      baseUrl: `http://127.0.0.1:${recorder.port}`,
+      signal: AbortSignal.timeout(10_000),
+      publish: async ({ persist }) => writeFileSync(join(agentDir, "models-store.json"), JSON.stringify({ meridian: persist })),
+    })
+  }
   report.cases.push(await turn({
     name: "primary turn with a tool loop",
     model: "meridian/claude-haiku-5-5",
@@ -164,15 +178,17 @@ try {
   await instance.close()
 }
 
-const store = JSON.parse(readFileSync(join(agentDir, "models-store.json"), "utf8"))
-report.discovered = Object.values(store).flatMap(entry => entry?.models ?? []).map(model => model.id)
+const storePath = join(agentDir, "models-store.json")
+const store = existsSync(storePath) ? JSON.parse(readFileSync(storePath, "utf8")) : {}
+report.discovered = (store.meridian?.models ?? []).map(model => model.id)
 report.scrub = { ...scrub, loaded: scrubList.plugins }
 console.log(JSON.stringify(report, null, 2))
 
 const verifiedScrub = verifyPiScrub(scrubList, scrub, true)
 assert(verifiedScrub.invocations >= wire.length, "the scrub must process every Pi request")
 
-assert(report.discovered.includes("claude-haiku-5-5"), "the extension must discover Meridian's models")
+if (coldCatalog) assert.deepEqual(report.discovered, [], "a cold print-mode run must not discover or persist Meridian's catalog")
+else assert(report.discovered.includes("claude-haiku-5-5"), "the extension must discover Meridian's models")
 for (const { name, requests } of report.cases) {
   assert(requests.length > 0, `${name}: Pi sent no request`)
   for (const request of requests) {

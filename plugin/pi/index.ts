@@ -22,7 +22,9 @@ import type { RefreshModelsContext } from "@earendil-works/pi-ai"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
 import {
+  BUILTIN_CATALOG,
   buildModels,
+  cacheOnlyModels,
   catalogStoreEntry,
   fetchCatalog,
   normalizeBaseUrl,
@@ -45,15 +47,19 @@ export default function meridian(pi: ExtensionAPI): void {
   })
 
   /**
-   * Restore Pi's stored snapshot first, then discover from Meridian. Pi only
-   * refreshes from the network in interactive and RPC modes, so a cold start
-   * with nothing stored also tries discovery once: Meridian is a local service,
-   * and without it a first `pi -p --model meridian/…` would find no models.
+   * Pi calls this cache-only (`allowNetwork: false`) at startup, then with
+   * network access in interactive and RPC modes. The cache-only answer never
+   * contacts Meridian and is never empty (`cacheOnlyModels`). A failed
+   * discovery falls back to a fresh stored catalog, or throws so Pi records
+   * the error.
    */
   const refreshModels = async (context: RefreshModelsContext): Promise<MeridianModelConfig[]> => {
     const baseUrl = normalizeBaseUrl(context.baseUrl ?? process.env.MERIDIAN_BASE_URL)
-    const restored = restoreModels(context.stored, baseUrl, Date.now())
-    if (!context.allowNetwork && (restored || process.env.PI_OFFLINE !== undefined)) return restored ?? []
+    const now = Date.now()
+    if (!context.allowNetwork) {
+      return cacheOnlyModels(context.stored, baseUrl, now, buildModels(BUILTIN_CATALOG, anthropicModels, baseUrl))
+    }
+    const restored = restoreModels(context.stored, baseUrl, now)
 
     const apiKey = context.credential?.type === "api_key" ? context.credential.key : process.env.MERIDIAN_API_KEY
     try {
@@ -67,8 +73,7 @@ export default function meridian(pi: ExtensionAPI): void {
       return models
     } catch (error) {
       if (restored) return restored
-      if (context.allowNetwork) throw error
-      return []
+      throw error
     }
   }
 

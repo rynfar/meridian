@@ -9,14 +9,15 @@ import { Button } from '../components/button'
 import { Input, Segmented, Select, Tab, TabList, TabPanel, Tabs } from '../components/controls'
 import { Table, Td, Th, Tr } from '../components/table'
 import { RibbonCell } from '../components/ribbon'
-import { ConnectionProblem, Empty, Skeleton } from '../components/state'
+import { ConnectionProblem, Empty, ReadFailed, Skeleton } from '../components/state'
 import { RequestsChart } from '../charts/charts'
 import { RequestDetail } from './RequestDetail'
 import { fmtInt, fmtTok, hhmm, ms, pct, seconds, usd } from '../model/format'
-import { bucketWord, chartSeries } from '../model/series'
+import { bucketWord, chartSeries, historyNote } from '../model/series'
+import { sourceRead, summaryScope } from '../model/status'
 import { requestCost, type RequestRow } from '../model/requests'
-import { failureText } from '../model/today'
-import { accountTrafficRows, emptyFilter, facets, filterRows, findRequest, lineageCounts, modelRows, percentileRows, rowsInWindow, trafficStats, type RequestFilter, type RequestKind } from '../model/traffic'
+import { failureText, requestCoverage } from '../model/today'
+import { accountTrafficRows, emptyFilter, facets, filterRows, findRequest, lineageCounts, modelRows, percentileRows, retentionLine, rowsInWindow, trafficStats, type RequestFilter, type RequestKind } from '../model/traffic'
 import { windowRange } from '../../uiData'
 import type { Navigate } from '../shell/nav'
 
@@ -24,9 +25,9 @@ const features = tableFeatures({ rowSortingFeature, rowPaginationFeature, sorted
 const helper = createColumnHelper<typeof features, RequestRow & { cost: number | null }>()
 const num = (value: number | null) => value ?? undefined
 const columns = helper.columns([
-  helper.accessor('timestamp', { header: 'Time', sortFn: 'basic', cell: info => <span className="text-t4">{hhmm(info.getValue())}</span> }),
+  helper.accessor('timestamp', { header: 'Time', sortFn: 'basic', cell: info => <span className="text-t3">{hhmm(info.getValue())}</span> }),
   // The model cell is the row's keyboard target: Tab reaches it, Enter or Space opens the detail.
-  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <button type="button" data-open-request={info.row.original.id} aria-label={`Open request ${info.getValue()} at ${hhmm(info.row.original.timestamp)}`} className="rounded-sm font-medium text-t1 focus-visible:outline-2 focus-visible:outline-accent">{info.getValue()}{info.row.original.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t4">1M</sup> : null}</button> }),
+  helper.accessor('model', { header: 'Model', sortFn: 'text', cell: info => <button type="button" data-open-request={info.row.original.id} aria-label={`Open request ${info.getValue()} at ${hhmm(info.row.original.timestamp)}`} className="rounded-sm font-medium text-t1 focus-visible:outline-2 focus-visible:outline-accent">{info.getValue()}{info.row.original.longContext ? <sup className="ml-[3px] text-3xs font-semibold text-t3">1M</sup> : null}</button> }),
   helper.accessor(row => row.adapter || row.source, { id: 'client', header: 'Client', sortFn: 'text', cell: info => <span className="text-t3">{info.getValue() || '—'}</span> }),
   helper.accessor(row => row.profile, { id: 'account', header: 'Account', sortFn: 'text', cell: info => {
     const row = info.row.original
@@ -82,17 +83,26 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
   if (data.kind === 'loading' || !state) return <div className="flex flex-col gap-4 px-[26px] pt-[22px]"><div className="flex gap-8">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-11 w-24" />)}</div><Skeleton className="h-24" /><Skeleton className="h-96" /></div>
 
   const stats = trafficStats(state.summary, state.routesSummary)
+  const summaryRead = sourceRead(state, 'summary')
+  const requestsRead = sourceRead(state, 'requests')
+  const coverage = requestCoverage(requests, state.summary, since)
+  const note = historyNote(series)
+  const retention = retentionLine(state.retention, now)
+  const refresh = () => { void run('refresh') }
   const set = (patch: Partial<RequestFilter>) => setFilter(current => ({ ...current, ...patch }))
   const filtered = filter.query || filter.kind !== 'all' || filter.provider !== 'all' || filter.client !== 'all' || filter.profile !== 'all'
 
   return (
     <div className="relative flex h-full min-h-0 flex-col px-[26px] pb-[18px] pt-[22px]">
       {stats.length ? <InlineStats cells={stats.map(cell => ({ label: cell.label, value: <span className={cell.tone === 'red' ? 'text-red' : cell.tone === 'yellow' ? 'text-yellow' : undefined}>{cell.value}</span>, detail: cell.detail }))} />
+        : summaryRead.kind === 'failed' ? <ReadFailed what="the totals for this window" message={summaryRead.message} busy={busy} onRetry={refresh} />
         : <div className="flex gap-8">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-11 w-24" />)}</div>}
+      {summaryScope(state) === 'service' && stats.length ? <div className="mt-1.5 text-meta text-t3">Totals since the service started; this backend does not report per window.</div>
+        : retention ? <div className="mt-1.5 text-meta text-t3" title={retention.title}>{retention.text}</div> : null}
 
       <Tabs defaultValue="requests" className="mt-6 flex min-h-0 flex-1 flex-col">
         <TabList>
-          <Tab value="requests">Requests <span className="num text-xs font-normal text-t4">{fmtInt(inWindow.length)}</span></Tab>
+          <Tab value="requests">Requests {requestsRead.kind === 'ready' ? <span className="num text-xs font-normal text-t3">{fmtInt(inWindow.length)}</span> : null}</Tab>
           <Tab value="latency">Latency</Tab>
           <Tab value="breakdown">Models &amp; accounts</Tab>
         </TabList>
@@ -100,8 +110,9 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
         <TabPanel value="requests" className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
           <div className="flex items-center justify-between">
             <Label>Requests per {series ? bucketWord(series.series.bucketMs) : 'hour'}</Label>
-            {series?.estimated ? <span className="text-xs text-t4" title={series.note}>estimated from the latest {fmtInt(requests.length)} requests</span> : null}
+            {series?.estimated ? <span className="text-xs text-t3" title={series.note}>estimated from the latest {fmtInt(requests.length)} requests</span> : null}
           </div>
+          {note && series?.series.truncated ? <div className="text-meta text-t3">{note}</div> : null}
           <div className="mt-1">{series ? <RequestsChart buckets={series.series.buckets} bucketMs={series.series.bucketMs} height={84} /> : <Skeleton className="h-[84px]" />}</div>
 
           <div className="mt-4 flex items-center gap-2">
@@ -112,11 +123,12 @@ export function Traffic({ navigate, focus }: { navigate: Navigate; focus?: { req
             <Select aria-label="Account" value={filter.profile} onChange={event => set({ profile: event.target.value })} className="w-32"><option value="all">All accounts</option>{options.profiles.map(id => <option key={id} value={id}>{id}</option>)}</Select>
             <span className="flex-1" />
             {filtered ? <Button variant="text" size="sm" onClick={() => setFilter(emptyFilter)}>Clear</Button> : null}
-            <span className="num text-meta text-t4">{fmtInt(rows.length)} of {fmtInt(inWindow.length)}</span>
+            {requestsRead.kind === 'ready' ? <span className="num text-meta text-t3" title={coverage.partial ? `The window has ${fmtInt(coverage.total)} requests; the latest ${fmtInt(inWindow.length)} are loaded.` : undefined}>{fmtInt(rows.length)} of {fmtInt(inWindow.length)}{coverage.partial ? ` · latest of ${fmtInt(coverage.total)}` : ''}</span> : null}
           </div>
 
           <div className="mt-2 flex min-h-0 flex-1 flex-col">
-            {state.requests === null ? <Skeleton className="h-full" /> : rows.length ? <>
+            {requestsRead.kind === 'failed' ? <ReadFailed what="the requests" message={requestsRead.message} busy={busy} onRetry={refresh} className="mt-2" />
+              : state.requests === null ? <Skeleton className="h-full" /> : rows.length ? <>
               <div className="-mx-2 min-h-0 flex-1 overflow-auto px-0">
                 <Table>
                   <thead>
@@ -208,7 +220,7 @@ function Breakdown({ summary, routes, rows }: { summary: unknown; routes: unknow
           <p className="mt-3 px-2 text-xs text-t3">Refusals include the ones a failover hid from the client.</p>
         </section>
         <section className="px-2">
-          <Label>Conversation lineage <span className="font-normal text-t4">· loaded requests</span></Label>
+          <Label>Conversation lineage <span className="font-normal text-t3">· loaded requests</span></Label>
           <div className="num mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-base">{lineage.map(([kind, count]) => <span key={kind}><span className="text-t3">{kind}</span> <span className="text-t1">{fmtInt(count)}</span></span>)}</div>
         </section>
       </div>

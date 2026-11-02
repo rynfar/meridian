@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { attachDecision, classifySupervisor, dedupeCandidates, detectServices, gatherCandidates, isMeridianJob, launchdBase, loopbackBase, meridianLabels, openCodeBaseUrls, parseJsonc, parseLaunchctlPrint, piBaseUrls, plistMentionsMeridian, redactUrl, type DetectIO, type DetectedService, type Probe } from '../../apps/desktop/src/detect'
+import { createServer, type ServerResponse } from 'node:http'
+import { attachDecision, classifySupervisor, dedupeCandidates, detectServices, gatherCandidates, isMeridianJob, launchdBase, loopbackBase, meridianLabels, openCodeBaseUrls, parseJsonc, parseLaunchctlPrint, piBaseUrls, plistMentionsMeridian, probeHealth, redactUrl, type DetectIO, type DetectedService, type Probe } from '../../apps/desktop/src/detect'
 
 // Shape of real `launchctl print gui/501/<label>` output (values sanitised).
 const printed = `gui/501/com.example.meridian = {
@@ -206,5 +207,46 @@ describe('rejected candidates', () => {
   test('keep only scheme and host, never credentials, paths or queries', () => {
     expect(redactUrl('https://user:token@proxy.example.com:8443/v1?api_key=secret')).toBe('https://proxy.example.com:8443')
     expect(redactUrl('::not a url::')).toBe('invalid URL')
+  })
+})
+
+describe('probeHealth bounds what a local listener can send', () => {
+  async function listener(handler: (res: ServerResponse) => void) {
+    const server = createServer((_req, res) => handler(res))
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing address')
+    return { baseUrl: `http://127.0.0.1:${address.port}`, close: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()) }) }
+  }
+  test('a streamed body past 64 KiB is refused, not buffered', async () => {
+    let sent = 0
+    const server = await listener(res => {
+      res.setHeader('content-type', 'application/json')
+      res.write('{"status":"healthy","version":"1","build":{"source":"npm","version":"1"},"pad":"')
+      const chunk = 'x'.repeat(64 * 1024)
+      const pump = () => { while (sent < 64 * 1024 * 1024 && res.write(chunk)) sent += chunk.length; if (sent < 64 * 1024 * 1024) res.once('drain', pump); else res.end('"}') }
+      pump()
+    })
+    try {
+      const probe = await probeHealth(server.baseUrl, 5000)
+      expect(probe.status).toBe('not-meridian')
+      expect(sent).toBeLessThan(64 * 1024 * 1024)
+    } finally { await server.close() }
+  })
+  test('a declared length past the limit is refused without reading', async () => {
+    const server = await listener(res => { res.setHeader('content-length', String(10 * 1024 * 1024)); res.write('{') })
+    try { expect((await probeHealth(server.baseUrl, 5000)).status).toBe('not-meridian') } finally { await server.close() }
+  })
+  test('a non-JSON or empty answer is a listener that is not Meridian, not unreachable', async () => {
+    const html = await listener(res => { res.setHeader('content-type', 'text/html'); res.end('<html>hello</html>') })
+    const empty = await listener(res => { res.statusCode = 204; res.end() })
+    try {
+      expect((await probeHealth(html.baseUrl)).status).toBe('not-meridian')
+      expect((await probeHealth(empty.baseUrl)).status).toBe('not-meridian')
+    } finally { await html.close(); await empty.close() }
+  })
+  test('a normal health answer still verifies', async () => {
+    const server = await listener(res => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ status: 'healthy', version: '1.2.3', build: { source: 'npm', version: '1.2.3' } })) })
+    try { expect(await probeHealth(server.baseUrl)).toEqual({ status: 'meridian', version: '1.2.3' }) } finally { await server.close() }
   })
 })

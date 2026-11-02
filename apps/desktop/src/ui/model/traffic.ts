@@ -1,6 +1,6 @@
 /** Traffic screen: header stats, filters and facets. Pure. */
 import { number, object } from '../../core'
-import { fmtInt, pct, seconds, usd } from './format'
+import { bytes, fmtInt, pct, relative, seconds, usd } from './format'
 import type { RequestRow } from './requests'
 
 export type RequestKind = 'all' | 'errors' | 'low-cache'
@@ -21,9 +21,13 @@ export function filterRows<T extends RequestRow>(rows: readonly T[], filter: Req
   })
 }
 
-/** The request table covers the selected window, like the stats and chart above it. */
+/**
+ * The request table covers the selected window, like the stats and chart
+ * above it. Keepalive beats answer no client: the summary excludes them, so
+ * the table does too (the Cache screen counts them).
+ */
 export function rowsInWindow<T extends RequestRow>(rows: readonly T[], since: number): T[] {
-  return rows.filter(row => row.timestamp >= since)
+  return rows.filter(row => row.timestamp >= since && !row.keepalive)
 }
 
 /**
@@ -51,11 +55,13 @@ export function trafficStats(summary: unknown, routes: unknown): StatCell[] {
   const phase = (key: string) => object(s[key])
   const cost = object(s.costEstimate)
   const r = object(routes)
+  // An empty window has no timings: "—", never "0.00s".
+  const timing = (key: string) => total ? { value: seconds(phase(key).p50), detail: `p95 ${seconds(phase(key).p95)}` } : { value: '—', detail: 'no requests' }
   const cells: StatCell[] = [
     { label: 'Requests', value: fmtInt(total), detail: `${(number(s.requestsPerMinute) ?? 0).toFixed(1)} per minute` },
     { label: 'Failed', value: fmtInt(errors), detail: total ? `${((errors / total) * 100).toFixed(1)}% of requests` : 'no requests', tone: errors ? 'red' : undefined },
-    { label: 'Total', value: seconds(phase('totalDuration').p50), detail: `p95 ${seconds(phase('totalDuration').p95)}` },
-    { label: 'First token', value: seconds(phase('ttfb').p50), detail: `p95 ${seconds(phase('ttfb').p95)}` },
+    { label: 'Total', ...timing('totalDuration') },
+    { label: 'First token', ...timing('ttfb') },
   ]
   const failedOver = number(r.failedOver) ?? 0, unserved = number(r.unserved) ?? 0
   if (failedOver || unserved || Object.keys(object(r.byProfile)).length > 1) {
@@ -113,3 +119,28 @@ export function lineageCounts(rows: readonly RequestRow[]): [string, number][] {
 }
 
 export const hitText = (row: RequestRow) => (row.cacheHit === null ? '—' : pct(row.cacheHit))
+
+/**
+ * What the store holds, as the web dashboard says it: "4,210 requests in
+ * SQLite · 30d retention · back to 6d 2h · 12.4 MB · survives restart".
+ * Null when the service did not answer /telemetry/retention.
+ */
+export function retentionLine(value: unknown, now: number): { text: string; title: string } | null {
+  const r = object(value)
+  const held = number(r.held)
+  if (held === undefined || (r.kind !== 'sqlite' && r.kind !== 'memory')) return null
+  const oldest = number(r.oldestTimestamp)
+  const back = oldest !== undefined ? `back to ${relative(oldest, now).replace(/ ago$/, '')}` : ''
+  if (r.kind === 'sqlite') {
+    const days = number(r.retentionDays)
+    return {
+      text: [`${fmtInt(held)} ${held === 1 ? 'request' : 'requests'} in SQLite`, days !== undefined ? `${fmtInt(days)}d retention` : '', back, number(r.dbBytes) !== undefined ? bytes(r.dbBytes) : '', 'survives restart'].filter(Boolean).join(' · '),
+      title: typeof r.dbPath === 'string' && r.dbPath ? `Persistent telemetry at ${r.dbPath}` : 'Persistent telemetry',
+    }
+  }
+  const capacity = number(r.capacity)
+  return {
+    text: [`${fmtInt(held)}${capacity !== undefined ? ` of ${fmtInt(capacity)}` : ''} requests in memory`, back, 'lost on restart'].filter(Boolean).join(' · '),
+    title: 'In-memory ring buffer. Set MERIDIAN_TELEMETRY_PERSIST=1 to keep telemetry across restarts.',
+  }
+}

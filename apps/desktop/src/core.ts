@@ -120,6 +120,8 @@ export interface ConnectionInput {
   dataStatus?: number;
   /** Another Meridian that detection verified, when the viewed one fails. */
   alternative?: string;
+  /** A saved key exists but belongs to this other endpoint, so it is not sent here. */
+  keyElsewhere?: string;
 }
 /**
  * Classify the viewed service. Pure: callers pass what they observed, the UI
@@ -128,7 +130,11 @@ export interface ConnectionInput {
 export function classifyConnection(input: ConnectionInput): ConnectionStatus {
   const where = host(input.baseUrl)
   const start = input.managed ? 'Start the app-managed copy in Service, or start your own Meridian and choose Re-detect.' : 'Start your Meridian service (launchd, Docker or a terminal), then choose Re-detect.'
-  const unauthorized = (status: number): ConnectionStatus => ({ kind: 'unauthorized', message: input.hasApiKey ? `Meridian on ${where} rejected the API key (${status}).` : `Meridian on ${where} requires an API key (${status}).`, fix: 'Enter the key in Service → Connection.' })
+  const unauthorized = (status: number): ConnectionStatus => ({
+    kind: 'unauthorized',
+    message: input.hasApiKey ? `Meridian on ${where} rejected the API key (${status}).` : `Meridian on ${where} requires an API key (${status}).${input.keyElsewhere ? ` The saved key was entered for ${host(input.keyElsewhere)} and is never sent to another service.` : ''}`,
+    fix: input.keyElsewhere && !input.hasApiKey ? `Enter the key for ${where} in Service → Connection.` : 'Enter the key in Service → Connection.',
+  })
   const elsewhere = (reason: string): ConnectionStatus | undefined => input.alternative && input.alternative !== input.baseUrl
     ? { kind: 'wrong-port', message: `${reason}, but Meridian is running on ${host(input.alternative)}.`, fix: `Choose Re-detect to view ${host(input.alternative)}, or change the address in Service → Connection.` }
     : undefined
@@ -147,4 +153,30 @@ export function classifyConnection(input: ConnectionInput): ConnectionStatus {
 }
 export function startingConnection(baseUrl: string): ConnectionStatus {
   return { kind: 'starting', message: `Starting the app-managed Meridian on ${host(baseUrl)}.`, fix: 'Wait for startup to finish; requests appear once it is healthy.' }
+}
+/** A /health answer is a few hundred bytes; any local listener may be probed. */
+export const HEALTH_BODY_LIMIT = 64 * 1024
+/** The largest Meridian read (500 requests or logs) is a few MB. */
+export const API_BODY_LIMIT = 32 * 1024 * 1024
+export class ResponseTooLarge extends Error {}
+/** Read a response body as text, refusing (and cancelling) anything past `limit` bytes. */
+export async function readBody(response: Response, limit: number): Promise<string> {
+  const tooLarge = () => new ResponseTooLarge(`Response is larger than ${limit} bytes.`)
+  const declared = Number(response.headers.get('content-length') ?? Number.NaN)
+  if (Number.isFinite(declared) && declared > limit) { void response.body?.cancel().catch(() => undefined); throw tooLarge() }
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) { void reader.cancel().catch(() => undefined); throw tooLarge() }
+    chunks.push(value)
+  }
+  const joined = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength }
+  return new TextDecoder().decode(joined)
 }

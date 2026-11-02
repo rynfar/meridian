@@ -333,6 +333,7 @@ Meridian speaks the OpenAI protocol natively — no LiteLLM or translation proxy
 **`POST /v1/chat/completions`** — accepts OpenAI chat format, returns OpenAI completion format (streaming and non-streaming)
 
 - `image_url` parts are supported when provided as **data URLs** (`data:image/...;base64,...`)
+- `file` parts are supported for PDFs sent inline as a **data URL** in `file_data` (`data:application/pdf;base64,...`); Claude receives them as documents, titled with `filename`. An uploaded `file_id`, another file type, or any other part Meridian cannot deliver (such as `input_audio`) is replaced by a short omission note, so the model knows the input is missing
 - multimodal tool flows where a tool returns `tool_result.content = [text, image]` are preserved through the structured multimodal path instead of being flattened to text
 
 **`GET /v1/models`** — returns available Claude models in OpenAI format
@@ -345,7 +346,7 @@ Set the OpenAI API base to `http://127.0.0.1:3456/v1` (clients append `/chat/com
 # OpenAI SDK: base_url="http://127.0.0.1:3456/v1", api_key="x"
 ```
 
-> **Note:** A request without a session key has its prior turns packed into the system prompt and runs on a fresh SDK session — the client replays the full history itself. A request keyed by `x-opencode-session`, `x-session-affinity` or `x-session-id` (Jcode: `x-jcode-session`) keeps its real messages and resumes one SDK session per key, under the contract every keyed client has:
+> **Note:** A request without a session key has its prior turns packed into the system prompt and runs on a fresh SDK session — the client replays the full history itself. Images and PDFs from earlier turns are packed as `[Image attached]` / `[Document attached]` placeholders, so only the latest message's attachments reach the model. A request keyed by `x-opencode-session`, `x-session-affinity` or `x-session-id` (Jcode: `x-jcode-session`) keeps its real messages and resumes one SDK session per key, under the contract every keyed client has:
 >
 > - turns under one key are serialized; a turn that lost the race and no longer holds the committed history is refused with HTTP 400 (`This session advanced while the request was waiting`) — retry it with the latest history;
 > - the history per key must be append-only: an edited turn forks at the edit as an undo, a rewritten middle replays fresh;
@@ -454,7 +455,10 @@ The extension registers a `meridian` provider next to Pi's built-in
 `anthropic` provider, so direct Anthropic models stay available. It:
 
 - discovers models from Meridian's `/v1/models` and keeps the catalog in Pi's
-  model store, so Pi starts offline with the last catalog it saw;
+  model store. Pi starts without waiting for Meridian, from the catalog it last
+  discovered at that URL or, failing that, from the list of models the
+  installed extension's Meridian version serves, so `pi --model meridian/…`
+  works straight after setup;
 - keys every request by Pi's own session ID (`x-session-affinity`), so a
   resumed Pi session finds its backing conversation and a fork gets its own;
 - marks compaction, branch summaries and other side calls with
@@ -487,8 +491,19 @@ forwards the `tool_use` blocks. Opt out with `MERIDIAN_PASSTHROUGH=0`.
 Known limits:
 
 - Pi refreshes the catalog only in interactive and RPC modes. `pi -p` uses the
-  stored catalog for up to seven days, so start Pi interactively once to pick
-  up new Meridian models sooner.
+  catalog last discovered at your Meridian URL for seven days, and after that
+  as long as it still lists every model the installed extension knows.
+  Otherwise it uses the list that ships with the extension. After upgrading
+  Meridian and rerunning setup, start Pi interactively once, or new models
+  reach `pi -p` only when that week is up. The shipped list shows Opus 4.6 at 200k
+  even when your account has its legacy 1M window, 1M windows even when
+  Meridian runs with `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`, and the models of
+  the Meridian version that ran setup, even if `MERIDIAN_BASE_URL` points at
+  another version. Start Pi interactively once to load your Meridian's own
+  catalog.
+- A session that started on the shipped list or on an expired catalog keeps
+  the model definition it started with. Select the model again with `/model`,
+  or restart Pi, to pick up the discovered one.
 - A child that runs on the base tier still sees each model's full context
   window in the catalog. With Opus and Fable, whose base tier is 200k, a long
   child conversation can overflow before Pi compacts it.
@@ -513,9 +528,11 @@ exist under both `anthropic` and `meridian`. To switch:
 2. Remove any extension of your own that sets `x-session-affinity` or
    `x-meridian-agent` for the `anthropic` provider; the Meridian extension does
    this for its own provider.
-3. Set `"defaultProvider": "meridian"` in `~/.pi/agent/settings.json`, or pick
-   a `meridian/…` model with `/model`. A resumed session keeps the model it was
-   using until you switch it.
+3. Set `"defaultProvider": "meridian"` together with a `"defaultModel"` such
+   as `"claude-sonnet-5-5"` in `~/.pi/agent/settings.json`, or pick a
+   `meridian/…` model with `/model`. Pi ignores `defaultProvider` without a
+   `defaultModel`. A resumed session keeps the model it was using until you
+   switch it.
 
 #### Without the extension
 

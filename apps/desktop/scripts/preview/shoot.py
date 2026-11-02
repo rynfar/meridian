@@ -22,7 +22,7 @@ def main() -> int:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for scheme in ["light", "dark"]:
-            for fixture, pages in [("ok", PAGES), ("fallback", ["Today", "Cache"]), ("stopped", ["Today", "Traffic"]), ("unauthorized", ["Today"]), ("loading", ["Today"])]:
+            for fixture, pages in [("ok", PAGES), ("fallback", ["Today", "Cache"]), ("stopped", ["Today", "Traffic"]), ("unauthorized", ["Today"]), ("loading", ["Today"]), ("partial", ["Today", "Traffic", "Cache"]), ("switched", ["Accounts"])]:
                 page = browser.new_page(viewport={"width": 1180, "height": 760}, color_scheme=scheme, device_scale_factor=2)
                 page.clock.install(time=now / 1000)
                 page.on("console", lambda m, f=fixture: m.type in ("error", "warning") and problems.append(f"{f} console {m.type}: {m.text}"))
@@ -34,7 +34,7 @@ def main() -> int:
                     page.wait_for_timeout(500)
                     page.screenshot(path=str(out / f"{fixture}-{name.lower()}-{scheme}.png"))
                 page.close()
-            for fixture in ["ok", "stopped"]:
+            for fixture in ["ok", "stopped", "partial"]:
                 page = browser.new_page(viewport={"width": 360, "height": 720}, color_scheme=scheme, device_scale_factor=2)
                 page.clock.install(time=now / 1000)
                 page.on("console", lambda m, f=fixture: m.type in ("error", "warning") and problems.append(f"tray {f} console {m.type}: {m.text}"))

@@ -3,10 +3,21 @@ import { number } from '../../core'
 
 const finite = (value: unknown): number | undefined => number(value)
 
+/**
+ * A share as a whole percent that never rounds into a claim it is not:
+ * 0.996 → 99 (not "100", which reads as complete), 0.004 → 1 (not "0").
+ */
+export function percentFigure(share: number): number {
+  const rounded = Math.round(share * 100)
+  if (rounded >= 100 && share < 1) return 99
+  if (rounded <= 0 && share > 0) return 1
+  return rounded
+}
+
 /** 0.96 → "96%". Unknown is an em dash, never 0%. */
 export function pct(value: unknown): string {
   const n = finite(value)
-  return n === undefined ? '—' : `${Math.round(n * 100)}%`
+  return n === undefined ? '—' : `${percentFigure(n)}%`
 }
 
 /** 833 → "833", 12345 → "12,345". */
@@ -20,9 +31,10 @@ export function fmtTok(value: unknown): string {
   const n = finite(value)
   if (n === undefined) return '—'
   const abs = Math.abs(n)
-  if (abs >= 1e9) return `${(n / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`
-  if (abs >= 1e3) return `${Math.round(n / 1e3)}k`
+  // Thresholds sit where the rounded figure rolls over: 999,500 is "1.0M", not "1000k".
+  if (abs >= 999_950_000) return `${(n / 1e9).toFixed(1)}B`
+  if (abs >= 999_500) return `${(n / 1e6).toFixed(1)}M`
+  if (abs >= 999.5) return `${Math.round(n / 1e3)}k`
   return String(Math.round(n))
 }
 

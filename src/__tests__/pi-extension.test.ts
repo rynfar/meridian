@@ -10,7 +10,7 @@ import type { Model, ModelsPublication, ModelsStoreEntry, RefreshModelsContext, 
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript"
 import type { ExtensionAPI, ProviderConfig } from "@earendil-works/pi-coding-agent"
 import meridian from "../../plugin/pi/index"
-import { catalogStoreEntry, type MeridianModelConfig } from "../../plugin/pi/catalog"
+import { BUILTIN_CATALOG, STORED_CATALOG_TTL_MS, catalogStoreEntry, type MeridianModelConfig } from "../../plugin/pi/catalog"
 import {
   childSourceFromEnvironment,
   requestOptions,
@@ -344,7 +344,6 @@ describe("Pi extension catalog refresh", () => {
     globalThis.fetch = savedFetch
     delete process.env.MERIDIAN_BASE_URL
     delete process.env.MERIDIAN_API_KEY
-    delete process.env.PI_OFFLINE
   })
 
   const refresh = (context: RefreshModelsContext) => loadExtension().provider.config.refreshModels!(context)
@@ -381,26 +380,73 @@ describe("Pi extension catalog refresh", () => {
     expect(published).toEqual([])
   })
 
-  test("discovers once on a cold start with nothing stored, unless Pi is offline", async () => {
-    expect((await refresh(refreshContext({ allowNetwork: false }).context)).length).toBeGreaterThan(0)
-    expect(requests).toHaveLength(1)
-    process.env.PI_OFFLINE = "1"
-    expect(await refresh(refreshContext({ allowNetwork: false }).context)).toEqual([])
-    expect(requests).toHaveLength(1)
+  const builtInIds = BUILTIN_CATALOG.map(model => model.id)
+
+  test("answers a cold start with the built-in catalog when Pi forbids network access", async () => {
+    const { context, published } = refreshContext({ allowNetwork: false })
+    const models = await refresh(context)
+    expect(models.map(model => model.id)).toEqual(builtInIds)
+    expect(models.every(model => model.baseUrl === "http://127.0.0.1:3456")).toBe(true)
+    expect(requests).toEqual([])
+    // Only a discovered catalog is persisted; the built-in one is not Meridian's answer.
+    expect(published).toEqual([])
   })
 
-  test("keeps the stored catalog when Meridian is down, and reports the outage only with nothing to show", async () => {
+  test("builds the built-in catalog exactly as discovery from a default Meridian would", async () => {
+    respond = () => Response.json({ object: "list", data: buildModelList(false, 0) })
+    const discovered = await refresh(refreshContext().context)
+    expect(await refresh(refreshContext({ allowNetwork: false }).context)).toEqual(discovered)
+  })
+
+  test("builds the built-in catalog for the configured Meridian URL", async () => {
+    const { context } = refreshContext({ allowNetwork: false, baseUrl: "http://127.0.0.1:3458/v1" })
+    const models = await refresh(context)
+    expect(models.map(model => model.id)).toEqual(builtInIds)
+    expect(models.every(model => model.baseUrl === "http://127.0.0.1:3458")).toBe(true)
+  })
+
+  // This Meridian's last answer describes the account better than the built-in
+  // catalog does, as long as it still lists every model the extension knows.
+  test("prefers this Meridian's expired catalog at startup while it lists every built-in model", async () => {
+    const discovery = refreshContext()
+    await refresh(discovery.context)
+    const expired = { ...discovery.published[0]!.persist!, checkedAt: Date.now() - STORED_CATALOG_TTL_MS - 1 }
+    requests = []
+    const models = await refresh(refreshContext({ allowNetwork: false, stored: expired }).context)
+    // The account's legacy Opus 4.6 1M window, not the built-in 200k.
+    const opus = models.find(model => model.id === "claude-opus-4-6")
+    expect(opus && "contextWindow" in opus ? opus.contextWindow : undefined).toBe(1_000_000)
+    expect(requests).toEqual([])
+  })
+
+  test("uses the built-in catalog once an expired catalog lacks a model the extension knows", async () => {
+    const expired = stored("http://127.0.0.1:3456", Date.now() - STORED_CATALOG_TTL_MS - 1)
+    const { context } = refreshContext({ allowNetwork: false, stored: expired })
+    expect((await refresh(context)).map(model => model.id)).toEqual(builtInIds)
+    expect(requests).toEqual([])
+  })
+
+  test("keeps the stored catalog when Meridian is down, and reports the outage only with nothing fresh to show", async () => {
     respond = () => { throw new TypeError("fetch failed") }
     const withStored = refreshContext({ stored: stored("http://127.0.0.1:3456") }).context
     expect((await refresh(withStored)).map(model => model.id)).toEqual(["claude-stored"])
+    // Throwing leaves Pi on the list its cache-only phase published and records the error.
     await expect(refresh(refreshContext().context)).rejects.toThrow("fetch failed")
-    expect(await refresh(refreshContext({ allowNetwork: false }).context)).toEqual([])
+    const expired = stored("http://127.0.0.1:3456", Date.now() - STORED_CATALOG_TTL_MS - 1)
+    await expect(refresh(refreshContext({ stored: expired }).context)).rejects.toThrow("fetch failed")
+  })
+
+  test("treats a catalog without Claude models as a failed discovery", async () => {
+    respond = () => Response.json({ object: "list", data: [] })
+    const { context, published } = refreshContext()
+    await expect(refresh(context)).rejects.toThrow("no usable Claude models")
+    expect(published).toEqual([])
   })
 
   test("ignores a catalog stored for another Meridian", async () => {
     const { context } = refreshContext({ allowNetwork: false, stored: stored("http://127.0.0.1:3458") })
-    expect((await refresh(context)).some(model => model.id === "claude-stored")).toBe(false)
-    expect(requests).toHaveLength(1)
+    expect((await refresh(context)).map(model => model.id)).toEqual(builtInIds)
+    expect(requests).toEqual([])
   })
 
   test("uses Pi's models.json base URL over MERIDIAN_BASE_URL, normalized", async () => {
@@ -414,10 +460,10 @@ describe("Pi extension catalog refresh", () => {
     expect(models.every(model => model.baseUrl === "http://127.0.0.1:3458")).toBe(true)
   })
 
-  test("authenticates discovery with Pi's resolved credential, or MERIDIAN_API_KEY on a cold start", async () => {
+  test("authenticates permitted discovery with Pi's resolved credential, or MERIDIAN_API_KEY", async () => {
     await refresh(refreshContext({ credential: { type: "api_key", key: "from-pi" } }).context)
     process.env.MERIDIAN_API_KEY = "from-env"
-    await refresh(refreshContext({ allowNetwork: false }).context)
+    await refresh(refreshContext().context)
     expect(requests.map(request => request.apiKey)).toEqual(["from-pi", "from-env"])
   })
 })

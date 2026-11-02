@@ -15,7 +15,8 @@ export async function dispatch(manager: Manager, action: unknown, value: unknown
       case 'redetect': await manager.redetect(); break
       case 'check-plugins': await manager.checkPlugins(); break
       case 'install-plugin': await manager.installPlugin(value); break
-      case 'refresh': await manager.refresh(); break
+      // An explicit refresh re-reads everything, including window data within its TTL.
+      case 'refresh': await manager.refresh(true); break
       case 'check-updates': await manager.checkUpdates(); break
       case 'install': await manager.install(value); break
       case 'activate': await manager.activate(value); break

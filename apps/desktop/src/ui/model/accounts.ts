@@ -18,7 +18,8 @@ export interface LimitWindow {
   expired: boolean;
   primary: boolean;
 }
-export interface AccountLimit { window: string; label: string; short: string; resetsAt: number | null; stale: boolean; source: 'usage' | 'refusing'; rationale?: string }
+/** `benched`: the pool router set the account aside until `resetsAt` (/profiles/list `exhausted`), as the web dashboard shows it. */
+export interface AccountLimit { window: string; label: string; short: string; resetsAt: number | null; stale: boolean; source: 'usage' | 'refusing' | 'benched'; rationale?: string }
 export interface AccountView {
   id: string; provider: AccountProvider; label: string; email: string; organization: string;
   /** "Max", "Team", "Plus"; the provider word is added by callers. */
@@ -167,6 +168,13 @@ function spentLimit(spent: Record<string, unknown>, now: number): AccountLimit |
   return { window: bucket || 'rate', label, short, resetsAt: until, stale: false, source: 'refusing', rationale: text(diagnosis.rationale) || undefined }
 }
 
+/** A pool-routing bench mark; it lapses at `until`, like the server's own snapshot. */
+function benchedLimit(mark: Record<string, unknown> | undefined, now: number): AccountLimit | null {
+  const until = number(mark?.until) ?? null
+  if (!mark || until === null || until <= now) return null
+  return { window: 'benched', label: 'Benched', short: 'benched', resetsAt: until, stale: false, source: 'benched', rationale: text(mark.reason) || undefined }
+}
+
 type Inputs = Pick<DesktopState, 'profiles' | 'quota' | 'providers' | 'routesSummary' | 'summary' | 'settings'>
 
 export function buildAccounts(state: Inputs, now: number): AccountsModel {
@@ -175,6 +183,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
   const quotas = rows(object(state.quota).profiles)
   const activeProfiles = object(profilesBody.activeProfiles)
   const spentList = rows(profilesBody.spent)
+  const benchedList = rows(profilesBody.exhausted)
   const tally = object(object(state.routesSummary).byProfile)
   const costs = object(object(object(state.summary).costEstimate).byProfile)
   const followRaw = object(profilesBody.follow)
@@ -204,7 +213,7 @@ export function buildAccounts(state: Inputs, now: number): AccountsModel {
     const { full, ...peak } = usage(windows)
     // A refusal counts while its `until` is ahead; spentLimit drops it after.
     const spent = spentLimit(object(quota.spent), now) ?? spentLimit(spentList.find(item => text(item.profileId) === id) ?? {}, now)
-    const limited: AccountLimit | null = spent ?? usageLimit(full)
+    const limited: AccountLimit | null = spent ?? usageLimit(full) ?? benchedLimit(benchedList.find(item => text(item.id) === id), now)
     const usageNote = needsLogin ? 'Sign-in required'
       : !windows.length && quota.error ? 'Usage unavailable'
       : staleReading && windows.length ? failure === 'rate_limited' ? 'Last reading (usage reads are rate limited)' : 'Last reading'
@@ -292,7 +301,60 @@ export function accountAction(account: Pick<AccountView, 'active' | 'needsLogin'
 /** Mockup copy for a limit: "5h limit", "weekly limit". */
 export function limitPill(limit: AccountLimit): string {
   if (limit.source === 'refusing') return limit.short === 'rate' ? 'refusing' : `refusing · ${limit.short}`
+  if (limit.source === 'benched') return 'benched'
   if (limit.window === 'five_hour') return '5h limit'
   if (limit.window === 'seven_day') return 'weekly limit'
   return `${limit.short} limit`
+}
+
+/**
+ * Per provider, the account that served the newest successful client request
+ * (keepalive beats excluded). The provider comes from the account the row
+ * names, not the row: the main service records ChatGPT turns without a
+ * provider, and Antigravity rows name no listed account, so they are skipped.
+ */
+export type LatestServed = Partial<Record<AccountProvider, { profile: string; timestamp: number }>>
+export function latestServed(requests: readonly { profile: string; timestamp: number; failed: boolean; keepalive: boolean }[], accounts: readonly Pick<AccountView, 'id' | 'provider' | 'aliases'>[]): LatestServed {
+  // Rows keep the id an account had when they were recorded: a renamed
+  // account's old ids (aliases) still name it, under its current id.
+  const byId = new Map<string, Pick<AccountView, 'id' | 'provider'>>()
+  for (const account of accounts) for (const id of [...account.aliases, account.id]) byId.set(id, account)
+  const latest: LatestServed = {}
+  for (const row of requests) {
+    if (row.failed || row.keepalive || !row.profile) continue
+    const account = byId.get(row.profile)
+    if (!account) continue
+    const current = latest[account.provider]
+    if (!current || row.timestamp > current.timestamp) latest[account.provider] = { profile: account.id, timestamp: row.timestamp }
+  }
+  return latest
+}
+
+/**
+ * When the selected account did not serve the newest request of its provider
+ * (failover, pool routing, or a switch made since), say so on both cards.
+ * Neutral by design: in pool routing another account serving is normal.
+ */
+export function servingNote(account: Pick<AccountView, 'id' | 'provider' | 'active'>, model: Pick<AccountsModel, 'active'>, latest: LatestServed): { kind: 'elsewhere' | 'here'; other: string; timestamp: number } | null {
+  const served = latest[account.provider]
+  const selected = model.active[account.provider]
+  if (!served || !selected || served.profile === selected) return null
+  if (account.active) return { kind: 'elsewhere', other: served.profile, timestamp: served.timestamp }
+  if (account.id === served.profile) return { kind: 'here', other: selected, timestamp: served.timestamp }
+  return null
+}
+
+/**
+ * The header line: "serving personal" ("following personal" in follow mode),
+ * or per provider when several shown providers have an active account:
+ * "serving Claude personal · ChatGPT seat-b". Antigravity is left out: it is
+ * never switched here and its card already says it is serving.
+ */
+export function servingLine(model: { active: AccountsModel['active']; accounts: readonly Pick<AccountView, 'provider'>[] }, options: { providers?: readonly AccountProvider[]; follow?: boolean } = {}): string {
+  const names: Record<'claude' | 'chatgpt', string> = { claude: 'Claude', chatgpt: 'ChatGPT' }
+  const shown = (['claude', 'chatgpt'] as const).filter(provider => (!options.providers || options.providers.includes(provider)) && model.active[provider] && model.accounts.some(account => account.provider === provider))
+  if (!shown.length) return ''
+  const verb = options.follow ? 'following' : 'serving'
+  if (shown.length === 1) return `${verb} ${model.active[shown[0]!]}`
+  return `${verb} ${shown.map(provider => `${names[provider]} ${model.active[provider]}`).join(' · ')}`
 }

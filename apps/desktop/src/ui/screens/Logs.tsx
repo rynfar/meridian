@@ -31,9 +31,9 @@ export function Logs({ navigate }: { navigate: Navigate }) {
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col px-[26px] pb-[18px] pt-[18px]">
       <div className="flex items-center gap-2">
         <TabList>
-          <Tab value="diagnostics">Diagnostics <span className="num text-xs font-normal text-t4">{fmtInt(logs.length)}</span></Tab>
-          <Tab value="alerts">Alerts {state.incidents.length ? <span className="num flex items-center gap-1 text-xs font-normal text-t4"><Dot tone="yellow" size={6} />{state.incidents.length}</span> : <span className="text-xs font-normal text-t4">0</span>}</Tab>
-          <Tab value="output">Service output <span className="num text-xs font-normal text-t4">{fmtInt(state.serviceLog.length)}</span></Tab>
+          <Tab value="diagnostics">Diagnostics <span className="num text-xs font-normal text-t3">{fmtInt(logs.length)}</span></Tab>
+          <Tab value="alerts">Alerts {state.incidents.length ? <span className="num flex items-center gap-1 text-xs font-normal text-t3"><Dot tone="yellow" size={6} />{state.incidents.length}</span> : <span className="text-xs font-normal text-t3">0</span>}</Tab>
+          <Tab value="output">Service output <span className="num text-xs font-normal text-t3">{fmtInt(state.serviceLog.length)}</span></Tab>
         </TabList>
         <span className="flex-1" />
         {tab === 'alerts' && state.incidents.length ? <Button onClick={() => { void run('acknowledge') }} disabled={busy}><CheckCheck />Acknowledge all</Button> : null}
@@ -55,7 +55,7 @@ export function Logs({ navigate }: { navigate: Navigate }) {
               <div className="selectable scroll-y -mx-2 mt-0.5 min-h-0 flex-1">
                 {shown.map((log, index) => (
                   <div key={`${log.timestamp}-${index}`} className="grid min-h-[29px] grid-cols-[92px_128px_minmax(0,1fr)] items-baseline gap-x-3.5 rounded-md px-2 py-[6px] transition-colors duration-150 hover:bg-hover">
-                    <time className="num text-base text-t4">{when(log.timestamp, now)}</time>
+                    <time className="num text-base text-t3">{when(log.timestamp, now)}</time>
                     <span className={cn('truncate text-base', levelText[levelTone(log.level)])} title={log.level}>{log.category}</span>
                     <span className="min-w-0 break-words font-mono text-xs leading-relaxed text-t1">{log.message}</span>
                   </div>
@@ -72,7 +72,7 @@ export function Logs({ navigate }: { navigate: Navigate }) {
             {incidents.map(item => (
               <div key={item.id} className="rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-hover">
                 <GlyphItem kind={item.severity === 'error' ? 'bad' : 'warn'} title={item.title} detail={item.detail}
-                  aside={<><span className="num text-meta text-t4">{when(item.timestamp, now)}</span>{item.requestId ? <Button variant="text" size="sm" onClick={() => navigate('traffic', { request: item.requestId })}>Open request</Button> : null}</>} />
+                  aside={<><span className="num text-meta text-t3">{when(item.timestamp, now)}</span>{item.requestId ? <Button variant="text" size="sm" onClick={() => navigate('traffic', { request: item.requestId })}>Open request</Button> : null}</>} />
               </div>
             ))}
           </div>

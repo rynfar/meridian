@@ -441,3 +441,161 @@ export function findCooldownReset(
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// Weekly reserve (opt-in, pool routing). See profiles-routing.spec.md.
+// ---------------------------------------------------------------------------
+
+/** The account-wide weekly window the reserve is measured against. */
+export const WEEKLY_RESERVE_WINDOW = "seven_day"
+
+/** How long a reading with no reset time may keep a profile held. */
+export const WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS = 60 * 60_000
+
+/** One observation of a profile's weekly window, from any source. */
+export interface WeeklyUsageReading {
+  /** 0..1, or absent when the source did not report it. */
+  utilization: number | null | undefined
+  /** Epoch ms of the window's reset, or absent when unknown. */
+  resetsAt: number | null | undefined
+  /** Epoch ms the reading was taken. */
+  observedAt: number
+}
+
+export interface WeeklyReserveHold {
+  utilization: number
+  /** When the hold lifts on its own (the window's reset), if known. */
+  until: number | undefined
+}
+
+/**
+ * Parse reserve percentages from `MERIDIAN_WEEKLY_RESERVE`
+ * (`personal=20,work=10`), which takes precedence, or the `weeklyReserve`
+ * setting. Values must be in (0, 100); anything else is returned as invalid.
+ */
+export function parseWeeklyReserves(
+  env: string | undefined,
+  setting: Readonly<Record<string, unknown>> | undefined,
+): { reserves: Map<string, number>; invalid: string[] } {
+  const reserves = new Map<string, number>()
+  const invalid: string[] = []
+  const accept = (id: string, value: unknown, label: string) => {
+    const pct = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN
+    if (id && Number.isFinite(pct) && pct > 0 && pct < 100) reserves.set(id, pct)
+    else invalid.push(label)
+  }
+  if (env && env.trim()) {
+    for (const part of env.split(",")) {
+      const entry = part.trim()
+      if (!entry) continue
+      const eq = entry.indexOf("=")
+      if (eq <= 0) { invalid.push(entry); continue }
+      accept(entry.slice(0, eq).trim(), entry.slice(eq + 1).trim(), entry)
+    }
+    return { reserves, invalid }
+  }
+  if (setting && typeof setting === "object") {
+    for (const [id, value] of Object.entries(setting)) accept(id.trim(), value, `${id}=${String(value)}`)
+  }
+  return { reserves, invalid }
+}
+
+/**
+ * Whether a profile is holding its weekly reserve, from the newest reading
+ * that still describes the current window: a reading past its reset, or one
+ * with no reset older than WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS, is
+ * ignored. No usable reading means no hold.
+ */
+export function weeklyReserveHold(
+  reservePercent: number,
+  readings: readonly WeeklyUsageReading[],
+  now: number,
+): WeeklyReserveHold | undefined {
+  let newest: WeeklyUsageReading | undefined
+  for (const reading of readings) {
+    if (typeof reading.utilization !== "number" || !Number.isFinite(reading.utilization)) continue
+    if (typeof reading.resetsAt === "number") {
+      if (reading.resetsAt <= now) continue
+    } else if (now - reading.observedAt > WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS) {
+      continue
+    }
+    if (!newest || reading.observedAt > newest.observedAt) newest = reading
+  }
+  if (!newest || typeof newest.utilization !== "number") return undefined
+  const limit = 1 - reservePercent / 100
+  if (newest.utilization < limit) return undefined
+  return {
+    utilization: newest.utilization,
+    until: typeof newest.resetsAt === "number" ? newest.resetsAt : undefined,
+  }
+}
+
+/** Holds for every profile in `ids` that has a reserve and has reached it. */
+export function weeklyReserveHolds(
+  ids: readonly string[],
+  reserves: ReadonlyMap<string, number>,
+  readingsFor: (id: string) => readonly WeeklyUsageReading[],
+  now: number,
+): Map<string, WeeklyReserveHold> {
+  const holds = new Map<string, WeeklyReserveHold>()
+  if (reserves.size === 0) return holds
+  for (const id of ids) {
+    const pct = reserves.get(id)
+    if (pct === undefined) continue
+    const hold = weeklyReserveHold(pct, readingsFor(id), now)
+    if (hold) holds.set(id, hold)
+  }
+  return holds
+}
+
+export type WeeklyReserveEvent =
+  | { event: "priority.weekly_reserve_held"; data: { profile: string; utilization: number; until: number | undefined } }
+  | { event: "priority.weekly_reserve_released"; data: { profile: string } }
+  | { event: "priority.weekly_reserve_invalid"; data: { invalid: string[] } }
+  | { event: "priority.weekly_reserve_unknown_ids"; data: { unknown: string[] } }
+
+/**
+ * Per-instance reserve state: which profiles are held, plus log events for
+ * transitions and for configuration problems (each distinct problem once).
+ */
+export class WeeklyReserveTracker {
+  private readonly held = new Set<string>()
+  private lastInvalid = ""
+  private lastUnknown = ""
+
+  evaluate(input: {
+    ids: readonly string[]
+    /** Every Claude profile id, for reporting reserves naming no profile. */
+    knownIds: readonly string[]
+    parsed: { reserves: ReadonlyMap<string, number>; invalid: readonly string[] }
+    readingsFor: (id: string) => readonly WeeklyUsageReading[]
+    now: number
+  }): { holds: Map<string, WeeklyReserveHold>; events: WeeklyReserveEvent[] } {
+    const events: WeeklyReserveEvent[] = []
+    const invalidKey = input.parsed.invalid.join(",")
+    if (invalidKey && invalidKey !== this.lastInvalid) {
+      events.push({ event: "priority.weekly_reserve_invalid", data: { invalid: [...input.parsed.invalid] } })
+    }
+    this.lastInvalid = invalidKey
+    const known = new Set(input.knownIds)
+    const unknown = [...input.parsed.reserves.keys()].filter(id => !known.has(id))
+    const unknownKey = unknown.join(",")
+    if (unknownKey && unknownKey !== this.lastUnknown) {
+      events.push({ event: "priority.weekly_reserve_unknown_ids", data: { unknown } })
+    }
+    this.lastUnknown = unknownKey
+
+    const holds = weeklyReserveHolds(input.ids, input.parsed.reserves, input.readingsFor, input.now)
+    for (const [id, hold] of holds) {
+      if (this.held.has(id)) continue
+      this.held.add(id)
+      events.push({ event: "priority.weekly_reserve_held", data: { profile: id, utilization: hold.utilization, until: hold.until } })
+    }
+    for (const id of input.ids) {
+      if (holds.has(id) || !this.held.has(id)) continue
+      this.held.delete(id)
+      events.push({ event: "priority.weekly_reserve_released", data: { profile: id } })
+    }
+    return { holds, events }
+  }
+}

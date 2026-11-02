@@ -51,7 +51,7 @@ export function DayStrip({ columns, now, height = 84, className }: { columns: St
 /** Axis under a strip: 00:00 · 06:00 · 12:00 · 18:00 · now 10:17 for Today (quarters of the day), else spread. */
 export function AxisLabels({ labels, quarters }: { labels: string[]; quarters?: boolean }) {
   return (
-    <div className={cn('num mt-1.5 text-2xs text-t4', quarters ? 'grid grid-cols-[repeat(4,minmax(0,1fr))_auto]' : 'flex justify-between')}>
+    <div className={cn('num mt-1.5 text-2xs text-t3', quarters ? 'grid grid-cols-[repeat(4,minmax(0,1fr))_auto]' : 'flex justify-between')}>
       {labels.map((label, index) => <span key={index}>{label}</span>)}
     </div>
   )

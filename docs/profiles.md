@@ -248,6 +248,14 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 - **Exhaustion is tracked in-memory.** A quota refusal uses that account's own reported reset time (conservative 10-minute default when unknown), refined shortly after by an authoritative check against the usage API that can extend — never shorten — the cooldown once that account's five-hour window is confirmed exhausted. A billing refusal has no reset to wait for, so it takes the conservative default unrefined — the account is simply re-probed later, since only a human can fix a subscription. The home page shows `#n in pool` and `exhausted · resets in …` badges per account.
 - When **every** account is exhausted, the last-tried account's error is surfaced unchanged, with its own status — a pool that ran out of billing is not reported as a rate limit.
 - An explicit `x-meridian-profile` header always bypasses the pool (per-session pinning keeps working).
+- **Weekly reserve (opt-in).** Hold back part of an account's weekly allowance, for example for someone who uses that account directly outside Meridian. Once its weekly usage reaches 100% minus the reserve, the pool skips it until the weekly window resets:
+
+  ```bash
+  MERIDIAN_WEEKLY_RESERVE=personal=20 meridian
+  # or "weeklyReserve": { "personal": 20 } in ~/.config/meridian/settings.json
+  ```
+
+  The reserve is approximate. It reads only usage Meridian has already observed (the SDK's rate-limit events and any cached usage reads) and never makes extra usage requests, so it can land a few percent past the line, and an account Meridian has not measured yet is not held. Right after a restart that means no protection until a usage read succeeds (the dashboard and desktop app read usage while open, and the usage endpoint rate-limits), or until the SDK reports weekly usage on a response. A conversation already on the account moves to the next account on its next turn. Internal work that may only resume its existing route (for example a title or compaction request) keeps it. Cache-keepalive pings skip a held account. When every account in the pool is holding its reserve, Meridian answers `429` with a `Retry-After` for the earliest weekly reset (capped at 24 hours). Explicit `x-meridian-profile` pins and the `active`/`sticky` modes are not affected. Changes are logged as `priority.weekly_reserve_held` and `priority.weekly_reserve_released`; a value outside 1–99 or a profile name that doesn't exist is logged (`priority.weekly_reserve_invalid`, `priority.weekly_reserve_unknown_ids`) and ignored.
 - Failovers are logged (`profile.failover` in the diagnostic stream; `profile=<id>(priority)` in request lines).
 
 ### Profile commands

@@ -8,10 +8,12 @@ import { VALID_EFFORTS } from "../proxy/effort"
 import { buildModelList } from "../proxy/openai"
 import { chatGptModelList } from "../proxy/chatgpt/catalog"
 import {
+  BUILTIN_CATALOG,
   DEFAULT_BASE_URL,
   MERIDIAN_PI_EFFORTS,
   STORED_CATALOG_TTL_MS,
   buildModels,
+  cacheOnlyModels,
   catalogStoreEntry,
   fetchCatalog,
   normalizeBaseUrl,
@@ -47,6 +49,12 @@ describe("Pi extension catalog parsing", () => {
   // The plugin cannot import from src/, so the effort vocabulary is duplicated.
   test("knows exactly the effort levels the proxy accepts", () => {
     expect([...MERIDIAN_PI_EFFORTS]).toEqual([...VALID_EFFORTS])
+  })
+
+  // Likewise the built-in catalog: it must be what this Meridian's /v1/models
+  // serves without the legacy Opus 4.6 1M entitlement or the 1M opt-out.
+  test("ships exactly the Claude models the proxy serves by default", () => {
+    expect(BUILTIN_CATALOG).toEqual(parseCatalog({ object: "list", data: buildModelList(false, 0) })!)
   })
 
   test("reads every Claude model Meridian advertises", () => {
@@ -198,6 +206,11 @@ describe("Pi extension discovery request", () => {
     await expect(fetchCatalog(BASE, undefined, AbortSignal.timeout(1000), status)).rejects.toThrow("HTTP 401")
     const malformed = (async () => Response.json({ nope: true })) as unknown as typeof fetch
     await expect(fetchCatalog(BASE, undefined, AbortSignal.timeout(1000), malformed)).rejects.toThrow("malformed")
+    const chatGptOnly = (async () => Response.json({
+      object: "list",
+      data: chatGptModelList([{ slug: "gpt-6.1", displayName: "GPT-6.1", contextWindow: null, plans: null }], 0),
+    })) as unknown as typeof fetch
+    await expect(fetchCatalog(BASE, undefined, AbortSignal.timeout(1000), chatGptOnly)).rejects.toThrow("no usable Claude models")
   })
 })
 
@@ -220,6 +233,25 @@ describe("Pi extension stored catalog", () => {
     expect(restoreModels(entry, BASE, 1_000 + STORED_CATALOG_TTL_MS)).toEqual(models)
     expect(restoreModels(entry, BASE, 1_001 + STORED_CATALOG_TTL_MS)).toBeUndefined()
     expect(restoreModels(entry, BASE, 999)).toBeUndefined()
+  })
+
+  test("restores an expired snapshot when asked for one of any age", () => {
+    const entry = catalogStoreEntry("meridian", models, 1_000)
+    expect(restoreModels(entry, BASE, 1_001 + STORED_CATALOG_TTL_MS, Number.POSITIVE_INFINITY)).toEqual(models)
+    expect(restoreModels(entry, "http://127.0.0.1:3458", 1_001 + STORED_CATALOG_TTL_MS, Number.POSITIVE_INFINITY)).toBeUndefined()
+    expect(restoreModels(entry, BASE, 999, Number.POSITIVE_INFINITY)).toBeUndefined()
+  })
+
+  test("answers the cache-only phase with a fresh, then a complete expired, then the built-in catalog", () => {
+    const builtIn = buildModels(BUILTIN_CATALOG, anthropicModels, BASE)
+    const expiredAt = 1_001 + STORED_CATALOG_TTL_MS
+    const partial = models.filter(model => model.id !== "claude-haiku-5-5")
+    expect(cacheOnlyModels(catalogStoreEntry("meridian", partial, 1_000), BASE, 2_000, builtIn)).toEqual(partial)
+    expect(cacheOnlyModels(catalogStoreEntry("meridian", models, 1_000), BASE, expiredAt, builtIn)).toEqual(models)
+    // An expired catalog missing a model the extension knows predates its Meridian version.
+    expect(cacheOnlyModels(catalogStoreEntry("meridian", partial, 1_000), BASE, expiredAt, builtIn)).toEqual(builtIn)
+    expect(cacheOnlyModels(catalogStoreEntry("meridian", models, 1_000), "http://127.0.0.1:3458", 2_000, builtIn)).toEqual(builtIn)
+    expect(cacheOnlyModels(undefined, BASE, 0, builtIn)).toEqual(builtIn)
   })
 
   test("ignores a missing or empty snapshot", () => {

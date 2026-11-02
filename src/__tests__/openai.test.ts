@@ -38,6 +38,13 @@ describe("extractOpenAiContent", () => {
     ])).toBe("[Image attached]only this")
   })
 
+  it("summarizes file parts in text extraction", () => {
+    expect(extractOpenAiContent([
+      { type: "file", file: { file_data: "data:application/pdf;base64,JVBERi0x" } },
+      { type: "text", text: "read it" },
+    ])).toBe("[Document attached]read it")
+  })
+
   it("returns empty string for empty array", () => {
     expect(extractOpenAiContent([])).toBe("")
   })
@@ -223,6 +230,25 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result!.messages).toEqual([{ role: 'user', content: [{ type: "text", text: "now answer" }] }])
   })
 
+  it("keeps an earlier PDF as a placeholder in packed system context", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "read" },
+            { type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" } },
+          ],
+        },
+        { role: "assistant", content: "done" },
+        { role: "user", content: "follow up" },
+      ],
+    })
+
+    expect(result!.system).toContain("user: read[Document attached]")
+    expect(result!.messages).toEqual([{ role: "user", content: [{ type: "text", text: "follow up" }] }])
+  })
+
   it("handles structured text content in messages", () => {
     const result = translateOpenAiToAnthropic({
       messages: [{
@@ -312,6 +338,82 @@ describe("translateOpenAiToAnthropic", () => {
         { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "abc123" } },
       ],
     }])
+  })
+
+  it("maps base64 PDF file parts to document blocks", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "summarize" },
+          { type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" } },
+        ],
+      }],
+    })
+
+    expect(result!.messages).toEqual([{
+      role: "user",
+      content: [
+        { type: "text", text: "summarize" },
+        { type: "document", title: "report.pdf", source: { type: "base64", media_type: "application/pdf", data: "JVBERi0x" } },
+      ],
+    }])
+  })
+
+  // Only inline base64 PDFs can become Anthropic document blocks. An uploaded
+  // file_id or another media type gets a note so the model knows it is missing.
+  it("adds an explicit placeholder for file parts that cannot be inlined", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{
+        role: "user",
+        content: [
+          { type: "file", file: { file_id: "file-abc" } },
+          { type: "file", file: { file_data: "data:text/csv;base64,YSxi" } },
+        ],
+      }],
+    })
+
+    expect(result!.messages).toEqual([{
+      role: "user",
+      content: [
+        { type: "text", text: "[Unsupported file omitted: only base64 PDF data URLs are currently supported]" },
+        { type: "text", text: "[Unsupported file omitted: only base64 PDF data URLs are currently supported]" },
+      ],
+    }])
+  })
+
+  it("adds an explicit placeholder instead of silently dropping unknown parts", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "listen" },
+          { type: "input_audio" },
+        ],
+      }],
+    })
+
+    expect(result!.messages).toEqual([{
+      role: "user",
+      content: [
+        { type: "text", text: "listen" },
+        { type: "text", text: "[Unsupported input_audio content part omitted]" },
+      ],
+    }])
+  })
+
+  // `refusal` is the spec's other assistant part type: its text is what the
+  // assistant said, so it is not an unsupported part.
+  it("keeps assistant refusal parts as assistant text", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        { role: "user", content: "do the thing" },
+        { role: "assistant", content: [{ type: "refusal", refusal: "I can't help with that." }] },
+        { role: "user", content: "ok" },
+      ],
+    }, { preserveConversationHistory: true })
+
+    expect(result!.messages[1]).toEqual({ role: "assistant", content: "I can't help with that." })
   })
 
   it("sets stream from body", () => {

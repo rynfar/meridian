@@ -463,12 +463,16 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getMcpServerName()` | MCP server name for tool registration |
 | `getAllowedMcpTools()` | MCP tools allowed through the proxy |
 
-### Remaining OpenCode-Specific Code (Not Yet in Adapter)
+### Agent-Specific Logic Outside Adapters
+
+Code that knows one client's conventions but lives outside `adapters/`. Each
+site carries a `NOTE: agent-specific` marker.
 
 | Logic | Location | Status |
 |-------|----------|--------|
 | `buildAgentDefinitions` | `agentDefs.ts`, `transforms/opencode.ts` | Pure OpenCode Task parser invoked by the adapter transform. |
 | Passthrough mode | `passthroughTools.ts` | Agent-agnostic but OpenCode-motivated. Keep as-is. |
+| Client-owned tool search (#1478) | `passthroughTools.ts` (`clientOwnsToolSearch`), used by `server.ts` and `passthroughEarlyStop.ts` | Claude Code's convention: a loaded tool named `ToolSearch` beside `defer_loading` tools. Detected from the request's shape rather than the adapter, so Claude Code traffic routed to another adapter (`x-meridian-agent`, an adapter instance) is handled the same way. |
 
 ## Session Management
 

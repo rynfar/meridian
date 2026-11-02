@@ -74,6 +74,18 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   history block (full history every turn would otherwise read as undo or
   divergence); clients with a recognized session key keep real history so
   lineage can resume.
+  - Content parts map to Claude blocks: `text` and assistant `refusal` to
+    text, data-URL `image_url` to image, a base64 PDF data URL in `file` to
+    document, through the same `parseDataUrlImage` / `parseDataUrlPdf` the
+    Responses adapter uses. In user, assistant and tool messages a part that
+    cannot be delivered (remote image URL, `file_id`, another file type,
+    `input_audio`, an unknown type) becomes a bracketed omission note, never a
+    silent drop (#1482): a dropped part let the request succeed while Claude
+    never saw the input and nothing said so. System messages are flattened to
+    text. Packed history renders an earlier turn's images and documents as
+    `[Image attached]` / `[Document attached]`, so unkeyed, only the latest
+    turn's media reaches the model (media nested in a packed tool result is
+    still dropped).
 - **Per-model 1M override.** `[1m]` stays the default for Opus and Fable;
   `MERIDIAN_OPUS_MODEL=opus` / `MERIDIAN_FABLE_MODEL=fable` opt a tier out
   (Mythos follows Fable). Values are normalized; an unrecognized value warns
@@ -88,6 +100,17 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   (not whole-server memory): built sets from about 20 MiB per session to one
   shared set; the remaining per-session heap from about 1 MiB to about 80 KiB. Shared values are read-only; each query still
   builds its own MCP server from them.
+- **A client that defers tools is never auto-deferred; one that also brings
+  its own `ToolSearch` gets the only search path.** The session pin holds the
+  auto-defer answer (#861), so a threshold crossing cannot flip the tool
+  block, `ENABLE_TOOL_SEARCH` or `maxTurns` mid-session. With a client
+  `ToolSearch` (Claude Code): eager tools stay registered, a deferred tool
+  joins them eagerly once referenced, unreferenced ones stay unregistered,
+  Meridian adds no inner ToolSearch, `tool_reference` blocks reach the model
+  as text naming the registered tool (a copied client name is undispatchable,
+  #1107), and each discovery re-primes the prompt cache by changing the
+  registered set. Other client-deferral keeps the inner ToolSearch and maps
+  `tool_reference` names to the registered names at a checkpoint.
 - **Transcript retention is opt-in and delegated to Claude Code (#1261,
   owner decision 2026-10-27).** Meridian's empty `settingSources` (#490/#634)
   also skips Claude Code's retention cleanup, so transcripts Meridian's own GC

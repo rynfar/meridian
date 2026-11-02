@@ -46,7 +46,7 @@ export function InlineStats({ cells, className }: { cells: { label: ReactNode; v
         <div key={index} className={cn('min-w-0', cell.className)}>
           <Label>{cell.label}</Label>
           <div className="num mt-1 truncate font-display text-xl font-semibold leading-tight tracking-title text-t1">{cell.value}</div>
-          {cell.detail ? <div className="num mt-0.5 truncate text-xs text-t4" title={typeof cell.detail === 'string' ? cell.detail : undefined}>{cell.detail}</div> : null}
+          {cell.detail ? <div className="num mt-0.5 truncate text-xs text-t3" title={typeof cell.detail === 'string' ? cell.detail : undefined}>{cell.detail}</div> : null}
         </div>
       ))}
     </div>

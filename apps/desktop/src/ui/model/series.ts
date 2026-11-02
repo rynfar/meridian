@@ -1,6 +1,7 @@
 /** Chart data for the selected window: server buckets, or the recent-requests fallback. Pure. */
 import type { DesktopState } from '../../contracts'
 import { bucketRequests, localMidnight, windowRange, type Timeseries, type TimeseriesBucket, type WindowKind } from '../../uiData'
+import { number, object } from '../../core'
 import { hhmm } from './format'
 
 export interface ChartSeries { series: Timeseries; estimated: boolean; note?: string }
@@ -10,21 +11,61 @@ export interface ChartSeries { series: Timeseries; estimated: boolean; note?: st
  * (older Meridian): bucket the recent requests instead. null without a note is
  * still loading.
  */
-export function chartSeries(state: Pick<DesktopState, 'timeseries' | 'timeseriesNote' | 'requests' | 'window'>, now: number): ChartSeries | null {
+export function chartSeries(state: Pick<DesktopState, 'timeseries' | 'timeseriesNote' | 'requests' | 'window'> & { summary?: unknown }, now: number): ChartSeries | null {
   if (state.timeseries) return { series: state.timeseries, estimated: state.timeseries.estimated === true }
   if (state.timeseriesNote === undefined || state.requests === null) return null
-  return { series: bucketRequests(state.requests, windowRange(state.window.kind, now)), estimated: true, note: state.timeseriesNote }
+  const expected = number(object(state.summary).totalRequests)
+  return { series: bucketRequests(state.requests, windowRange(state.window.kind, now), 500, expected), estimated: true, note: state.timeseriesNote }
 }
 
-/** One slot per bucket; for Today, the whole day so the rest of it reads as "not yet". */
+/**
+ * The one line under a chart that says what it does not show, or null. A
+ * server-truncated range means Meridian no longer holds the start of the
+ * window (memory ring full or retention), so every window figure misses it.
+ */
+export function historyNote(chart: ChartSeries | null): string | null {
+  if (!chart) return null
+  if (chart.estimated) return chart.series.truncated
+    ? 'Estimated from the latest requests, which do not reach back to the start of this window; earlier hours look empty.'
+    : 'Estimated from the latest requests; this Meridian has no hourly history.'
+  return chart.series.truncated ? 'Meridian no longer holds the start of this window (retention or memory limit); earlier requests are not counted.' : null
+}
+
+/** Local wall-clock hour `index` of the day holding `now` (JS normalizes a skipped DST hour forward). */
+function localHour(now: number, index: number): number {
+  const day = new Date(localMidnight(now))
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), index).getTime()
+}
+/** Buckets that fall in one wall-clock slot (two on the repeated DST hour), as one. */
+function mergeBuckets(items: readonly TimeseriesBucket[]): TimeseriesBucket | null {
+  const first = items[0]
+  if (!first || items.length === 1) return first ?? null
+  const sum = (key: 'requests' | 'errors' | 'inputTokens' | 'cacheReadTokens' | 'cacheCreationTokens' | 'outputTokens') => items.reduce((total, item) => total + item[key], 0)
+  const rated = items.filter(item => item.cacheHitRate !== null && item.requests > 0)
+  const weight = rated.reduce((total, item) => total + item.requests, 0)
+  const busiest = [...items].sort((a, b) => b.requests - a.requests)[0] ?? first
+  const costs = items.map(item => item.costUsd).filter((value): value is number => value !== null)
+  return {
+    start: first.start, requests: sum('requests'), errors: sum('errors'), inputTokens: sum('inputTokens'), cacheReadTokens: sum('cacheReadTokens'),
+    cacheCreationTokens: sum('cacheCreationTokens'), outputTokens: sum('outputTokens'),
+    cacheHitRate: weight ? rated.reduce((total, item) => total + (item.cacheHitRate ?? 0) * item.requests, 0) / weight : null,
+    // Medians do not add; show the busier hour's.
+    p50TotalMs: busiest.p50TotalMs, p50TtfbMs: busiest.p50TtfbMs,
+    costUsd: costs.length ? costs.reduce((a, b) => a + b, 0) : null,
+    ...(items.some(item => item.unpricedRequests !== undefined) ? { unpricedRequests: items.reduce((total, item) => total + (item.unpricedRequests ?? 0), 0) } : {}),
+  }
+}
+/**
+ * One slot per bucket; for Today, one per wall-clock hour of the whole day so
+ * the rest of it reads as "not yet". On DST days the slots follow the clock:
+ * the skipped hour is an empty slot and the repeated hour holds both buckets.
+ */
 export function slots(series: Timeseries, kind: WindowKind, now: number): (TimeseriesBucket | null)[] {
   if (kind !== 'today') return series.buckets
-  const midnight = localMidnight(now)
-  const hour = 3_600_000
   return Array.from({ length: 24 }, (_, index) => {
-    const start = midnight + index * hour
+    const start = localHour(now, index), end = localHour(now, index + 1)
     if (start > now) return null
-    return series.buckets.find(bucket => bucket.start >= start && bucket.start < start + hour) ?? null
+    return mergeBuckets(series.buckets.filter(bucket => bucket.start >= start && bucket.start < end))
   })
 }
 
@@ -40,7 +81,9 @@ export function axisLabels(kind: WindowKind, series: Timeseries | undefined, now
 /** Where "now" sits along today's 24 slots, 0..1; null for rolling windows (now is the right edge). */
 export function nowFraction(kind: WindowKind, now: number): number | null {
   if (kind !== 'today') return null
-  return Math.min(1, (now - localMidnight(now)) / 86_400_000)
+  // Wall-clock position, so it lines up with the hour slots on DST days too.
+  const date = new Date(now)
+  return Math.min(1, (date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600) / 24)
 }
 
 export interface SparkPaths { line: string; area: string; runs: number }
@@ -101,7 +144,7 @@ export function bucketLabel(start: number, bucketMs: number): string {
 /** Index of the first Today slot still in the future (Infinity for rolling windows). */
 export function firstFutureSlot(kind: WindowKind, now: number): number {
   if (kind !== 'today') return Infinity
-  return Math.floor((now - localMidnight(now)) / 3_600_000) + 1
+  return new Date(now).getHours() + 1
 }
 
 /** "Prompt tokens per hour", "… per 5 minutes", "… per 6 hours". */

@@ -42,3 +42,17 @@ export function ConnectionProblem({ data, state, run, goService, busy, compact }
     </div>
   )
 }
+
+/** One read failed while the service answers: say which, why, and offer a refresh. Never an endless skeleton. */
+export function ReadFailed({ what, message, onRetry, busy, compact, className }: { what: string; message: string; onRetry(): void; busy: boolean; compact?: boolean; className?: string }) {
+  return (
+    <div role="alert" className={cn('flex min-w-0 items-start gap-2.5', compact ? 'text-xs' : 'text-cap', className)}>
+      <CircleAlert aria-hidden strokeWidth={1.6} className={cn('mt-0.5 shrink-0 text-red', compact ? 'size-3.5' : 'size-4')} />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium text-t1">Could not read {what}</div>
+        <div className="selectable mt-0.5 line-clamp-2 text-t3" title={message}>{message}</div>
+      </div>
+      <Button variant="subtle" size="sm" className="shrink-0" disabled={busy} onClick={onRetry}><RefreshCw />Refresh</Button>
+    </div>
+  )
+}
