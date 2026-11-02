@@ -92,6 +92,40 @@ A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
+## Claude Code's own tool search in passthrough (#1478)
+
+`node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
+against a built Meridian (`npm run build` first). Set `E2E_CLAUDE_BIN` to an
+absolute Claude Code executable. The client gets a stdio MCP server with 22
+`ledger_*` tools and `ENABLE_TOOL_SEARCH` on or off, and is asked to call
+specific tools.
+- **Assertion:** the MCP server's own call log, never model wording. For
+  `--expect=pass`, every target tool was called with the fixture arguments, in
+  order in `--mode=chain`. For `--expect=fail`, none was (the unchanged-main
+  control).
+- **Upstream:** `--upstream=scripted` (the default) points Meridian at a
+  scripted Messages API that applies the API's `tool_reference` rule: a
+  `defer_loading` tool becomes callable only once a reference names it. It
+  needs no credentials and makes no model calls. `--mode=bare-name` scripts a
+  model that copies the name from a `[Tool reference: …]` note verbatim (the
+  #1107 failure). `--upstream=live` uses the default Claude login read-only and
+  requires `E2E_ALLOW_LIVE_MODEL=1`. It sets `MERIDIAN_OPUS_MODEL=opus` so an
+  Opus run cannot bill the `[1m]` variant as Extra Usage.
+- **Exit codes:** 0 for the expected outcome, 1 otherwise, and 2 on a usage,
+  billing or auth refusal. On 2, stop: do not retry on another account.
+
+Recorded 2026-11-02 on Darwin arm64 with Claude Code 2.1.316, Agent SDK 0.2.141
+and Node 22.22.3, during the #1478 review:
+- **Live:** with tool search on, unchanged main fails on Sonnet 5.5, and the
+  fix passes on Sonnet 5.5 and Opus 5.5. The tool-search-off control passes
+  (`deferred=40/44`).
+- **E41:** all four modes pass on the fix and on main.
+- **Scripted:** see the self-test below.
+
+Self-test of this script from the repository, scripted upstream, no model calls:
+- **main `7a971fd1`:** `single`, `chain`, `parallel` and `bare-name` with tool search on, and `single` with it off, all pass. Every rendered reference names the registered `mcp__oc__…` tool.
+- **Before #1478 (`c6ec3a92`):** `single` with tool search on fails as expected: no MCP call, and the inner CLI replaces the reference with `Tool references removed`.
+
 ## Awaited session-cache cleanup (#1244/#1277)
 
 Run `bun test src/__tests__/session-cache-clear-completion.test.ts` with a
