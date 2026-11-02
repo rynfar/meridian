@@ -1790,6 +1790,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
+| E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture` (model-free: real built server under Node, real Claude Code child, scripted upstream) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when it discards the partial and replay with the partial when it keeps it. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7235,6 +7236,47 @@ request and the next request of each captioned subagent resumes
 interactive flow (a tool-less streamed request at startup, each subagent's first
 request repeated); those are outside this gate.
 [Evidence](docs/maintenance/evidence/1292-captions-interactive-20261014/README.md).
+
+## E79: Stopped turn: discarded output resumes, kept output replays
+
+**What it proves:** a client that stops a streaming turn after output reached
+it gets a next turn consistent with what it kept. Discarding the partial (Pi,
+Prime Agent) resumes the stopped turn's session with the prompt cache; keeping
+it (OpenCode, Oh My Pi) replays the conversation, partial included. See the
+session spec, *Interrupted turns*.
+
+```bash
+npm run build
+bun scripts/e2e-client-abort-resume.mjs --fixture
+E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live [--model=claude-sonnet-5-5]
+```
+
+The gate starts the built `dist/cli.js` under Node in its own process for each
+case, because only a real socket close is a disconnect: with the server and
+client in one Bun process the client's abort never reaches the server, the
+stopped turn completes and publishes, and the next turn resumes output the
+client never received, on any build. A direct HTTP client sends a ~15k-token
+first turn, streams a second turn and closes it after 40 characters of text
+(before `message_stop`), then sends the third turn at once, either without the
+partial (`discard`) or with it as an assistant message (`keep`).
+`--fixture` points the real Claude Code child at a scripted upstream in the
+harness through an `api` profile under an isolated HOME, so it needs no model;
+`--live` uses the default Claude login read-only and stops on any usage
+refusal. `--case=discard|keep` runs one shape and `E2E_MERIDIAN_ROOT` serves
+another built checkout as a before/after control.
+
+Pass criteria (deterministic; model wording is never asserted):
+
+- `discard`: `lineage=continuation` resuming the turn-1 session with
+  `isResume=true`; the published history (supported `getSessionMessages`)
+  holds turn 1 and the new question but not the partial; in `--fixture` so does
+  the input the upstream received for the next turn; in `--live` the resume
+  reads at least 90% of turn 1's cached prefix.
+- `keep`: `diverged=interrupted-turn-kept` with `isResume=false`; the replayed
+  history, and in `--fixture` the upstream's next-turn input, carry the partial.
+- Both: the stop came before `message_stop` and every `tool_use` is paired.
+
+`summary.json` keeps lineage lines, telemetry counters and booleans only.
 
 ## Concurrent transcript publication
 
