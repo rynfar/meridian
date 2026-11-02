@@ -71,7 +71,15 @@ time, never against the nixpkgs locked here.
 
 - The directory holds both manifest formats: `manifest.json` for nixpkgs whose
   `claude-code` fetches the plain binary, and `manifest.zst.json` for nixpkgs
-  that fetches `claude.zst`. The package picks by `claude-code.src.url`.
+  that fetches `claude.zst`. The floor comes from `manifest.json`'s version,
+  which `update.sh` writes from `package.json` and the workflow below checks.
+  Only an override reads `claude-code.src.url` to pick the format. A
+  `claude-code` that already meets the floor is returned as it is, whatever it
+  is built from (a wrapper without `src`, for example). One below the floor is
+  rebuilt only if its `override` takes `manifest`. A wrapper, or a nixpkgs
+  `claude-code` from before that argument (nixos-25.11), stops evaluation with a
+  message naming both versions, instead of Nix's "attribute 'override'
+  missing" or "unexpected argument 'manifest'".
 - `nix/scope.nix` supplies the consumer's `claude-code` to it explicitly.
   Inside the scope its own `claude-code` argument would resolve to itself, and
   its value depends strictly on that argument's version.
