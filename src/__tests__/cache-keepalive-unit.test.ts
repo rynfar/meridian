@@ -122,6 +122,11 @@ describe("cacheKeepaliveAccountBlock", () => {
     expect(cacheKeepaliveAccountBlock({ ...healthy, benched: true })).toBe("benched")
   })
 
+  it("never beats an account holding its weekly reserve", () => {
+    expect(cacheKeepaliveAccountBlock({ ...healthy, reserveHeld: true })).toBe("reserve")
+    expect(cacheKeepaliveAccountBlock({ ...healthy, reserveHeld: false })).toBeUndefined()
+  })
+
   it("ignores windows that have already reset", () => {
     expect(cacheKeepaliveAccountBlock({
       ...healthy,
