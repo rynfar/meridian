@@ -64,13 +64,15 @@
  *            partial in the replayed history.
  *   strict:  the next turn waited for the session (sessionWait > 0) and was
  *            answered (no conflict refusal).
+ *   pi:      `meridian setup --client pi` reported the version E2E_PI_BIN
+ *            prints (its directory leads the PATH setup's `pi --version` reads).
  *   all:     the stop came before the turn finished, and (live) no usage
  *            refusal.
  */
 import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { delimiter, dirname, join, resolve } from "node:path"
 import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
 import { readSessionStoreSnapshot, setSessionStoreDir } from "../src/proxy/sessionStore.ts"
 import { observeChildClosure, stopAndJoinChild } from "./lib/e2eProcessCustody.mjs"
@@ -334,6 +336,8 @@ async function clientCase(client, dir) {
   check(loaded, `the Meridian ${client === "pi" ? "extension is installed and keys the requests" : "V2 plugin is configured once and active"}`)
   if (client === "pi") {
     const resumed = facts.turn2Line?.match(/session=(\S+)/)?.[1]
+    check(Boolean(clientFacts.piVersion) && clientFacts.setupPiVersion === clientFacts.piVersion,
+      `setup's version gate checked the Pi under test (${clientFacts.setupPiVersion ?? "none"})`)
     check(!facts.assistantAfterStoppedQuestion, "Pi sent no assistant content after the stopped question")
     check(facts.turn3Line?.includes("lineage=continuation") && resumed && facts.turn3Line.includes(`session=${resumed}`) && facts.resolvedResume === "true",
       "turn 3 resumed the session turn 2 resumed (continuation, interrupted resume)")
@@ -349,11 +353,17 @@ async function clientCase(client, dir) {
 }
 
 async function runPi(bin, dir, baseUrl, server, relay) {
-  const env = { ...clientEnvBase(dir), PI_CODING_AGENT_DIR: join(dir, "agent"), MERIDIAN_BASE_URL: baseUrl, PWD: join(dir, "project") }
+  // `meridian setup --client pi` gates on `pi --version` from PATH, so the Pi
+  // under test goes first: another `pi` on PATH (a version-manager shim, say)
+  // would be the one checked, and would run under the isolated HOME.
+  const path = bin.includes("/") ? `${dirname(resolve(bin))}${delimiter}${process.env.PATH}` : process.env.PATH
+  const env = { ...clientEnvBase(dir), PATH: path, PI_CODING_AGENT_DIR: join(dir, "agent"), MERIDIAN_BASE_URL: baseUrl, PWD: join(dir, "project") }
   mkdirSync(env.PI_CODING_AGENT_DIR, { recursive: true })
   const version = spawnSync(bin, ["--version"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).stdout.trim()
   const setup = spawnSync(NODE, [join(ROOT, "dist/cli.js"), "setup", "--client", "pi"], { cwd: env.PWD, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
   if (setup.status !== 0) throw new Error(`setup --client pi failed: ${setup.stderr}`)
+  // Setup names the version it checked: "installed for Pi <version>".
+  const setupPiVersion = setup.stdout.match(/for Pi (\d+\.\d+\.\d+)/)?.[1]
   const installed = existsSync(join(env.PI_CODING_AGENT_DIR, "extensions", "meridian"))
   const pi = spawn(bin, ["--mode", "rpc", "--model", `meridian/${MODEL}`, "--no-tools", "--session-dir", join(dir, "sessions")],
     { cwd: env.PWD, env, stdio: ["pipe", "pipe", "pipe"] })
@@ -397,7 +407,8 @@ async function runPi(bin, dir, baseUrl, server, relay) {
     send({ type: "prompt", message: U3 })
     await waitFor(from, (e) => e.type === "agent_settled", "turn 3 settle")
     await sleep(1000)
-    return { marks, facts: { client: `pi ${version}`, integrationLoaded: installed, stopped: settled.aborted === true } }
+    return { marks, facts: { client: `pi ${version}`, piVersion: version, setupPiVersion, integrationLoaded: installed,
+      stopped: settled.aborted === true } }
   } finally {
     writeFileSync(join(dir, "pi-events.jsonl"), events.map((e) => JSON.stringify(e)).join("\n"))
     pi.stdin.end()

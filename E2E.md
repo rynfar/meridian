@@ -7281,8 +7281,9 @@ Cases (`--case=` a comma list; the four HTTP cases by default, `all` for six):
   stop's cleanup and marking (the interrupted-turn race exemption).
 - `pi` (fixture only, `E2E_PI_BIN`): real Pi 1.4.0 in RPC mode with the
   Meridian extension installed by `meridian setup --client pi` under an
-  isolated HOME and `PI_CODING_AGENT_DIR`; turn 2 is stopped with Pi's RPC
-  `abort`, its Esc.
+  isolated HOME and `PI_CODING_AGENT_DIR`, with `E2E_PI_BIN`'s directory first
+  on PATH so setup's `pi --version` gate reads that Pi; turn 2 is stopped with
+  Pi's RPC `abort`, its Esc.
 - `opencode` (fixture only, `E2E_OPENCODE_BIN`): real OpenCode 2.2.0 behind
   `opencode serve`, isolated per the [plugin preflight](#required-meridian-opencode-plugin-preflight):
   `meridian setup --v2 --opencode-bin`, exactly one configured Meridian plugin,
@@ -7299,7 +7300,8 @@ Pass criteria (deterministic; model wording is never asserted):
 - `keep`, `strict-keep`, `opencode`: `diverged=interrupted-turn-kept:kept-assistant`
   with no resume; the replayed history and the upstream's input carry the
   partial. The `opencode` case also asserts OpenCode sent the partial back as
-  an assistant message, the `pi` case that Pi sent none.
+  an assistant message, the `pi` case that Pi sent none and that setup reported
+  the version `E2E_PI_BIN --version` prints.
 - `strict-*`: the third turn waited for the session (`sessionWait` > 0) and was
   answered rather than refused.
 - All: the stop came before the turn finished and every `tool_use` is paired.
