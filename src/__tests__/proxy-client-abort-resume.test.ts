@@ -463,10 +463,12 @@ describe("client stop, more paths", () => {
       new Request("http://localhost/v1/messages", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json", "x-meridian-agent": "claude-code", "x-session-affinity": key,
+          "Content-Type": "application/json", "x-meridian-agent": "claude-code",
           ...(auxiliary ? { "x-claude-code-request-class": "auxiliary" } : {}),
         },
-        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
+        // Claude Code keys a conversation by its metadata session id.
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages,
+          metadata: { user_id: JSON.stringify({ session_id: key }) } }),
         signal,
       })
     await completeFirstTurn(proxy, claudeCode)
@@ -535,6 +537,30 @@ describe("stops Meridian decides on still replay", () => {
     await settle()
 
     const after = await proxy.fetch(strict(key, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls[2]!.resume).toBeUndefined()
+  })
+
+  it("after a forced shutdown that lands right after the client's own stop", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const key = `stop-then-shutdown-${crypto.randomUUID()}`
+    const first = await server.app.fetch(strict(key, FIRST_TURN.slice(0, 1), false))
+    expect(first.status).toBe(200)
+    await first.json()
+    behaviors.push("partial-then-hang")
+    const abort = new AbortController()
+    const interrupted = await server.app.fetch(strict(key, [...FIRST_TURN, NEXT_USER], true, abort.signal))
+    const reader = await readUntil(interrupted)
+    // The client's stop is the first cause, but shutdown revokes durable
+    // writes before the turn settles: cleanup stays destructive.
+    abort.abort("user pressed stop")
+    server.forceAbortInFlight?.()
+    while (!(await reader.read()).done) { /* the turn ends */ }
+    await settle()
+
+    const next = app()
+    const after = await next.fetch(strict(key, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
     expect(after.status).toBe(200)
     await after.json()
     expect(calls[2]!.resume).toBeUndefined()
