@@ -20,16 +20,34 @@ Meridian provides a Nix flake for declarative installation.
 }
 ```
 
-**Install the package** (via overlay or directly):
+**Install the package.** In a NixOS or Home Manager configuration, use the
+overlay. It builds Meridian with your own nixpkgs, so your overlays and
+`config` apply to it, including to the unfree `claude-code` it wraps, which you
+allow there:
 
 ```nix
-# Option A: overlay
 nixpkgs.overlays = [ meridian.overlays.default ];
-environment.systemPackages = [ pkgs.meridian ];
-
-# Option B: direct reference
-environment.systemPackages = [ meridian.packages.${system}.meridian ];
+# Add claude-code to your predicate if you already have one.
+nixpkgs.config.allowUnfreePredicate = pkg: lib.getName pkg == "claude-code";
+environment.systemPackages = [ pkgs.meridian ];  # Home Manager: home.packages
 ```
+
+With Home Manager's `useGlobalPkgs`, set the overlay and the predicate in your
+NixOS configuration; without it, in Home Manager's own `nixpkgs` options.
+
+To run or install Meridian outside a configuration, use the package the flake
+builds with its own nixpkgs. Your nixpkgs config does not reach that build, so
+allow `claude-code` for the command itself:
+
+```sh
+NIXPKGS_ALLOW_UNFREE=1 nix run --impure github:rynfar/meridian
+# `nix profile install` on Nix releases without `nix profile add`
+NIXPKGS_ALLOW_UNFREE=1 nix profile add --impure github:rynfar/meridian
+```
+
+Do not reference `meridian.packages.${system}.meridian` from a configuration:
+it would need `NIXPKGS_ALLOW_UNFREE=1` and `--impure` on every rebuild. Use the
+overlay instead.
 
 **OpenCode plugin** -- the compiled plugin package is included at `${pkgs.meridian}/lib/meridian/dist/meridian`. Since this path lives in the Nix store, you need to make it available to OpenCode:
 
@@ -58,7 +76,25 @@ Then in `~/.config/opencode/opencode.json`:
 
 > **Important:** Do not use `meridian setup` on NixOS. It writes an absolute Nix store path (e.g. `/nix/store/...-meridian-1.x.x/lib/...`) into your OpenCode config, which will break on the next `nixos-rebuild switch` or `home-manager switch` when the store path changes. Use one of the approaches above instead.
 
-> **Note:** Meridian's package depends on the unfree `claude-code` from nixpkgs instead of bundling its own binary. The flake accepts the unfree license when it builds the package and exports the finished derivation, so consuming it through the overlay or `packages.<system>.meridian` does not re-run nixpkgs' unfree check and needs no `allowUnfree` setting.
+> **Note:** Meridian depends on the unfree `claude-code` from nixpkgs instead of bundling its own binary. The Home Manager module below builds Meridian the same way as the overlay, with the module's `pkgs`, so it does not need the overlay, but that nixpkgs must allow `claude-code` too. With the overlay or the module, if your nixpkgs' `claude-code` is older than the release Meridian requires, Meridian builds that same package at the required release; once your nixpkgs catches up, Meridian uses yours unchanged.
+
+**Upgrading from an earlier flake revision.** Earlier revisions built Meridian
+with the flake's own nixpkgs and accepted `claude-code`'s licence for you.
+After updating the input:
+
+- **The licence.** Evaluation fails with nixpkgs' unfree-package error naming
+  `claude-code` until you allow it, as shown above, in the nixpkgs that builds
+  Meridian. With Home Manager's `useGlobalPkgs` that is your system's nixpkgs;
+  otherwise it is Home Manager's own `nixpkgs.config`.
+- **`meridian.packages.${system}.meridian` in a configuration.** Switch to the
+  overlay.
+- **Plugin paths.** Each plugin is now installed at
+  `lib/node_modules/@rynfar/meridian-plugin-<name>/dist/index.js`.
+  Configurations that use `.path` follow it; a hard-coded `lib/index.js`
+  breaks.
+- **Plugin inputs.** The `meridian-plugin-*` inputs are gone. Remove any
+  `follows` or override of them; Nix only warns about one that no longer
+  applies.
 
 **Home Manager service** -- run Meridian as a user systemd service:
 
@@ -81,8 +117,9 @@ Then in `~/.config/opencode/opencode.json`:
       # defaultAgent = "opencode";
       # sonnetModel = "sonnet";
       # Load plugins from the Nix store (rendered to a plugins.json manifest).
-      # The official scrub plugins ship prebuilt via the meridian overlay:
-      # pluginConfig = [ { path = pkgs.meridianPlugins.opencode-scrub.path; } ];
+      # The official scrub plugins ship prebuilt in the flake's legacyPackages
+      # (and as pkgs.meridianPlugins through the meridian overlay):
+      # pluginConfig = [ { path = meridian.legacyPackages.${pkgs.stdenv.hostPlatform.system}.meridianPlugins.opencode-scrub.path; } ];
       # pluginDir = "/path/to/extra/plugins";
     };
     # Extra env vars not covered by settings

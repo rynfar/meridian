@@ -23,7 +23,7 @@ Keep agent-specific logic in the adapter boundary. When changing existing specia
 
 Public plugin interfaces require owner approval and an issue before modification; an existing explicit request covering the change supplies approval. Consult [API contract](.agents/references/api-contract.md) when touching exported proxy configuration/lifecycle, session/profile headers, health, messages or profile routes. Internal fixes that preserve these interfaces do not require new approval.
 
-Changes to `flake.nix`, anything under `nix/`, or the dependencies in `package.json` and `bun.lock` follow [Nix packaging](.agents/references/nix-packaging.md). A dependency change also updates the hash in `nix/pkgs/meridian/node_modules.nix`.
+Changes to `flake.nix`, anything under `nix/`, or the dependencies in `package.json` and `bun.lock` follow [Nix packaging](.agents/references/nix-packaging.md). A dependency change also updates the hash in `nix/pkgs/meridian/node_modules.nix`, and raising the `@anthropic-ai/claude-code` floor also runs `nix/pkgs/claude-code/update.sh`.
 
 UI uses `DESIGN.md`, color tokens from `themeCss` in `src/telemetry/profileBar.ts`, and the shared `profileBarCss/Html/Js` header. Pages do not set their own body background. Blue `--accent` means interactive/active; violet `--accent2` means code/meta/secondary brand.
 

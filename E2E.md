@@ -8238,7 +8238,8 @@ from its tarball or the public registry, and pass the absolute path to its
 `dist/index.js` as `E2E_PLUGIN_PATH`. They use isolated config, sessions, ports,
 and project directories and consume Claude Max quota. Keep the generated local
 artifact private because it contains client and proxy logs. For a Nix plugin
-build, point `E2E_PLUGIN_PATH` at the output's `lib/index.js` instead.
+build, point `E2E_PLUGIN_PATH` at the package's `.path`, the output's
+`lib/node_modules/@rynfar/<pname>/dist/index.js`.
 Set `E2E_EXPECT_MERIDIAN_VERSION` for a release gate so the harness asserts
 and reports the exact Meridian package version under test.
 
