@@ -1176,13 +1176,15 @@ A resumed turn prints no `diverged=` field at all. The
 `independent-request:*` causes skip session lookup before it happens; the rest
 are the verdict of a lookup that ran.
 
-A turn whose lineage matched but whose stored session cannot prove it holds
-that history replays anyway and says why with `replay=`: `unproved-sdk-prefix`
-(the stored session's resume proof is withheld, as it is for a turn stopped
-mid-stream once the process that kept it is gone, or was never recorded),
-`transformed-history` (a plugin rewrote the history this turn runs) or
-`changed-or-unproved-primary-agent` (the OpenCode primary agent changed). Such a
-line reads `lineage=continuation session=new` with the `replay=` field.
+A turn that replays its history for a reason other than the lookup's verdict
+says why with `replay=`, after `diverged=` when both are present. Every such
+line reads `session=new`. One value applies, in this order:
+
+| `replay=` | When it appears |
+|---|---|
+| `transformed-history` | A plugin rewrote the history this turn runs. This does not depend on the lookup, so it appears on any line, `lineage=new` (with its `diverged=`) included |
+| `changed-or-unproved-primary-agent` | The lookup found a session (`lineage=continuation`, `compaction` or `undo`), but OpenCode's primary agent is not the one that session was published with, or that session recorded none |
+| `unproved-sdk-prefix` | The lookup found a session (`lineage=continuation`, `compaction` or `undo`) that holds no proof its SDK transcript matches this history: it was published from a plugin-rewritten history, or it is a stopped turn's kept session read without that turn's record (after a restart, or on another process sharing the store; see [Stopping a turn](#stopping-a-turn)) |
 
 `headerless-tool-result` also prints a one-time warning at the first
 occurrence, because it is a property of how the client is wired rather than of
@@ -1210,6 +1212,12 @@ after a restart, or on another process sharing the session store, the next
 message replays, logged as `lineage=continuation session=new
 replay=unproved-sdk-prefix`. A stopped turn ends [prompt-cache keepalive](#prompt-cache-keepalive)
 tracking until a later turn writes the one-hour cache again.
+
+One exception remains: under priority routing across several profiles, a
+conversation whose client signs its turns (the OpenCode V2 plugin, the Pi
+extension) is not checked after a stop yet. Its next message resumes the
+session as it always has, so a client that kept the partial output (OpenCode)
+is answered without it.
 
 ### Prompt-cache keepalive
 

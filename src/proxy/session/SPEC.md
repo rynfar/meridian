@@ -102,7 +102,18 @@ session it read, stopped by the client's own disconnect or body cancel before
 any tool call reached the client. A turn that streamed a tool call, an
 explicit subtree cancel (`POST /v1/sessions/:key/cancel` or a parent's abort),
 the turn watchdog, shutdown, a published fork, a non-stream turn, a side
-request and a priority publication keep their existing handling.
+request and a priority publication keep their existing handling. For a
+priority publication that handling leaves the routed mapping as the durable
+route recorded it, so its next turn resumes the source whatever the client
+kept (see *Known limitations*).
+
+A turn that retried onto a fresh session (a refused resume or a model
+fallback) is not that session's continuation either. The retry runs only
+before anything reached the client, and it evicts the mapping before it
+replays, so a marking would fail the store's generation check anyway. The
+fork check that also refuses it (`forkStillCopiesCandidate`: a fresh target, a
+superseded fork or a fork of another session) is therefore defensive: no
+current path reaches it with a markable mapping.
 
 **Storage.** The durable record keeps its session, transcript locators and
 hashes, but its SDK reuse proof is withheld: an empty `lineageHash` with the
@@ -123,13 +134,32 @@ The marking is a mapping write by the stopped turn itself. A keyed request
 that arrived before it and waited for the turn lease is not treated as having
 lost a commit race. The marking completes before the stopped stream does, so
 for keyed requests the turn lease never lets the next request read the
-mapping before it. A headerless (fingerprint-keyed) conversation takes no turn
-lease, so a next request that arrives during the stopped turn's cleanup can
-read the mapping before the marking, exactly as it can read it before the
-eviction main performs there: it may resume the unmarked source, and its own
-publication then fails the store's generation check. A prompt-cache keepalive
-stops tracking the session at the client abort, as before; a later turn that
-writes the one-hour tier tracks it again.
+mapping before it. What holds that today is the order inside the body's
+`cancel()`: it aborts the request synchronously and only then starts the
+marking, so the pipeline sees the abort (its SDK iterator rejects, or its
+check before the terminal frames throws) and its catch settles through the
+same shared marking, awaiting it before `finally` runs. The catch skips
+settlement only for an error with no abort, and that path reaches `finally`
+with no await at which `cancel()` could start a marking, except on the
+tool-recovery branch, which ends an aborted turn by evicting the mapping.
+The stream's `finally` awaits a pending marking as well. No current path needs
+that second wait, and no test can observe it (with a 150 ms marking delay
+injected, removing it leaves every test green); it stays as a guard, so that
+a terminal path added later cannot release the lease before the marking lands.
+
+A headerless (fingerprint-keyed) conversation takes no turn lease, so a
+request that arrives during the stopped turn's cleanup can read the mapping
+before the marking, as it can read it before the eviction main performs
+there. It is then answered from the unmarked source as an ordinary
+continuation, so a client that kept the partial is answered without it. If
+the marking lands first, that request's publication fails the store's
+generation check (its answer is still delivered), and since the marked
+session lacks that answer, the check replays the next request. If its
+publication lands first, the marking fails and the publication stands. Both
+outcomes are main's, with the eviction in place of the marking.
+
+A prompt-cache keepalive stops tracking the session at the client abort, as
+before; a later turn that writes the one-hour tier tracks it again.
 
 ## Known limitations
 
@@ -142,6 +172,14 @@ writes the one-hour tier tracks it again.
   serve).
 - **An interrupted turn resumes only in the process that kept it.** After a
   restart, or on another process sharing the store, the next request replays.
+- **A stopped priority-routed turn is not checked.** Under priority routing
+  across several profiles, a conversation whose client signs its turns
+  (OpenCode's V2 plugin, Pi's extension) has a durable route, and its turns
+  are priority publications, which the interrupted-turn rule skips. A stopped
+  turn there leaves the routed mapping resumable with its proof, as main
+  does, so a client that kept the partial (OpenCode) has its next turn
+  resumed without it. Applying the check to priority publications is a
+  follow-up.
 - **Mixed proxy versions replay.** v1 lineage digests cannot prove a v2 prefix,
   so alternating old and new proxies repeats a full-history replay until every
   participating proxy is upgraded.

@@ -307,6 +307,7 @@ src/
 │   ├── session/
 │   │   ├── index.ts           ← Barrel export
 │   │   ├── lineage.ts         ← Pure functions: hashing, lineage verification
+│   │   ├── interruptedTurn.ts ← Pure functions: the interrupted-turn check, candidate and settlement action
 │   │   ├── fingerprint.ts     ← Conversation fingerprinting, client CWD extraction
 │   │   ├── cache.ts           ← LRU session caches, lookup/store operations
 │   │   ├── turnCoordinator.ts ← Process-wide serialization for reliable session IDs
@@ -378,9 +379,11 @@ server.ts (HTTP layer)
     ├── models.ts
     ├── tools.ts
     ├── messages.ts
-    ├── session/cache.ts ──► session/lineage.ts ──► messages.ts
+    ├── session/cache.ts ──► session/interruptedTurn.ts ──► session/lineage.ts ──► messages.ts
+    │                    ──► session/lineage.ts
     │                    ──► session/fingerprint.ts
     │                    ──► sessionStore.ts
+    ├── session/interruptedTurn.ts ──► session/lineage.ts
     ├── profiles.ts
     ├── profileCli.ts
     ├── agentDefs.ts
@@ -393,7 +396,7 @@ server.ts (HTTP layer)
 
 ### Rules
 
-1. **`session/lineage.ts` is pure.** No side effects, no I/O, no caches. Only crypto hashing and comparison logic. Must stay testable without mocks.
+1. **`session/lineage.ts` and `session/interruptedTurn.ts` are pure.** No side effects, no I/O, no caches. `lineage.ts` holds only crypto hashing and comparison logic; `interruptedTurn.ts` holds the interrupted-turn decisions over the values it is given and imports only `lineage.ts`, so its state stays in `session/cache.ts` and its orchestration in `server.ts`. Both must stay testable without mocks.
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 

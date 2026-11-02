@@ -5871,9 +5871,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           }),
           clientStopped: isClientStop(durableWritesRevoked ? "process_shutdown" : requestAbort.abortSnapshot().cause),
         })
-        // One marking per request: the body's cancel() and the pipeline can
-        // both settle the same abort, and the stream completes (releasing the
-        // turn lease) only after this has finished.
+        // One marking per request: the body's cancel() aborts the request
+        // before it starts this, so the pipeline's catch settles the same
+        // abort through it and awaits it before the stream completes and
+        // releases the turn lease (session spec, *Interrupted turns*).
         let interruptMarking: Promise<boolean> | undefined
         const markInterruptedTurn = async (): Promise<boolean> => {
           const candidate = interruptCandidate
@@ -8707,8 +8708,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 streamClosed = true
               }
             } finally {
-              // A marking started by the body's cancel() must land before the
-              // stream completes and the turn lease lets the next request read.
+              // Guard: a marking the body's cancel() started lands before the
+              // stream completes and the turn lease lets the next request read,
+              // even on a terminal path that did not settle through it.
               if (interruptMarking) await interruptMarking
               await abandonManagedFork("stream_complete_without_commit")
               if (priorityRollbackRetirement) await priorityRollbackRetirement
