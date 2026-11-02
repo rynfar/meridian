@@ -74,6 +74,18 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   history block (full history every turn would otherwise read as undo or
   divergence); clients with a recognized session key keep real history so
   lineage can resume.
+  - Content parts map to Claude blocks: `text` and assistant `refusal` to
+    text, data-URL `image_url` to image, a base64 PDF data URL in `file` to
+    document, through the same `parseDataUrlImage` / `parseDataUrlPdf` the
+    Responses adapter uses. In user, assistant and tool messages a part that
+    cannot be delivered (remote image URL, `file_id`, another file type,
+    `input_audio`, an unknown type) becomes a bracketed omission note, never a
+    silent drop (#1482): a dropped part let the request succeed while Claude
+    never saw the input and nothing said so. System messages are flattened to
+    text. Packed history renders an earlier turn's images and documents as
+    `[Image attached]` / `[Document attached]`, so unkeyed, only the latest
+    turn's media reaches the model (media nested in a packed tool result is
+    still dropped).
 - **Per-model 1M override.** `[1m]` stays the default for Opus and Fable;
   `MERIDIAN_OPUS_MODEL=opus` / `MERIDIAN_FABLE_MODEL=fable` opt a tier out
   (Mythos follows Fable). Values are normalized; an unrecognized value warns
