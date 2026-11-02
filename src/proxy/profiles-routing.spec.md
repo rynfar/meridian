@@ -71,6 +71,22 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   cross-contaminate history, while an *assignment* collision only pins two
   conversations to one account and keeps its prompt cache warm. Do not "fix"
   the two into consistency.
+- **The weekly reserve is approximate and never fetches.** A profile with a
+  `weeklyReserve` percentage (`MERIDIAN_WEEKLY_RESERVE` wins over the setting)
+  leaves the pool-routing candidate list once the newest observed `seven_day`
+  utilization, from SDK rate-limit events or the cached OAuth snapshot, reaches
+  100% minus the reserve. It adds no usage requests, because the usage endpoint
+  rate-limits. A reading past its reset is ignored, so the hold lifts at the
+  reset without new data; a reading with no reset counts for one hour, because
+  a held profile gets no traffic that could refresh it. A profile with no
+  reading is never held, and a newer reading without a utilization figure does
+  not lift a hold, since it says nothing about the level. Unlike exhaustion, a
+  held profile is not a last resort: when every pool member is held the request
+  gets 429 with the earliest reset as a capped `Retry-After`. Retain-only work
+  (no promotion authority) keeps its route even while held, because the
+  alternative is failing it. Cache-keepalive beats skip held profiles. Pins and
+  the `active` / `sticky` modes ignore the reserve. Invalid values and reserves
+  naming no profile are logged once and ignored.
 - **Cooldowns are layered:** Anthropic's named reset first, then the profile's
   own observed window (5-hour or 7-day, capped per window), then a 10-minute
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at

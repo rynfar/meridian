@@ -110,6 +110,8 @@ export interface CacheKeepaliveAccountFacts {
   coolingDown: boolean
   /** A recent refusal marked the account spent. */
   spent: boolean
+  /** The account is holding its weekly reserve. */
+  reserveHeld?: boolean
   /** The session's [1m] model is benched, so the next turn uses another model. */
   benched: boolean
   now: number
@@ -130,6 +132,7 @@ export function cacheKeepaliveAccountBlock(facts: CacheKeepaliveAccountFacts): s
   if (facts.coolingDown) return "cooldown"
   if (facts.spent) return "spent"
   if (facts.benched) return "benched"
+  if (facts.reserveHeld) return "reserve"
   return undefined
 }
 

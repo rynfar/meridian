@@ -44,6 +44,9 @@ export interface MeridianSettings {
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
   priorityFailback?: PriorityFailbackPolicy
+  /** Pool-routing weekly reserve per profile id, in percent (e.g.
+   *  `{ "personal": 20 }`). MERIDIAN_WEEKLY_RESERVE env var takes precedence. */
+  weeklyReserve?: Record<string, number>
   /** The ChatGPT seat (accountUserId) unpinned ChatGPT turns go to first; POST /profiles/active. */
   chatGptActiveSeat?: string
   /** Operator-chosen profile ids for ChatGPT seats, keyed by seat id (accountUserId). */

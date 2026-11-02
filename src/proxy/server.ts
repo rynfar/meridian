@@ -186,9 +186,14 @@ import {
   resolveCooldownUntil,
   cooldownCapMs,
   findCooldownReset,
+  parseWeeklyReserves,
+  WeeklyReserveTracker,
+  WEEKLY_RESERVE_WINDOW,
   type CooldownWindow,
   type PriorityAssignment,
   type RoutingMode,
+  type WeeklyReserveHold,
+  type WeeklyUsageReading,
 } from "./routing"
 import { diagnoseLimit, type LimitDiagnosis } from "./limitDetection"
 import { SpentStore, FailoverEventLog } from "./profileHealth"
@@ -1387,6 +1392,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         coolingDown: priorityExhaustion.isExhausted(recipe.profileId),
         spent: spentProfiles.get(recipe.profileId) !== undefined,
         benched: recipe.extendedContext && isExtendedContextKnownUnavailable(recipe.profileId, recipe.benchSessionKey),
+        reserveHeld: currentWeeklyReserveHolds([recipe.profileId]).has(recipe.profileId),
         now: Date.now(),
       }),
     }),
@@ -1541,6 +1547,30 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     if (env && env.trim()) return env.split(",").map(s => s.trim()).filter(Boolean)
     const setting = getSetting("profileOrder")
     return Array.isArray(setting) && setting.length > 0 ? setting : undefined
+  }
+
+  /** Already-observed weekly usage for one profile: never fetches. */
+  function weeklyUsageReadings(profileId: string): WeeklyUsageReading[] {
+    const readings: WeeklyUsageReading[] = []
+    const sdk = rateLimitStore.get(profileId, WEEKLY_RESERVE_WINDOW)
+    if (sdk) readings.push({ utilization: sdk.utilization, resetsAt: sdk.resetsAt, observedAt: sdk.observedAt })
+    const oauth = peekOAuthUsage(profileId)
+    const window = oauth?.windows.find(w => w.type === WEEKLY_RESERVE_WINDOW)
+    if (oauth && window) readings.push({ utilization: window.utilization, resetsAt: window.resetsAt, observedAt: oauth.fetchedAt })
+    return readings
+  }
+
+  const weeklyReserve = new WeeklyReserveTracker()
+  function currentWeeklyReserveHolds(ids: readonly string[]): Map<string, WeeklyReserveHold> {
+    const { holds, events } = weeklyReserve.evaluate({
+      ids,
+      knownIds: getEffectiveProfiles(finalConfig.profiles).map(p => p.id),
+      parsed: parseWeeklyReserves(process.env.MERIDIAN_WEEKLY_RESERVE, getSetting("weeklyReserve")),
+      readingsFor: weeklyUsageReadings,
+      now: Date.now(),
+    })
+    for (const { event, data } of events) claudeLog(event, data)
+    return holds
   }
 
   /** This profile's usage windows, normalized for the cooldown resolvers. */
@@ -2560,10 +2590,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         if (isPoolRouting(routingMode) && !options.forcedProfileId && !c.req.header("x-meridian-profile")) {
           const effectivePool = getEffectiveProfiles(finalConfig.profiles)
           if (effectivePool.length > 1) {
-            const { order, unknown: notClaude } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
+            const { order: configuredOrder, unknown: notClaude } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
             // The saved order lists ChatGPT seats as well; those are not typos.
             const unknown = notClaude.filter(id => !chatGptProfiles?.resolve(id))
             if (unknown.length > 0) claudeLog("priority.unknown_order_ids", { unknown })
+            const reserveHolds = currentWeeklyReserveHolds(configuredOrder)
+            const routable = configuredOrder.filter(id => !reserveHolds.has(id))
+            const allReserveHeld = routable.length === 0
+            const order = allReserveHeld ? configuredOrder : routable
             const assignmentCwd = adapter.extractClientWorkingDirectory?.(body)
               ?? adapter.extractWorkingDirectory(body)
             // The durable route below stays on the request's own key: it is
@@ -2694,23 +2728,35 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const retainOnlyProfile = durableRoute && !promotionTurn
                 ? assignedProfile
                 : undefined
-              if (retainOnlyProfile !== undefined && !order.includes(retainOnlyProfile)) {
+              if (retainOnlyProfile !== undefined && !configuredOrder.includes(retainOnlyProfile)) {
                 return c.json({
                   type: "error",
                   error: { type: "overloaded_error", message: "Durable priority routing state is unavailable" },
                 }, 503, TRANSIENT_RETRY_AFTER_HEADERS)
               }
+              if (allReserveHeld && retainOnlyProfile === undefined) {
+                const reopenings = [...reserveHolds.values()]
+                  .map(h => h.until)
+                  .filter((t): t is number => typeof t === "number")
+                const retryAfter = retryAfterSeconds({
+                  status: 429,
+                  resetAtMs: reopenings.length > 0 ? Math.min(...reopenings) : null,
+                })
+                return c.json({
+                  type: "error",
+                  error: { type: "rate_limit_error", message: "Every profile is holding its weekly reserve" },
+                  ...retryAfterBodyFields(retryAfter),
+                }, 429, retryAfterHeaders(retryAfter))
+              }
+              const unavailable = (id: string) => priorityExhaustion.isExhausted(id) || reserveHolds.has(id)
               let candidates: string[]
               if (routingMode === ACTIVE_PRIORITY) {
                 const activeId = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
                 candidates = retainOnlyProfile
                   ? [retainOnlyProfile]
-                  : chooseActivePriorityCandidates(
-                      activeId,
-                      order,
-                      id => priorityExhaustion.isExhausted(id),
-                      assignedProfile,
-                    )
+                  : chooseActivePriorityCandidates(activeId, order, unavailable, assignedProfile)
+                      .filter(id => !reserveHolds.has(id))
+                if (candidates.length === 0) candidates = [order[0]!]
               } else {
                 const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
                 const first = retainOnlyProfile

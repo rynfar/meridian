@@ -13,7 +13,7 @@ import { createAdaptorServer } from "@hono/node-server"
 import type { AddressInfo } from "node:net"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { fetchOAuthUsage, peekOAuthUsage, resetOAuthUsageCache } from "../proxy/oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, peekOAuthUsage, resetOAuthUsageCache } from "../proxy/oauthUsage"
 import { installSdkMock } from "./sdkMock"
 import { createOwnedCredentialStore } from "./modelsMock"
 import { installLoggerMock } from "./loggerMock"
@@ -3348,5 +3348,190 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     const stillBenched = await healthSnapshots(app)
     expect(stillBenched.exhausted.map((e) => e.id)).toEqual(["work"])
     expect(stillBenched.spent.map((s) => s.profileId)).toEqual(["work"])
+  }, 20_000)
+})
+
+describe("priority weekly reserve", () => {
+  const WEEK_RESET = Date.now() + 3 * 24 * 60 * 60_000
+  let savedWeeklyReserveSetting: Record<string, number> | undefined
+
+  function recordWeekly(profileId: string, utilization: number, resetsAt = WEEK_RESET): void {
+    rateLimitStore.record(profileId, { status: "allowed", rateLimitType: "seven_day", utilization, resetsAt })
+  }
+
+  beforeEach(async () => {
+    resetProcessSdkSemaphoreForTests()
+    capturedEnvs = []
+    failingDirs = new Set()
+    await clearSessionCache()
+    resetActiveProfile()
+    for (const key of ["MERIDIAN_ROUTING", "MERIDIAN_PROFILE_ORDER", "MERIDIAN_PRIORITY_FAILBACK", "MERIDIAN_WEEKLY_RESERVE", "CLAUDE_CONFIG_DIR", "MERIDIAN_OPENCODE_ATTESTATION_KEY"]) {
+      savedEnv[key] = process.env[key]
+    }
+    process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY = PRIORITY_ATTESTATION_TEST_KEY.toString("base64url")
+    capturedSdkCalls = []
+    delete process.env.CLAUDE_CONFIG_DIR
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    process.env.MERIDIAN_WEEKLY_RESERVE = "work=20"
+    savedWeeklyReserveSetting = loadSettings().weeklyReserve
+    rateLimitStore.clear()
+    resetOAuthUsageCache()
+  })
+
+  afterEach(() => {
+    resetProcessSdkSemaphoreForTests()
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    saveSettings({ weeklyReserve: savedWeeklyReserveSetting })
+    rateLimitStore.clear()
+    resetOAuthUsageCache()
+  })
+
+  it("skips the preferred profile once it reaches its reserve line", async () => {
+    recordWeekly("work", 0.85)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve holds work")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+
+  it("keeps using the preferred profile below the line", async () => {
+    recordWeekly("work", 0.79)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve below line")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("returns the profile to the pool once its weekly window has reset", async () => {
+    recordWeekly("work", 0.95, Date.now() - 1000)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve after reset")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("reads the reserve from cached OAuth usage without fetching", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs")
+    const { tmpdir } = await import("node:os")
+    const root = mkdtempSync(join(tmpdir(), "meridian-weekly-reserve-"))
+    const directory = join(root, "work")
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, ".credentials.json"), JSON.stringify({
+      claudeAiOauth: { accessToken: "fake-weekly-token", refreshToken: "fake-refresh", expiresAt: Date.now() + 3_600_000, subscriptionType: "max" },
+    }))
+    const tokens = await import("../proxy/tokenRefresh")
+    // File-backed store on every platform: never the login Keychain.
+    tokens.setCredentialStorePlatformForTests("linux")
+    let seeded: Awaited<ReturnType<typeof fetchOAuthUsageResult>>
+    try {
+      seeded = await fetchOAuthUsageResult({
+        profileId: "work",
+        store: createOwnedCredentialStore(root, directory),
+        fetchImpl: async () => Response.json({ seven_day: { utilization: 90, resets_at: new Date(WEEK_RESET).toISOString() } }),
+      })
+    } finally {
+      tokens.setCredentialStorePlatformForTests(null)
+      rmSync(root, { recursive: true, force: true })
+    }
+    expect(seeded.error).toBeNull()
+    expect(peekOAuthUsage("work")?.windows.find(w => w.type === "seven_day")?.utilization).toBe(0.9)
+    let fetches = 0
+    __setFetchOAuthUsageOverride(async () => { fetches++; return null })
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve from oauth cache")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+    expect(fetches).toBe(0)
+  }, 20_000)
+
+  it("uses the weeklyReserve setting when the env var is unset", async () => {
+    delete process.env.MERIDIAN_WEEKLY_RESERVE
+    saveSettings({ weeklyReserve: { work: 20 } })
+    recordWeekly("work", 0.81)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve from settings")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+
+  it("does nothing without a reserve configured", async () => {
+    delete process.env.MERIDIAN_WEEKLY_RESERVE
+    saveSettings({ weeklyReserve: undefined })
+    recordWeekly("work", 0.99)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve unconfigured")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("still honors an explicit profile pin", async () => {
+    recordWeekly("work", 0.95)
+    const app = createTestApp()
+    const res = await post(app, { "x-meridian-profile": "work" }, "weekly reserve pinned")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("answers 429 with the earliest reset when every profile holds its reserve", async () => {
+    process.env.MERIDIAN_WEEKLY_RESERVE = "work=20,personal=20"
+    const personalReset = Date.now() + 60 * 60_000
+    recordWeekly("work", 0.9)
+    recordWeekly("personal", 0.9, personalReset)
+    const app = createTestApp()
+    const res = await post(app, {}, "weekly reserve all held")
+    expect(res.status).toBe(429)
+    const retryAfter = Number(res.headers.get("retry-after"))
+    expect(retryAfter).toBeGreaterThan(55 * 60)
+    expect(retryAfter).toBeLessThanOrEqual(60 * 60)
+    const body = await res.json() as { error: { type: string }; retry_after?: number }
+    expect(body.error.type).toBe("rate_limit_error")
+    expect(body.retry_after).toBe(retryAfter)
+    expect(capturedEnvs).toHaveLength(0)
+  }, 20_000)
+
+  it("caps the all-held Retry-After when the earliest reset is days away", async () => {
+    process.env.MERIDIAN_WEEKLY_RESERVE = "work=20,personal=20"
+    recordWeekly("work", 0.9)
+    recordWeekly("personal", 0.9)
+    const res = await post(createTestApp(), {}, "weekly reserve capped retry")
+    expect(res.status).toBe(429)
+    expect(Number(res.headers.get("retry-after"))).toBeLessThanOrEqual(24 * 60 * 60)
+  }, 20_000)
+
+  it("lets retain-only work keep its route when every profile is held", async () => {
+    const sessionId = "weekly-reserve-retained"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    expect(durableRoute(sessionId).profileId).toBe("personal")
+    process.env.MERIDIAN_WEEKLY_RESERVE = "work=20,personal=20"
+    recordWeekly("work", 0.9)
+    recordWeekly("personal", 0.9)
+    const res = await post(createTestApp(), unauthenticatedOpenCodeHeaders(sessionId), TOOL_CONTINUATION)
+    expect(res.status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+
+  it("skips a held active profile in active+priority mode", async () => {
+    process.env.MERIDIAN_ROUTING = "active+priority"
+    recordWeekly("work", 0.9)
+    const app = createTestApp()
+    const switched = await app.fetch(new Request("http://localhost/profiles/active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile: "work" }),
+    }))
+    expect(switched.status).toBe(200)
+    capturedEnvs = []
+    const res = await post(app, {}, "weekly reserve active held")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
   }, 20_000)
 })
