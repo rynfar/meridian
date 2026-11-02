@@ -1,24 +1,28 @@
 /**
- * MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT keeps the resumable session of a client
- * that disconnects mid-stream.
+ * A client that stops a streaming turn after output reached it: the next
+ * request resumes the kept session only when it adds nothing but user content.
  *
  * Every resume writes an isolated fork, so the mapped transcript still ends at
- * the last completed turn. Evicting it forces the next message into a full
- * replay, which misses the prompt cache for the whole conversation.
+ * the last completed turn. A client that discards the partial output (Pi,
+ * Prime Agent) can resume it with the prompt cache; one that keeps it
+ * (OpenCode, Oh My Pi) would resume without the model seeing that output, so
+ * its next request replays. See the session spec, *Interrupted turns*.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import {
+  inputJsonDelta,
   messageStart,
   resolveMockSdkSessionId,
   textBlockStart,
   textDelta,
+  toolUseBlockStart,
   withMockSdkSessionId,
 } from "./helpers"
 
-type Behavior = "complete" | "partial-then-hang"
+type Behavior = "complete" | "partial-then-hang" | "tool-call-then-hang" | "hang"
 
 interface SdkCall {
   readonly prompt: unknown
@@ -29,22 +33,35 @@ interface SdkCall {
 let behaviors: Behavior[] = []
 let calls: SdkCall[] = []
 
+function untilAborted(options: { abortController?: AbortController } | undefined): Promise<void> {
+  return new Promise<void>((_resolve, reject) => {
+    const signal = options?.abortController?.signal
+    if (!signal) return reject(new Error("missing SDK abort controller"))
+    if (signal.aborted) return reject(new Error("SDK query aborted"))
+    signal.addEventListener("abort", () => reject(new Error("SDK query aborted")), { once: true })
+  })
+}
+
 installSdkMock(() => ({
   query: (params: { prompt: unknown; options?: { abortController?: AbortController; resume?: string; sessionId?: string } }) => {
     const behavior = behaviors.shift() ?? "complete"
     const options = params.options
     calls.push({ prompt: params.prompt, resume: options?.resume, sessionId: options?.sessionId })
     return (async function* () {
-      if (behavior === "partial-then-hang") {
+      if (behavior === "hang") {
+        await untilAborted(options)
+        return
+      }
+      if (behavior === "partial-then-hang" || behavior === "tool-call-then-hang") {
         yield withMockSdkSessionId(messageStart("msg_partial"), options)
-        yield withMockSdkSessionId(textBlockStart(0), options)
-        yield withMockSdkSessionId(textDelta(0, "partial answer"), options)
-        await new Promise<void>((_resolve, reject) => {
-          const signal = options?.abortController?.signal
-          if (!signal) return reject(new Error("missing SDK abort controller"))
-          if (signal.aborted) return reject(new Error("SDK query aborted"))
-          signal.addEventListener("abort", () => reject(new Error("SDK query aborted")), { once: true })
-        })
+        if (behavior === "partial-then-hang") {
+          yield withMockSdkSessionId(textBlockStart(0), options)
+          yield withMockSdkSessionId(textDelta(0, "partial answer"), options)
+        } else {
+          yield withMockSdkSessionId(toolUseBlockStart(0, "mcp__oc__read", "toolu_interrupted"), options)
+          yield withMockSdkSessionId(inputJsonDelta(0, "{\"file_path\":"), options)
+        }
+        await untilAborted(options)
         return
       }
       yield {
@@ -78,14 +95,27 @@ installMcpToolsMock(() => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { forgetInterruptedTurnsForTests } = await import("../proxy/session/cache")
 
 type Message = { role: string; content: unknown }
 
-function messagesRequest(sessionKey: string, messages: Message[], stream: boolean, signal?: AbortSignal): Request {
+const READ_TOOL = {
+  name: "read",
+  description: "Read a file",
+  input_schema: { type: "object", properties: { file_path: { type: "string" } }, required: ["file_path"] },
+}
+
+function messagesRequest(
+  sessionKey: string,
+  messages: Message[],
+  stream: boolean,
+  signal?: AbortSignal,
+  tools?: unknown[],
+): Request {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-meridian-agent": "prime", "x-session-affinity": sessionKey },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages, ...(tools ? { tools } : {}) }),
     signal,
   })
 }
@@ -99,14 +129,14 @@ function responsesRequest(sessionKey: string, messages: Message[], stream: boole
   })
 }
 
-/** Read until the partial answer reached the client, so the abort follows exposure. */
-async function readUntilPartialAnswer(response: Response) {
+/** Read until `needle` reached the client, so the abort follows exposure. */
+async function readUntil(response: Response, needle = "partial answer") {
   const reader = response.body!.getReader()
   const decoder = new TextDecoder()
   let seen = ""
-  while (!seen.includes("partial answer")) {
+  while (!seen.includes(needle)) {
     const { done, value } = await reader.read()
-    if (done) throw new Error(`stream ended before the partial answer: ${seen}`)
+    if (done) throw new Error(`stream ended before ${needle}: ${seen}`)
     seen += decoder.decode(value, { stream: true })
   }
   return reader
@@ -121,52 +151,56 @@ const FIRST_TURN: Message[] = [
   { role: "assistant", content: [{ type: "text", text: "ok" }] },
 ]
 const NEXT_USER: Message = { role: "user", content: "second question" }
+const THIRD_USER: Message = { role: "user", content: "third question" }
+const KEPT_PARTIAL: Message = { role: "assistant", content: [{ type: "text", text: "partial answer" }] }
+
+const app = () => createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+type Proxy = ReturnType<typeof app>
+
+let originalPassthrough: string | undefined
+
+beforeEach(async () => {
+  originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
+  process.env.MERIDIAN_PASSTHROUGH = "1"
+  behaviors = []
+  calls = []
+  await clearSessionCache()
+})
+
+afterEach(() => {
+  if (originalPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+  else process.env.MERIDIAN_PASSTHROUGH = originalPassthrough
+})
 
 describe.each([
   ["/v1/messages", messagesRequest],
   ["/v1/responses", responsesRequest],
-] as const)("client abort on %s", (_route, request) => {
-  const app = () => createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
-
-  let originalPassthrough: string | undefined
-
-  beforeEach(async () => {
-    originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
-    process.env.MERIDIAN_PASSTHROUGH = "1"
-    process.env.MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT = "1"
-    behaviors = []
-    calls = []
-    await clearSessionCache()
-  })
-
-  afterEach(() => {
-    if (originalPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
-    else process.env.MERIDIAN_PASSTHROUGH = originalPassthrough
-    delete process.env.MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT
-  })
-
-  async function completeFirstTurn(proxy: ReturnType<typeof app>, key: string): Promise<void> {
+] as const)("client stop on %s", (_route, request) => {
+  async function completeFirstTurn(proxy: Proxy, key: string): Promise<void> {
     const response = await proxy.fetch(request(key, FIRST_TURN.slice(0, 1), false))
     expect(response.status).toBe(200)
     await response.json()
     expect(calls[0]!.sessionId).toBeDefined()
   }
 
-  it("resumes the last completed turn when the client discards the partial output", async () => {
-    const proxy = app()
-    const key = `abort-discard-${crypto.randomUUID()}`
-    await completeFirstTurn(proxy, key)
-
+  async function stopSecondTurn(proxy: Proxy, key: string): Promise<void> {
     behaviors = ["partial-then-hang"]
     const abort = new AbortController()
     const interrupted = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER], true, abort.signal))
-    const reader = await readUntilPartialAnswer(interrupted)
+    const reader = await readUntil(interrupted)
     expect(calls[1]!.resume).toBe(calls[0]!.sessionId)
     abort.abort("user pressed stop")
     await reader.cancel().catch(() => {})
     await settle()
+  }
 
-    const after = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER, { role: "user", content: "third question" }], false))
+  it("resumes the kept session when the client discarded the partial output", async () => {
+    const proxy = app()
+    const key = `stop-discard-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+    await stopSecondTurn(proxy, key)
+
+    const after = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
     expect(after.status).toBe(200)
     await after.json()
 
@@ -177,14 +211,32 @@ describe.each([
     expect(prompt).not.toContain("first question")
   })
 
-  it("resumes when only the response body is cancelled", async () => {
+  it("replays, carrying the partial, when the client kept the partial output", async () => {
     const proxy = app()
-    const key = `abort-body-${crypto.randomUUID()}`
+    const key = `stop-keep-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+    await stopSecondTurn(proxy, key)
+
+    const after = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER, KEPT_PARTIAL, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
+
+    expect(calls[2]!.resume).toBeUndefined()
+    const prompt = JSON.stringify(calls[2]!.prompt)
+    expect(prompt).toContain("<conversation_history>")
+    expect(prompt).toContain("first question")
+    expect(prompt).toContain("partial answer")
+    expect(prompt).toContain("third question")
+  })
+
+  it("resumes a retry of the stopped request after only the response body was cancelled", async () => {
+    const proxy = app()
+    const key = `stop-body-${crypto.randomUUID()}`
     await completeFirstTurn(proxy, key)
 
     behaviors = ["partial-then-hang"]
     const interrupted = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER], true))
-    const reader = await readUntilPartialAnswer(interrupted)
+    const reader = await readUntil(interrupted)
     await reader.cancel("user pressed stop")
     await settle()
 
@@ -194,51 +246,168 @@ describe.each([
 
     expect(calls[2]!.resume).toBe(calls[0]!.sessionId)
   })
+})
 
-  it("resumes with the user's side only when the client kept the partial output", async () => {
-    const proxy = app()
-    const key = `abort-keep-${crypto.randomUUID()}`
-    await completeFirstTurn(proxy, key)
+describe("client stop on /v1/messages", () => {
+  async function completeFirstTurn(proxy: Proxy, key: string): Promise<void> {
+    const response = await proxy.fetch(messagesRequest(key, FIRST_TURN.slice(0, 1), false, undefined, [READ_TOOL]))
+    expect(response.status).toBe(200)
+    await response.json()
+    expect(calls[0]!.sessionId).toBeDefined()
+  }
 
+  async function stopSecondTurn(proxy: Proxy, key: string): Promise<void> {
     behaviors = ["partial-then-hang"]
     const abort = new AbortController()
-    const interrupted = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER], true, abort.signal))
-    const reader = await readUntilPartialAnswer(interrupted)
+    const interrupted = await proxy.fetch(messagesRequest(key, [...FIRST_TURN, NEXT_USER], true, abort.signal, [READ_TOOL]))
+    const reader = await readUntil(interrupted)
+    abort.abort("user pressed stop")
+    await reader.cancel().catch(() => {})
+    await settle()
+  }
+
+  const next = (key: string, messages: Message[], signal?: AbortSignal) =>
+    messagesRequest(key, messages, false, signal, [READ_TOOL])
+
+  it("replays after a turn that already streamed a tool call", async () => {
+    const proxy = app()
+    const key = `stop-tool-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+
+    behaviors = ["tool-call-then-hang"]
+    const abort = new AbortController()
+    const interrupted = await proxy.fetch(messagesRequest(key, [...FIRST_TURN, NEXT_USER], true, abort.signal, [READ_TOOL]))
+    const reader = await readUntil(interrupted, "toolu_interrupted")
     abort.abort("user pressed stop")
     await reader.cancel().catch(() => {})
     await settle()
 
-    const after = await proxy.fetch(request(key, [
-      ...FIRST_TURN,
-      NEXT_USER,
-      { role: "assistant", content: [{ type: "text", text: "partial answer" }] },
-      { role: "user", content: "third question" },
-    ], false))
+    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
     expect(after.status).toBe(200)
     await after.json()
 
-    expect(calls[2]!.resume).toBe(calls[0]!.sessionId)
-    const prompt = JSON.stringify(calls[2]!.prompt)
-    expect(prompt).toContain("second question")
-    expect(prompt).toContain("third question")
-    expect(prompt).not.toContain("partial answer")
+    expect(calls[2]!.resume).toBeUndefined()
+    expect(JSON.stringify(calls[2]!.prompt)).toContain("first question")
   })
 
-  it("replays by default, because the switch is off", async () => {
-    delete process.env.MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT
+  it("replays after POST /v1/sessions/:key/cancel", async () => {
     const proxy = app()
-    const key = `abort-default-${crypto.randomUUID()}`
+    const key = `stop-cancel-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+
+    behaviors = ["partial-then-hang"]
+    const interrupted = await proxy.fetch(messagesRequest(key, [...FIRST_TURN, NEXT_USER], true, undefined, [READ_TOOL]))
+    const reader = await readUntil(interrupted)
+    const cancel = await proxy.fetch(new Request(`http://localhost/v1/sessions/${encodeURIComponent(key)}/cancel`, { method: "POST" }))
+    const cancelled = await cancel.json() as { cancelled: { requests: number } }
+    expect(cancelled.cancelled.requests).toBe(1)
+    // Drain rather than cancel the body, so only the explicit cancel aborts.
+    while (!(await reader.read()).done) { /* drain */ }
+    await settle()
+
+    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
+    expect(after.status).toBe(200)
+    await after.json()
+
+    expect(calls[2]!.resume).toBeUndefined()
+  })
+
+  it("replays when a restart lost the interrupted-turn record", async () => {
+    const proxy = app()
+    const key = `stop-restart-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+    await stopSecondTurn(proxy, key)
+    forgetInterruptedTurnsForTests()
+
+    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
+    expect(after.status).toBe(200)
+    await after.json()
+
+    expect(calls[2]!.resume).toBeUndefined()
+    expect(JSON.stringify(calls[2]!.prompt)).toContain("<conversation_history>")
+  })
+
+  it("resumes normally once the interrupted turn is decided", async () => {
+    const proxy = app()
+    const key = `stop-then-turn-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+    await stopSecondTurn(proxy, key)
+
+    const third = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
+    expect(third.status).toBe(200)
+    const thirdBody = await third.json() as { content: unknown }
+    const fourth = await proxy.fetch(next(key, [
+      ...FIRST_TURN, NEXT_USER, THIRD_USER,
+      { role: "assistant", content: thirdBody.content },
+      { role: "user", content: "fourth question" },
+    ]))
+    expect(fourth.status).toBe(200)
+    await fourth.json()
+
+    expect(calls[2]!.resume).toBe(calls[0]!.sessionId)
+    expect(calls[3]!.resume).toBe(calls[2]!.sessionId)
+  })
+
+  it.each([
+    ["discarded", [...FIRST_TURN, NEXT_USER, THIRD_USER], true],
+    ["kept", [...FIRST_TURN, NEXT_USER, KEPT_PARTIAL, THIRD_USER], false],
+  ] as const)("decides a reconnect that waited out the stopped turn's cleanup (partial %s)", async (_shape, history, resumes) => {
+    const proxy = app()
+    const key = `stop-race-${crypto.randomUUID()}`
     await completeFirstTurn(proxy, key)
 
     behaviors = ["partial-then-hang"]
     const abort = new AbortController()
-    const interrupted = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER], true, abort.signal))
-    const reader = await readUntilPartialAnswer(interrupted)
+    const interrupted = await proxy.fetch(messagesRequest(key, [...FIRST_TURN, NEXT_USER], true, abort.signal, [READ_TOOL]))
+    const reader = await readUntil(interrupted)
+    // Arrives while the stopped turn still holds the session: it reads the
+    // mapping only after that turn's cleanup marked it.
+    const reconnect = Promise.resolve(proxy.fetch(next(key, [...history])))
+    await settle()
     abort.abort("user pressed stop")
     await reader.cancel().catch(() => {})
+
+    const after = await reconnect
+    expect(after.status).toBe(200)
+    await after.json()
+
+    expect(calls).toHaveLength(3)
+    expect(calls[2]!.resume).toBe(resumes ? calls[0]!.sessionId : undefined)
+    if (!resumes) expect(JSON.stringify(calls[2]!.prompt)).toContain("partial answer")
+  })
+
+  it("lets only one of two parallel requests decide the interrupted turn", async () => {
+    const proxy = app()
+    const key = `stop-parallel-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+    await stopSecondTurn(proxy, key)
+
+    const responses = await Promise.all([
+      proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER])),
+      proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, { role: "user", content: "another third question" }])),
+    ])
+    await Promise.all(responses.map((response) => response.text()))
+
+    const resumedSource = calls.slice(2).filter((call) => call.resume === calls[0]!.sessionId)
+    expect(resumedSource).toHaveLength(1)
+    expect(responses.some((response) => response.status === 200)).toBe(true)
+  })
+
+  it("replays after a stopped non-stream turn, as before", async () => {
+    const proxy = app()
+    const key = `stop-nonstream-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+
+    behaviors = ["hang"]
+    const abort = new AbortController()
+    const pending = Promise.resolve(proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER], abort.signal)))
+    for (let i = 0; i < 200 && calls.length < 2; i++) await new Promise((resolve) => setTimeout(resolve, 1))
+    expect(calls).toHaveLength(2)
+    abort.abort("user pressed stop")
+    await pending.then((response) => response.text()).catch(() => {})
     await settle()
 
-    const after = await proxy.fetch(request(key, [...FIRST_TURN, NEXT_USER, { role: "user", content: "third question" }], false))
+    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
     expect(after.status).toBe(200)
     await after.json()
 

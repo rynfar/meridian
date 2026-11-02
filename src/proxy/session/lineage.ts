@@ -189,6 +189,9 @@ export type LineageDivergenceReason =
   | "missing-session-header"
   | "concurrent-race"
   | "compaction"
+  /** The client stopped this conversation's last turn mid-stream and its next
+   *  request carries content the kept session lacks (see InterruptedTurn). */
+  | "interrupted-turn-kept"
 
 // --- Hashing ---
 
@@ -854,4 +857,118 @@ export function verifyLineage(
 
   // No meaningful overlap — completely different conversation.
   return { type: "diverged", reason: "unrelated-history", prefixOverlap }
+}
+
+// --- Interrupted turns ---
+
+/**
+ * A turn the client stopped mid-stream after output reached it, recorded
+ * against the session it resumed. That session's SDK transcript still ends at
+ * the last completed turn (every resume writes an isolated fork), so it is
+ * resumable exactly when the client's next request adds nothing but user-side
+ * content to what the session holds. See the session spec, *Interrupted turns*.
+ */
+export interface InterruptedTurn {
+  /** Messages the session was published with: its lineage prefix. */
+  readonly prefixCount: number
+  /** Lineage hash of that prefix, the SDK reuse proof. */
+  readonly lineageHash: string
+  /** The reply the session already holds: the assistant messages the
+   *  interrupted request carried after the prefix, before its first user one. */
+  readonly replyHashes: readonly string[]
+  /** tool_use ids in that reply; user content may answer only these. */
+  readonly replyToolUseIds: readonly string[]
+}
+
+/** Why the next request after an interrupted turn must replay fresh. */
+export type InterruptedTurnReplayReason =
+  /** The stored prefix no longer matches: an earlier message was edited. */
+  | "prefix-changed"
+  /** The reply the session holds was altered or dropped. */
+  | "reply-changed"
+  /** Assistant content follows that reply: the client kept the partial turn. */
+  | "kept-assistant"
+  /** Nothing follows the reply for the session to answer. */
+  | "no-user-turn"
+  /** User content answers a tool call the session never made. */
+  | "unknown-tool-result"
+
+export type InterruptedTurnDecision =
+  | { readonly resume: true }
+  | { readonly resume: false; readonly reason: InterruptedTurnReplayReason }
+
+type LineageMessage = { role: string; content: any }
+
+function toolUseIds(messages: ReadonlyArray<LineageMessage>): string[] {
+  return messages.flatMap((message) => Array.isArray(message.content)
+    ? message.content.flatMap((block: any) =>
+      block?.type === "tool_use" && typeof block.id === "string" ? [block.id] : [])
+    : [])
+}
+
+/**
+ * Record the request a client interrupted, against the session it resumed
+ * from `prefixCount`. Undefined when the request is not that shape: a reply
+ * the session holds, then user-side content only. A request that already
+ * carried assistant turns the session never wrote is not kept.
+ */
+export function interruptedTurnOf(
+  messages: ReadonlyArray<LineageMessage>,
+  prefixCount: number,
+  lineageHash: string,
+): InterruptedTurn | undefined {
+  if (!Number.isSafeInteger(prefixCount) || prefixCount <= 0 || !lineageHash) return undefined
+  if (messages.length <= prefixCount) return undefined
+  const delta = messages.slice(prefixCount)
+  const firstUser = delta.findIndex((message) => message.role === "user")
+  if (firstUser < 0) return undefined
+  if (delta.slice(firstUser).some((message) => message.role === "assistant")) return undefined
+  const reply = delta.slice(0, firstUser)
+  return {
+    prefixCount,
+    lineageHash,
+    replyHashes: reply.map(hashMessage),
+    replyToolUseIds: toolUseIds(reply),
+  }
+}
+
+/**
+ * Decide the request that follows an interrupted turn. Resume only when it
+ * keeps the stored prefix and the session's own reply intact and adds only
+ * user-side content after them: then the client discarded the partial output,
+ * and the resumed session holds exactly what the client holds. Any assistant
+ * message after the reply — text, thinking, a tool call, or an empty one —
+ * means the client kept the partial, which the session never received, so the
+ * request must replay; resuming would let the model and the client diverge
+ * silently.
+ */
+export function classifyInterruptedContinuation(
+  turn: InterruptedTurn,
+  messages: ReadonlyArray<LineageMessage>,
+): InterruptedTurnDecision {
+  if (
+    messages.length <= turn.prefixCount
+    || computeLineageHash(messages.slice(0, turn.prefixCount)) !== turn.lineageHash
+  ) return { resume: false, reason: "prefix-changed" }
+  const replyEnd = turn.prefixCount + turn.replyHashes.length
+  if (messages.length < replyEnd) return { resume: false, reason: "reply-changed" }
+  for (let index = 0; index < turn.replyHashes.length; index++) {
+    if (hashMessage(messages[turn.prefixCount + index]!) !== turn.replyHashes[index]) {
+      return { resume: false, reason: "reply-changed" }
+    }
+  }
+  const added = messages.slice(replyEnd)
+  if (added.some((message) => message.role === "assistant")) return { resume: false, reason: "kept-assistant" }
+  if (!added.some((message) => message.role === "user")) return { resume: false, reason: "no-user-turn" }
+  const answerable = new Set(turn.replyToolUseIds)
+  for (const message of added) {
+    if (!Array.isArray(message.content)) continue
+    for (const block of message.content) {
+      if (block?.type !== "tool_result") continue
+      if (typeof block.tool_use_id !== "string" || !answerable.has(block.tool_use_id)) {
+        return { resume: false, reason: "unknown-tool-result" }
+      }
+    }
+  }
+  return { resume: true }
 }

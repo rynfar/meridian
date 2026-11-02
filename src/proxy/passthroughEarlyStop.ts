@@ -472,30 +472,41 @@ export function shouldEarlyStop(tracker: EarlyStopTracker): boolean {
   return true
 }
 
-/** What a client-aborted stream must do with its session mapping. */
 /**
- * Whether an interrupted streaming turn must give up its session mapping.
+ * What an interrupted streaming turn does with the mapping it resumed.
  *
- * Every resume writes an isolated fork, so until that fork is published the
- * mapped transcript still ends at the last completed turn. By default a turn
- * whose output reached the client is evicted anyway, because a client that keeps
- * the partial output would resume without the model seeing it. An operator whose
- * clients discard partial output can keep the session after a client disconnect.
- * Proxy-initiated aborts stay destructive.
+ * - `evict`: the turn may have moved the mapped transcript (no managed fork,
+ *   or its fork was published), or the client saw output it may hold and the
+ *   turn cannot be checked later, so the next request replays.
+ * - `preserve`: nothing reached the client, so the mapping is left as it was.
+ * - `interrupt`: the client itself stopped the turn after text or thinking
+ *   reached it and before any tool call did. The source mapping is kept but
+ *   marked interrupted, and the next request resumes it only if it adds
+ *   nothing but user content (see `classifyInterruptedContinuation`).
+ *
+ * Every other abort cause, an explicit subtree cancel included, evicts as
+ * before. See ARCHITECTURE.md, Cancellation Contract.
  */
-export function shouldEvictInterruptedMapping(input: {
-  keepSessionOnClientAbort: boolean
+export type InterruptedMappingAction = "evict" | "preserve" | "interrupt"
+
+export function interruptedMappingAction(input: {
   managedFork: boolean
   managedForkPublished: boolean
   clientAssistantContentExposed: boolean
+  /** A tool_use block reached the client. */
+  clientToolUseExposed: boolean
+  /** The turn resumed a published session whose interrupted request has the
+   *  checkable shape (an `InterruptedTurn` was recorded for it). */
+  interruptible: boolean
   abortCause: RequestAbortCause | "none"
-}): boolean {
-  if (!input.managedFork || input.managedForkPublished) return true
-  if (!input.clientAssistantContentExposed) return false
-  if (!input.keepSessionOnClientAbort) return true
-  return input.abortCause !== "client_abort" && input.abortCause !== "stream_cancel"
+}): InterruptedMappingAction {
+  if (!input.managedFork || input.managedForkPublished) return "evict"
+  if (!input.clientAssistantContentExposed) return "preserve"
+  if (input.clientToolUseExposed || !input.interruptible) return "evict"
+  return input.abortCause === "client_abort" || input.abortCause === "stream_cancel" ? "interrupt" : "evict"
 }
 
+/** What a client-aborted stream must do with its session mapping. */
 export type ClientAbortDisposition =
   | { action: "evict" }
   | { action: "none" }
@@ -507,9 +518,10 @@ export type ClientAbortDisposition =
  * A client abort leaves the SDK session ending in an interrupted tail. Even an
  * assistant UUID already seen in the iterator is not known durable until the
  * canonical result: the live PTY regression yielded that UUID but never wrote
- * it durably after abort. Therefore every owned mapping that may have advanced
- * is evicted (see shouldEvictInterruptedMapping); a replay costs one cache
- * miss but cannot wedge on a missing or interrupted boundary.
+ * it durably after abort. Therefore every owned mapping the turn may have
+ * advanced is settled by interruptedMappingAction: evicted, or kept behind the
+ * interrupted-turn check. A replay costs one cache miss but cannot wedge on a
+ * missing or interrupted boundary.
  */
 export function clientAbortDisposition(input: {
   isIndependentSession: boolean

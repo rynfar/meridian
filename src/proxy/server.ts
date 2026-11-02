@@ -104,7 +104,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, shouldEvictInterruptedMapping, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, interruptedMappingAction, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -227,6 +227,9 @@ import {
   inheritSdkUuids,
   independentRequestCause,
   formatDivergence,
+  interruptedTurnOf,
+  classifyInterruptedContinuation,
+  type InterruptedTurn,
   type LineageResult,
   type TokenUsageIteration,
   type TokenUsage,
@@ -246,6 +249,9 @@ import {
   evictSession as evictCachedSession,
   getSessionByClaudeId,
   warnHeaderlessToolLoopOnce,
+  markSessionInterrupted,
+  takeInterruptedTurn,
+  type InterruptedSessionSource,
   type PrioritySessionPublication,
 } from "./session/cache"
 import { processSessionTurns, type SessionTurnLease } from "./session/turnCoordinator"
@@ -3367,12 +3373,41 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const arrivalRevision = profileSessionId && requestMeta.sharedSessionRevisionsAtArrival
           ? requestMeta.sharedSessionRevisionsAtArrival[profileSessionId]
           : undefined
+        // A turn this process kept after the client stopped it mid-stream (see
+        // the session spec, *Interrupted turns*). Only a request that is a turn
+        // of the conversation takes it; a side request sharing the key cannot.
+        const interruptedClaim = !isIndependentSession && durableMappingAtTurn.status === "found"
+          ? takeInterruptedTurn(durableMappingKey, mappingGenerationAtTurn, durableMappingAtTurn.session)
+          : undefined
+        // Marking that turn rewrote the mapping after this request arrived. That
+        // is the stopped turn's own cleanup, not a competing commit, so waiting
+        // it out is not a lost race.
         const advancedAcrossProcesses = arrivalRevision !== undefined
           ? arrivalRevision !== currentDurableRevision
+            && !(interruptedClaim && arrivalRevision === interruptedClaim.markedFrom)
           : durableMappingAtTurn.status === "found"
         let lineageResult: LineageResult = isIndependentSession
           ? { type: "diverged", reason: "independent-request" }
           : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
+        // The stored mapping withholds its resume proof while it is
+        // interrupted. Restore it only when this request adds nothing but user
+        // content to what the session holds; otherwise the client kept output
+        // the session never received, and resuming would diverge silently.
+        const interruptedDecision = interruptedClaim
+          ? classifyInterruptedContinuation(interruptedClaim.turn, lineageMessages)
+          : undefined
+        if (interruptedClaim && interruptedDecision) {
+          lineageResult = interruptedDecision.resume
+            ? { type: "continuation", session: interruptedClaim.restored, resumeFrom: interruptedClaim.turn.prefixCount }
+            : { type: "diverged", reason: "interrupted-turn-kept" }
+          claudeLog("session.interrupted_turn_resolved", {
+            resume: interruptedDecision.resume,
+            ...(interruptedDecision.resume ? {} : { reason: interruptedDecision.reason }),
+          })
+        }
+        const interruptedResumeProof = interruptedClaim && interruptedDecision?.resume
+          ? interruptedClaim.restored
+          : undefined
         // NOTE: agent-specific (opencode) — when OpenCode's chat.headers plugin
         // hook doesn't fire (category-dispatched or title-generation requests),
         // the request has no session header and falls through to fingerprint
@@ -3490,7 +3525,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // continue its pending tool checkpoint.
         const durableCheckpointContinuation = independentCause !== "auxiliary-request" && durableCheckpointIds?.length
           && durableMappingAtTurn.status === "found"
-          && matchesStoredLineagePrefix(durableMappingAtTurn.session, lineageMessages)
+          && matchesStoredLineagePrefix(interruptedResumeProof ?? durableMappingAtTurn.session, lineageMessages)
           ? coalesceCompleteToolResultContinuation(
             (body.messages || []).slice(durableMappingAtTurn.session.messageCount),
             durableCheckpointIds,
@@ -3928,6 +3963,27 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           messagesToConvert = executionMessages
         }
       }
+
+      // What this turn leaves if the client stops it mid-stream after output
+      // reached it: the published session it resumed, kept behind the
+      // interrupted-turn check. Only a plain continuation resuming exactly the
+      // session it read qualifies; side requests and priority publications
+      // keep their existing abort handling.
+      const interruptCandidate: { source: InterruptedSessionSource; turn: InterruptedTurn } | undefined = (() => {
+        if (isIndependentSession || requestMeta.auxiliaryRequest || options.priorityPublication) return undefined
+        if (lineageResult.type !== "continuation" || lineageResult.resumeContentFrom !== undefined) return undefined
+        if (!isResume || !cachedSession || resumeSessionId !== cachedSession.claudeSessionId) return undefined
+        if (!cachedSession.lineageHash || lineageResult.resumeFrom !== cachedSession.messageCount) return undefined
+        const turn = interruptedTurnOf(lineageMessages, cachedSession.messageCount, cachedSession.lineageHash)
+        return turn ? {
+          source: {
+            claudeSessionId: cachedSession.claudeSessionId,
+            messageCount: cachedSession.messageCount,
+            lineageHash: cachedSession.lineageHash,
+          },
+          turn,
+        } : undefined
+      })()
 
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
@@ -5806,13 +5862,63 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           resolveStreamCompletion = resolve
         })
         let clientAssistantContentExposed = false
-        const mayEvictInterruptedMapping = (): boolean => shouldEvictInterruptedMapping({
-          keepSessionOnClientAbort: env("KEEP_SESSION_ON_CLIENT_ABORT") === "1",
+        let clientToolUseExposed = false
+        const currentInterruptedMappingAction = () => interruptedMappingAction({
           managedFork: managedForkTarget !== undefined,
           managedForkPublished,
           clientAssistantContentExposed,
+          clientToolUseExposed,
+          // The fork still copies the session the candidate was recorded for.
+          interruptible: interruptCandidate !== undefined && !managedFreshTarget && !managedForkSuperseded
+            && managedForkSource?.sessionId === interruptCandidate.source.claudeSessionId,
           abortCause: durableWritesRevoked ? "process_shutdown" : requestAbort.abortSnapshot().cause,
         })
+        // One marking per request: the body's cancel() and the pipeline can
+        // both settle the same abort, and the stream completes (releasing the
+        // turn lease) only after this has finished.
+        let interruptMarking: Promise<boolean> | undefined
+        const markInterruptedTurn = async (): Promise<boolean> => {
+          const candidate = interruptCandidate
+          const expected = mappingExpectedGeneration
+          if (!candidate || !expected || requestMeta.auxiliaryRequest) return false
+          try {
+            const generation = await admitSessionStoreWrite(() => markSessionInterrupted(
+              profileSessionId,
+              profileScopedCwd,
+              lineageMessages,
+              expected,
+              candidate.source,
+              candidate.turn,
+            ), sessionGcOptions)
+            if (!generation) return false
+            mappingExpectedGeneration = generation
+            claudeLog("session.interrupted_turn_kept", {
+              prefixCount: candidate.turn.prefixCount,
+              replyMessages: candidate.turn.replyHashes.length,
+            })
+            return true
+          } catch (error) {
+            claudeLog("session.interrupted_turn_mark_failed", {
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return false
+          }
+        }
+        /**
+         * Settle the mapping of a turn interrupted after it resumed: evict it,
+         * leave it, or keep it behind the interrupted-turn check. A failed
+         * marking falls back to the eviction an interrupted turn always had.
+         */
+        const settleInterruptedMapping = async (): Promise<"evicted" | "preserved" | "interrupted"> => {
+          const action = currentInterruptedMappingAction()
+          if (action === "preserve") return "preserved"
+          if (action === "interrupt") {
+            interruptMarking ??= markInterruptedTurn()
+            if (await interruptMarking) return "interrupted"
+          }
+          await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
+          return "evicted"
+        }
         const readable = new ReadableStream({
           start(controller) {
             let terminateFailedStream = (error: unknown): void => controller.error(error)
@@ -5849,6 +5955,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 if (source.includes("content_block") || source.includes("tool_block") || source.includes("tool_input")) {
                   clientAssistantContentExposed = true
                 }
+                if (source.includes("tool_block")) clientToolUseExposed = true
                 bytesSent += payload.byteLength
                 return true
               } catch (error) {
@@ -6876,6 +6983,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       }
                       eventsForwarded += 1
                       if (eventType === "content_block_start") contentBlocksForwarded += 1
+                      if (eventType === "content_block_start" && (event as { content_block?: { type?: unknown } }).content_block?.type === "tool_use") {
+                        clientToolUseExposed = true
+                      }
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.
@@ -7803,15 +7913,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const failedResumedTurn = isResume && !managedForkTarget && !sawCanonicalResult
               if (
                 (requestAbort.controller.signal.aborted || durableWritesRevoked || failedResumedTurn)
-                && mayEvictInterruptedMapping()
                 && !isIndependentSession
+                && await settleInterruptedMapping() === "evicted"
               ) {
-                await evictSession(
-                  profileSessionId,
-                  profileScopedCwd,
-                  lineageMessages,
-                  mappingExpectedGeneration,
-                )
                 claudeLog("session.interrupted_mapping_evicted", {
                   mode: "stream",
                   reason: failedResumedTurn ? "noncanonical_resume" : "request_abort",
@@ -7839,19 +7943,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
                   passthrough,
                 })
-                const evictInterruptedMapping = mayEvictInterruptedMapping()
-                if (disposition.action === "evict" && evictInterruptedMapping) {
-                  await evictSession(
-                    profileSessionId,
-                    profileScopedCwd,
-                    lineageMessages,
-                    mappingExpectedGeneration,
-                  )
-                }
+                const settled = disposition.action === "evict" ? await settleInterruptedMapping() : undefined
                 claudeLog("passthrough.client_abort_settled", {
-                  action: disposition.action === "evict" && !evictInterruptedMapping
+                  action: settled === "preserved"
                     ? "preserve_managed_source"
-                    : disposition.action,
+                    : settled === "interrupted" ? "interrupted_turn_kept" : disposition.action,
                 })
                 return
               }
@@ -8609,6 +8705,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 streamClosed = true
               }
             } finally {
+              // A marking started by the body's cancel() must land before the
+              // stream completes and the turn lease lets the next request read.
+              if (interruptMarking) await interruptMarking
               await abandonManagedFork("stream_complete_without_commit")
               if (priorityRollbackRetirement) await priorityRollbackRetirement
               // Detach only when this handler owns the link. An ADOPTED
@@ -8633,16 +8732,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // cancelled here as well, latched so a real socket teardown —
             // which trips both this and the request signal — propagates once.
             requestMeta.cascadeSubtreeCancel?.("stream_cancel")
-            if (!isIndependentSession && mayEvictInterruptedMapping()) {
-              // A direct resume or already-published target may have advanced.
-              // An unpublished managed fork writes only its isolated target, so
-              // preserve the still-authoritative source mapping and abandon it.
-              await evictSession(
-                    profileSessionId,
-                    profileScopedCwd,
-                    lineageMessages,
-                    mappingExpectedGeneration,
-                  )
+            // A direct resume or already-published target may have advanced.
+            // An unpublished managed fork writes only its isolated target, so
+            // the still-authoritative source mapping is preserved, or kept
+            // behind the interrupted-turn check when output reached the client.
+            if (!isIndependentSession && await settleInterruptedMapping() === "evicted") {
               claudeLog("passthrough.client_abort_settled", { action: "evict", source: "stream_cancel" })
             }
           },
