@@ -13,7 +13,6 @@
 import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
-  interruptedMappingAction,
   coalesceCompleteToolResultContinuation,
   settlesCheckpointThenContinues,
   isMidConvoEffortSystemMessage,
@@ -82,47 +81,6 @@ describe("isClientForwardedToolUse", () => {
 
   it("excludes tool_use blocks with no id (can't be tracked)", () => {
     expect(isClientForwardedToolUse({ type: "tool_use", name: "read" })).toBe(false)
-  })
-})
-
-describe("interruptedMappingAction", () => {
-  const base = {
-    managedFork: true,
-    managedForkPublished: false,
-    clientAssistantContentExposed: true,
-    clientToolUseExposed: false,
-    interruptible: true,
-    abortCause: "client_abort" as const,
-  }
-
-  it("keeps the source behind the interrupted-turn check when the client stopped a turn it saw", () => {
-    expect(interruptedMappingAction(base)).toBe("interrupt")
-    expect(interruptedMappingAction({ ...base, abortCause: "stream_cancel" })).toBe("interrupt")
-  })
-
-  it("leaves the mapping as it was for any abort before output reached the client", () => {
-    for (const abortCause of ["client_abort", "process_shutdown", "session_watchdog", "subtree_cancel", "none"] as const) {
-      expect(interruptedMappingAction({ ...base, clientAssistantContentExposed: false, abortCause })).toBe("preserve")
-    }
-  })
-
-  it("evicts once the turn could have moved the mapped transcript", () => {
-    expect(interruptedMappingAction({ ...base, managedFork: false })).toBe("evict")
-    expect(interruptedMappingAction({ ...base, managedForkPublished: true })).toBe("evict")
-  })
-
-  it("evicts a turn that already streamed a tool call", () => {
-    expect(interruptedMappingAction({ ...base, clientToolUseExposed: true })).toBe("evict")
-  })
-
-  it("evicts a turn whose request cannot be checked later", () => {
-    expect(interruptedMappingAction({ ...base, interruptible: false })).toBe("evict")
-  })
-
-  it("evicts for every abort the client's own stop did not cause, an explicit cancel included", () => {
-    for (const abortCause of ["process_shutdown", "session_watchdog", "subtree_cancel", "passthrough_single_step", "unknown_abort", "none"] as const) {
-      expect(interruptedMappingAction({ ...base, abortCause })).toBe("evict")
-    }
   })
 })
 

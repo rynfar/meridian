@@ -22,7 +22,11 @@ import {
   withMockSdkSessionId,
 } from "./helpers"
 
-type Behavior = "complete" | "partial-then-hang" | "tool-call-then-hang" | "hang"
+type Behavior =
+  | "complete"
+  | "partial-then-hang"
+  | "tool-call-then-hang"
+  | "hang"
 
 interface SdkCall {
   readonly prompt: unknown
@@ -411,6 +415,144 @@ describe("client stop on /v1/messages", () => {
     expect(after.status).toBe(200)
     await after.json()
 
+    expect(calls[2]!.resume).toBeUndefined()
+  })
+})
+
+describe("client stop, more paths", () => {
+  const strict = (key: string, messages: Message[], stream: boolean, signal?: AbortSignal) =>
+    messagesRequest(key, messages, stream, signal, [READ_TOOL])
+
+  async function completeFirstTurn(proxy: Proxy, request: (messages: Message[], stream: boolean, signal?: AbortSignal) => Request) {
+    const response = await proxy.fetch(request(FIRST_TURN.slice(0, 1), false))
+    expect(response.status).toBe(200)
+    await response.json()
+    expect(calls[0]!.sessionId).toBeDefined()
+  }
+
+  async function stopTurn(proxy: Proxy, request: (messages: Message[], stream: boolean, signal?: AbortSignal) => Request, history: Message[]) {
+    behaviors.push("partial-then-hang")
+    const abort = new AbortController()
+    const interrupted = await proxy.fetch(request(history, true, abort.signal))
+    const reader = await readUntil(interrupted)
+    abort.abort("user pressed stop")
+    await reader.cancel().catch(() => {})
+    await settle()
+  }
+
+  it("keeps consecutive stopped turns on the same session", async () => {
+    const proxy = app()
+    const key = `stop-twice-${crypto.randomUUID()}`
+    const request = (messages: Message[], stream: boolean, signal?: AbortSignal) => strict(key, messages, stream, signal)
+    await completeFirstTurn(proxy, request)
+    await stopTurn(proxy, request, [...FIRST_TURN, NEXT_USER])
+    // The retry resumes the kept session, and is stopped too.
+    await stopTurn(proxy, request, [...FIRST_TURN, NEXT_USER, THIRD_USER])
+    expect(calls[2]!.resume).toBe(calls[0]!.sessionId)
+
+    const after = await proxy.fetch(request([...FIRST_TURN, NEXT_USER, THIRD_USER, { role: "user", content: "fourth question" }], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls[3]!.resume).toBe(calls[0]!.sessionId)
+  })
+
+  it("does not let a side request sharing the key take the stopped turn's record", async () => {
+    const proxy = app()
+    const key = `stop-side-${crypto.randomUUID()}`
+    const claudeCode = (messages: Message[], stream: boolean, signal?: AbortSignal, auxiliary = false) =>
+      new Request("http://localhost/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", "x-meridian-agent": "claude-code", "x-session-affinity": key,
+          ...(auxiliary ? { "x-claude-code-request-class": "auxiliary" } : {}),
+        },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
+        signal,
+      })
+    await completeFirstTurn(proxy, claudeCode)
+    await stopTurn(proxy, claudeCode, [...FIRST_TURN, NEXT_USER])
+
+    const side = await proxy.fetch(claudeCode([{ role: "user", content: "summarize the session title" }], false, undefined, true))
+    expect(side.status).toBe(200)
+    await side.json()
+
+    const after = await proxy.fetch(claudeCode([...FIRST_TURN, NEXT_USER, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls.at(-1)!.resume).toBe(calls[0]!.sessionId)
+  })
+
+  it.each([
+    ["discarded", [...FIRST_TURN, NEXT_USER, THIRD_USER], true],
+    ["kept", [...FIRST_TURN, NEXT_USER, KEPT_PARTIAL, THIRD_USER], false],
+  ] as const)("decides a headerless conversation by its fingerprint (partial %s)", async (_shape, history, resumes) => {
+    const proxy = app()
+    const opening: Message = { role: "user", content: `fingerprinted ${crypto.randomUUID()}` }
+    const headerless = (messages: Message[], stream: boolean, signal?: AbortSignal) =>
+      new Request("http://localhost/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-meridian-agent": "prime" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages: [opening, ...messages.slice(1)] }),
+        signal,
+      })
+    await completeFirstTurn(proxy, headerless)
+    await stopTurn(proxy, headerless, [...FIRST_TURN, NEXT_USER])
+
+    const after = await proxy.fetch(headerless([...history], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls[2]!.resume).toBe(resumes ? calls[0]!.sessionId : undefined)
+    if (!resumes) expect(JSON.stringify(calls[2]!.prompt)).toContain("partial answer")
+  })
+})
+
+describe("stops Meridian decides on still replay", () => {
+  const strict = (key: string, messages: Message[], stream: boolean, signal?: AbortSignal) =>
+    messagesRequest(key, messages, stream, signal, [READ_TOOL])
+  let savedHold: string | undefined
+
+  beforeEach(() => { savedHold = process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS })
+  afterEach(() => {
+    if (savedHold === undefined) delete process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
+    else process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = savedHold
+  })
+
+  async function exposeSecondTurn(proxy: Proxy, key: string) {
+    const first = await proxy.fetch(strict(key, FIRST_TURN.slice(0, 1), false))
+    expect(first.status).toBe(200)
+    await first.json()
+    behaviors.push("partial-then-hang")
+    const interrupted = await proxy.fetch(strict(key, [...FIRST_TURN, NEXT_USER], true))
+    return readUntil(interrupted)
+  }
+
+  it("after the session-turn watchdog", async () => {
+    process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = "300"
+    const proxy = app()
+    const key = `stop-watchdog-${crypto.randomUUID()}`
+    const reader = await exposeSecondTurn(proxy, key)
+    while (!(await reader.read()).done) { /* the watchdog ends the stream */ }
+    await settle()
+
+    const after = await proxy.fetch(strict(key, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls[2]!.resume).toBeUndefined()
+  })
+
+  it("after a forced shutdown", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const key = `stop-shutdown-${crypto.randomUUID()}`
+    const reader = await exposeSecondTurn(server.app, key)
+    server.forceAbortInFlight?.()
+    while (!(await reader.read()).done) { /* shutdown ends the stream */ }
+    await settle()
+
+    // The next process finds the mapping evicted, not kept for a check.
+    const next = app()
+    const after = await next.fetch(strict(key, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
     expect(calls[2]!.resume).toBeUndefined()
   })
 })

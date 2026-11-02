@@ -43,8 +43,6 @@
  * Pure module — no I/O, no imports from server.ts or session/.
  */
 
-import type { RequestAbortCause } from "./requestAbort"
-
 /** Default passthrough MCP prefix — mirrors PASSTHROUGH_MCP_PREFIX in
  *  passthroughTools. Duplicated here (with a cross-check test) to keep this
  *  module leaf-pure. An adapter with its own namespace passes it in instead
@@ -472,40 +470,6 @@ export function shouldEarlyStop(tracker: EarlyStopTracker): boolean {
   return true
 }
 
-/**
- * What an interrupted streaming turn does with the mapping it resumed.
- *
- * - `evict`: the turn may have moved the mapped transcript (no managed fork,
- *   or its fork was published), or the client saw output it may hold and the
- *   turn cannot be checked later, so the next request replays.
- * - `preserve`: nothing reached the client, so the mapping is left as it was.
- * - `interrupt`: the client itself stopped the turn after text or thinking
- *   reached it and before any tool call did. The source mapping is kept but
- *   marked interrupted, and the next request resumes it only if it adds
- *   nothing but user content (see `classifyInterruptedContinuation`).
- *
- * Every other abort cause, an explicit subtree cancel included, evicts as
- * before. See ARCHITECTURE.md, Cancellation Contract.
- */
-export type InterruptedMappingAction = "evict" | "preserve" | "interrupt"
-
-export function interruptedMappingAction(input: {
-  managedFork: boolean
-  managedForkPublished: boolean
-  clientAssistantContentExposed: boolean
-  /** A tool_use block reached the client. */
-  clientToolUseExposed: boolean
-  /** The turn resumed a published session whose interrupted request has the
-   *  checkable shape (an `InterruptedTurn` was recorded for it). */
-  interruptible: boolean
-  abortCause: RequestAbortCause | "none"
-}): InterruptedMappingAction {
-  if (!input.managedFork || input.managedForkPublished) return "evict"
-  if (!input.clientAssistantContentExposed) return "preserve"
-  if (input.clientToolUseExposed || !input.interruptible) return "evict"
-  return input.abortCause === "client_abort" || input.abortCause === "stream_cancel" ? "interrupt" : "evict"
-}
-
 /** What a client-aborted stream must do with its session mapping. */
 export type ClientAbortDisposition =
   | { action: "evict" }
@@ -519,9 +483,9 @@ export type ClientAbortDisposition =
  * assistant UUID already seen in the iterator is not known durable until the
  * canonical result: the live PTY regression yielded that UUID but never wrote
  * it durably after abort. Therefore every owned mapping the turn may have
- * advanced is settled by interruptedMappingAction: evicted, or kept behind the
- * interrupted-turn check. A replay costs one cache miss but cannot wedge on a
- * missing or interrupted boundary.
+ * advanced is evicted, or kept behind the interrupted-turn check
+ * (`interruptedMappingAction` in session/interruptedTurn.ts); a replay costs
+ * one cache miss but cannot wedge on a missing or interrupted boundary.
  */
 export function clientAbortDisposition(input: {
   isIndependentSession: boolean

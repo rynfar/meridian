@@ -34,11 +34,19 @@ import {
   computeMessageBlockHashes,
   computeMessageHashes,
   verifyLineage,
-  type InterruptedTurn,
   type SessionState,
   type TokenUsage,
   type LineageResult,
 } from "./lineage"
+import {
+  markableSource,
+  recordStillMarks,
+  type InterruptedSessionSource,
+  type InterruptedTurn,
+  type InterruptedTurnRecord,
+} from "./interruptedTurn"
+
+export type { InterruptedSessionSource }
 
 export interface PrioritySessionPublication {
   readonly routeKey: string
@@ -118,13 +126,6 @@ let cacheEpoch = 0
  * Process memory on purpose: a restart or another process finds no record and
  * replays. See the session spec, *Interrupted turns*.
  */
-interface InterruptedTurnRecord {
-  readonly generation: StoredSessionGeneration
-  /** The mapping generation the marking replaced. */
-  readonly markedFrom: StoredSessionGeneration
-  readonly claudeSessionId: string
-  readonly turn: InterruptedTurn
-}
 let interruptedTurns = new LRUMap<string, InterruptedTurnRecord>(activeMaxSessions)
 
 function isSessionStoreTransactionActive(): boolean {
@@ -742,14 +743,6 @@ export function storeSession(
   return storedGeneration
 }
 
-/** The session an interrupted turn resumed, as that turn saw it. */
-export interface InterruptedSessionSource {
-  readonly claudeSessionId: string
-  readonly messageCount: number
-  /** The SDK reuse proof the turn resumed with. */
-  readonly lineageHash: string
-}
-
 /**
  * Keep the mapping an interrupted turn resumed, marked interrupted.
  *
@@ -769,18 +762,12 @@ export function markSessionInterrupted(
   source: InterruptedSessionSource,
   turn: InterruptedTurn,
 ): StoredSessionGeneration | false {
-  if (!source.lineageHash || turn.lineageHash !== source.lineageHash || turn.prefixCount !== source.messageCount) {
-    return false
-  }
   const key = sessionId || getConversationFingerprint(messages, workingDirectory)
   if (!key) return false
   const current = lookupSharedSessionResult(key)
   if (current.status === "error") throw current.error
   if (current.status !== "found" || current.generation !== expectedGeneration) return false
-  const stored = current.session
-  if (stored.claudeSessionId !== source.claudeSessionId || stored.messageCount !== source.messageCount) return false
-  const storedProof = stored.lineageHash || stored.clientLineageHash
-  if (storedProof !== source.lineageHash) return false
+  if (!markableSource(current.session, source, turn)) return false
   const generation = storeSharedSession(
     key,
     source.claudeSessionId,
@@ -832,13 +819,7 @@ export function takeInterruptedTurn(
   const record = interruptedTurns.get(key)
   if (!record) return undefined
   interruptedTurns.delete(key)
-  if (
-    !generation || generation !== record.generation || !stored
-    || stored.claudeSessionId !== record.claudeSessionId
-    || stored.lineageHash
-    || stored.clientLineageHash !== record.turn.lineageHash
-    || stored.messageCount !== record.turn.prefixCount
-  ) return undefined
+  if (!stored || !recordStillMarks(record, generation, stored)) return undefined
   const state = stateFromSharedSession(stored)
   return {
     turn: record.turn,

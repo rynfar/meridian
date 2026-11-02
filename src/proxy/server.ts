@@ -37,7 +37,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError, type LateIdleDeadline } from "./streamIdleGuard"
 import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey } from "./idleStallCeiling"
-import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
+import { isClientStop, linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import {
   CacheKeepaliveScheduler,
@@ -104,7 +104,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, interruptedMappingAction, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -227,9 +227,6 @@ import {
   inheritSdkUuids,
   independentRequestCause,
   formatDivergence,
-  interruptedTurnOf,
-  classifyInterruptedContinuation,
-  type InterruptedTurn,
   type LineageResult,
   type TokenUsageIteration,
   type TokenUsage,
@@ -251,9 +248,15 @@ import {
   warnHeaderlessToolLoopOnce,
   markSessionInterrupted,
   takeInterruptedTurn,
-  type InterruptedSessionSource,
   type PrioritySessionPublication,
 } from "./session/cache"
+import {
+  forkStillCopiesCandidate,
+  interruptCandidateOf,
+  interruptedMappingAction,
+  resolveInterruptedTurn,
+  waitedOutOwnInterruption,
+} from "./session/interruptedTurn"
 import { processSessionTurns, type SessionTurnLease } from "./session/turnCoordinator"
 import {
   CrossProcessTurnAcquireTimeoutError,
@@ -1297,7 +1300,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       requestMeta.sdkActiveDurationMs += Date.now() - startedAt
       // See proxy-core spec: the cache tier is a fact of the request upstream
       // received, so a tool-boundary stop (max_turns, single-step abort) keeps
-      // it; only a client abort, which evicts the session, drops tracking.
+      // it; only a client abort drops tracking, whether its session is evicted
+      // or kept behind the interrupted-turn check.
       const clientAborted = signal.aborted && signal.reason !== PASSTHROUGH_SINGLE_STEP_ABORT_REASON
       const tier = clientAborted ? "none" : classifyCacheTier(cacheUsage)
       cacheKeepalive.noteTurnEnd(keepalive.key, { recipe: keepaliveRecipe, startedAt, tier })
@@ -3383,8 +3387,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // is the stopped turn's own cleanup, not a competing commit, so waiting
         // it out is not a lost race.
         const advancedAcrossProcesses = arrivalRevision !== undefined
-          ? arrivalRevision !== currentDurableRevision
-            && !(interruptedClaim && arrivalRevision === interruptedClaim.markedFrom)
+          ? arrivalRevision !== currentDurableRevision && !waitedOutOwnInterruption(arrivalRevision, interruptedClaim)
           : durableMappingAtTurn.status === "found"
         let lineageResult: LineageResult = isIndependentSession
           ? { type: "diverged", reason: "independent-request" }
@@ -3393,19 +3396,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // interrupted. Restore it only when this request adds nothing but user
         // content to what the session holds; otherwise the client kept output
         // the session never received, and resuming would diverge silently.
-        const interruptedDecision = interruptedClaim
-          ? classifyInterruptedContinuation(interruptedClaim.turn, lineageMessages)
+        const interruptedResolution = interruptedClaim
+          ? resolveInterruptedTurn(interruptedClaim, lineageMessages)
           : undefined
-        if (interruptedClaim && interruptedDecision) {
-          lineageResult = interruptedDecision.resume
-            ? { type: "continuation", session: interruptedClaim.restored, resumeFrom: interruptedClaim.turn.prefixCount }
-            : { type: "diverged", reason: "interrupted-turn-kept" }
+        if (interruptedResolution) {
+          lineageResult = interruptedResolution.lineage
+          const decision = interruptedResolution.decision
           claudeLog("session.interrupted_turn_resolved", {
-            resume: interruptedDecision.resume,
-            ...(interruptedDecision.resume ? {} : { reason: interruptedDecision.reason }),
+            resume: decision.resume,
+            ...(decision.resume ? {} : { reason: decision.reason }),
           })
         }
-        const interruptedResumeProof = interruptedClaim && interruptedDecision?.resume
+        const interruptedResumeProof = interruptedClaim && interruptedResolution?.decision.resume
           ? interruptedClaim.restored
           : undefined
         // NOTE: agent-specific (opencode) — when OpenCode's chat.headers plugin
@@ -3781,11 +3783,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const executionReplay = executionHistory.changed || Boolean(cachedSession && !cachedSession.lineageHash)
           || agentContextReplay
         const executionReplayToolSessionId = executionReplay && isResume ? resumeSessionId : undefined
+        const executionReplayReason = !executionReplay ? undefined
+          : executionHistory.changed ? "transformed_history"
+            : agentContextReplay ? "changed_or_unproved_primary_agent" : "unproved_sdk_prefix"
         if (executionReplay) {
-          claudeLog("session.execution_replay", {
-            reason: executionHistory.changed ? "transformed_history"
-              : agentContextReplay ? "changed_or_unproved_primary_agent" : "unproved_sdk_prefix",
-          })
+          claudeLog("session.execution_replay", { reason: executionReplayReason })
           isResume = false
           isUndo = false
           sdkUndo = false
@@ -3814,7 +3816,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -3969,21 +3971,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // interrupted-turn check. Only a plain continuation resuming exactly the
       // session it read qualifies; side requests and priority publications
       // keep their existing abort handling.
-      const interruptCandidate: { source: InterruptedSessionSource; turn: InterruptedTurn } | undefined = (() => {
-        if (isIndependentSession || requestMeta.auxiliaryRequest || options.priorityPublication) return undefined
-        if (lineageResult.type !== "continuation" || lineageResult.resumeContentFrom !== undefined) return undefined
-        if (!isResume || !cachedSession || resumeSessionId !== cachedSession.claudeSessionId) return undefined
-        if (!cachedSession.lineageHash || lineageResult.resumeFrom !== cachedSession.messageCount) return undefined
-        const turn = interruptedTurnOf(lineageMessages, cachedSession.messageCount, cachedSession.lineageHash)
-        return turn ? {
-          source: {
-            claudeSessionId: cachedSession.claudeSessionId,
-            messageCount: cachedSession.messageCount,
-            lineageHash: cachedSession.lineageHash,
-          },
-          turn,
-        } : undefined
-      })()
+      const interruptCandidate = interruptCandidateOf({
+        sideRequest: isIndependentSession || requestMeta.auxiliaryRequest === true,
+        priorityPublication: Boolean(options.priorityPublication),
+        lineage: lineageResult,
+        isResume,
+        resumeSessionId,
+        messages: lineageMessages,
+      })
 
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
@@ -5868,10 +5863,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           managedForkPublished,
           clientAssistantContentExposed,
           clientToolUseExposed,
-          // The fork still copies the session the candidate was recorded for.
-          interruptible: interruptCandidate !== undefined && !managedFreshTarget && !managedForkSuperseded
-            && managedForkSource?.sessionId === interruptCandidate.source.claudeSessionId,
-          abortCause: durableWritesRevoked ? "process_shutdown" : requestAbort.abortSnapshot().cause,
+          interruptible: forkStillCopiesCandidate({
+            candidate: interruptCandidate,
+            freshTarget: managedFreshTarget,
+            superseded: managedForkSuperseded,
+            forkSourceSessionId: managedForkSource?.sessionId,
+          }),
+          clientStopped: isClientStop(durableWritesRevoked ? "process_shutdown" : requestAbort.abortSnapshot().cause),
         })
         // One marking per request: the body's cancel() and the pipeline can
         // both settle the same abort, and the stream completes (releasing the
@@ -5892,13 +5890,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             ), sessionGcOptions)
             if (!generation) return false
             mappingExpectedGeneration = generation
+            // Named explicitly: the body's cancel() runs outside the request's
+            // log context.
             claudeLog("session.interrupted_turn_kept", {
+              requestId: requestMeta.requestId,
               prefixCount: candidate.turn.prefixCount,
               replyMessages: candidate.turn.replyHashes.length,
             })
             return true
           } catch (error) {
             claudeLog("session.interrupted_turn_mark_failed", {
+              requestId: requestMeta.requestId,
               error: error instanceof Error ? error.message : String(error),
             })
             return false
