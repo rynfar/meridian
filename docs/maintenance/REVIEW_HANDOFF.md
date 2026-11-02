@@ -1,6 +1,61 @@
 # Meridian review checkpoint — 2026-11-02 UTC
 
-Last code delivery: `6663c0f99c0bee7108ef348e205d1df2ca6aa4c0` (#1476). The 2026-11-01 review of the new contributor PRs is recorded first; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `3a700e365fef08b4549642746a9ccbf59c64d95e` (#1480). The 2026-11-02 work is recorded first, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-11-02: #1475, #1478, #1482 and #1480 merged
+
+This continues the 2026-11-01 review below, with the owner's decisions:
+- #1475's recommendations accepted;
+- #1478's live gate run;
+- the drafted comments posted as each PR landed;
+- the new PRs #1480 and #1482 reviewed;
+- #1480 rebuilt to be correct for every client instead of an opt-in.
+
+Each merge below was an exact-head squash with the contributor as Git Author. Each landed tree equals the reviewed parent merged with the validated head, and GitHub verifies each squash. Each comment was posted after the authorship check.
+
+- [#1478](https://github.com/rynfar/meridian/pull/1478) `3903db44`, Aleksey Proshutinskiy.
+  - **Live gate passed:** main fails the reported flow, and the fix passes on Sonnet 5.5 and Opus 5.5. The tool-search-off control and all four E41 modes pass.
+  - **Maintainer commits:** the rendered reference text names the registered tool; ARCHITECTURE.md lists the client-owned tool search among agent-specific logic.
+  - Merged `--admin` under the unsigned-commit exception.
+  - The harness is escrowed in [#1483](https://github.com/rynfar/meridian/pull/1483) `8f0b86b8`. Its self-test fails on the pre-fix tree `c6ec3a92`. [Record](evidence/review-20261101/pr-1478.md).
+- [#1475](https://github.com/rynfar/meridian/pull/1475) `7a971fd1`, Connor Grady, merged as `fix(nix): build packages with the consumer's nixpkgs`, merge state `CLEAN`. Four maintainer commits:
+  - the Home Manager env harness;
+  - the `nix-update` and plugin-path docs;
+  - the floor compares versions before reading `src`, and stops with a message naming both versions when a below-floor `claude-code` cannot be rebuilt;
+  - the deployment guide points configurations at the overlay and lists the upgrade steps.
+
+  All were revalidated on aarch64-linux Nix. [Record](evidence/review-20261101/pr-1475.md).
+- [#1482](https://github.com/rynfar/meridian/pull/1482) `f331ffe7`, Tristan Cartledge.
+  - **The fix:** Chat Completions PDF `file` parts reach Claude as documents; main silently dropped them.
+  - **Maintainer commits:** a packed-history placeholder for earlier PDFs, assistant `refusal` parts kept as text, and the docs and spec.
+  - **The cold 504:** one live run hit `504 upstream idle 90016ms`. It was shown to be environmental: on the final head, a cold request with the PDF took 2,447 ms and the same request without it 2,408 ms.
+  - Merged `--admin`, unsigned. [Record](evidence/review-20261101/pr-1482.md).
+- [#1480](https://github.com/rynfar/meridian/pull/1480) `3a700e36`, XInTheDark, merged as `feat: keep a stopped turn's session when the client discarded its output`.
+  - **Design:** the owner chose correct-for-every-client over the PR's opt-in env var.
+    - A client-stopped streaming turn keeps its session with the durable resume proof withheld.
+    - The next request resumes it only when it carries no assistant content after the session's reply; otherwise it replays.
+    - The rule is the pure module `session/interruptedTurn.ts`.
+  - **Gate:** E79 (`scripts/e2e-client-abort-resume.mjs`) includes real Pi 1.4.0 (discards the partial) and real OpenCode 2.2.0 (keeps it).
+  - **Review:** two independent adversarial rounds found no divergence path. 38 of 39 protections fail tests when removed; the one exception is a defensive await documented as unreachable.
+  - **Live results:** discard resumes with 97.6% of the prefix read from cache, keep replays with the partial, and E41 passes 4/4.
+  - Merged `--admin`, unsigned. [Record](evidence/review-20261101/pr-1480.md).
+- **Release:** #1471, #1475, #1476, #1477, #1478 and #1482 shipped in 1.88.0, which another session published (section below). #1480 is unreleased.
+- **Live model use:**
+  - All runs used the default login read-only (Personal Max, `seven_day` at most 0.19 at each check), on included usage, with no refusals.
+  - The owner's active profile was at its weekly limit and was not used.
+  - Opus runs set `MERIDIAN_OPUS_MODEL=opus` so the `[1m]` variant could not bill Extra Usage.
+- **Attribution audit:** rerun on main `3a700e36`. All seven contributor PRs of this review are classified `merged`, and "Re-landed with the maintainer as Author" stays at 137. [Ledger](ATTRIBUTION_LEDGER.md) regenerated.
+- **Follow-ups (owner decision pending):**
+  - **Priority path:** stopped turns on the priority path are not checked, the same as on main. Under priority routing a stopped turn's mapping stays resumable whatever the client kept, so OpenCode's kept partial is dropped. A probe extending the interrupted-turn rule to priority publications fixes it; that needs its own tests and an OpenCode run under priority routing.
+  - **Upstream failures:** an upstream failure (not an abort) after streamed output leaves the source resumable, on main too, so a client that keeps the failed partial silently diverges. The interrupted-turn marking would cover it.
+  - **Priority eviction:** on main, a priority-routed abort does not evict the routed mapping before its publication.
+  - **Chat Completions and Responses:**
+    - unkeyed packed conversations keep only placeholders for earlier media;
+    - media nested in a packed `tool_result` is dropped;
+    - the Responses adapter silently drops unknown parts;
+    - the 1,600-token replay estimate per document is low for long PDFs.
+  - **ARCHITECTURE.md:** "Current Adapters" names 3 of the adapters, and the multi-client `NOTE` in `passthroughEarlyStop.ts` is missing from the agent-specific table.
+- **Workspace:** every review worktree and branch from this review, their base copies, the harness branch and the `pr1475-nix` Docker volume are removed. Sanitized local evidence stays in `/Volumes/DevSSD/meridian/evidence/review-20261101/`. The owner's checkout was not touched.
 
 ## 2026-11-02: #1484 merged and release 1.88.0 published
 
@@ -25,31 +80,21 @@ The owner asked to review the new contributor PRs, merge the ready ones, put cor
   - [#1476](https://github.com/rynfar/meridian/pull/1476) `6663c0f9`, Author Nate Berkopec: the Pi extension never contacts Meridian during Pi's cache-only startup phase.
     - The maintainer's correction makes that answer never empty. It uses a fresh stored catalog, then an expired one that still lists every built-in model, then a built-in catalog that a test keeps identical to `buildModelList(false)`.
     - Merged `--admin` under the step-3 unsigned-commit exception, after every check on head `34c3c9f6` passed. The posted [explanation](https://github.com/rynfar/meridian/pull/1476#issuecomment-6564465031) was authorized by the owner. [Record](evidence/review-20261101/pr-1476.md).
-- **Corrected, held for owner decisions:** [#1475](https://github.com/rynfar/meridian/pull/1475), head `c353a485`, all checks green, `CLEAN`.
-  - Maintainer fixes are on Connor's branch for the Home Manager env harness, the manual `nix-update` command and the E2E.md plugin path.
-  - Validated on aarch64-linux Nix, including consumer overlays and the claude-code floor. [Record](evidence/review-20261101/pr-1475.md).
-- **Corrected, live gate open:** [#1478](https://github.com/rynfar/meridian/pull/1478), head `1718878b`, all checks green, merge blocked only by unsigned commits.
-  - The maintainer correction makes the rendered `tool_reference` text name the registered tool (#1107 class).
-  - Model-free runs pass: real Claude Code 2.1.316 against a scripted upstream, with before/after, sequential, parallel and fresh-replay cases and an OpenCode-shaped negative control.
-  - Live Sonnet/Opus 5.5 runs and the four E41 modes could not run: the active Claude account answered "You've hit your weekly limit · resets Nov 4". [Record](evidence/review-20261101/pr-1478.md).
+- **#1475 and #1478** were held here (owner decisions; live gate). Both merged on 2026-11-02; see above.
 - **Live model use:** three #1476 runs of `scripts/e2e-pi-extension.mjs` passed, 4 Pi requests each with no refusal: the contributor's head, a cold-catalog copy, and the committed `--cold-catalog` mode on the final head. One #1478 request was refused by the weekly limit, and live calls stopped there. Meridian reports quota utilization as 0..1: `1` means 100%, not 1%.
-- **Owner decisions:**
-  1. **#1475:** keep `packages.<system>.meridian` requiring `NIXPKGS_ALLOW_UNFREE=1 --impure`, with docs steering NixOS configurations to the overlay (recommended)? How should the release notes name the consumer-facing changes, given `refactor` is hidden there (recommended: a `fix(nix):` title)? Should Connor make the `src`-before-version reorder in `nix/pkgs/claude-code/package.nix`, or should it be a follow-up?
-  2. **#1478:** run the live gate on another profile with included usage now, or on the current account after the Nov 4 reset?
-  3. **Comments:** draft review comments for #1471, #1475, #1477 and #1478 are prepared but not posted. Posting needs authorization. #1471's description says the instance exits at startup; with the bundled CLI it warns and keeps running.
+- **Owner decisions:** all resolved on 2026-11-02; see above. The comments were posted as each PR landed.
 - **Follow-ups:**
   - The CLI start-up check treats `claude auth status` exiting 1 as "could not verify", so a logged-out instance with no profiles warns instead of exiting. Fix this after #1471.
   - `proxy-async-ops.test.ts`'s first test reads the default credential store (the macOS login Keychain) during local `npm test`.
   - Meridian Desktop's main process polls usage every 10 s while its window is hidden.
-  - ARCHITECTURE.md's agent-specific table is titled for OpenCode and cannot list #1478's `clientOwnsToolSearch`.
-  - Escrow #1478's Claude Code tool-search harness in a maintainer PR once its live gate runs.
+  - Done 2026-11-02: ARCHITECTURE.md's agent-specific table lists `clientOwnsToolSearch` (#1478), and the tool-search harness is escrowed (#1483).
 - **Attribution audit:** `scripts/attribution-audit.mjs` reran on main `6663c0f9` in an isolated blob-less clone, and [the ledger](ATTRIBUTION_LEDGER.md) is regenerated.
   - #1471, #1476 and #1477 are classified `merged`.
   - "Re-landed with the maintainer as Author" stays at 137, so there is no new maintainer re-land.
   - The one new "Closed in favor of a maintainer PR" row is the earlier owner-approved #1243 decline (closed 2026-10-21, whose comment cites #1433). It is not from this run.
 - **Workspace:**
   - Removed: the #1471/#1476/#1477 review worktrees, their local branches, the baseline worktree and the #1471/#1476 base copies.
-  - Kept for continuation, under `/Volumes/DevSSD/meridian`: the review worktrees `wt-review-1475` and `wt-review-1478`, with sanitized local evidence in `evidence/review-20261101/`, and the Docker volume `pr1475-nix` holding #1475's Nix store.
+  - The `wt-review-1475` and `wt-review-1478` worktrees and the `pr1475-nix` volume kept here were removed on 2026-11-02.
   - The owner's checkout was not touched.
 - **Local test environment (this Mac):**
   - Bun 1.3.14 loads Apple's SQLite 3.51.0, which the bookkeeping engine refuses: about 1,054 tests fail on unchanged main. Use `MERIDIAN_TEST_SQLITE_LIBRARY=/opt/homebrew/opt/sqlite/lib/libsqlite3.3.53.4.dylib`.
