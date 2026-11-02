@@ -1,6 +1,15 @@
-# Meridian review checkpoint — 2026-11-01 UTC
+# Meridian review checkpoint — 2026-11-02 UTC
 
 Last code delivery: `6663c0f99c0bee7108ef348e205d1df2ca6aa4c0` (#1476). The 2026-11-01 review of the new contributor PRs is recorded first; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-11-02: #1484 merged and release 1.88.0 published
+
+The owner asked for the weekly reserve (#1484) to be reviewed, merged and released.
+
+- **[#1484](https://github.com/rynfar/meridian/pull/1484) `2a806fde`:** opt-in per-profile weekly reserve for pool routing. An independent code review found 10 candidates; 9 were fixed and 1 was kept by design, with dispositions recorded in the PR. Live OpenCode 2.2.0 evidence: [weekly-reserve-20261102](evidence/weekly-reserve-20261102.md).
+- **Release [1.88.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.88.0) is published and installed-package validated.** Merge `cdca3539` from Release Please #1469 head `6b4bf0c2`. npm `latest` with provenance; Docker `1.88.0`/`1.88` for amd64 and arm64. `desktop / mac` again failed Apple notarization (HTTP 401). [Release record](evidence/release-1.88.0-20261102/README.md).
+- **Observed:** one profile was refused with "You've hit your 5-hour limit" on 2026-11-02, so the 5-hour window is still enforced on at least some accounts.
+- **Not done:** the owner's launchd service (port 3456) was not upgraded.
 
 ## 2026-11-01: new contributor PRs reviewed, #1471, #1476 and #1477 merged
 
