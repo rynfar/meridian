@@ -1166,7 +1166,7 @@ Every request line carries `lineage=`, and every divergence also carries
 | `missing-session-header` | An OpenCode request arrived without its session header |
 | `moved-on-elsewhere` | Another profile's copy, used since, holds more of the history; this profile's older copy would drop the replies given there, so the turn replays |
 | `concurrent-race`, `priority-failback` | Lost a commit race; routed to another profile |
-| `interrupted-turn-kept` | The previous turn was stopped mid-stream and this request carries its partial output, which the session never received (see [Stopping a turn](#stopping-a-turn)) |
+| `interrupted-turn-kept:<why>` | The previous turn was stopped mid-stream and this request cannot resume the session kept for it (see [Stopping a turn](#stopping-a-turn)). `<why>` is `kept-assistant` (the request carries assistant content after the session's reply: the client kept the partial output), `prefix-changed` (an earlier message was edited), `reply-changed` (the session's own reply was altered or dropped), `no-user-turn` (nothing new after that reply) or `unknown-tool-result` (a tool result for a call the session never made) |
 | `independent-request:headerless-tool-result` | The client-driven tool loop above |
 | `independent-request:fork-source` | Declared `x-meridian-source: fork-*` |
 | `independent-request:subagent` | Declared a subagent flow |
@@ -1175,6 +1175,14 @@ Every request line carries `lineage=`, and every divergence also carries
 A resumed turn prints no `diverged=` field at all. The
 `independent-request:*` causes skip session lookup before it happens; the rest
 are the verdict of a lookup that ran.
+
+A turn whose lineage matched but whose stored session cannot prove it holds
+that history replays anyway and says why with `replay=`: `unproved-sdk-prefix`
+(the stored session's resume proof is withheld, as it is for a turn stopped
+mid-stream once the process that kept it is gone, or was never recorded),
+`transformed-history` (a plugin rewrote the history this turn runs) or
+`changed-or-unproved-primary-agent` (the OpenCode primary agent changed). Such a
+line reads `lineage=continuation session=new` with the `replay=` field.
 
 `headerless-tool-result` also prints a one-time warning at the first
 occurrence, because it is a property of how the client is wired rather than of
@@ -1193,13 +1201,14 @@ completed turn, and lets the next message decide:
 - A client that keeps the partial output (OpenCode, Oh My Pi) sends it back as
   an assistant message. The session never received that output, so the message
   replays the whole history, partial included, exactly as before
-  (`diverged=interrupted-turn-kept`).
+  (`diverged=interrupted-turn-kept:kept-assistant`).
 
 No setting is involved. A turn that already sent a tool call to the client, a
 non-stream request, and `POST /v1/sessions/:key/cancel` still replay the next
 message. The kept session resumes only on the Meridian process that kept it:
 after a restart, or on another process sharing the session store, the next
-message replays. A stopped turn ends [prompt-cache keepalive](#prompt-cache-keepalive)
+message replays, logged as `lineage=continuation session=new
+replay=unproved-sdk-prefix`. A stopped turn ends [prompt-cache keepalive](#prompt-cache-keepalive)
 tracking until a later turn writes the one-hour cache again.
 
 ### Prompt-cache keepalive

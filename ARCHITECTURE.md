@@ -691,8 +691,10 @@ Cancellation is per-HTTP-request: `requestAbort.ts` forwards one socket's abort
 into that request's SDK abort controller, and the abort path never leaves an
 interrupted tail resumable. Every resume writes an isolated fork, so a turn that
 was not yet published leaves the mapped transcript ending at the last completed
-turn, and how the mapping is settled depends on what reached the client
-(`interruptedMappingAction`):
+turn, and how the mapping is settled depends on what reached the client and
+who stopped the turn (`interruptedMappingAction` in `session/interruptedTurn.ts`;
+`isClientStop` in `requestAbort.ts` says the client's own disconnect or body
+cancel did):
 
 - nothing: the mapping is left as it was;
 - text or thinking, and the client itself stopped a plain continuation (it

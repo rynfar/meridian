@@ -27,7 +27,8 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
 ## Boundary
 
 - `lineage.ts` is **pure**: hashing and comparison only — no I/O, caches or
-  server/cache imports; testable without mocks.
+  server/cache imports; testable without mocks. `interruptedTurn.ts` (the
+  interrupted-turn decisions below) is pure in the same way.
 - `cache.ts` **owns all mutable session state**; no other module creates
   session LRUs.
 - Never imports `server.ts`, adapters or provider backends. It may use the
@@ -75,21 +76,26 @@ output, which only its next request shows:
   assistant messages; Oh My Pi drops a thinking-only one). The next request
   keeps the stopped user message and appends a new one, or resends the stopped
   request: after the stored prefix and the session's own reply it carries only
-  user content. Resuming then gives the model exactly the history the client
+  user content (the real Pi 1.4.0 client, after its RPC `abort`, sent
+  `…, assistant, user(stopped), user(new)`, plus its trailing `system`
+  updates). Resuming then gives the model exactly the history the client
   holds, with the prompt cache.
 - **Kept** (OpenCode, and Oh My Pi when the partial has text or a tool call,
   with a synthesized aborted result). The next request carries an assistant
-  message the session never received. Resuming would deliver only the user's
+  message the session never received (the real OpenCode 2.2.0 client, after
+  `POST /api/session/:id/interrupt`, sent `…, user(stopped), assistant(partial
+  text), user(new)`). Resuming would deliver only the user's
   side of it, so the model would answer without the output the user saw: a
   silent divergence, which is the failure this rule exists to prevent.
 
 So the stopped turn's mapping is kept but marked interrupted, and the next
-request is decided by `classifyInterruptedContinuation` (pure, in
-`lineage.ts`): resume only when it keeps the stored prefix and the session's
-reply intact and adds no assistant message (text, thinking, a tool call or an
-empty one) and no tool result for a call the session never made. Anything
-else replays fresh, as an evicted mapping would (`diverged=interrupted-turn-kept`).
-One request decides the record; it is cleared either way.
+request is decided by `classifyInterruptedContinuation` (`interruptedTurn.ts`):
+resume only when it keeps the stored prefix and the session's reply intact and
+adds no assistant message (text, thinking, a tool call or an empty one) and no
+tool result for a call the session never made. Anything else replays fresh, as
+an evicted mapping would, with the check's verdict on the request line
+(`diverged=interrupted-turn-kept:<reason>`). One request decides the record;
+it is cleared either way. A side request that shares the key never takes it.
 
 Marking applies only to a plain continuation that resumed the published
 session it read, stopped by the client's own disconnect or body cancel before
@@ -113,12 +119,17 @@ process-local copy would have to resurrect it outside the store's generations.
 A restart, another process or a store write by anyone else therefore costs
 one replay, never a resume without the check.
 
-The marking is a mapping write by the stopped turn itself. A request that
-arrived before it and waited for the turn lease is not treated as having lost
-a commit race. The marking completes before the stopped stream does, so the
-turn lease never lets the next request read the mapping before it. A
-prompt-cache keepalive stops tracking the session at the client abort, as
-before; a later turn that writes the one-hour tier tracks it again.
+The marking is a mapping write by the stopped turn itself. A keyed request
+that arrived before it and waited for the turn lease is not treated as having
+lost a commit race. The marking completes before the stopped stream does, so
+for keyed requests the turn lease never lets the next request read the
+mapping before it. A headerless (fingerprint-keyed) conversation takes no turn
+lease, so a next request that arrives during the stopped turn's cleanup can
+read the mapping before the marking, exactly as it can read it before the
+eviction main performs there: it may resume the unmarked source, and its own
+publication then fails the store's generation check. A prompt-cache keepalive
+stops tracking the session at the client abort, as before; a later turn that
+writes the one-hour tier tracks it again.
 
 ## Known limitations
 
