@@ -366,6 +366,67 @@ export function isClaudeCodeClient(c: Context): boolean {
   return Boolean(c.req.header("x-claude-code-session-id"))
 }
 
+/**
+ * NOTE: agent-specific (claude-code). With its `mid-conversation-system`
+ * feature on, claude-cli ends a tool-result request with a `system` turn, and
+ * for some models it appends a reminder that lives for that one request. On
+ * `claude-fable-5-1` (claude-cli 2.1.289) every tool round ends
+ *
+ *   system: [ "<total_tokens>N tokens left</total_tokens>" (cache_control),
+ *             "First privately list what you need next; ..." ]
+ *
+ * and the next request carries the same turn as the plain string
+ * `<total_tokens>N tokens left</total_tokens>`: the reminder is gone, and a
+ * new one sits behind the new tail. Hashing it made every tool round after
+ * the first look like edited history, so each one replayed the whole
+ * conversation into a fresh SDK session. Measured on a live proxy on
+ * 2026-10-05: 32 such turns wrote 5.4M tokens to the cache, 168K each, where
+ * the turns that did resume wrote 10K (E2E.md, "Claude Code system turns
+ * across tool rounds").
+ *
+ * Only the exact known reminder at the end of a system turn is transient.
+ * A cache breakpoint does not prove that later blocks are transient: durable
+ * instructions after it must still participate in history verification.
+ *
+ * claude-cli 2.1.294 also ends a tool-result request with a system turn that
+ * holds the reminder alone (no `<total_tokens>` block, which the CLI's own
+ * budget settings leave out at times), and the next request carries no trace
+ * of that turn: the reply sits where it was. Kept as the stored tail, it made
+ * every later round of a Fable subagent replay `modified-history` (live,
+ * 2026-10-07/08: 187 rounds, about 226K cache writes each against 21K for a
+ * resumed round; stored digest eff8768460e3). Such a turn is left out of the
+ * lineage, but only at the end of a request, so every other message keeps its
+ * position; the request itself still carries it to the model.
+ */
+const BATCHING_REMINDER_TEXT =
+  "First privately list what you need next; then request every item that doesn't depend on another's result in this one response."
+
+function isBatchingReminder(block: unknown): boolean {
+  return block !== null && typeof block === "object"
+    && (block as { type?: unknown }).type === "text" && (block as { text?: unknown }).text === BATCHING_REMINDER_TEXT
+}
+
+/** A system turn with nothing in it the client will send again. */
+function holdsOnlyTheReminder(message: { role: string; content: unknown }): boolean {
+  if (message.role !== "system") return false
+  if (typeof message.content === "string") return message.content === BATCHING_REMINDER_TEXT
+  return Array.isArray(message.content) && message.content.length === 1 && isBatchingReminder(message.content[0])
+}
+
+export function canonicalizeClaudeCodeMessagesForLineage(
+  messages: Array<{ role: string; content: unknown }>,
+): Array<{ role: string; content: unknown }> {
+  let end = messages.length
+  if (end > 0 && holdsOnlyTheReminder(messages[end - 1]!)) end--
+  // Preserve every remaining message's position and every unknown block.
+  return messages.slice(0, end).map((message) => {
+    if (message.role !== "system" || !Array.isArray(message.content)) return message
+    let content = message.content
+    if (content.length > 1 && isBatchingReminder(content.at(-1))) content = content.slice(0, -1)
+    return content.length === message.content.length ? message : { ...message, content }
+  })
+}
+
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
 
@@ -439,6 +500,10 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   normalizeContent(content: any): string {
     return normalizeContent(content)
+  },
+
+  canonicalizeMessagesForLineage(messages) {
+    return canonicalizeClaudeCodeMessagesForLineage(messages)
   },
 
   getBlockedBuiltinTools(): readonly string[] {
