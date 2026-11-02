@@ -230,6 +230,25 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result!.messages).toEqual([{ role: 'user', content: [{ type: "text", text: "now answer" }] }])
   })
 
+  it("keeps an earlier PDF as a placeholder in packed system context", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "read" },
+            { type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" } },
+          ],
+        },
+        { role: "assistant", content: "done" },
+        { role: "user", content: "follow up" },
+      ],
+    })
+
+    expect(result!.system).toContain("user: read[Document attached]")
+    expect(result!.messages).toEqual([{ role: "user", content: [{ type: "text", text: "follow up" }] }])
+  })
+
   it("handles structured text content in messages", () => {
     const result = translateOpenAiToAnthropic({
       messages: [{

@@ -517,6 +517,7 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
             .join("")
       }
       if (part.type === "image") return "[Image attached]"
+      if (part.type === "document") return "[Document attached]"
       return ""
     })
     .filter(Boolean)
