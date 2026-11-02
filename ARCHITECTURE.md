@@ -307,6 +307,7 @@ src/
 │   ├── session/
 │   │   ├── index.ts           ← Barrel export
 │   │   ├── lineage.ts         ← Pure functions: hashing, lineage verification
+│   │   ├── interruptedTurn.ts ← Pure functions: the interrupted-turn check, candidate and settlement action
 │   │   ├── fingerprint.ts     ← Conversation fingerprinting, client CWD extraction
 │   │   ├── cache.ts           ← LRU session caches, lookup/store operations
 │   │   ├── turnCoordinator.ts ← Process-wide serialization for reliable session IDs
@@ -378,9 +379,11 @@ server.ts (HTTP layer)
     ├── models.ts
     ├── tools.ts
     ├── messages.ts
-    ├── session/cache.ts ──► session/lineage.ts ──► messages.ts
+    ├── session/cache.ts ──► session/interruptedTurn.ts ──► session/lineage.ts ──► messages.ts
+    │                    ──► session/lineage.ts
     │                    ──► session/fingerprint.ts
     │                    ──► sessionStore.ts
+    ├── session/interruptedTurn.ts ──► session/lineage.ts
     ├── profiles.ts
     ├── profileCli.ts
     ├── agentDefs.ts
@@ -393,7 +396,7 @@ server.ts (HTTP layer)
 
 ### Rules
 
-1. **`session/lineage.ts` is pure.** No side effects, no I/O, no caches. Only crypto hashing and comparison logic. Must stay testable without mocks.
+1. **`session/lineage.ts` and `session/interruptedTurn.ts` are pure.** No side effects, no I/O, no caches. `lineage.ts` holds only crypto hashing and comparison logic; `interruptedTurn.ts` holds the interrupted-turn decisions over the values it is given and imports only `lineage.ts`, so its state stays in `session/cache.ts` and its orchestration in `server.ts`. Both must stay testable without mocks.
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
@@ -688,8 +691,29 @@ session identity still bench profile-wide; there is nothing narrower to use.
 ## Cancellation Contract
 
 Cancellation is per-HTTP-request: `requestAbort.ts` forwards one socket's abort
-into that request's SDK abort controller, and the abort path evicts the session
-mapping so no interrupted tail stays resumable.
+into that request's SDK abort controller, and the abort path never leaves an
+interrupted tail resumable. Every resume writes an isolated fork, so a turn that
+was not yet published leaves the mapped transcript ending at the last completed
+turn, and how the mapping is settled depends on what reached the client and
+who stopped the turn (`interruptedMappingAction` in `session/interruptedTurn.ts`;
+`isClientStop` in `requestAbort.ts` says the client's own disconnect or body
+cancel did):
+
+- nothing: the mapping is left as it was;
+- text or thinking, and the client itself stopped a plain continuation (it
+  closed the socket or cancelled the response body): the mapping is kept but
+  marked interrupted, and the next request resumes it only if it adds nothing
+  but user content, which shows the client discarded the partial output. A
+  request that carries any assistant content after the session's own reply
+  shows the client kept it and replays fresh, because resuming would let the
+  model and the client diverge silently. The rule, its storage and why it
+  survives a restart only as a replay are in the [`session`](src/proxy/session/SPEC.md)
+  spec, *Interrupted turns*;
+- anything else evicts, so the next request replays: a turn that already
+  streamed a tool call, an explicit subtree cancel (a parent's abort or
+  `POST /v1/sessions/:key/cancel`), the turn watchdog, shutdown, an unlabeled
+  abort, a published fork. Non-stream turns, side requests and priority
+  publications keep their own handling.
 
 That is not enough for a client whose subagents are separate requests. Prime
 Agent's RLM children arrive on their own session keys, so cancelling the parent

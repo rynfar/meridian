@@ -482,8 +482,10 @@ export type ClientAbortDisposition =
  * A client abort leaves the SDK session ending in an interrupted tail. Even an
  * assistant UUID already seen in the iterator is not known durable until the
  * canonical result: the live PTY regression yielded that UUID but never wrote
- * it durably after abort. Therefore every owned mapping is evicted; a replay
- * costs one cache miss but cannot wedge on a missing or interrupted boundary.
+ * it durably after abort. Therefore every owned mapping the turn may have
+ * advanced is evicted, or kept behind the interrupted-turn check
+ * (`interruptedMappingAction` in session/interruptedTurn.ts); a replay costs
+ * one cache miss but cannot wedge on a missing or interrupted boundary.
  */
 export function clientAbortDisposition(input: {
   isIndependentSession: boolean

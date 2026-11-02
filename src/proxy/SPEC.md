@@ -201,7 +201,10 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     read from the usage it reported, whatever ended it: a tool-boundary stop
     (the single-turn cap's `max_turns`, the single-step abort) keeps the
     session tracked, since an agent waiting at a tool call is the main case.
-    Only a client abort, which evicts the session, drops tracking.
+    Only a client abort drops tracking. It usually evicts the session too; a
+    session it keeps behind the interrupted-turn check (see `session` →
+    *Interrupted turns*) stays untracked until a later turn writes the
+    one-hour tier.
 
 ## Codex Responses wire contract
 

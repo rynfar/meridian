@@ -172,7 +172,10 @@ export type LineageResult =
   | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number;
       /** Which message stopped matching, when available for a history rewrite
        *  or an unsafe undo boundary. */
-      mismatch?: LineageMismatch }
+      mismatch?: LineageMismatch
+      /** A fixed identifier refining the reason for the log line, never
+       *  content (the interrupted-turn check's verdict, for one). */
+      detail?: string }
 
 export type LineageDivergenceReason =
   | "unverifiable"
@@ -189,6 +192,9 @@ export type LineageDivergenceReason =
   | "missing-session-header"
   | "concurrent-race"
   | "compaction"
+  /** The client stopped this conversation's last turn mid-stream and its next
+   *  request carries content the kept session lacks (see InterruptedTurn). */
+  | "interrupted-turn-kept"
 
 // --- Hashing ---
 
@@ -514,9 +520,8 @@ export function formatDivergence(
   cause?: IndependentRequestCause,
 ): string | undefined {
   if (result.type !== "diverged") return undefined
-  return result.reason === "independent-request" && cause
-    ? `${result.reason}:${cause}`
-    : result.reason
+  if (result.reason === "independent-request" && cause) return `${result.reason}:${cause}`
+  return result.detail ? `${result.reason}:${result.detail}` : result.reason
 }
 
 /**
@@ -855,3 +860,4 @@ export function verifyLineage(
   // No meaningful overlap — completely different conversation.
   return { type: "diverged", reason: "unrelated-history", prefixOverlap }
 }
+

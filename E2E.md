@@ -1790,6 +1790,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
+| E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7235,6 +7236,78 @@ request and the next request of each captioned subagent resumes
 interactive flow (a tool-less streamed request at startup, each subagent's first
 request repeated); those are outside this gate.
 [Evidence](docs/maintenance/evidence/1292-captions-interactive-20261014/README.md).
+
+## E79: Stopped turn: discarded output resumes, kept output replays
+
+**What it proves:** a client that stops a streaming turn after output reached
+it gets a next turn consistent with what it kept. Discarding the partial (Pi,
+Prime Agent) resumes the stopped turn's session with the prompt cache; keeping
+it (OpenCode, Oh My Pi) replays the conversation, partial included. See the
+session spec, *Interrupted turns*.
+
+```bash
+npm run build
+bun scripts/e2e-client-abort-resume.mjs --fixture
+E2E_PI_BIN=/path/to/pi E2E_OPENCODE_BIN=/path/to/opencode \
+  bun scripts/e2e-client-abort-resume.mjs --fixture --case=all
+E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live [--model=claude-sonnet-5-5]
+```
+
+The gate starts the built `dist/cli.js` under Node in its own process for each
+case, because only a real socket close is a disconnect: with the server and
+client in one Bun process the client's abort never reaches the server, the
+stopped turn completes and publishes, and the next turn resumes output the
+client never received, on any build. `--fixture` points the real Claude Code
+child at a scripted upstream in the harness through an `api` profile under an
+isolated HOME, so it needs no model, and the checks include what that upstream
+received for the next turn. `--live` uses the default Claude login read-only and
+stops on any usage refusal. Because that login lives in the real Claude config,
+live mode keeps the real HOME, and its SDK child writes the run's transcripts
+under that config's projects directory for the isolated workdir; the script
+never edits or deletes them. `E2E_MERIDIAN_ROOT` serves another built checkout
+as a before/after control, and `summary.json` records `/health`'s build identity
+per case.
+
+Cases (`--case=` a comma list; the four HTTP cases by default, `all` for six):
+
+- `discard`, `keep`: a direct HTTP client with Pi's headers (concurrent turns
+  allowed) sends a ~15k-token first turn, streams a second turn and closes it
+  after 40 characters of text (before `message_stop`), then sends the third
+  turn without the partial (`discard`) or with it as an assistant message
+  (`keep`).
+- `strict-discard`, `strict-keep`: the same with Prime Agent's headers, whose
+  adapter refuses a request that lost a commit race while waiting. The third
+  turn is sent while the second still holds the session, so it waits out the
+  stop's cleanup and marking (the interrupted-turn race exemption).
+- `pi` (fixture only, `E2E_PI_BIN`): real Pi 1.4.0 in RPC mode with the
+  Meridian extension installed by `meridian setup --client pi` under an
+  isolated HOME and `PI_CODING_AGENT_DIR`, with `E2E_PI_BIN`'s directory first
+  on PATH so setup's `pi --version` gate reads that Pi; turn 2 is stopped with
+  Pi's RPC `abort`, its Esc.
+- `opencode` (fixture only, `E2E_OPENCODE_BIN`): real OpenCode 2.2.0 behind
+  `opencode serve`, isolated per the [plugin preflight](#required-meridian-opencode-plugin-preflight):
+  `meridian setup --v2 --opencode-bin`, exactly one configured Meridian plugin,
+  reported `active` by `/api/plugin`, and its identity headers recorded by the
+  harness's relay; turn 2 is stopped with `POST /api/session/:id/interrupt`.
+
+Pass criteria (deterministic; model wording is never asserted):
+
+- `discard`, `strict-discard`, `pi`: `lineage=continuation` resuming the turn-1
+  session; the resumed history (supported `getSessionMessages` for the HTTP
+  cases) and, in `--fixture`, the upstream's next-turn input hold turn 1, the
+  stopped question and the new one but not the partial; in `--live` the resume
+  reads at least 90% of turn 1's cached prefix.
+- `keep`, `strict-keep`, `opencode`: `diverged=interrupted-turn-kept:kept-assistant`
+  with no resume; the replayed history and the upstream's input carry the
+  partial. The `opencode` case also asserts OpenCode sent the partial back as
+  an assistant message, the `pi` case that Pi sent none and that setup reported
+  the version `E2E_PI_BIN --version` prints.
+- `strict-*`: the third turn waited for the session (`sessionWait` > 0) and was
+  answered rather than refused.
+- All: the stop came before the turn finished and every `tool_use` is paired.
+
+`summary.json` keeps lineage lines, telemetry counters, request shapes and
+booleans only.
 
 ## Concurrent transcript publication
 
