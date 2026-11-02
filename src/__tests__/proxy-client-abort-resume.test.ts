@@ -8,7 +8,11 @@
  * (OpenCode, Oh My Pi) would resume without the model seeing that output, so
  * its next request replays. See the session spec, *Interrupted turns*.
  */
-import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
+import { mkdtempSync, realpathSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { createPriorityAttestation } from "../../plugin/priority-attestation"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -27,6 +31,8 @@ type Behavior =
   | "partial-then-hang"
   | "tool-call-then-hang"
   | "hang"
+  /** The CLI cannot resume the session: Meridian evicts it and replays fresh. */
+  | "refuse-resume"
 
 interface SdkCall {
   readonly prompt: unknown
@@ -52,6 +58,7 @@ installSdkMock(() => ({
     const options = params.options
     calls.push({ prompt: params.prompt, resume: options?.resume, sessionId: options?.sessionId })
     return (async function* () {
+      if (behavior === "refuse-resume") throw new Error("No message found with message.uuid of: mock-missing")
       if (behavior === "hang") {
         await untilAborted(options)
         return
@@ -100,6 +107,9 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { forgetInterruptedTurnsForTests } = await import("../proxy/session/cache")
+const { resetActiveProfile } = await import("../proxy/profiles")
+const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
+const { rateLimitStore } = await import("../proxy/rateLimitStore")
 
 type Message = { role: string; content: unknown }
 
@@ -323,12 +333,24 @@ describe("client stop on /v1/messages", () => {
     await stopSecondTurn(proxy, key)
     forgetInterruptedTurnsForTests()
 
-    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
-    expect(after.status).toBe(200)
-    await after.json()
+    // A proxy that logs its request lines, which name why the turn replays.
+    const logged = spyOn(console, "error")
+    let requestLine: string | undefined
+    try {
+      const restarted = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+      const after = await restarted.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
+      expect(after.status).toBe(200)
+      await after.json()
+      requestLine = logged.mock.calls.map((call) => String(call[0]))
+        .filter((line) => line.includes("[PROXY]") && line.includes("adapter=") && line.includes("msgCount="))
+        .at(-1)
+    } finally {
+      logged.mockRestore()
+    }
 
     expect(calls[2]!.resume).toBeUndefined()
     expect(JSON.stringify(calls[2]!.prompt)).toContain("<conversation_history>")
+    expect(requestLine).toContain("lineage=continuation session=new replay=unproved-sdk-prefix")
   })
 
   it("resumes normally once the interrupted turn is decided", async () => {
@@ -395,6 +417,31 @@ describe("client stop on /v1/messages", () => {
     const resumedSource = calls.slice(2).filter((call) => call.resume === calls[0]!.sessionId)
     expect(resumedSource).toHaveLength(1)
     expect(responses.some((response) => response.status === 200)).toBe(true)
+  })
+
+  it("replays after a turn that retried onto a fresh session before it was stopped", async () => {
+    const proxy = app()
+    const key = `stop-fresh-retry-${crypto.randomUUID()}`
+    await completeFirstTurn(proxy, key)
+
+    // The CLI refuses the resume, so the turn evicts the session and replays
+    // into a fresh one, whose output the client then stops.
+    behaviors = ["refuse-resume", "partial-then-hang"]
+    const abort = new AbortController()
+    const interrupted = await proxy.fetch(messagesRequest(key, [...FIRST_TURN, NEXT_USER], true, abort.signal, [READ_TOOL]))
+    const reader = await readUntil(interrupted)
+    expect(calls[1]!.resume).toBe(calls[0]!.sessionId)
+    expect(calls[2]!.resume).toBeUndefined()
+    abort.abort("user pressed stop")
+    await reader.cancel().catch(() => {})
+    await settle()
+
+    const after = await proxy.fetch(next(key, [...FIRST_TURN, NEXT_USER, THIRD_USER]))
+    expect(after.status).toBe(200)
+    await after.json()
+
+    expect(calls[3]!.resume).toBeUndefined()
+    expect(JSON.stringify(calls[3]!.prompt)).toContain("first question")
   })
 
   it("replays after a stopped non-stream turn, as before", async () => {
@@ -580,5 +627,82 @@ describe("stops Meridian decides on still replay", () => {
     expect(after.status).toBe(200)
     await after.json()
     expect(calls[2]!.resume).toBeUndefined()
+  })
+})
+
+describe("a stopped turn routed by priority", () => {
+  // A priority publication keeps its own abort handling: the routed mapping
+  // stays exactly as the durable route recorded it (session spec, *Interrupted
+  // turns*), so the conversation's next turn still goes through the route.
+  const ATTESTATION_KEY = Buffer.alloc(32, 0x5a)
+  const ENV = ["MERIDIAN_ROUTING", "MERIDIAN_PROFILE_ORDER", "MERIDIAN_PRIORITY_FAILBACK", "MERIDIAN_OPENCODE_ATTESTATION_KEY", "CLAUDE_CONFIG_DIR"]
+  const saved: Record<string, string | undefined> = {}
+  let root = ""
+
+  beforeEach(() => {
+    for (const name of ENV) saved[name] = process.env[name]
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "new-conversation"
+    process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY = ATTESTATION_KEY.toString("base64url")
+    delete process.env.CLAUDE_CONFIG_DIR
+    root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-stop-priority-")))
+    resetActiveProfile()
+    rateLimitStore.clear()
+    __setFetchOAuthUsageOverride(async () => null)
+  })
+
+  afterEach(() => {
+    for (const name of ENV) {
+      if (saved[name] === undefined) delete process.env[name]
+      else process.env[name] = saved[name]
+    }
+    __setFetchOAuthUsageOverride(null)
+    rateLimitStore.clear()
+    resetActiveProfile()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  /** A human turn of an OpenCode session, signed as its Meridian plugin signs it. */
+  function openCodeTurn(session: string, humanMessageId: string, issuedAt: number, messages: Message[], stream: boolean, signal?: AbortSignal): Request {
+    const token = createPriorityAttestation({ generation: "oc1", sessionId: session, agentId: "build", humanMessageId, issuedAt }, ATTESTATION_KEY)
+    if (!token) throw new Error("test attestation failed")
+    return new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-opencode-session": session,
+        "x-opencode-request": humanMessageId,
+        "x-opencode-agent-name": "build",
+        "x-opencode-agent-mode": "primary",
+        "x-meridian-opencode-turn": token,
+      },
+      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
+      signal,
+    })
+  }
+
+  it("resumes a discarding client's next turn through the durable route", async () => {
+    const profiles = ["work", "personal"].map((id) => ({ id, claudeConfigDir: join(root, id) }))
+    const proxy = createProxyServer({ port: 0, host: "127.0.0.1", silent: true, profiles, defaultProfile: "work" }).app
+    const session = `stop-priority-${crypto.randomUUID()}`
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const first = await proxy.fetch(openCodeTurn(session, "human-1", issuedAt, FIRST_TURN.slice(0, 1), false))
+    expect(first.status).toBe(200)
+    await first.json()
+
+    behaviors = ["partial-then-hang"]
+    const abort = new AbortController()
+    const interrupted = await proxy.fetch(openCodeTurn(session, "human-2", issuedAt + 1, [...FIRST_TURN, NEXT_USER], true, abort.signal))
+    const reader = await readUntil(interrupted)
+    expect(calls[1]!.resume).toBe(calls[0]!.sessionId)
+    abort.abort("user pressed stop")
+    await reader.cancel().catch(() => {})
+    await settle()
+
+    const after = await proxy.fetch(openCodeTurn(session, "human-3", issuedAt + 2, [...FIRST_TURN, NEXT_USER, THIRD_USER], false))
+    expect(after.status).toBe(200)
+    await after.json()
+    expect(calls[2]!.resume).toBe(calls[0]!.sessionId)
   })
 })
