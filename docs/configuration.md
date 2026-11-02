@@ -53,7 +53,6 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
 | `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS` | — | `1` | Set to `0` to stop defaulting `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` in passthrough mode. Does not clear an explicitly inherited CLI setting. See [known limitations](#known-limitations). |
-| `MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT` | — | unset (off) | Set to `1` to keep a conversation's session when a client disconnects mid-stream, so its next message resumes with the prompt cache instead of replaying the history. Use it only with clients that discard partial output when the user stops a turn: a client that keeps it resumes without the model seeing that text. |
 | `MERIDIAN_CACHE_KEEPALIVE` | — | unset (off) | Set to `1` to keep idle one-hour-cache sessions warm with a few small cache-read requests; `0` forces it off. Wins over `cacheKeepalive` in `settings.json`. See [Prompt-cache keepalive](#prompt-cache-keepalive). |
 | `MERIDIAN_CACHE_KEEPALIVE_MAX_IN_FLIGHT` | — | `1` | Keepalive requests allowed to run at once across all sessions, clamped to `1`–`2`. |
 | `MERIDIAN_COMPACTION_SURVIVAL` | — | `0` | Set to `1` to resume the old SDK session after a client shortens its history head into a summary. By default Meridian replays the supplied summary in a fresh SDK session so the removed context is released. Equal-length pruning still resumes. |
@@ -1167,6 +1166,7 @@ Every request line carries `lineage=`, and every divergence also carries
 | `missing-session-header` | An OpenCode request arrived without its session header |
 | `moved-on-elsewhere` | Another profile's copy, used since, holds more of the history; this profile's older copy would drop the replies given there, so the turn replays |
 | `concurrent-race`, `priority-failback` | Lost a commit race; routed to another profile |
+| `interrupted-turn-kept` | The previous turn was stopped mid-stream and this request carries its partial output, which the session never received (see [Stopping a turn](#stopping-a-turn)) |
 | `independent-request:headerless-tool-result` | The client-driven tool loop above |
 | `independent-request:fork-source` | Declared `x-meridian-source: fork-*` |
 | `independent-request:subagent` | Declared a subagent flow |
@@ -1179,6 +1179,28 @@ are the verdict of a lookup that ran.
 `headerless-tool-result` also prints a one-time warning at the first
 occurrence, because it is a property of how the client is wired rather than of
 a single turn.
+
+### Stopping a turn
+
+Stopping a streaming turn after its output started (Stop or Esc in the client,
+or a dropped connection) no longer always costs the next message a full replay.
+Meridian keeps the conversation's session, which still ends at the last
+completed turn, and lets the next message decide:
+
+- A client that discards the stopped turn's partial output (Pi, Prime Agent)
+  sends only the user's side of the conversation after it. That message resumes
+  the session and reads the prompt cache.
+- A client that keeps the partial output (OpenCode, Oh My Pi) sends it back as
+  an assistant message. The session never received that output, so the message
+  replays the whole history, partial included, exactly as before
+  (`diverged=interrupted-turn-kept`).
+
+No setting is involved. A turn that already sent a tool call to the client, a
+non-stream request, and `POST /v1/sessions/:key/cancel` still replay the next
+message. The kept session resumes only on the Meridian process that kept it:
+after a restart, or on another process sharing the session store, the next
+message replays. A stopped turn ends [prompt-cache keepalive](#prompt-cache-keepalive)
+tracking until a later turn writes the one-hour cache again.
 
 ### Prompt-cache keepalive
 

@@ -688,18 +688,27 @@ session identity still bench profile-wide; there is nothing narrower to use.
 ## Cancellation Contract
 
 Cancellation is per-HTTP-request: `requestAbort.ts` forwards one socket's abort
-into that request's SDK abort controller, and the abort path evicts the session
-mapping so no interrupted tail stays resumable.
+into that request's SDK abort controller, and the abort path never leaves an
+interrupted tail resumable. Every resume writes an isolated fork, so a turn that
+was not yet published leaves the mapped transcript ending at the last completed
+turn, and how the mapping is settled depends on what reached the client
+(`interruptedMappingAction`):
 
-Every resume writes an isolated fork, so a turn that was not yet published leaves
-the mapped transcript ending at the last completed turn. An operator can set
-`MERIDIAN_KEEP_SESSION_ON_CLIENT_ABORT=1` to keep the mapping when a client
-disconnects from such a streaming turn, which saves the conversation's prompt
-cache. It is off by default because a resume delivers only the client's side of
-the delta: a client that kept the partial output resumes without the model seeing
-it, which suits only clients that discard it. Aborts the client did not ask for
-(shutdown, watchdog, subtree cancellation, an unlabeled abort), non-stream turns
-and a published fork always evict.
+- nothing: the mapping is left as it was;
+- text or thinking, and the client itself stopped a plain continuation (it
+  closed the socket or cancelled the response body): the mapping is kept but
+  marked interrupted, and the next request resumes it only if it adds nothing
+  but user content, which shows the client discarded the partial output. A
+  request that carries any assistant content after the session's own reply
+  shows the client kept it and replays fresh, because resuming would let the
+  model and the client diverge silently. The rule, its storage and why it
+  survives a restart only as a replay are in the [`session`](src/proxy/session/SPEC.md)
+  spec, *Interrupted turns*;
+- anything else evicts, so the next request replays: a turn that already
+  streamed a tool call, an explicit subtree cancel (a parent's abort or
+  `POST /v1/sessions/:key/cancel`), the turn watchdog, shutdown, an unlabeled
+  abort, a published fork. Non-stream turns, side requests and priority
+  publications keep their own handling.
 
 That is not enough for a client whose subagents are separate requests. Prime
 Agent's RLM children arrive on their own session keys, so cancelling the parent

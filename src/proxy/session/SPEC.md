@@ -62,6 +62,64 @@ Management*, *Lineage Verification*, *SQLite bookkeeping boundary*, *Transcript
 publication lifetime*, *Session store write cost*, *Lineage hash encoding* and
 *Appended content and transient hooks*.
 
+## Interrupted turns
+
+A client that stops a streaming turn after output reached it (Stop, Esc, a
+closed socket or a cancelled response body) leaves the session that turn
+resumed exactly where it was: every resume writes an isolated managed fork, so
+the source transcript still ends at the last completed turn. Whether that
+session may be resumed depends on what the client did with the partial
+output, which only its next request shows:
+
+- **Discarded** (Pi 1.4 and Prime Agent 0.9.5 skip `stopReason: "aborted"`
+  assistant messages; Oh My Pi drops a thinking-only one). The next request
+  keeps the stopped user message and appends a new one, or resends the stopped
+  request: after the stored prefix and the session's own reply it carries only
+  user content. Resuming then gives the model exactly the history the client
+  holds, with the prompt cache.
+- **Kept** (OpenCode, and Oh My Pi when the partial has text or a tool call,
+  with a synthesized aborted result). The next request carries an assistant
+  message the session never received. Resuming would deliver only the user's
+  side of it, so the model would answer without the output the user saw: a
+  silent divergence, which is the failure this rule exists to prevent.
+
+So the stopped turn's mapping is kept but marked interrupted, and the next
+request is decided by `classifyInterruptedContinuation` (pure, in
+`lineage.ts`): resume only when it keeps the stored prefix and the session's
+reply intact and adds no assistant message (text, thinking, a tool call or an
+empty one) and no tool result for a call the session never made. Anything
+else replays fresh, as an evicted mapping would (`diverged=interrupted-turn-kept`).
+One request decides the record; it is cleared either way.
+
+Marking applies only to a plain continuation that resumed the published
+session it read, stopped by the client's own disconnect or body cancel before
+any tool call reached the client. A turn that streamed a tool call, an
+explicit subtree cancel (`POST /v1/sessions/:key/cancel` or a parent's abort),
+the turn watchdog, shutdown, a published fork, a non-stream turn, a side
+request and a priority publication keep their existing handling.
+
+**Storage.** The durable record keeps its session, transcript locators and
+hashes, but its SDK reuse proof is withheld: an empty `lineageHash` with the
+hash kept as `clientLineageHash`, the existing "lineage owned, resume
+unproved" encoding that every reader, old or new, answers with a fresh replay.
+What restores the proof after the check — the prefix and its hash, the
+reply's message hashes and tool ids, and the exact generation the marking
+wrote — lives only in the marking process's memory (`cache.ts`). Persisting a
+marker field was rejected: the SQLite mapping codec refuses unknown fields,
+so an older reader sharing the store would fail on the key, and a reader that
+ignored such a field would resume without the check. Not keeping the mapping
+at all was rejected too: an evicted source becomes collectable, and a
+process-local copy would have to resurrect it outside the store's generations.
+A restart, another process or a store write by anyone else therefore costs
+one replay, never a resume without the check.
+
+The marking is a mapping write by the stopped turn itself. A request that
+arrived before it and waited for the turn lease is not treated as having lost
+a commit race. The marking completes before the stopped stream does, so the
+turn lease never lets the next request read the mapping before it. A
+prompt-cache keepalive stops tracking the session at the client abort, as
+before; a later turn that writes the one-hour tier tracks it again.
+
 ## Known limitations
 
 - **Container host identity.** Inside containers the derived `hostId` changes on
@@ -71,6 +129,8 @@ publication lifetime*, *Session store write cost*, *Lineage hash encoding* and
 - **Boot identity is required.** Without a host boot identity Meridian refuses
   to start (escape hatch `MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1` still cannot
   serve).
+- **An interrupted turn resumes only in the process that kept it.** After a
+  restart, or on another process sharing the store, the next request replays.
 - **Mixed proxy versions replay.** v1 lineage digests cannot prove a v2 prefix,
   so alternating old and new proxies repeats a full-history replay until every
   participating proxy is upgraded.
