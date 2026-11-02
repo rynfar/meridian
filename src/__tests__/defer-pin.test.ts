@@ -17,6 +17,7 @@ import {
   autoDeferDecision,
   createPassthroughMcpServer,
   getAutoDeferThreshold,
+  resolveAutoDeferDecision,
 } from "../proxy/passthroughTools"
 
 const CORE = ["read", "write", "edit", "bash", "glob", "grep"]
@@ -25,6 +26,15 @@ const tools = (n: number) => Array.from({ length: n }, (_, i) => ({
   description: "t",
   input_schema: { type: "object" as const, properties: {} },
 }))
+const withClientDefer = (n: number) => [
+  ...tools(n),
+  {
+    name: "DeferredToolPlaceholder",
+    description: "t",
+    input_schema: { type: "object" as const, properties: {} },
+    defer_loading: true as const,
+  },
+]
 
 describe("autoDeferDecision", () => {
   it("is off at or below the threshold and on above it", () => {
@@ -46,6 +56,28 @@ describe("autoDeferDecision", () => {
   it("flips on a single tool across the boundary — the reported blast radius", () => {
     const t = getAutoDeferThreshold()
     expect(autoDeferDecision(t, CORE, t)).not.toBe(autoDeferDecision(t, CORE, t + 1))
+  })
+})
+
+describe("resolveAutoDeferDecision", () => {
+  const t = getAutoDeferThreshold()
+
+  it("is false for a client that defers its own tools, even above the threshold", () => {
+    expect(resolveAutoDeferDecision(withClientDefer(t + 1), CORE, undefined)).toBe(false)
+  })
+
+  it("client deferral overrides a pin of true", () => {
+    expect(resolveAutoDeferDecision(withClientDefer(3), CORE, true)).toBe(false)
+  })
+
+  it("without client deferral the pinned decision wins over the live count", () => {
+    expect(resolveAutoDeferDecision(tools(t + 1), CORE, false)).toBe(false)
+    expect(resolveAutoDeferDecision(tools(3), CORE, true)).toBe(true)
+  })
+
+  it("without client deferral or a pin, the live count decides", () => {
+    expect(resolveAutoDeferDecision(tools(t), CORE, undefined)).toBe(false)
+    expect(resolveAutoDeferDecision(tools(t + 1), CORE, undefined)).toBe(true)
   })
 })
 
@@ -86,5 +118,12 @@ describe("createPassthroughMcpServer with a pinned decision", () => {
     const under = createPassthroughMcpServer(tools(t), CORE, undefined, false)
     const over = createPassthroughMcpServer(tools(t), CORE, undefined, false)
     expect(over.toolNames).toEqual(under.toolNames)
+  })
+
+  it("reports a client-deferring set above the threshold as not auto-deferred but deferred", () => {
+    const mcp = createPassthroughMcpServer(withClientDefer(19), CORE)
+    expect(mcp.autoDefer).toBe(false)
+    expect(mcp.hasDeferredTools).toBe(true)
+    expect(mcp.deferredToolNames).toEqual(["mcp__oc__DeferredToolPlaceholder"])
   })
 })

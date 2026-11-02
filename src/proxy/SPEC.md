@@ -88,6 +88,17 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   (not whole-server memory): built sets from about 20 MiB per session to one
   shared set; the remaining per-session heap from about 1 MiB to about 80 KiB. Shared values are read-only; each query still
   builds its own MCP server from them.
+- **A client that defers tools is never auto-deferred; one that also brings
+  its own `ToolSearch` gets the only search path.** The session pin holds the
+  auto-defer answer (#861), so a threshold crossing cannot flip the tool
+  block, `ENABLE_TOOL_SEARCH` or `maxTurns` mid-session. With a client
+  `ToolSearch` (Claude Code): eager tools stay registered, a deferred tool
+  joins them eagerly once referenced, unreferenced ones stay unregistered,
+  Meridian adds no inner ToolSearch, `tool_reference` blocks reach the model
+  as text naming the registered tool (a copied client name is undispatchable,
+  #1107), and each discovery re-primes the prompt cache by changing the
+  registered set. Other client-deferral keeps the inner ToolSearch and maps
+  `tool_reference` names to the registered names at a checkpoint.
 - **Transcript retention is opt-in and delegated to Claude Code (#1261,
   owner decision 2026-10-27).** Meridian's empty `settingSources` (#490/#634)
   also skips Claude Code's retention cleanup, so transcripts Meridian's own GC

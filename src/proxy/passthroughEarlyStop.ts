@@ -50,7 +50,8 @@
 const CLIENT_TOOL_PREFIX = "mcp__oc__"
 
 /** Internal SDK tools execute inside the SDK. Their results never require
- *  a client tool_result and must not arm a passthrough checkpoint. */
+ *  a client tool_result and must not arm a passthrough checkpoint.
+ *  ToolSearch is a client tool in client-search mode. */
 const INTERNAL_TOOLS = new Set(["ToolSearch", "StructuredOutput"])
 
 export interface EarlyStopTracker {
@@ -86,12 +87,13 @@ export interface ClientForwardedToolUse {
 export function isClientForwardedToolUse(
   block: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+  clientOwnsToolSearch = false,
 ): block is ClientForwardedToolUse {
   const b = block as { type?: unknown; id?: unknown; name?: unknown } | null | undefined
   if (!b || b.type !== "tool_use") return false
   if (typeof b.id !== "string" || b.id.length === 0) return false
   if (typeof b.name !== "string") return false
-  if (INTERNAL_TOOLS.has(b.name)) return false
+  if (INTERNAL_TOOLS.has(b.name) && !(clientOwnsToolSearch && b.name === "ToolSearch")) return false
   if (b.name.startsWith("mcp__") && !b.name.startsWith(clientToolPrefix)) return false
   return true
 }
@@ -103,10 +105,11 @@ export function noteAssistantContent(
   tracker: EarlyStopTracker,
   content: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+  clientOwnsToolSearch = false,
 ): void {
   if (!Array.isArray(content)) return
   for (const block of content) {
-    if (isClientForwardedToolUse(block, clientToolPrefix)) {
+    if (isClientForwardedToolUse(block, clientToolPrefix, clientOwnsToolSearch)) {
       tracker.expected.add(block.id)
     }
   }
@@ -125,6 +128,7 @@ export function noteAssistantMessage(
   tracker: EarlyStopTracker,
   message: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+  clientOwnsToolSearch = false,
 ): void {
   const m = message as { type?: unknown; uuid?: unknown; message?: { content?: unknown } } | null | undefined
   if (m?.type !== "assistant") return
@@ -137,7 +141,7 @@ export function noteAssistantMessage(
   // resumed (#996). `isClientForwardedToolUse` is deliberately strict about
   // foreign `mcp__*` names, which is what makes a missed prefix silent rather
   // than noisy.
-  noteAssistantContent(tracker, content, clientToolPrefix)
+  noteAssistantContent(tracker, content, clientToolPrefix, clientOwnsToolSearch)
   if (tracker.expected.size > before) {
     // A newer tool-bearing assistant message supersedes the older checkpoint.
     // Fail closed when its UUID is absent: the older message may not contain

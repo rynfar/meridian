@@ -265,6 +265,72 @@ export function autoDeferDecision(
 }
 
 /**
+ * Resolve the auto-defer decision: a client that defers any tool manages
+ * deferral itself; otherwise the session pin (#861) wins over the live count.
+ */
+export function resolveAutoDeferDecision(
+  tools: ReadonlyArray<{ name: string; defer_loading?: boolean }>,
+  coreToolNames: readonly string[] | undefined,
+  pinnedAutoDefer: boolean | undefined,
+): boolean {
+  if (tools.some(tool => tool.defer_loading === true)) return false
+  return pinnedAutoDefer ?? autoDeferDecision(getAutoDeferThreshold(), coreToolNames, tools.length)
+}
+
+/** NOTE: agent-specific (Claude Code convention). The client brings its own
+ *  tool search when it defers tools and also sends a loaded `ToolSearch`. */
+export function clientOwnsToolSearch(
+  tools: ReadonlyArray<{ name: string; defer_loading?: boolean }>,
+): boolean {
+  return tools.some(tool => tool.defer_loading === true)
+    && tools.some(tool => tool.defer_loading !== true && tool.name === "ToolSearch")
+}
+
+/** The tools a client-side tool search has named through `tool_reference`
+ *  blocks in user tool results. Malformed input contributes nothing. */
+export function referencedToolNames(messages: unknown): Set<string> {
+  const names = new Set<string>()
+  if (!Array.isArray(messages)) return names
+  for (const message of messages) {
+    if (!message || typeof message !== "object") continue
+    const { role, content } = message as { role?: unknown; content?: unknown }
+    if (role !== "user" || !Array.isArray(content)) continue
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue
+      const { type, content: inner } = block as { type?: unknown; content?: unknown }
+      if (type !== "tool_result" || !Array.isArray(inner)) continue
+      for (const part of inner) {
+        if (!part || typeof part !== "object") continue
+        const { type: partType, tool_name } = part as { type?: unknown; tool_name?: unknown }
+        if (partType === "tool_reference" && typeof tool_name === "string") names.add(tool_name)
+      }
+    }
+  }
+  return names
+}
+
+/**
+ * The registration view of a client-owned-tool-search request: eager tools
+ * stay, a deferred tool only once the conversation referenced it, eagerly.
+ */
+export function clientSearchRegistrationTools(
+  tools: ReadonlyArray<{ name: string; defer_loading?: boolean }>,
+  referenced: ReadonlySet<string>,
+): Array<{ name: string; defer_loading?: boolean }> {
+  const registered: Array<{ name: string; defer_loading?: boolean }> = []
+  for (const tool of tools) {
+    if (tool.defer_loading !== true) {
+      registered.push(tool)
+      continue
+    }
+    if (!referenced.has(tool.name)) continue
+    const { defer_loading: _omitted, ...eager } = tool
+    registered.push(eager)
+  }
+  return registered
+}
+
+/**
  * Build MCP tool definitions matching OpenCode's request, and a factory for
  * the server that serves them.
  *
@@ -272,6 +338,7 @@ export function autoDeferDecision(
  * is provided, non-core tools are registered without alwaysLoad so the SDK
  * defers them. Core tools are marked alwaysLoad to stay in the prompt.
  * Client-provided defer_loading: true also triggers deferral for specific tools.
+ * A client that defers any tool itself is never auto-deferred on top.
  */
 export function createPassthroughMcpServer(
   tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
@@ -281,8 +348,7 @@ export function createPassthroughMcpServer(
   pinnedAutoDefer?: boolean,
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
-  const threshold = getAutoDeferThreshold()
-  const autoDefer = pinnedAutoDefer ?? autoDeferDecision(threshold, coreToolNames, tools.length)
+  const autoDefer = resolveAutoDeferDecision(tools, coreToolNames, pinnedAutoDefer)
   const coreSet = autoDefer && coreToolNames ? new Set(coreToolNames.map(n => n.toLowerCase())) : undefined
 
   // hasDeferredTools is true when: client explicitly defers any tool, OR auto-defer kicks in
@@ -343,6 +409,8 @@ export function createPassthroughMcpServer(
           .map(definition => `${prefix}${definition.name}`)
       : [],
     hasDeferredTools,
+    /** The resolved AUTO-defer decision — false for a client that defers its own tools. */
+    autoDefer,
     clientNameByAlias: aliases.clientNameByAlias,
   }
 }
@@ -404,7 +472,7 @@ export function sharedPassthroughMcpServer(
   serverName: string = PASSTHROUGH_MCP_NAME,
   pinnedAutoDefer?: boolean,
 ): PassthroughMcpServer {
-  const autoDefer = pinnedAutoDefer ?? autoDeferDecision(getAutoDeferThreshold(), coreToolNames, tools.length)
+  const autoDefer = resolveAutoDeferDecision(tools, coreToolNames, pinnedAutoDefer)
   const digest = createHash("sha256").update(JSON.stringify([
     serverName,
     autoDefer,
