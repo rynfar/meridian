@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.88.0](https://github.com/rynfar/meridian/compare/meridian-v1.87.0...meridian-v1.88.0) (2026-11-02)
+
+
+### Features
+
+* **desktop:** redesign Meridian Desktop around the service clients use ([#1470](https://github.com/rynfar/meridian/issues/1470)) ([d48599d](https://github.com/rynfar/meridian/commit/d48599db6bbd5d412bb39dd0ef38602fce36ad0a))
+* hold back a weekly reserve on priority-routed profiles ([#1484](https://github.com/rynfar/meridian/issues/1484)) ([2a806fd](https://github.com/rynfar/meridian/commit/2a806fde11656ac0be8d1274f858aca2e8bdd5a9))
+
+
+### Bug Fixes
+
+* **desktop:** address the post-merge review of the redesign ([#1473](https://github.com/rynfar/meridian/issues/1473)) ([5de4cf3](https://github.com/rynfar/meridian/commit/5de4cf3ecdef7afbd1aaa1410018b09996a91f87))
+* honor Pi's cache-only model refresh phase ([#1476](https://github.com/rynfar/meridian/issues/1476)) ([6663c0f](https://github.com/rynfar/meridian/commit/6663c0f99c0bee7108ef348e205d1df2ca6aa4c0))
+* map Chat Completions file parts to Claude documents ([#1482](https://github.com/rynfar/meridian/issues/1482)) ([f331ffe](https://github.com/rynfar/meridian/commit/f331ffe71764167111879f6dcd91974925535759))
+* **nix:** build packages with the consumer's nixpkgs ([#1475](https://github.com/rynfar/meridian/issues/1475)) ([7a971fd](https://github.com/rynfar/meridian/commit/7a971fd11a75bcd65b596fe71bd92141aa04a74b))
+* **passthrough:** keep Claude Code's own tool search working when it defers tools ([#1478](https://github.com/rynfar/meridian/issues/1478)) ([3903db4](https://github.com/rynfar/meridian/commit/3903db448892c91cd4428ca3819ef9a00e449460))
+* **profiles:** skip the default auth context when no profile uses it ([#1471](https://github.com/rynfar/meridian/issues/1471)) ([6056b54](https://github.com/rynfar/meridian/commit/6056b54a7c6af97cb199381bbc1be578cee8136d))
+* stop polling usage from hidden / and /profiles tabs ([#1477](https://github.com/rynfar/meridian/issues/1477)) ([8404328](https://github.com/rynfar/meridian/commit/84043282aec4c83e29bc052943140abdeca8754a))
+* support OpenCode Desktop 2.2 ([#1467](https://github.com/rynfar/meridian/issues/1467)) ([034ec11](https://github.com/rynfar/meridian/commit/034ec1112df222b07ad1235a768ea662f17820cc))
+
 ## [1.87.0](https://github.com/rynfar/meridian/compare/meridian-v1.86.0...meridian-v1.87.0) (2026-10-27)
 
 
