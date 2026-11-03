@@ -21,7 +21,7 @@
     "(fail) Antigravity read-only subscription probes > joins cancelled model discovery without retrying [2338.61ms]",
     "(fail) Antigravity read-only subscription probes > cools down failed account probes without spawning or treating old authorization as valid [6197.32ms]"
   ],
-  "findings": "Antigravity probe fixture missing calls/count files and children not reaching first script line; original native fixture timing vs changed store not yet established. Independent sequential baseline/candidate diagnosis active. CI on same final head passed. Neither CI nor later targeted tests waive failed final local suite.",
+  "findings": "Completed bounded investigation: original candidate red vs baseline green;24-file import closure identical. Built-ins-only same-fixture executable-shebang startup fails before JS from candidate cwd while explicit env/direct Node succeeds; minimal PATH does not fix; native original sample at env dyld_start+0. Exact OS/Bun cause remains unknown, not attributed to async-store diff. Original local full-suite gate still failed. See probe-diagnostic/findings.md.",
   "thresholdChanges": 0,
   "ci": {
     "result": "PASS",

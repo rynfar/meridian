@@ -7,7 +7,8 @@ Additive, GitHub-verified signed maintainer correction: `67d02f56ba69b7e738aea67
 
 ## Disposition
 
-**Review in progress; not merged.** The owner asked to find the PR he promised to
+**Deferred at explicit acceptance blockers; not merged or released.** The owner
+asked to find the PR he promised to
 merge. His 2026-11-02 reply and Nowaker's conflict-resolution update identify #1220.
 This review is bounded to that PR, not the contributor's other open PRs. The owner
 subsequently authorized a release **after** review and merge; that authorization
@@ -61,12 +62,31 @@ or public interfaces changed in this review.
   8,357tests across485files in958.63s; groups1–25 did not run. Five Antigravity
   probe fixture cases fail with timeout/readiness/missing calls files, followed
   by a teardown-related unhandled spawn error. No regression cause is yet
-  established. The unchanged candidate/baseline probes are under independent
-  bounded investigation. [Receipt](final-local-suite.json); sanitized full log
+  established. The completed independent investigation isolates pre-JavaScript
+  startup on this host's executable-shebang path, not a changed store module.
+  [Receipt](final-local-suite.json); sanitized full log
   is `final-npm-test.log.gz`.
 - Final-head GitHub CI is **green**, including required `test`, on exactly
   `67d02f56`. [Exact check URLs and results](final-head-ci.json). This does not
   erase the failed local full gate.
+
+## Local probe startup finding — original gate still red
+
+The [independent findings](probe-diagnostic/findings.md) and
+[runnable control](probe-diagnostic/README.md) retain all failures and narrow the
+local issue without changing tests. Candidate original file:32pass/7fail, then
+30pass/9fail; baseline:39pass/0fail. The24-file local import closure is identical.
+A standalone built-ins-only harness reproduces before Meridian code or fixture
+JavaScript: candidate cwd executable-shebang times out1016ms, minimal PATH1006ms;
+explicit `/usr/bin/env node`/absolute Node succeed36–44ms. Baseline cwd's shebang
+succeeds279ms, minimal PATH41ms; other argv forms also succeed. An original child
+sample stays at `/usr/bin/env`'s `_dyld_start +0` after3.47s.
+
+This establishes a host/Bun1.3.14 executable-shebang startup-path problem and a
+real cwd-associated differential, **not** its exact OS/Bun/security cause or an
+async-store regression. PATH search and alternate Node selection are not the
+demonstrated cause. It does not make the local full suite green. No additional
+original reruns, timeout increases or source workaround are proposed here.
 
 ## Historical acceptance gates — still open
 
@@ -131,6 +151,15 @@ exact live failure cause. The live `return`-end was already recorded, so claimin
 that specific return rejected would overstate the proof. The four-mode E41 gate
 and historical200-token residual remain open. No blind live rerun is planned.
 
+A [new v2 observer](e41-diagnostic-v2/instrumented-e41-v2-README.md) is qualified
+**offline only**. Distinct/self iterator custody, exact step/message/error identity,
+method/target/phase, real idle-guard cleanup handling, observer callback/report
+failure and native tool-cap/error/refusal controls pass with0 model calls and0
+grant reads. Its immutable source SHA256 is
+`3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff`.
+No v2 live result is claimed, and no current live green would recover the missing
+historical transient evidence.
+
 ## Preliminary release review
 
 [#1486 /1.89.0](https://github.com/rynfar/meridian/pull/1486), exact head
@@ -141,9 +170,23 @@ installed-package/live-stop proof are not complete; a prior desktop notarization
 failure remains recorded. [Full preliminary findings](review-1220-release-findings.md).
 Nothing has been merged or published by this review.
 
-Final-head CI, final local gates and the unchanged four-mode E41/causal-evidence
-gates remain required. No source-authorship-on-main claim is made before a real
-merge and git check.
+## Current gate and next-action summary
+
+- Final source head remains `67d02f56`; CI/typecheck/build pass.
+- Local full-suite gate remains failed. Antigravity probe launch controls narrow
+  the issue to the pre-JavaScript shebang path on this host; they do not establish
+  the exact OS/Bun cause or make the original suite green.
+- Four-mode E41 is not accepted. V1 observer results are invalidated by proven
+  fidelity defects; v2 has only offline qualification.
+- Historical3332→3132 residual and old fingerprint/initializer causal holds remain
+  open. Do not infer a cause from a new passing run or substitute another tuple.
+- **No merge, contributor-author-on-main claim, release PR merge, tag or
+  publication occurred.** The owner's release authorization remains conditional
+  on safe acceptance and merge of #1220. No external comment was posted.
+- Source and user checkouts are preserved. All bounded diagnostics have stopped
+  after final evidence capture. Resume with current GitHub/main refresh, then
+  address the missing evidence or seek the owner's disposition; do not continue
+  blind live reruns or silently waive the holds.
 
 ## Assumptions and unchanged boundaries
 

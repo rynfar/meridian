@@ -1,0 +1,12 @@
+{
+  "result": "PASS offline only; live NOT RUN",
+  "helperSha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff",
+  "head": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "modelCalls": 0,
+  "credentialReads": 0,
+  "sourceChanges": 0,
+  "productConstantChanges": 0,
+  "historicalResidualExplained": false,
+  "priorRejectionCauseEstablished": false,
+  "limitations": "New observer preserves actual SDK iterator custody and error provenance under controlled self/distinct iterators. No new live acceptance, no encrypted fault, no API request/cache breakpoint timing evidence. Read v2 README before use."
+}
