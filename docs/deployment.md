@@ -155,7 +155,7 @@ docker build -t meridian .
 
 For browser-login credentials, authenticate on the host and mount the credential directory. For macOS or headless deployments, use an OAuth-token profile below. Browser authorization can also be completed on another machine using [headless profile login](profiles.md#headless--ssh-complete-claude-oauth-with-a-pasted-code).
 
-The image runs as UID 1000; mounted credential directories must be writable by that user for refresh. Publish on loopback for local clients. Network deployments also need [proxy authentication](configuration.md#api-key-authentication).
+The image runs as UID 1000; mounted credential directories must be writable by that user for refresh. Publish on loopback for local clients. Network deployments also need [proxy authentication](configuration.md#api-key-authentication); with the key set, open the admin pages by signing in once at `/login` ([details](configuration.md#signing-in-from-a-browser)), and re-authenticate an expired profile from the Profiles page ([browser login](profiles.md#from-the-web-ui-re-authenticate-a-profile-without-a-terminal)) instead of running `claude login` inside the container.
 
 ### Single account
 
