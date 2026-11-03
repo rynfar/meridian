@@ -1087,3 +1087,51 @@ describe("token refresh outside the 401 path", () => {
     expect(afterClear.failure).toBeNull()
   })
 })
+
+describe("MERIDIAN_USAGE_CACHE_TTL_MS", () => {
+  const ok = () => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+
+  beforeEach(() => {
+    resetOAuthUsageCache()
+  })
+
+  afterEach(() => {
+    setSystemTime()
+    delete process.env.MERIDIAN_USAGE_CACHE_TTL_MS
+  })
+
+  test("a raised TTL keeps serving the cached reading until it expires", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "150000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "raised" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 149_000)
+    const cached = await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+    expect(cached.snapshot?.stale).toBeUndefined()
+
+    setSystemTime(start + 151_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
+  })
+
+  test("a value below the 30s default cannot shorten the cache", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "1000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "lowered" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 29_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+
+    setSystemTime(start + 31_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
+  })
+})

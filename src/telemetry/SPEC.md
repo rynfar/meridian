@@ -64,7 +64,7 @@ Record what Meridian did and show it to the operator:
 - **`/`, `/profiles` and `/providers` stop polling while their tab is
   hidden.** All three read `/v1/usage/quota/all` (`/providers` through
   `/providers/view`, whose Claude card re-reads it at most every 10 s), and
-  Meridian caches each Claude profile's usage for only 30 s. One forgotten
+  Meridian caches each Claude profile's usage for only 30 s by default. One forgotten
   background tab polling every 10 s therefore asks Anthropic's OAuth usage
   endpoint for every profile about twice a minute, enough to keep it
   answering 429 for the CLIs and widgets that share it. A hidden tab skips its
