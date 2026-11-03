@@ -14,6 +14,15 @@ import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
 
 
+/**
+ * Every text field on this page names a profile, filters the list or takes a
+ * pasted sign-in address; none is a login form. A field beside a "Sign in"
+ * button is what password managers treat as a username box, so each one opts
+ * out explicitly: LastPass ignores `autocomplete="off"` and reads only its
+ * own attribute, as 1Password and Bitwarden do theirs.
+ */
+export const PROFILE_INPUT_ATTRS = 'autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"'
+
 export const profilePageHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -341,7 +350,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   <h2 class="section-title">Configured Profiles</h2>
   <div id="profiles-provider-chips"></div>
   <div class="profile-search" id="profiles-filter-bar" hidden>
-    <input type="search" id="profiles-filter" autocomplete="off" spellcheck="false"
+    <input type="search" id="profiles-filter" ${PROFILE_INPUT_ATTRS}
       aria-label="Filter profiles" aria-controls="content"
       placeholder="Filter by name, email, organization, plan (5x, 20x, max) or former name">
     <span class="profile-search-count" id="profiles-filter-count" aria-live="polite"></span>
@@ -439,6 +448,7 @@ ${reorderLiveRegionHtml}
 // (see profile-usage.test.ts) and the labels object is interpolated here so
 // the browser script and TS module share their data.
 var WINDOW_LABELS = ${JSON.stringify(WINDOW_LABELS)};
+var PROFILE_INPUT_ATTRS = '${PROFILE_INPUT_ATTRS}';
 
 function labelForWindow(type) {
   if (WINDOW_LABELS[type]) return WINDOW_LABELS[type];
@@ -1116,7 +1126,7 @@ function render(data, quotaData) {
     html += '<div class="profile-card provider-' + esc(slot.provider) + (isActive ? ' active' : '') + (needsLogin ? ' needs-login' : '') + (update && update.state === 'updating' ? ' updating" aria-busy="true' : '') + '" id="' + esc(profileAnchorElementId(p.id)) + '" data-id="' + esc(p.id) + '" data-index="' + idx + '" data-group="' + esc(slot.provider) + '">';
     html += '<div class="profile-card-header">';
     if (editingProfile === p.id) {
-      html += "<input class=\\"rename-input\\" id=\\"rename-input\\" value=\\"" + esc(p.id) + "\\" spellcheck=\\"false\\" autocomplete=\\"off\\""
+      html += "<input class=\\"rename-input\\" id=\\"rename-input\\" type=\\"text\\" value=\\"" + esc(p.id) + "\\" " + PROFILE_INPUT_ATTRS
         + " onkeydown=\\"if(event.key===&quot;Enter&quot;){event.preventDefault();commitRename(&quot;" + esc(p.id) + "&quot;)}"
         + "else if(event.key===&quot;Escape&quot;){cancelRename()}\\">";
       html += "<span class=\\"rename-hint\\">Enter to save \u00b7 Esc to cancel</span>";
@@ -1620,7 +1630,7 @@ function renderOauthPanel(o) {
     +   '<li>Paste the code Claude shows you below — or the whole callback URL from the address bar.</li>'
     + '</ol>'
     + '<div class="login-row">'
-    +   '<input class="login-input" type="text" autocomplete="off" spellcheck="false" placeholder="code, or https://platform.claude.com/oauth/code/callback?code=…">'
+    +   '<input class="login-input" type="text" ' + PROFILE_INPUT_ATTRS + ' placeholder="code, or https://platform.claude.com/oauth/code/callback?code=…">'
     +   '<button class="login-btn login-submit" onclick="' + o.onSubmit + '">' + o.submitLabel + '</button>'
     +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="' + o.onCancel + '">Cancel</button>'
     + '</div>'
@@ -1848,7 +1858,7 @@ function renderAddForm(prefill) {
       ? 'Name the profile, then connect it to a Claude account or a ChatGPT seat.'
       : 'Sign in to another Claude account and keep it here alongside the others.') + '</div>'
     + '<div class="login-row">'
-    +   '<input class="login-input add-input" type="text" autocomplete="off" spellcheck="false"'
+    +   '<input class="login-input add-input" type="text" ' + PROFILE_INPUT_ATTRS
     +     ' aria-label="New profile name" placeholder="new profile name" value="' + attr(prefill || '') + '">'
     + '</div>'
     + '<div class="login-row add-actions">'
@@ -2086,7 +2096,7 @@ function renderChatGptRedirectPanel(authorizeUrl, loopback, o) {
     + '<label class="paste-label" for="' + o.inputId + '">' + (loopback ? 'Signed in from another machine? ' : '')
     +   'Paste the whole address the sign-in tab ended on. It starts with http://127.0.0.1:1455 and that page does not load \\u2014 that is expected.</label>'
     + '<div class="login-row">'
-    +   '<input id="' + o.inputId + '" class="login-input" type="text" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:1455/auth/callback?code=\\u2026">'
+    +   '<input id="' + o.inputId + '" class="login-input" type="text" ' + PROFILE_INPUT_ATTRS + ' placeholder="http://127.0.0.1:1455/auth/callback?code=\\u2026">'
     +   '<button class="login-btn login-submit" onclick="' + o.onSubmit + '">' + esc(o.submitLabel) + '</button>'
     +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="' + o.onCancel + '">Cancel</button>'
     + '</div>'
