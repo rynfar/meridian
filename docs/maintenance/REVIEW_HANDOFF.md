@@ -1,5 +1,63 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 21:06 UTC: fixture PR #1506 final gates running
+
+Maintainer-only #1506 `c2adc2b5784e9bcd6020193cfcc538883f7695ee` contains the reviewed bookkeeping
+private real-Node entrypoint bundle and dedicated concurrent HTTP process/owned
+namespace. No #1220 contributor commits, production changes, dependencies or
+altered timeout/qualification constants. Focused CLI25/0, concurrent2/0,
+originalintegration11/0 and each typecheck pass. Wrongengine22/3 and initial
+canonicalization0/2 attempts remain archived. Independent review finds no material
+source blocker. Final local npm test/typecheck/build and final-head CI run now;
+#1506 cannot merge until those complete green. #1505/#1220 still unmerged.
+
+The one frozen metadata-only fingerprint build on unchanged93b188f6 passed,
+joined pipes/processgroup,2444 source paths and25,086,036 sourcebytes in all
+snapshots, required boundaries intercepted. Preflight1944ms, pre-gates474ms,
+post-gates1975ms. Post-gates readwall1328ms and Git277ms, aggregateCPU471ms;
+no single second-long file/hash observed. This is not a cause/fix conclusion:
+readwall conflates I/O/scheduling, observer changes timing/object identity, and
+its near-limit green run does not erase the original failed fullgate. Full2s
+production bound and inputcaps remain unchanged; no more diagnostic reruns.
+
+[Exact frozen sources, complete focused red/green evidence, review and diagnostic](evidence/1220-review-20261103/test-fixture-isolation/README.md).
+
+Earlier checkpoints remain historical. E41 halted, nativecache95% floor and
+historical initializer/fingerprint holds remain; release conditional.
+
+## 2026-11-03 20:57 UTC: bounded test isolation corrections
+
+The red #1505 local result remains recorded. Its exact-head CI test is green;
+that does not waive the local gate. No new live model calls follow it.
+
+- Static fingerprint review identifies the throw in the post-build full snapshot,
+  after preflight/pre-build snapshots passed. Read/scheduling/earlier hash/Git/input
+  cause is unresolved. Production2s full-fingerprint bound remains unchanged.
+  A single frozen metadata-only build diagnostic is being prepared, not run yet.
+- Bookkeeping behavior tests unnecessarily invoke the entire application build.
+  A separate maintainer test-only change bundles the real Node bookkeeping entry
+  into a fresh private fixture, retaining behavior assertions/timeouts. It does
+  not claim package certification. The independently installed actual packaged
+  Node22 CLI separately passes the original lifecycle across two migration cycles.
+  First focused attempt used unqualified host Bun SQLite3.51 and remains red;
+  one corrected attempt uses the documented patched-library preload. No engine
+  policy change. Typecheck already passes; focused result/review pending.
+- Concurrent publication assertions passed; cleanup joins the shared whole-store
+  sweep, which can spawn real SDK filesystem-deletion children outside query mocks.
+  Host Claude transcript roots appear in the failed locator. Exact delayed claim
+  remains unknown; later backend close joined the same maintenance, so no permanent
+  child leak is proven. A separate test-only extraction runs the original cases
+  in one dedicated test process with owned settings/store/Claude/project paths,
+  unchanged10s/5s/30s bounds and complete close/join before restoring paths.
+- These are real isolation/dependency corrections, not proof of the original
+  failures' exact causes. Tests, independent review, full local/type/build and
+  exact-head CI must pass before any new merge. #1504 alone is already merged.
+  #1505/#1220 remain unmerged; E41 halted and release conditional.
+
+[Reports and independent packaged CLI control](evidence/1220-review-20261103/local-failure-diagnosis/README.md).
+
+Earlier timestamps retain their original state.
+
 ## 2026-11-03 20:48 UTC: #1505 local gate failed; no merge
 
 Final local `npm test` on`93b188f68d9664c46df62aa3249b4defffd884af` exits1 after763.39s.

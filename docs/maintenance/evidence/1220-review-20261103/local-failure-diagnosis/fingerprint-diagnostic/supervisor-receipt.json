@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "deadlineMs": 180000,
+  "maxOutputBytes": 4194304,
+  "timedOut": false,
+  "outputCapped": false,
+  "closed": true,
+  "code": 0,
+  "signal": null,
+  "bytes": 2964,
+  "groupJoined": true,
+  "pid": 51502
+}
