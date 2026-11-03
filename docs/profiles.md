@@ -35,7 +35,7 @@ meridian profile login work --headless
 
 The same login also records the account's plan (`subscriptionType`, `rateLimitTier`), read from Anthropic's OAuth profile endpoint — the token exchange itself returns no plan information. That is what lets `meridian profile list`, `/profiles/list`, `/health` and the dashboard tell a Max account from a Team one, and what makes `/v1/models` advertise the larger context window Max accounts actually have. If the lookup fails the login still succeeds and the plan simply stays unknown.
 
-> **⚠ A profile created by an older Meridian has no plan recorded, and a token refresh cannot backfill it** — the value is only ever written at login, and Anthropic's usage endpoint does not carry it. Re-run `meridian profile login <name> --headless` to repair such a profile.
+Plans change while a login stays valid - an upgrade from Pro to Max, a Team seat moved to another tier - so Meridian re-reads the plan every six hours as part of its background credential maintenance, and takes the plan the endpoint reports when it differs from the stored one. A field the endpoint omits keeps its stored value, a failed lookup is retried after five minutes, and requests never wait on the lookup. A read-only instance (`MERIDIAN_CREDENTIALS_READONLY`) does not re-read plans.
 
 #### From the web UI: re-authenticate a profile without a terminal
 
