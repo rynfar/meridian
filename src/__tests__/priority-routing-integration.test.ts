@@ -402,6 +402,7 @@ type PostMessagesOptions = {
   readonly stream: boolean
   readonly signal?: AbortSignal
   readonly tools?: readonly Record<string, unknown>[]
+  readonly system?: string
 }
 
 async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
@@ -416,6 +417,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise
       stream: options.stream,
       messages,
       ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.system ? { system: options.system } : {}),
     }),
     ...(options.signal ? { signal: options.signal } : {}),
   }))
@@ -874,27 +876,53 @@ describe("priority routing", () => {
       expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
     })
 
-    it("remembers a fresh replay only once an account served it", async () => {
+    for (const stream of [false, true]) {
+      it(`does not remember a fresh replay answered only by an error (${stream ? "SSE" : "JSON"})`, async () => {
+        // Given
+        process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+        process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+        const sessionId = `fresh-replay-unserved-${stream ? "sse" : "json"}`
+        const app = createTestApp()
+        await (await post(app, piHeaders(sessionId), OPENING_MESSAGE)).text()
+        failureMessage = UPSTREAM_HICCUP
+        failingDirs.add("prof-personal")
+        const failed = await postMessages(app, { headers: piHeaders(sessionId), content: SUMMARY_COMPACTED, stream })
+        const failedBody = await failed.text()
+        failingDirs.clear()
+        failureMessage = DEFAULT_FAILURE
+        process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+        capturedSdkCalls = []
+
+        // When
+        const retried = await post(app, piHeaders(sessionId), SUMMARY_COMPACTED)
+        const retriedBody = await retried.text()
+
+        // Then
+        // The overload relays as the account's answer (an SSE error frame
+        // after a 200, or a non-200 body) without any model output.
+        if (stream) expect(failedBody).toContain("overloaded_error")
+        else expect(failed.status).not.toBe(200)
+        expect(failedBody).not.toContain("ok from")
+        expect(retriedBody).toContain("prof-work")
+        expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+      })
+    }
+
+    it("moves a retry of a fresh replay whose system prompt changed", async () => {
       // Given
       process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
       process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
       const app = createTestApp()
-      await post(app, piHeaders("fresh-replay-unserved"), OPENING_MESSAGE)
-      failureMessage = UPSTREAM_HICCUP
-      failingDirs.add("prof-personal")
-      const failed = await post(app, piHeaders("fresh-replay-unserved"), SUMMARY_COMPACTED)
-      await failed.text()
-      failingDirs.clear()
-      failureMessage = DEFAULT_FAILURE
+      const headers = piHeaders("fresh-replay-system")
+      await (await postMessages(app, { headers, content: OPENING_MESSAGE, stream: false, system: "first prompt" })).text()
       process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
       capturedSdkCalls = []
 
       // When
-      const retried = await post(app, piHeaders("fresh-replay-unserved"), SUMMARY_COMPACTED)
+      const retried = await postMessages(app, { headers, content: OPENING_MESSAGE, stream: false, system: "second prompt" })
       const retriedBody = await retried.text()
 
       // Then
-      expect(failed.status).not.toBe(200)
       expect(retriedBody).toContain("prof-work")
       expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
     })

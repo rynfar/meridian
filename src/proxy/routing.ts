@@ -92,7 +92,7 @@ export function shouldPromotePriorityAssignment(input: PriorityPromotionInput): 
 }
 
 /**
- * How long a fresh replay of one exact history stays worth retrying on the
+ * How long a fresh replay of one exact prompt stays worth retrying on the
  * account that served it. A byte-identical replay reads its whole prefix from
  * that account's prompt cache, so a retry inside this window keeps its account.
  */
@@ -101,8 +101,30 @@ export const PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS = 60 * 60_000
 /** The last fresh replay served for one process-local assignment key. */
 export type PriorityFreshReplay = {
   readonly profileId: string
-  readonly historyDigest: string
+  /** {@link priorityFreshReplayPromptDigest} of the prompt it served. */
+  readonly promptDigest: string
   readonly at: number
+}
+
+/**
+ * The cache identity of a fresh replay: everything that decides whether a
+ * later replay of it reads the same cached prefix. The message lineage alone
+ * is not enough, because the lineage hash deliberately ignores what lineage
+ * does not own: a changed system prompt, model, tool list or thinking setting
+ * leaves the lineage intact while the cached prefix no longer matches. Plain
+ * JSON rather than a canonical form: a retry sends the same request, and a
+ * reordered one only costs the exemption, never a wrong one.
+ */
+export function priorityFreshReplayPromptDigest(input: {
+  readonly lineageHash: string
+  readonly model: string
+  readonly system: string | undefined
+  readonly tools: unknown
+  readonly thinking: unknown
+}): string {
+  return createHash("sha256")
+    .update(JSON.stringify([input.lineageHash, input.model, input.system ?? null, input.tools ?? null, input.thinking ?? null]))
+    .digest("hex")
 }
 
 /** The final lineage a priority attempt is about to serve, as the release decision reads it. */
@@ -159,13 +181,13 @@ export function planFreshReplayRelease(input: {
  * Whether the assigned account's attempt releases the conversation instead of
  * serving it: the lineage Meridian is about to serve there is a fresh replay,
  * so the prompt cache past the shared system prefix is lost on every account.
- * The exception is a replay of the same history this account already served
+ * The exception is a replay of the same prompt this account already served
  * fresh inside the retry window: that one reads its prefix from cache here.
  */
 export function shouldReleaseOnFreshReplay(input: {
   readonly assignedProfileId: string
   readonly lineage: PriorityServedLineage
-  readonly historyDigest: string
+  readonly promptDigest: string
   readonly lastFreshReplay: PriorityFreshReplay | undefined
   readonly now: number
 }): boolean {
@@ -173,7 +195,7 @@ export function shouldReleaseOnFreshReplay(input: {
   const last = input.lastFreshReplay
   const retriesOwnReplay = last !== undefined
     && last.profileId === input.assignedProfileId
-    && last.historyDigest === input.historyDigest
+    && last.promptDigest === input.promptDigest
     && input.now - last.at < PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS
   return !retriesOwnReplay
 }

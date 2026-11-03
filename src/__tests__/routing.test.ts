@@ -16,6 +16,7 @@ import {
   planFreshReplayRelease,
   shouldReleaseOnFreshReplay,
   isPriorityFreshReplay,
+  priorityFreshReplayPromptDigest,
   PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS,
   resolvePriorityOrder,
   choosePriorityProfile,
@@ -226,7 +227,7 @@ describe("fresh-replay failback", () => {
   const release = (overrides: Partial<Parameters<typeof shouldReleaseOnFreshReplay>[0]> = {}) => shouldReleaseOnFreshReplay({
     assignedProfileId: "personal",
     lineage: { type: "diverged", reason: "compaction" },
-    historyDigest: "digest-a",
+    promptDigest: "digest-a",
     lastFreshReplay: undefined,
     now: T0,
     ...overrides,
@@ -329,7 +330,7 @@ describe("fresh-replay failback", () => {
 
   it("keeps an identical replay of what the assigned account served fresh within the window", () => {
     // Given
-    const lastFreshReplay = { profileId: "personal", historyDigest: "digest-a", at: T0 - PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS + 1 }
+    const lastFreshReplay = { profileId: "personal", promptDigest: "digest-a", at: T0 - PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS + 1 }
 
     // When
     const actual = release({ lastFreshReplay })
@@ -338,19 +339,42 @@ describe("fresh-replay failback", () => {
     expect(actual).toBe(false)
   })
 
-  it("releases once the identical replay is older than the window, or was another history or account", () => {
+  it("releases once the identical replay is older than the window, or was another prompt or account", () => {
     // Given
-    const recent = { profileId: "personal", historyDigest: "digest-a", at: T0 - 1 }
+    const recent = { profileId: "personal", promptDigest: "digest-a", at: T0 - 1 }
 
     // When
     const actual = [
       release({ lastFreshReplay: { ...recent, at: T0 - PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS } }),
-      release({ lastFreshReplay: { ...recent, historyDigest: "digest-b" } }),
+      release({ lastFreshReplay: { ...recent, promptDigest: "digest-b" } }),
       release({ lastFreshReplay: { ...recent, profileId: "work" } }),
     ]
 
     // Then
     expect(actual).toEqual([true, true, true])
+  })
+
+  it("gives a replay a new cache identity when its system prompt, model, tools or thinking change", () => {
+    // Given
+    const base = { lineageHash: "lineage-a", model: "haiku", system: "be terse", tools: [{ name: "read" }], thinking: undefined }
+
+    // When
+    const digest = priorityFreshReplayPromptDigest(base)
+    const variants = [
+      { ...base },
+      { ...base, lineageHash: "lineage-b" },
+      { ...base, model: "sonnet" },
+      { ...base, system: "be verbose" },
+      { ...base, system: undefined },
+      { ...base, tools: [{ name: "write" }] },
+      { ...base, tools: undefined },
+      { ...base, thinking: { type: "adaptive" } },
+    ].map(priorityFreshReplayPromptDigest)
+
+    // Then
+    expect(variants[0]).toBe(digest)
+    expect(new Set(variants.slice(1)).size).toBe(7)
+    expect(variants.slice(1)).not.toContain(digest)
   })
 })
 
