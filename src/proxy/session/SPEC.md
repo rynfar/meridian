@@ -271,14 +271,16 @@ chosen by `planRollbackTail` (`lineage.ts`, pure):
 
 `verifyLineage` attaches that point to the diverged result (`rollbackTail`)
 only when asked. `server.ts` turns it into a `rollback-tail` lineage after
-every reclassification (a lost race, a moved copy, a priority failback, a
-missing OpenCode header all keep their replay), and finds the checkpoint
-case itself after the continuation's results fail to settle. It refuses, and
-replays fresh, when the fork point's results would be native but the request is
-not passthrough, or when the estimated history exceeds the replay budget: a
-forked session cannot trim history as a replay does. The budget check is an
-estimate, so a fork the SDK reports as a context overflow is evicted and
-replayed fresh, like a session the SDK refuses to resume.
+every reclassification (a moved copy or a priority failback keeps its
+replay), and finds the checkpoint case itself after the continuation's
+results fail to settle. Both cases go through one refusal rule, which
+replays fresh for a headerless OpenCode request (matched by fingerprint, it
+may be a side agent sharing the conversation's opening), for a request that
+lost a commit race, when the fork point's results would be native but the
+request is not passthrough, and when the estimated history exceeds the replay
+budget: a forked session cannot trim history as a replay does. The budget
+check is an estimate, so a fork the SDK reports as a context overflow is
+evicted and replayed fresh, like a session the SDK refuses to resume.
 
 Plugins' `onSession` hook sees a rollback-tail as `lineage: "undo"` (the
 contract's four kinds stay), with `reason`, `prefixOverlap` and `mismatch`

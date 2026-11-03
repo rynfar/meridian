@@ -64,27 +64,40 @@ const conversation = (count: number): Message[] =>
   Array.from({ length: count }, (_, index) => index % 2 === 0 ? user(`user ${index}`) : assistant(`assistant ${index}`))
 const uuidsOf = (messages: Message[]) => messages.map((message, index) => message.role === "assistant" ? `uuid-${index}` : null)
 
-function seed(key: string, messages: Message[], checkpoint?: { uuid: string; ids: string[] }): void {
+function seed(key: string | undefined, messages: Message[], checkpoint?: { uuid: string; ids: string[] }, workingDirectory?: string): void {
   const uuids: Array<string | null> = uuidsOf(messages)
   if (checkpoint) uuids.push(checkpoint.uuid)
-  storeSession(key, messages, "sdk-source", undefined, uuids, undefined, checkpoint?.uuid, checkpoint?.ids)
+  storeSession(key, messages, "sdk-source", workingDirectory, uuids, undefined, checkpoint?.uuid, checkpoint?.ids)
 }
 
-async function send(key: string, messages: Message[], stream = false, queries = 1): Promise<void> {
+type Client = { headers: Record<string, string>; body: Record<string, unknown> }
+/** Oh My Pi: the conversation key rides in `metadata.user_id`. */
+const piClient = (key: string): Client => ({
+  headers: { "x-meridian-agent": "pi" },
+  body: { metadata: { user_id: JSON.stringify({ session_id: key }) } },
+})
+/** OpenCode without its plugin: no session header, so the stored session is
+ *  found by the conversation's fingerprint (first user message + cwd). */
+const OPENCODE_CWD = "/tmp/rollback-tail-headerless-opencode"
+const headerlessOpenCode: Client = {
+  headers: { "user-agent": "opencode/1.0.0" },
+  body: { system: `<env>\n  Working directory: ${OPENCODE_CWD}\n</env>` },
+}
+
+async function sendAs(client: Client, messages: Message[], stream = false, queries = 1): Promise<void> {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
   const response = await app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-meridian-agent": "pi" },
-    body: JSON.stringify({
-      model: "haiku", max_tokens: 256, stream, messages,
-      metadata: { user_id: JSON.stringify({ session_id: key }) },
-    }),
+    headers: { "Content-Type": "application/json", ...client.headers },
+    body: JSON.stringify({ model: "haiku", max_tokens: 256, stream, messages, ...client.body }),
   }))
   expect(response.status).toBe(200)
   const body = await response.text()
   if (stream) expect(body).toContain("event: message_stop")
   expect(captured).toHaveLength(queries)
 }
+
+const send = (key: string, messages: Message[], stream = false, queries = 1) => sendAs(piClient(key), messages, stream, queries)
 
 /** The one SDK input a request produced: a string, or the structured message. */
 async function promptOf(input: QueryInput): Promise<string | unknown[]> {
@@ -281,6 +294,33 @@ describe("rollback-tail partial replay over HTTP", () => {
     expect(diagnostics()).toContain("lineage=rollback-tail session=sdk-sour rollback=uuid-3 from=checkpoint-mismatch prefix=4 tail=3")
     expect(lastLineage()).toBe("rollback-tail")
     expect(lookupSharedSession(key)?.sdkMessageUuids).toEqual([null, "uuid-1", null, "uuid-3", null, null, null, RESPONSE_UUID])
+  })
+
+  it("keeps the replay of a headerless OpenCode checkpoint mismatch", async () => {
+    // Matched by fingerprint, the request may be a side agent sharing this
+    // conversation's opening. Its partial checkpoint results are followed by
+    // queued user text, so it ends in a user turn and is looked up (a request
+    // ending in a tool_result skips lookup). It replays its own body instead
+    // of forking the matched session.
+    const stored = [user(`go ${key}`), assistant("plan"), user("read it"), toolCall("t1"), toolResults("t1")]
+    seed(undefined, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] }, OPENCODE_CWD)
+    await sendAs(headerlessOpenCode, [...stored, toolCall("c1", "c2"), toolResults("c1"), user("QUEUED_TEXT")])
+    expect(diagnostics()).not.toContain("lineage=rollback-tail")
+    expect(diagnostics()).toContain("rollback-tail refused (headerless-opencode) for checkpoint-mismatch")
+    expectFreshReplay()
+    const replay = JSON.stringify(await promptOf(captured[0]!))
+    expect(replay).toContain("plan")
+    expect(replay).toContain("QUEUED_TEXT")
+    expect(lastLineage()).toBe("continuation")
+  })
+
+  it("keeps the replay of a headerless OpenCode undo-gap", async () => {
+    const stored = conversation(9)
+    seed(undefined, stored, undefined, OPENCODE_CWD)
+    await sendAs(headerlessOpenCode, [...stored.slice(0, 6), user("REWRITTEN_6"), assistant("reply 7"), user("LIVE_8")])
+    expect(diagnostics()).toContain("rollback-tail refused (headerless-opencode) for undo-gap")
+    expectFreshReplay()
+    expect(lastLineage()).toBe("new")
   })
 
   it("keeps today's replay of an unsettled checkpoint with the setting off", async () => {
