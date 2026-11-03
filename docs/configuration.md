@@ -360,6 +360,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /profiles/login/status` | Poll a started login: `waiting`, `completed` or `failed` |
 | `POST /profiles/login/complete` | Finish that login with the code the user pasted back |
 | `GET /callback` | Anthropic's OAuth redirect target. **Not** behind `MERIDIAN_API_KEY` — the redirect carries no key; acts only on a single-use `state` minted by `/profiles/login/start` |
+| `GET /login`, `POST /login` | Browser sign-in when `MERIDIAN_API_KEY` is set: form posts the key once, answered with the `meridian_session` cookie and a redirect to `next` (same-origin paths only). Open by necessity; see [Signing in from a browser](#signing-in-from-a-browser) |
+| `POST /logout` | Clears the session cookie |
 | `POST /profiles/add/start` | Begin creating a new profile — validates the name and returns the authorize URL (see [Adding from the web UI](profiles.md#from-the-web-ui-add-a-profile)) |
 | `POST /profiles/add/complete` | Finish that creation — writes the profile only once Anthropic returns credentials |
 | `GET /v1/usage/quota` | Usage windows for the active profile (JSON) |
@@ -1315,6 +1317,23 @@ When set:
 - All API routes (`/v1/messages`, `/v1/chat/completions`, etc.) and admin routes (`/telemetry`, `/metrics`, `/profiles`) require a matching key
 - `/` and `/health` remain open (monitoring tools need unauthenticated health checks)
 - Keys are accepted via `x-api-key` header or `Authorization: Bearer` header
+- Browsers sign in once at `/login` (see below) and then carry a session cookie
+
+### Signing in from a browser
+
+A browser opening `/profiles`, `/settings`, `/telemetry` or `/plugins` has no
+header to put the key in, so a navigation to a gated page (a `GET` asking for
+HTML with no key header) is redirected to `/login` and back again after the
+key is accepted. `GET /login` and `POST /login` are open: the one place a
+browser can present the key is before it has a session. `POST /logout` ends it.
+
+The cookie (`meridian_session`, `HttpOnly`, `SameSite=Strict`, 30 days, `Secure`
+when served over https) holds an HMAC of the key, never the key itself, so a
+cookie copied out of a browser profile does not disclose the credential API
+clients use. Rotating `MERIDIAN_API_KEY` signs every browser out at once. A
+request that carries a key header is judged by that header alone; a wrong
+header is not rescued by a valid cookie. Scripts and API clients see the same
+401 JSON as before.
 
 Clients just set their `ANTHROPIC_API_KEY` to the shared secret — since most tools already send this header, no workflow changes are needed:
 

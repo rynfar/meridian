@@ -153,7 +153,8 @@ import { translateResponsesToAnthropic, translateAnthropicToResponses, createRes
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
-import { requireAuth, authEnabled } from "./auth"
+import { requireAuth, authEnabled, hasValidApiKey, keyMatches, sessionCookieValue, loginCookieOptions, LOGIN_COOKIE } from "./auth"
+import { setCookie, deleteCookie } from "hono/cookie"
 import { detectAdapter } from "./adapters/detect"
 import { rootSessionIdOf } from "./adapter"
 import { buildQueryOptions, isCliThinkingDisplay, promptCachingDisabled, passthroughThinking, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
@@ -2214,6 +2215,46 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       })
     }
     return c.html(withSavedLayout(landingHtml))
+  })
+
+  // Browser sign-in for the admin pages when MERIDIAN_API_KEY is set. API
+  // clients present the key in a header; a browser opening /profiles has no
+  // header to put it in, so requireAuth sends such a navigation here. The key
+  // is posted once and answered with an HttpOnly cookie carrying a MAC of it
+  // (proxy/auth.ts), never the key. Open routes, on the audit allowlist in
+  // proxy-settings-auth.test.ts: the one place a browser presents the key is
+  // before it has a session. `next` is confined to a same-origin path.
+  const safeNextPath = (raw: unknown): string =>
+    typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/login") ? raw : "/profiles"
+  app.get("/login", async (c) => {
+    c.header("Cache-Control", "no-store")
+    const next = safeNextPath(c.req.query("next"))
+    if (!authEnabled() || hasValidApiKey(c.req.raw.headers)) return c.redirect(next, 302)
+    const { renderLoginPage } = await import("../telemetry/loginPage")
+    return c.html(renderLoginPage({ next }))
+  })
+  app.post("/login", async (c) => {
+    c.header("Cache-Control", "no-store")
+    let form: Record<string, unknown> = {}
+    try {
+      form = await c.req.parseBody()
+    } catch {
+      // An unparseable body is treated as an empty form: the key is absent.
+    }
+    const next = safeNextPath(form.next)
+    if (!authEnabled()) return c.redirect(next, 302)
+    const key = typeof form.key === "string" ? form.key : ""
+    if (!keyMatches(key)) {
+      const { renderLoginPage } = await import("../telemetry/loginPage")
+      return c.html(renderLoginPage({ next, error: "That key was not accepted." }), 401)
+    }
+    setCookie(c, LOGIN_COOKIE, sessionCookieValue(key), loginCookieOptions(new URL(c.req.url).protocol === "https:"))
+    return c.redirect(next, 302)
+  })
+  app.post("/logout", (c) => {
+    c.header("Cache-Control", "no-store")
+    deleteCookie(c, LOGIN_COOKIE, { path: "/" })
+    return c.redirect("/login", 302)
   })
 
   const handleMessages = async (

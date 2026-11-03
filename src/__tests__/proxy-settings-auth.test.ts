@@ -222,7 +222,12 @@ describe("auth audit: every registered prefix is protected when MERIDIAN_API_KEY
   //
   // `/drain` mutates admission, so #1282 requires the configured API key in
   // addition to the actual loopback/no-Origin/no-forwarding checks.
-  const PUBLIC_PREFIXES = new Set(["/", "/health", "/livez", "/readyz", "/inflight", "/callback"])
+  //
+  // `/login` and `/logout` are the browser's way to present and drop the
+  // configured key (admin-cookie-login.test.ts): a sign-in page that required
+  // being signed in would be unreachable. They mint a cookie only for the
+  // correct key and disclose nothing.
+  const PUBLIC_PREFIXES = new Set(["/", "/health", "/livez", "/readyz", "/inflight", "/callback", "/login", "/logout"])
 
   it("rejects unauthenticated requests to every non-public route prefix", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
