@@ -145,6 +145,7 @@ describe("deriveToolLoopSessionId", () => {
     // The handler only derives when the adapter resolved nothing, so a client
     // key always wins. Asserted here so that precedence stays visible.
     expect(openAiAdapter.getSessionId(ctx({ "x-session-affinity": "client-key" }))).toBe("client-key")
+    expect(openAiAdapter.getSessionId(ctx({ "x-session-id": "client-key" }))).toBe("client-key")
     expect(openAiAdapter.getSessionId(ctx({}))).toBeUndefined()
   })
 })

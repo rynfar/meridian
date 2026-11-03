@@ -32,7 +32,7 @@ Squash keeps changelog entries one per PR. Preserve repository settings
 `squash_merge_commit_title=PR_TITLE` and `squash_merge_commit_message=BLANK`;
 do not paste intermediate conventional-commit subjects into the squash body.
 No AI attribution. Do not use `--admin` or bypass checks, except for the
-unsigned-commit case in step 3 below. Never run `git push origin main` directly.
+signing cases in step 3 below. Never run `git push origin main` directly.
 
 ### Contributor pull requests
 
@@ -72,7 +72,10 @@ From March to October 2026 that happened to 137 contributor PRs
    **only** block, merge with
    `gh pr merge <their-PR> --squash --admin --match-head-commit <verified-SHA>`.
    GitHub signs the squash and names the contributor as Author, so nobody has
-   to re-sign anything. `--admin` is allowed for this case alone, and only
+   to re-sign anything. The same applies when the only block is commits that
+   are signed but that GitHub cannot verify (for example `bad_email`, where the
+   signing key's email is not on the contributor's account; owner-approved
+   2026-10-26, #1429). `--admin` is allowed for these cases alone, and only
    after every check on that exact head is green: nothing else stops it from
    merging a red or untested head. It is never a way past a failing check, a
    missing gate or the `Attribution` check. This exception is for a signed

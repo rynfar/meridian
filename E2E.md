@@ -1,3 +1,131 @@
+## Pi extension (#1408)
+
+Three harnesses use the actual Pi CLI with the extension that
+`meridian setup --client pi` installs, or loads directly, in a scratch
+`PI_CODING_AGENT_DIR`:
+
+- `node scripts/e2e-pi-startup.mjs --pi=<pi>` needs no credentials or internet
+  access and makes no model calls (#1476). Against a loopback Meridian that
+  accepts connections but never replies, Pi must answer RPC `get_state` within
+  2 s: with a cold catalog, with a stored one, and offline without contacting
+  Meridian. With a cold catalog it must also select a built-in Meridian model,
+  through `--model meridian/…` and through `defaultProvider`/`defaultModel`
+  beside an Anthropic key. It must keep that model after the background
+  discovery is abandoned, and in print mode send the turn to Meridian without
+  requesting its catalog. Against a responsive stub it must persist the
+  discovered catalog. Every case runs and reports.
+  `--extension=<dir>/plugin/pi/index.ts` runs it against another tree's
+  extension.
+
+- `bun scripts/e2e-pi-extension-side-calls.mjs --pi=<pi>` needs no
+  credentials. It drives Pi's RPC mode against a recording stub with canned SSE
+  replies, through two prompts, a manual `compact` and a third prompt. Each
+  primary request must carry Pi's own session ID as `x-session-affinity`, no
+  `x-meridian-source` and a `pi1` attestation that Meridian verifies for that
+  session, with a distinct turn per prompt. Every compaction request must carry
+  a fresh session key, `x-meridian-source: fork-side-call` and no
+  attestation.
+- `E2E_PLUGIN_PATH=<installed pi-scrub>/dist/index.js bun
+  scripts/e2e-pi-extension.mjs --pi=<pi>` runs Pi print mode through an
+  in-process Meridian and real Claude: a Haiku tool loop, a
+  `MERIDIAN_SOURCE=subagent-e2e` child and Opus 5.5 at high effort. Meridian
+  loads only the named Pi scrub (`E2E_SCRUB_VERSION` pins its version), which
+  must be active and must process the requests. Print mode never discovers,
+  so the harness first runs the extension's discovery against that Meridian
+  and stores the result; `--cold-catalog` skips that, runs every turn on the
+  extension's built-in catalog and asserts that no Meridian catalog is
+  persisted. (That print mode requests no catalog is asserted by the startup
+  harness.) It asserts the wire identity and Meridian's adapter/source
+  telemetry, and reports generation separately.
+
+Pass the Pi executable explicitly. A version manager can select a
+project-local Pi from the working directory. Run under a qualified SQLite
+runtime (see `src/proxy/session/bookkeeping/nativeDatabase.ts`).
+
+Recorded 2026-11-01 on Darwin arm64, Node 22.22.3, Pi 1.4.0 and 1.3.0 (#1476):
+- **Startup harness:** all seven cases pass with the built-in catalog.
+  - main's extension, which fetches the catalog during the cache-only phase,
+    waits 3.6–3.9 s for the hung Meridian and fails every cold Meridian-model
+    case. In print mode it requests the catalog, and on some runs Pi exits
+    before the catalog arrives.
+  - The PR's first head (strict cache-only, `ef3ac97e`) fails the three cold
+    Meridian-model cases.
+- **Interactive mode** has no harness and was checked by hand.
+  - Setup: a scratch `PI_CODING_AGENT_DIR` holding only `settings.json` (and
+    the Anthropic store seed the startup harness writes). `MERIDIAN_BASE_URL`
+    points at a loopback server that accepts connections and never replies.
+  - Run Pi under a terminal (or `python3 -c 'import pty,sys; pty.spawn(sys.argv[1:])' pi …`)
+    with `--no-session --no-extensions -e plugin/pi/index.ts
+    --model meridian/claude-haiku-5-5`.
+  - Result: with the built-in catalog the TUI stays up past 8 s; `ef3ac97e`
+    exits 1 with `Model … not found`.
+- **Side-call harness:** passes on both versions.
+- **Live run:** the Claude harness with `--cold-catalog` (pi-scrub 0.2.3,
+  Pi 1.4.0, read-only credentials, included usage) ran from a cold catalog.
+  The Haiku tool loop stayed on one signed turn, the `subagent-e2e` child kept
+  its source, and Opus 5.5 at high effort answered, with every identity
+  assertion passing. No Meridian catalog was persisted. The scrub processed
+  all 4 requests.
+
+Recorded 2026-10-25 on Darwin arm64, Bun 1.3.14, Node 22.22.3: the side-call
+harness passed on Pi 1.4.0 and 1.3.0, with two compaction requests each. The
+Claude harness passed every identity assertion on Pi 1.4.0, but that first run
+omitted the Pi scrub, and Claude refused all three generations as third-party
+traffic. Rerun the same day with pi-scrub 0.2.2, the harness passed: the
+Haiku tool loop continued on one signed turn and returned the fixture, the
+`subagent-e2e` child answered on the base tier, and Opus 5.5 at high effort
+answered on `opus[1m]`. The scrub was active and processed every request
+without errors. Without the scrub, the same Pi request through the extension
+was still refused; in the first run a plain request through the same server
+succeeded. Paid Extra Usage stayed off.
+
+Recorded 2026-10-25 against the owner's launchd Meridian (main `cb767de`,
+pi-scrub 0.2.0) with Pi 1.4.0 on Claude Max: `pi -c` resumed a saved session
+as `lineage=continuation` with cache reads, and recalled its codeword. An
+in-process foreground child of pi-subagents 0.82.1's builtin `delegate` agent
+went out as `fork-side-call` on `opus[1m]`. That agent appends its prompt, so
+its `<active_agent>` marker sits inside Pi's `<addendum>` section; the
+extension now reads it there, and the same run sent `subagent-delegate` on the
+base `opus` tier while the parent stayed signed on `opus[1m]`
+([evidence](docs/maintenance/evidence/pi-subagents-addendum-20261025/README.md)).
+A live `next-user-turn` promotion remains unqualified: it needs the priority
+account to run out. The promotion path is covered by
+`src/__tests__/priority-routing-integration.test.ts`.
+
+## Claude Code's own tool search in passthrough (#1478)
+
+`node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
+against a built Meridian (`npm run build` first). Set `E2E_CLAUDE_BIN` to an
+absolute Claude Code executable. The client gets a stdio MCP server with 22
+`ledger_*` tools and `ENABLE_TOOL_SEARCH` on or off, and is asked to call
+specific tools.
+- **Assertion:** the MCP server's own call log, never model wording. For
+  `--expect=pass`, every target tool was called with the fixture arguments, in
+  order in `--mode=chain`. For `--expect=fail`, none was (the unchanged-main
+  control).
+- **Upstream:** `--upstream=scripted` (the default) points Meridian at a
+  scripted Messages API that applies the API's `tool_reference` rule: a
+  `defer_loading` tool becomes callable only once a reference names it. It
+  needs no credentials and makes no model calls. `--mode=bare-name` scripts a
+  model that copies the name from a `[Tool reference: …]` note verbatim (the
+  #1107 failure). `--upstream=live` uses the default Claude login read-only and
+  requires `E2E_ALLOW_LIVE_MODEL=1`. It sets `MERIDIAN_OPUS_MODEL=opus` so an
+  Opus run cannot bill the `[1m]` variant as Extra Usage.
+- **Exit codes:** 0 for the expected outcome, 1 otherwise, and 2 on a usage,
+  billing or auth refusal. On 2, stop: do not retry on another account.
+
+Recorded 2026-11-02 on Darwin arm64 with Claude Code 2.1.316, Agent SDK 0.2.141
+and Node 22.22.3, during the #1478 review:
+- **Live:** with tool search on, unchanged main fails on Sonnet 5.5, and the
+  fix passes on Sonnet 5.5 and Opus 5.5. The tool-search-off control passes
+  (`deferred=40/44`).
+- **E41:** all four modes pass on the fix and on main.
+- **Scripted:** see the self-test below.
+
+Self-test of this script from the repository, scripted upstream, no model calls:
+- **main `7a971fd1`:** `single`, `chain`, `parallel` and `bare-name` with tool search on, and `single` with it off, all pass. Every rendered reference names the registered `mcp__oc__…` tool.
+- **Before #1478 (`c6ec3a92`):** `single` with tool search on fails as expected: no MCP call, and the inner CLI replaces the reference with `Tool references removed`.
+
 ## Asynchronous JSON store and SQLite transaction parity (#1220)
 
 Run the isolated `proxy-session-store-locking`, `priority-session-store`,
@@ -592,6 +720,44 @@ warning only reports it. Live evidence owed: a run through the proxy with a
 real client cancel on the current Bun (and any Bun 1.4.x in use, where the
 claim is unchecked), on Linux and on Windows. No model calls were made here.
 
+## Transcript retention
+
+```sh
+MERIDIAN_TRANSCRIPT_RETENTION_DAYS=30 bun scripts/e2e-transcript-retention.mjs
+bun scripts/e2e-transcript-retention.mjs
+```
+
+Needs no credentials, network or running proxy. The harness drives the
+installed Claude Code CLI through the Agent SDK with the options
+`buildQueryOptions` produces, against a disposable config directory holding one
+transcript last touched 40 days ago and one fresh one. The child never receives
+a message, so nothing reaches the model; it idles while Claude Code's
+background housekeeping runs. The opted-in run asserts the cleanup deletes the
+old transcript, keeps the fresh one and loads no settings file, then that
+resuming the deleted session is refused in a way `classifyResumeRefusal` reads
+as `unresumable`, the cue for Meridian's fresh-session replay. The second run
+uses the default (retention off): the child receives no `cleanupPeriodDays`,
+exactly the settings Meridian sent before this setting existed, and nothing is
+deleted.
+
+**Verified 2026-10-03** (contributor, before retention became opt-in): Linux,
+Claude Code 2.1.284, Agent SDK 0.2.141: with 30 days the old transcript was
+deleted, the fresh one kept, and the resume classified `unresumable`; with
+retention off both transcripts were kept.
+
+**Verified 2026-10-27** (maintainer, opt-in default, real transcripts): macOS
+arm64, Meridian `371e9362e` launching Claude Code 2.1.311 (Agent SDK 0.2.141),
+`claude-haiku-4-5`, a disposable profile directory with an access-only token.
+Real transcripts written by real requests, two aged to 3 days. With
+`MERIDIAN_TRANSCRIPT_RETENTION_DAYS=1` the CLI received `--settings
+{…"cleanupPeriodDays":1}` and empty `--setting-sources`; the aged pair was
+deleted and every fresh transcript kept. With retention unset the argv had no
+`cleanupPeriodDays` and nothing was deleted. Cross-origin, `text/plain` and
+`Origin: null` writes to `/settings/api/transcripts` returned 403 and saved
+nothing. Found: an off request stamps `.last-cleanup`, so the first opted-in
+cleanup can wait up to a day (documented in configuration.md); a child that
+lives under about 5 s never cleans up.
+
 ## Antigravity subscription CLI backend
 
 ```sh
@@ -839,6 +1005,25 @@ caps, numeric reasoning budgets, sampling controls, arbitrary extensions, native
 agy persistent resume, Linux and Windows are not established by these gates.
 
 ### Antigravity tool-result recovery and main integration
+
+The active-history regression has a separate, opt-in gate:
+
+```sh
+AGY_CLI_DISABLE_AUTO_UPDATE=true E2E_ALLOW_LIVE_MODEL=1 \
+E2E_MERIDIAN_ROOT="$PWD" E2E_PI_BIN=/absolute/path/to/pi/dist/bundle/cli.js \
+E2E_NODE_BIN=/absolute/path/to/node MERIDIAN_AGY_PATH=/absolute/path/to/antigravity \
+bun scripts/e2e-antigravity-active-history.mjs
+```
+
+Use Bun 1.4.3, Pi 1.1.0 and the official agy 1.2.7 Darwin arm64 binary.
+The gate requires the default subscription with paid credits/custom providers disabled,
+imports the retained public long-history fixture, and requires one exact write
+and a correlated read after joined backend replacement. The newest request,
+completed call/result and historical identities must survive translation within
+the unchanged 190,000-byte ceiling. It preserves bounded process/pipe and
+artifact-drain receipts. A failed attempt is retained and is not retried.
+This proves this active-history client path; it does not qualify the separate
+recap/replay-notice proposals or an unspecified reporter client/platform.
 
 ```sh
 npm run build
@@ -1591,7 +1776,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 compatibility](#e42-opencode-v2-compatibility) | **Automated**, exact betas `18314`, `18866`, `19271` and releases `2.0.16`, `2.0.21`, `2.0.31`. Run the beta package gate with each pinned beta; run `e2e-opencode-v2-stable-live.mjs` with the released binary. The stable gate covers setup, real model requests, title/generate isolation, signed primary turns, resumed session, model-discovery effort variant, tool result, fork isolation, and compaction. Test source and packed npm artifacts. **Run after any V2 plugin/API change; another host version is not a pass** | 2026-09-24 |
+| E42 | [OpenCode V2 compatibility](#e42-opencode-v2-compatibility) | **Automated**, exact betas `18314`, `18866`, `19271` and releases `2.0.16`, `2.0.21`, `2.0.31`; Desktop `2.2.0` qualified on Darwin arm64 with Opus 5.5 through an explicit profile-pin boundary. Run the beta package gate with each pinned beta; run `e2e-opencode-v2-stable-live.mjs` with the released binary. The stable gate covers setup, real model requests, title/generate isolation, signed primary turns, resumed session, model-discovery effort variant, tool result, fork isolation, and compaction. Test source and packed npm artifacts. **Run after any V2 plugin/API change; another host version is not a pass** | 2026-10-28 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
@@ -1621,6 +1806,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
+| E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -5218,9 +5404,22 @@ domain API. Its committed headless gate launches an isolated OpenCode client,
 installs the bundled plugin through `meridian setup --v2`, and forwards its real
 Anthropic traffic to a real Meridian SDK/model through a local relay. It checks
 title and generate detachment, signed primary headers, a resumed session's prior
-user input, cold model discovery of `#xhigh`, a real read-tool result, a fork
+user input, model discovery/adoption of `#xhigh`, a real read-tool result, a fork
 that cannot advance or attest as the original root, and compaction that remains
-on the root while using its lower tier. The relay stores sanitized request facts
+on the root and keeps the conversation's model tier (`fork-compaction`; the
+routed model is read from telemetry correlated by the exact request ID, and
+`E2E_EXPECT_COMPACTION_MODEL=opus[1m]` asserts it for an Opus run; `E2E_COMPACTION_SOURCE`
+observes an older plugin build as a control). The stable gate now requires an
+explicit `--fixture` or `--live`. Live mode uses an already-running,
+operator-authorized, dedicated single-profile loopback proxy (`E2E_PROXY_URL`);
+it rejects pools and unknown/future usage observations and never creates a proxy
+with ambient owner credentials. Pin the loaded server scrub with
+`E2E_SCRUB_VERSION`, set `E2E_ALLOW_LIVE_MODEL=1`, and supply the proxy's shared
+test attestation key privately in `E2E_ATTESTATION_KEY`. Before inference it
+requires fresh included-capacity evidence, disabled paid Extra Usage, the actual
+active scrub, and an active exact-path client plugin in the generating server.
+The final scrub identity/error/invocation checks are retained even on failure.
+The relay stores sanitized request facts
 and system-block lengths, and the per-turn client output remains in its isolated
 artifact directory. Model wording is not used as the sole assertion.
 
@@ -5228,7 +5427,9 @@ artifact directory. Model wording is not used as the sole assertion.
 npm install --prefix /tmp/opencode-2016 @opencode/cli@2.0.16
 npm run build
 E2E_OPENCODE_BIN=/tmp/opencode-2016/node_modules/.bin/opencode \
-  bun scripts/e2e-opencode-v2-stable-live.mjs
+  bun scripts/e2e-opencode-v2-stable-live.mjs --fixture
+# For an admitted live run, supply the external proxy/key and scrub pin above,
+# replace --fixture with --live, and set E2E_ALLOW_LIVE_MODEL=1.
 # Repeat with @opencode/cli@2.0.21 and E2E_OPENCODE_VERSION=2.0.21.
 # Repeat with @opencode/cli@2.0.31 and E2E_OPENCODE_VERSION=2.0.31.
 # With E2E_MERIDIAN_ROOT pointing at an independently installed npm pack
@@ -5236,12 +5437,28 @@ E2E_OPENCODE_BIN=/tmp/opencode-2016/node_modules/.bin/opencode \
 # with a fresh registry install before closing a release gate.
 ```
 
-For a Linux client in a container, install the same pack and 2.0.16 binary in
-that container. `E2E_PROXY_URL` can point the probe at an independently started
-candidate Meridian proxy; set `E2E_ATTESTATION_KEY` to the same test key on both
-sides. The normal invocation starts its own isolated proxy. A container client
-with a macOS proxy verifies the Linux client path, while a full Linux deployment
-requires the proxy and its SDK credentials to run there too.
+The stable gate records original client/server process exit, close and captured
+pipe joins, validates signatures rather than header presence, requires assistant
+answers rather than tool-output receipts, and checks completed compaction state.
+It does not establish cold unseeded startup or a Meridian restart; the beta gate
+retains those separate arms. An external proxy's native SDK child custody and
+actual provider model identity need their own evidence, not the requested model
+ID in this report. A container client with a forwarded loopback macOS proxy
+verifies the Linux client path, not a full Linux deployment.
+
+For Desktop 2.2.0, pin
+`E2E_OPENCODE_VERSION=2.2.0` and
+`E2E_OPENCODE_BIN=/Applications/OpenCode.app/Contents/Resources/opencode-cli`.
+The source and independently installed package fixture runs pass on Darwin
+arm64. The Opus 5.5 live gate also passes with 12 correlated HTTP 200 requests,
+successful assistant answers, actual model identity from public SDK history,
+and the expected compaction tier. Its route is explicitly profile-pinned;
+it does not qualify unpinned priority failback. The older Opus 5 marker refusal
+is retained separately, not claimed fixed by this result. Recording relays
+disable Bun's default 10-second idle cutoff and retain the explicit 120-second
+request deadline. In-band provider errors stop qualification rather than
+allowing a successful automatic retry to hide them. See
+[the qualification evidence](docs/maintenance/evidence/opencode-desktop-220-20261028/README.md).
 
 The reporter's exact captured OpenCode 2.0.16 system block for issue #1094 has
 not been provided. The gate measures and forwards the actual client-generated
@@ -7036,6 +7253,78 @@ interactive flow (a tool-less streamed request at startup, each subagent's first
 request repeated); those are outside this gate.
 [Evidence](docs/maintenance/evidence/1292-captions-interactive-20261014/README.md).
 
+## E79: Stopped turn: discarded output resumes, kept output replays
+
+**What it proves:** a client that stops a streaming turn after output reached
+it gets a next turn consistent with what it kept. Discarding the partial (Pi,
+Prime Agent) resumes the stopped turn's session with the prompt cache; keeping
+it (OpenCode, Oh My Pi) replays the conversation, partial included. See the
+session spec, *Interrupted turns*.
+
+```bash
+npm run build
+bun scripts/e2e-client-abort-resume.mjs --fixture
+E2E_PI_BIN=/path/to/pi E2E_OPENCODE_BIN=/path/to/opencode \
+  bun scripts/e2e-client-abort-resume.mjs --fixture --case=all
+E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live [--model=claude-sonnet-5-5]
+```
+
+The gate starts the built `dist/cli.js` under Node in its own process for each
+case, because only a real socket close is a disconnect: with the server and
+client in one Bun process the client's abort never reaches the server, the
+stopped turn completes and publishes, and the next turn resumes output the
+client never received, on any build. `--fixture` points the real Claude Code
+child at a scripted upstream in the harness through an `api` profile under an
+isolated HOME, so it needs no model, and the checks include what that upstream
+received for the next turn. `--live` uses the default Claude login read-only and
+stops on any usage refusal. Because that login lives in the real Claude config,
+live mode keeps the real HOME, and its SDK child writes the run's transcripts
+under that config's projects directory for the isolated workdir; the script
+never edits or deletes them. `E2E_MERIDIAN_ROOT` serves another built checkout
+as a before/after control, and `summary.json` records `/health`'s build identity
+per case.
+
+Cases (`--case=` a comma list; the four HTTP cases by default, `all` for six):
+
+- `discard`, `keep`: a direct HTTP client with Pi's headers (concurrent turns
+  allowed) sends a ~15k-token first turn, streams a second turn and closes it
+  after 40 characters of text (before `message_stop`), then sends the third
+  turn without the partial (`discard`) or with it as an assistant message
+  (`keep`).
+- `strict-discard`, `strict-keep`: the same with Prime Agent's headers, whose
+  adapter refuses a request that lost a commit race while waiting. The third
+  turn is sent while the second still holds the session, so it waits out the
+  stop's cleanup and marking (the interrupted-turn race exemption).
+- `pi` (fixture only, `E2E_PI_BIN`): real Pi 1.4.0 in RPC mode with the
+  Meridian extension installed by `meridian setup --client pi` under an
+  isolated HOME and `PI_CODING_AGENT_DIR`, with `E2E_PI_BIN`'s directory first
+  on PATH so setup's `pi --version` gate reads that Pi; turn 2 is stopped with
+  Pi's RPC `abort`, its Esc.
+- `opencode` (fixture only, `E2E_OPENCODE_BIN`): real OpenCode 2.2.0 behind
+  `opencode serve`, isolated per the [plugin preflight](#required-meridian-opencode-plugin-preflight):
+  `meridian setup --v2 --opencode-bin`, exactly one configured Meridian plugin,
+  reported `active` by `/api/plugin`, and its identity headers recorded by the
+  harness's relay; turn 2 is stopped with `POST /api/session/:id/interrupt`.
+
+Pass criteria (deterministic; model wording is never asserted):
+
+- `discard`, `strict-discard`, `pi`: `lineage=continuation` resuming the turn-1
+  session; the resumed history (supported `getSessionMessages` for the HTTP
+  cases) and, in `--fixture`, the upstream's next-turn input hold turn 1, the
+  stopped question and the new one but not the partial; in `--live` the resume
+  reads at least 90% of turn 1's cached prefix.
+- `keep`, `strict-keep`, `opencode`: `diverged=interrupted-turn-kept:kept-assistant`
+  with no resume; the replayed history and the upstream's input carry the
+  partial. The `opencode` case also asserts OpenCode sent the partial back as
+  an assistant message, the `pi` case that Pi sent none and that setup reported
+  the version `E2E_PI_BIN --version` prints.
+- `strict-*`: the third turn waited for the session (`sessionWait` > 0) and was
+  answered rather than refused.
+- All: the stop came before the turn finished and every `tool_use` is paired.
+
+`summary.json` keeps lineage lines, telemetry counters, request shapes and
+booleans only.
+
 ## Concurrent transcript publication
 
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
@@ -8072,7 +8361,8 @@ from its tarball or the public registry, and pass the absolute path to its
 `dist/index.js` as `E2E_PLUGIN_PATH`. They use isolated config, sessions, ports,
 and project directories and consume Claude Max quota. Keep the generated local
 artifact private because it contains client and proxy logs. For a Nix plugin
-build, point `E2E_PLUGIN_PATH` at the output's `lib/index.js` instead.
+build, point `E2E_PLUGIN_PATH` at the package's `.path`, the output's
+`lib/node_modules/@rynfar/<pname>/dist/index.js`.
 Set `E2E_EXPECT_MERIDIAN_VERSION` for a release gate so the harness asserts
 and reports the exact Meridian package version under test.
 
@@ -8208,15 +8498,8 @@ corrected nested outer/list scrollbars before the final local install. Native
 expand/collapse and service health checks passed; the selected account was not
 changed during live verification. Model calls are not implicated by this layout.
 
-Reproduce the overflow checks without credentials:
-
-```sh
-npm run build --prefix apps/desktop
-node scripts/preview-desktop-tray.mjs
-# Open http://127.0.0.1:4319/review (420 × 640 iframe).
-# In the review page console:
-# document.querySelector('iframe').contentWindow.assertTrayLayout()
-```
+This layout and its `scripts/preview-desktop-tray.mjs` fixture were replaced by
+the React renderer; see *Desktop redesign* below for the current harness.
 
 The fixture uses the actual bundled tray renderer/styles and synthetic account
 metadata. Checks passed in dark/light appearances, with long organization/name
@@ -8286,6 +8569,98 @@ reported URL in the collaborative browser, and evaluate the full expression in
 `scripts/e2e-profile-find-browser.js`. Require PASS for the mobile/desktop matrix,
 anchor/header growth, polling/focus, filter/reorder and no-routing-mutation
 controls. See `docs/maintenance/evidence/1200-profile-find.md` for evidence limits.
+
+## Desktop redesign (2026-10-28)
+
+The window and menu-bar panel are React (`apps/desktop/src/ui`). The preview
+harness renders the real production bundles under the production CSP in
+Chromium, with a stub `window.meridian` fed from a snapshot of a real
+Meridian's HTTP responses — no Electron, credentials or model calls:
+
+```sh
+npm run build --prefix apps/desktop
+# Snapshot dir: GET bodies of /health, /v1/usage/quota/all, /telemetry/requests?limit=500,
+# /telemetry/summary, /telemetry/logs, /profiles/list, /plugins/list, /settings/api/features,
+# /telemetry/routes, /telemetry/retention, /providers/status and /settings/api/<section>
+# saved as health.json, quota.json, requests.json, …, settings-<section>.json.
+# It holds account details: keep it and the output outside the repository.
+bun apps/desktop/scripts/preview/fixtures.ts <snapshot-dir> <preview-dir>
+python3 apps/desktop/scripts/preview/shoot.py <preview-dir> <screenshot-dir>
+```
+
+`shoot.py` screenshots every screen in light and dark (ok data, the estimated
+timeseries fallback, stopped, unauthorized, loading, partial — one read
+failing while `/health` answers — and switched, where the selection differs
+from the account that served the latest request) plus the tray, and
+exits 1 on any console error, page error or CSP violation.
+
+**Verified 2026-10-28** (maintainer, macOS arm64, Electron 44.3.0): the built
+app was launched with an isolated `--user-data-dir` against the owner's
+launchd Meridian 1.86.0 on 127.0.0.1:3456 and driven over local debugging
+ports. It detected the service from the loaded launchd job (plist outside
+`~/Library/LaunchAgents`) and attached without starting its own copy; every
+screen rendered real traffic (500 requests, 97% of prompt tokens from cache)
+with zero console or CSP problems; the estimated-history fallback showed for
+1.86.0; ⌘1–⌘6 switched screens; the View menu bound ⌘R to *Refresh data*
+(clicking it advanced `lastChecked` without reloading the page) and ⇧⌘R to
+*Reload window*. The installed app's `desktop.json` hash was unchanged and no
+process outlived the run. `/telemetry/timeseries` was covered by HTTP tests
+only, since that service predates it.
+
+**Post-merge review follow-up, verified 2026-10-29** (maintainer, macOS arm64,
+Electron 44.3.0): the fixes from two adversarial post-merge reviews were
+launched the same way (isolated `--user-data-dir`, read-only GETs only) against
+the owner's launchd Meridian 1.86.0 on 127.0.0.1:3456. Detection attached to
+the launchd job without starting a managed copy (nothing listened on :3489);
+the connection read `ok` with 500 requests, no data errors and no API key
+sent; Today, Traffic, Cache and Accounts rendered real traffic with zero
+console or CSP problems; Traffic showed the retention line ("3,507 requests
+in SQLite · 7d retention · …"); Today and Cache said the history is estimated
+for 1.86.0; the explicit *Refresh* action advanced `lastChecked`. The installed
+app's `desktop.json` hash was unchanged and no process outlived the run. The
+saved-key binding, failed-read states, partial history, benched accounts and
+DST slots are covered by HTTP tests against in-test services and by the preview
+harness's `partial` fixture (one read failing while `/health` answers); none of
+them can be produced on the owner's service without changing it.
+
+**Active account on Accounts, verified 2026-10-30** (same setup, read-only):
+on the owner's service (routing `active`) exactly one card carried the accent
+ring and "Serving now" — `personal`, the selected account — with "Active" in
+its action slot and "Routing active · serving personal" in the header; no
+mismatch note, since `personal` also served the latest request; zero console
+problems. The mismatch notes ("Latest request went to …" / "Served the latest
+request · … is selected") are covered by model tests and the preview harness's
+`switched` fixture, since producing one live would mean switching the owner's
+account.
+
+**Installed from main, 2026-10-30** (maintainer, macOS arm64, Electron 44.3.0):
+`1.87.0-local.2` was built from `5de4cf3ec` (#1473) with the release workflow's
+electron-builder command. It is signed `Developer ID Application: Trevor Walker
+(ZCL6PL2MJJ)` with the hardened runtime and is not notarized: the CI notarization
+key returns 401. `codesign --verify --deep --strict` passed; `spctl -a -vv`
+rejected it as `Unnotarized Developer ID`. It replaced `1.87.0-local.1` in
+`/Applications` and was relaunched normally (launchd parent, no debugging port).
+A shell that sets `ELECTRON_RUN_AS_NODE=1`, as Electron-hosted terminals do,
+passes it through `open`, and the app then exits at once as Node; launch from
+Finder or with a clean environment. Checks were read-only against the owner's
+launchd Meridian 1.86.0 on 127.0.0.1:3456, with the UI read from an isolated
+copy seeded with the same `desktop.json`:
+
+1. The installed app kept its settings (`desktop.json` hash unchanged), held
+   only connections to :3456 and started no child; nothing listened on :3489.
+   The copy attached to the launchd job and read `ok` with 500 requests and no
+   data errors.
+2. On Accounts exactly one Claude card carried the ring, "Serving now" and
+   "Active" — `personal`, the selected account — and the header read "Routing
+   active · serving personal".
+3. Key binding: not applicable; `desktop.json` holds no saved key.
+4. Today, Traffic, Cache and Accounts rendered real data with zero console
+   problems; Traffic showed the retention line; Today and Cache said the
+   history is estimated; ⌘R advanced `lastChecked`.
+5. Not verified: the service is still 1.86.0 (`/telemetry/timeseries` answers
+   404), so the server timeseries and its 24h/7d re-read remain outstanding.
+6. Afterwards only the installed app was running, and the service answered
+   `/health` with 200 under the same process.
 
 ## SDK ping idle regression (#1177)
 

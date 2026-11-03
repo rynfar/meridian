@@ -40,54 +40,6 @@
         "type": "github"
       }
     },
-    "meridian-plugin-hermes-scrub": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1790236886,
-        "narHash": "sha256-Pk6kPBJbNfbJ3lBx/dJZ8RHsXMPhYQtYQuHJec8fa/A=",
-        "owner": "rynfar",
-        "repo": "meridian-plugin-hermes-scrub",
-        "rev": "06bbe816d43eef16977f6d96655b2f39b6f97412",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rynfar",
-        "repo": "meridian-plugin-hermes-scrub",
-        "type": "github"
-      }
-    },
-    "meridian-plugin-opencode-scrub": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1792039740,
-        "narHash": "sha256-4CwiOh+0ONQtkfXxqBg6ko0HhAnd6/A5uKX+huoAWMY=",
-        "owner": "rynfar",
-        "repo": "meridian-plugin-opencode-scrub",
-        "rev": "8ecdf1e182688ea509e590703d96b24fc16b2584",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rynfar",
-        "repo": "meridian-plugin-opencode-scrub",
-        "type": "github"
-      }
-    },
-    "meridian-plugin-pi-scrub": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1790836383,
-        "narHash": "sha256-2stJ78W2ygiFWaLyr0Na8fOw2szZQ+tBEfpRBrtEZXY=",
-        "owner": "rynfar",
-        "repo": "meridian-plugin-pi-scrub",
-        "rev": "188115f355f423cbff50b20a2e5fd7d932ec1746",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rynfar",
-        "repo": "meridian-plugin-pi-scrub",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1791594108,
@@ -108,9 +60,6 @@
       "inputs": {
         "flake-parts": "flake-parts",
         "home-manager": "home-manager",
-        "meridian-plugin-hermes-scrub": "meridian-plugin-hermes-scrub",
-        "meridian-plugin-opencode-scrub": "meridian-plugin-opencode-scrub",
-        "meridian-plugin-pi-scrub": "meridian-plugin-pi-scrub",
         "nixpkgs": "nixpkgs",
         "systems": "systems"
       }

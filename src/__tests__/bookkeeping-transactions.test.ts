@@ -615,6 +615,7 @@ it("measures three competing Node writers and bounds lock starvation by the admi
     expiryMs: number
     heartbeat: AdmissionHeartbeat
     maxAdmissionMs: number
+    maxWriteMs: number
     timerLagP50: number
     timerLagMax: number
     delayedFraction: number
@@ -631,7 +632,8 @@ it("measures three competing Node writers and bounds lock starvation by the admi
       expect(rejection.name).toBe("SessionLifecycleLockError")
       expect(rejection.waitMs).toBeGreaterThanOrEqual(row.admissionBudgetMs)
     }
-    // Includes scheduler jitter and the short synchronous transaction after admission.
+    // Admission ends at callback entry. COMMIT/fsync time is recorded separately;
+    // it is not an extension of the busy/FIFO admission budget.
     expect(row.maxAdmissionMs).toBeLessThanOrEqual(row.admissionBudgetMs + 100)
     expect(row.rejectionFraction).toBe(row.rejected / 250)
     assertAdmissionHeartbeat(row.heartbeat)

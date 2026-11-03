@@ -41,12 +41,17 @@ values = {
 }
 # Serialize fixed values into a Nix string consumed by fromJSON. No shell eval.
 nix_values = json.dumps(json.dumps(values, ensure_ascii=False), ensure_ascii=False)
+# The current module takes the flake as `self`; earlier baselines take the
+# package set `services.meridian.package` defaults from.
 expression = f'''let
   flake = builtins.getFlake {json.dumps('path:' + args.flake)};
   pkgs = import flake.inputs.nixpkgs {{ system = builtins.currentSystem; }};
+  module = import (builtins.toPath {json.dumps(args.module)});
   config = (flake.inputs.home-manager.lib.homeManagerConfiguration {{
     inherit pkgs;
-    modules = [ (import (builtins.toPath {json.dumps(args.module)}) {{ meridian = pkgs.emptyDirectory; }}) {{
+    modules = (if builtins.functionArgs module ? self
+      then [ (module {{ self = flake; }}) {{ services.meridian.package = pkgs.emptyDirectory; }} ]
+      else [ (module {{ meridian = pkgs.emptyDirectory; }}) ]) ++ [ {{
       home.username = "meridian-test";
       home.homeDirectory = "/home/meridian-test";
       home.stateVersion = "25.11";

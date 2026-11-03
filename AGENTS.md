@@ -6,6 +6,7 @@ Meridian bridges supported coding clients to Claude through the Agent SDK and to
 
 Continue authorized implementation through relevant verification, corrections, and a PR. Preserve the user's checkout; use an isolated feature branch from current `origin/main`. Do not push directly to main. An instruction cleanup or typo fix does not start the contributor backlog, run live model calls, or publish a release.
 
+- The spec graph is the ground truth for intent and boundaries: `goal-and-requirements.md` (root), `ARCHITECTURE.md`, `DESIGN.md`, the [API contract](.agents/references/api-contract.md) and one spec per module, listed with paths in the *Module specs* table of `ARCHITECTURE.md`. Read the spec that owns the area before changing it; a change that alters a boundary, contract, invariant or decision updates that spec in the same PR. Record rationale there, not in code comments.
 - Use `ARCHITECTURE.md` for module and dependency changes, `DESIGN.md` for user-facing UI/brand changes, and `E2E.md` for affected-client live verification.
 - Use [meridian-upstream-review](.agents/skills/meridian-upstream-review/SKILL.md) for contributor review or authorized release work. Read `docs/maintenance/REVIEW_HANDOFF.md` only when continuing that work; refresh live GitHub status before relying on a dated checkpoint.
 - Use [meridian-backlog](.agents/skills/meridian-backlog/SKILL.md) for an authorized PR/issue queue across Meridian and the owner's scrub repositories. Use [meridian-evidence](.agents/skills/meridian-evidence/SKILL.md) for adversarial review and proof of a fix, merge, or release.
@@ -22,7 +23,7 @@ Keep agent-specific logic in the adapter boundary. When changing existing specia
 
 Public plugin interfaces require owner approval and an issue before modification; an existing explicit request covering the change supplies approval. Consult [API contract](.agents/references/api-contract.md) when touching exported proxy configuration/lifecycle, session/profile headers, health, messages or profile routes. Internal fixes that preserve these interfaces do not require new approval.
 
-Changes to `flake.nix`, anything under `nix/`, or the dependencies in `package.json` and `bun.lock` follow [Nix packaging](.agents/references/nix-packaging.md). A dependency change also updates the hash in `nix/pkgs/meridian/node_modules.nix`.
+Changes to `flake.nix`, anything under `nix/`, or the dependencies in `package.json` and `bun.lock` follow [Nix packaging](.agents/references/nix-packaging.md). A dependency change also updates the hash in `nix/pkgs/meridian/node_modules.nix`, and raising the `@anthropic-ai/claude-code` floor also runs `nix/pkgs/claude-code/update.sh`.
 
 UI uses `DESIGN.md`, color tokens from `themeCss` in `src/telemetry/profileBar.ts`, and the shared `profileBarCss/Html/Js` header. Pages do not set their own body background. Blue `--accent` means interactive/active; violet `--accent2` means code/meta/secondary brand.
 

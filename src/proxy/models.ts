@@ -1246,17 +1246,35 @@ export async function readClaudeVersion(path: string, timeoutMs = CLAUDE_VERSION
 function packagedVersion(binary: string): string | null {
   // The bundled binary sits in the package's bin/; a platform package's at its root.
   for (const pkgJson of [join(dirname(binary), "package.json"), join(dirname(binary), "..", "package.json")]) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgJson, "utf8")) as { name?: unknown; version?: unknown }
-      if (typeof pkg.name === "string" && pkg.name.startsWith("@anthropic-ai/claude-code") && typeof pkg.version === "string") {
-        return pkg.version
-      }
-    } catch {
-      // No package here; try the parent.
-      continue
-    }
+    const version = claudeCodePackageVersion(pkgJson)
+    if (version) return version
   }
   return null
+}
+
+function claudeCodePackageVersion(pkgJson: string): string | null {
+  try {
+    const pkg = JSON.parse(readFileSync(pkgJson, "utf8")) as { name?: unknown; version?: unknown }
+    if (typeof pkg.name === "string" && pkg.name.startsWith("@anthropic-ai/claude-code") && typeof pkg.version === "string") {
+      return pkg.version
+    }
+  } catch {
+    // No readable Claude Code package here.
+    return null
+  }
+  return null
+}
+
+/** The version of the `@anthropic-ai/claude-code` package installed with Meridian, or null when it cannot be read. */
+export function bundledClaudeCodeVersion(resolvePackage: ResolverDeps["resolvePackage"] = DEFAULT_DEPS.resolvePackage): string | null {
+  let pkgJson: string
+  try {
+    pkgJson = resolvePackage("@anthropic-ai/claude-code/package.json")
+  } catch {
+    // Not installed beside Meridian (e.g. a stripped single-file build).
+    return null
+  }
+  return claudeCodePackageVersion(pkgJson)
 }
 
 export interface ClaudeExecutableCandidate {

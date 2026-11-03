@@ -1,0 +1,131 @@
+{
+  "head": "9b54e3101f06dc4d3096a82a325e38c8d1a3bf36",
+  "archiveSHA256": "cb41315434725c218a9a67d2e6707cad1ee6f7d982d20a48adf919fcb2e8e6b1",
+  "members": [
+    {
+      "path": "after-http.json",
+      "bytes": 1464,
+      "SHA256": "b15b8a36087d0b010becc9c7804844366f660b714ec57707e87f0c67eea1868d"
+    },
+    {
+      "path": "after-http.log",
+      "bytes": 2921,
+      "SHA256": "81f622f42c3cf33e7d4f5e13e70f380f937494611e5f7bb4cbecca70917dccee"
+    },
+    {
+      "path": "before-http.json",
+      "bytes": 1470,
+      "SHA256": "5f42865919d56ad792c075486403ef3164f26c7a8172e5e58f9823ffd2440818"
+    },
+    {
+      "path": "before-http.log",
+      "bytes": 2927,
+      "SHA256": "e352e93b83807e6097375bee7fb10665bf88819fee77f39bc5ad28d05d79a033"
+    },
+    {
+      "path": "ci-current.json",
+      "bytes": 3620,
+      "SHA256": "f77f517964bcd483786b3ab63a9b8a9f10447e00ed5e7bcda8607bbcca262957"
+    },
+    {
+      "path": "final-build.log",
+      "bytes": 2867,
+      "SHA256": "52fd75b8c7fbecd8a961bbec5cc79393bd1223360bdd71785cff5db28dc6c32e"
+    },
+    {
+      "path": "final-composition.json",
+      "bytes": 699,
+      "SHA256": "0197a7d6aced588d44406f9099c92bb96513d4dbf62d69368db01c93fd74bdc0"
+    },
+    {
+      "path": "final-counts.json",
+      "bytes": 62,
+      "SHA256": "184c199b33648da8615e0d7992ae538d7b26962af69ec02b01480a3683e9e86d"
+    },
+    {
+      "path": "final-full.log",
+      "bytes": 1544625,
+      "SHA256": "d3de8488fec0836c91cdd9fdfc11b88e24dd4342b8d3907d6d4d88046816e968"
+    },
+    {
+      "path": "final-local.json",
+      "bytes": 430,
+      "SHA256": "7763c5c60594acc9eb7cada8da9e22f55915ed18eeb6af444c58c797c9812bcf"
+    },
+    {
+      "path": "final-typecheck.log",
+      "bytes": 53,
+      "SHA256": "829e3a9ec1a8b50ffcaf2cf97a3e3c857ce29f5ed30343aca263f4f549b602ac"
+    },
+    {
+      "path": "focused-adjacent.log",
+      "bytes": 9776,
+      "SHA256": "e772f3b46e8f0cb4c0f96c058eca72e09fcb2d66aabd3465aadc3e4d9879358c"
+    },
+    {
+      "path": "focused-r1.log",
+      "bytes": 2670,
+      "SHA256": "2ee6a6071c25a85c619115153729dbb590e6fe6c920aacf5534982d7f6c3c0ca"
+    },
+    {
+      "path": "http-before-after.json",
+      "bytes": 2504,
+      "SHA256": "47bc076ff07983e3527babb6e24984b7d5fd5652795d765d97a7212c1999c238"
+    },
+    {
+      "path": "http-setup-failure.mjs",
+      "bytes": 7360,
+      "SHA256": "5dfead92b82f75b9aac6bded85b6b7ab4f4e4d1c3736f88f472beb9e9ea75ff7"
+    },
+    {
+      "path": "initial-after-http.json",
+      "bytes": 1464,
+      "SHA256": "91c2dd58fd131efc8f9fc8354371e1b71727ec6d3ce5feb25031c48352874dc2"
+    },
+    {
+      "path": "initial-after-http.log",
+      "bytes": 2921,
+      "SHA256": "d9484cb5cc758bbefbaac2b82e12d74e32dc9fd6a7ba8c6f7c624979d6bd6753"
+    },
+    {
+      "path": "initial-before-http.json",
+      "bytes": 1470,
+      "SHA256": "c162b8407d2f482c24c9dc29a459d50af47081639136509aaf317d2ce1723723"
+    },
+    {
+      "path": "initial-before-http.log",
+      "bytes": 2927,
+      "SHA256": "6030ce66ba0f09bed7e19c617a03848c42181e3475b9d8f403d4a5f933c56d57"
+    },
+    {
+      "path": "initial-http-before-after.json",
+      "bytes": 2515,
+      "SHA256": "3a94ba9459220ecdc0d32848a0b894e55c39dac36e6ca1f91f97bd260bf91631"
+    },
+    {
+      "path": "r1-bounded-shutdown.json",
+      "bytes": 664,
+      "SHA256": "1a56d9536b35f09d6f6eb987519c57b7df742676cc25393a138b0279992c94f1"
+    },
+    {
+      "path": "run-final.py",
+      "bytes": 1833,
+      "SHA256": "34896bb4a7c23383984bc796fe6927ec18b4ef5e1b2ac08ec651851e11b47e92"
+    },
+    {
+      "path": "signatures.json",
+      "bytes": 1349,
+      "SHA256": "f103877c9b7a1fece6c05f3bd2d4df62868fcae452deb3198c0279f77d769a82"
+    },
+    {
+      "path": "typecheck-initial.log",
+      "bytes": 53,
+      "SHA256": "829e3a9ec1a8b50ffcaf2cf97a3e3c857ce29f5ed30343aca263f4f549b602ac"
+    },
+    {
+      "path": "workspace.json",
+      "bytes": 503,
+      "SHA256": "6cb27b39e9351593227be192d5abb776ab5212d822d14f81f9ddce28baa5edbc"
+    }
+  ]
+}

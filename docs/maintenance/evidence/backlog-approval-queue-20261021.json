@@ -1,0 +1,424 @@
+{
+  "at": "2026-10-21T16:23:18.809561+00:00",
+  "account": "rynfar",
+  "accessibleRepositories": 165,
+  "documentationLinkedScrubRepos": [
+    "rynfar/meridian-plugin-hermes-scrub",
+    "rynfar/meridian-plugin-openclaw-scrub",
+    "rynfar/meridian-plugin-opencode-scrub",
+    "rynfar/meridian-plugin-pi-scrub"
+  ],
+  "managed": [
+    {
+      "repository": "rynfar/hudscrub",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [],
+      "issues": []
+    },
+    {
+      "repository": "rynfar/meridian",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [
+        {
+          "number": 1438,
+          "title": "chore(main): release meridian 1.86.0",
+          "url": "https://github.com/rynfar/meridian/pull/1438",
+          "head": "e140780f654e941041961ad60218e7e8ef11b2df",
+          "branch": "release-please--branches--main--components--meridian",
+          "author": "github-actions[bot]",
+          "draft": false,
+          "createdAt": "2026-10-21T10:12:34Z",
+          "updatedAt": "2026-10-21T16:17:32Z"
+        },
+        {
+          "number": 1429,
+          "title": "feat: list and redeem Claude banked resets",
+          "url": "https://github.com/rynfar/meridian/pull/1429",
+          "head": "d4e61289bb8a6938a744a390603d6ee0f9fec7cd",
+          "branch": "feat/claude-banked-resets",
+          "author": "materemias",
+          "draft": false,
+          "createdAt": "2026-10-20T10:33:09Z",
+          "updatedAt": "2026-10-20T11:38:45Z"
+        },
+        {
+          "number": 1410,
+          "title": "fix(passthrough): share built tool definitions between sessions",
+          "url": "https://github.com/rynfar/meridian/pull/1410",
+          "head": "45c25a2cd3031aa6a060a5012a7e740ebcfe1e29",
+          "branch": "fix/shared-passthrough-definitions",
+          "author": "Nowaker",
+          "draft": false,
+          "createdAt": "2026-10-18T23:33:23Z",
+          "updatedAt": "2026-10-20T13:34:51Z"
+        },
+        {
+          "number": 1408,
+          "title": "feat: add the Meridian Pi extension and meridian setup --client pi",
+          "url": "https://github.com/rynfar/meridian/pull/1408",
+          "head": "0fa93319cc75191ac70b228490de34526a669d3f",
+          "branch": "feat/pi-extension",
+          "author": "nateberkopec",
+          "draft": true,
+          "createdAt": "2026-10-18T22:20:46Z",
+          "updatedAt": "2026-10-18T22:20:46Z"
+        },
+        {
+          "number": 1402,
+          "title": "feat(proxy): opt-in auto permission mode for the SDK subprocess (#1390)",
+          "url": "https://github.com/rynfar/meridian/pull/1402",
+          "head": "e2070fc2d6ed3d89fab9f71122eba2ff7d66872e",
+          "branch": "feat/sdk-permission-mode",
+          "author": "Noah-Silvera",
+          "draft": true,
+          "createdAt": "2026-10-16T20:43:26Z",
+          "updatedAt": "2026-10-16T20:46:32Z"
+        },
+        {
+          "number": 1400,
+          "title": "fix(routing): fail over a model whose allowance is spent without benching the whole account",
+          "url": "https://github.com/rynfar/meridian/pull/1400",
+          "head": "ec7e0a15ebf913329b47ac31b75ec69f17ad26f7",
+          "branch": "dex/model-allowance-failover",
+          "author": "passabilities",
+          "draft": false,
+          "createdAt": "2026-10-16T19:29:36Z",
+          "updatedAt": "2026-10-21T11:59:07Z"
+        },
+        {
+          "number": 1399,
+          "title": "fix(session): let session cleanup keep up with the transcripts turns leave",
+          "url": "https://github.com/rynfar/meridian/pull/1399",
+          "head": "644deec8dcb1d171e9e0153be13d6b31305c7fd7",
+          "branch": "dex/session-cleanup-throughput",
+          "author": "passabilities",
+          "draft": false,
+          "createdAt": "2026-10-16T19:29:34Z",
+          "updatedAt": "2026-10-21T11:59:04Z"
+        },
+        {
+          "number": 1396,
+          "title": "fix(claude-code): resume tool rounds after a one-request system reminder",
+          "url": "https://github.com/rynfar/meridian/pull/1396",
+          "head": "8c02fffbea2097bfe73046fc4917260489738cf2",
+          "branch": "dex/system-turn-lineage",
+          "author": "passabilities",
+          "draft": false,
+          "createdAt": "2026-10-16T19:29:27Z",
+          "updatedAt": "2026-10-21T10:56:30Z"
+        },
+        {
+          "number": 1359,
+          "title": "feat: add detached CLI startup and graceful stop",
+          "url": "https://github.com/rynfar/meridian/pull/1359",
+          "head": "694df9fd46f484ba60458df4338ddb767b4646d2",
+          "branch": "codex/detached-cli-1302-20261012",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-10-12T23:24:30Z",
+          "updatedAt": "2026-10-13T05:56:54Z"
+        },
+        {
+          "number": 1347,
+          "title": "fix: prefer included capacity before paid overage in priority routing",
+          "url": "https://github.com/rynfar/meridian/pull/1347",
+          "head": "3103a6efe8408d52dc3b75b27915c9d079c72797",
+          "branch": "codex/priority-routing-1338-20261012",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-10-12T17:37:20Z",
+          "updatedAt": "2026-10-13T01:18:03Z"
+        },
+        {
+          "number": 1340,
+          "title": "fix(antigravity): warn once on a completed replay-tail call",
+          "url": "https://github.com/rynfar/meridian/pull/1340",
+          "head": "bd5808f30aa2228998c3a665118383250c43022e",
+          "branch": "fix/agy-replay-repeat-guard",
+          "author": "Cd1s",
+          "draft": false,
+          "createdAt": "2026-10-11T21:54:03Z",
+          "updatedAt": "2026-10-21T10:18:55Z"
+        },
+        {
+          "number": 1322,
+          "title": "fix: preserve Claude working checkpoints across native side calls",
+          "url": "https://github.com/rynfar/meridian/pull/1322",
+          "head": "0101f6ab1a1161f5deef81c4fc3f1bf47bacc9d6",
+          "branch": "codex/claude-sidecalls-stack-1292-20261008",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-10-09T03:50:50Z",
+          "updatedAt": "2026-10-13T08:28:24Z"
+        },
+        {
+          "number": 1317,
+          "title": "fix: bound Antigravity history recaps and preserve current requests",
+          "url": "https://github.com/rynfar/meridian/pull/1317",
+          "head": "cd6b31a752e2f2d20240fee1e63ea46a39830dd9",
+          "branch": "codex/agy-history-1314-20261008",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-10-08T22:20:29Z",
+          "updatedAt": "2026-10-13T08:28:20Z"
+        },
+        {
+          "number": 1314,
+          "title": "fix: keep the latest user request in focus on long Antigravity histories",
+          "url": "https://github.com/rynfar/meridian/pull/1314",
+          "head": "5c96dd307cb668e611725e9d33dd90211a68bb68",
+          "branch": "claude/clever-sagan-id1hsx",
+          "author": "Cd1s",
+          "draft": false,
+          "createdAt": "2026-10-08T09:44:47Z",
+          "updatedAt": "2026-10-21T06:13:23Z"
+        },
+        {
+          "number": 1266,
+          "title": "fix: explain denied process identity probes without weakening locks",
+          "url": "https://github.com/rynfar/meridian/pull/1266",
+          "head": "d9594af2505a2938ed0ac051fe13a8c9bb49917f",
+          "branch": "codex/process-diagnostics-1229-20261004",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-10-04T21:24:34Z",
+          "updatedAt": "2026-10-08T05:45:34Z"
+        },
+        {
+          "number": 1261,
+          "title": "fix: delete old Claude Code transcripts again",
+          "url": "https://github.com/rynfar/meridian/pull/1261",
+          "head": "ec2e235da954e04eb56a9d9fe4b07c0a11eef63d",
+          "branch": "pr/transcript-retention",
+          "author": "Nowaker",
+          "draft": false,
+          "createdAt": "2026-10-04T12:04:02Z",
+          "updatedAt": "2026-10-21T14:19:46Z"
+        },
+        {
+          "number": 1220,
+          "title": "fix(session): stop session store writes from freezing the proxy",
+          "url": "https://github.com/rynfar/meridian/pull/1220",
+          "head": "92222508248478a1e1e647209c0b99f49deec63a",
+          "branch": "fix/async-durable-store-writes",
+          "author": "Nowaker",
+          "draft": false,
+          "createdAt": "2026-10-01T20:04:09Z",
+          "updatedAt": "2026-10-21T04:47:58Z"
+        },
+        {
+          "number": 1193,
+          "title": "feat: optional prompt-cache keepalive for idle sessions",
+          "url": "https://github.com/rynfar/meridian/pull/1193",
+          "head": "7c9308968f760119e1b9f3ba8d74497af39d4a85",
+          "branch": "feat/cache-keepalive",
+          "author": "XInTheDark",
+          "draft": false,
+          "createdAt": "2026-09-29T13:17:10Z",
+          "updatedAt": "2026-10-20T15:48:02Z"
+        },
+        {
+          "number": 1050,
+          "title": "test: investigate subscription-backed Antigravity CLI bridge",
+          "url": "https://github.com/rynfar/meridian/pull/1050",
+          "head": "72c1ca91105a595b37dcf3e201cb93e523a8381f",
+          "branch": "research/antigravity-cli",
+          "author": "rynfar",
+          "draft": true,
+          "createdAt": "2026-09-18T17:07:46Z",
+          "updatedAt": "2026-09-18T17:07:46Z"
+        }
+      ],
+      "issues": [
+        {
+          "number": 1439,
+          "title": "Claude account banned / blocked when routing requests through Meridian on server deployment",
+          "url": "https://github.com/rynfar/meridian/issues/1439",
+          "author": "xiao98",
+          "createdAt": "2026-10-21T10:39:20Z",
+          "updatedAt": "2026-10-21T10:39:20Z",
+          "labels": []
+        },
+        {
+          "number": 1390,
+          "title": "feat: allow configuring Claude SDK subprocess permission mode (auto for OpenCode clients)",
+          "url": "https://github.com/rynfar/meridian/issues/1390",
+          "author": "Noah-Silvera",
+          "createdAt": "2026-10-16T16:12:34Z",
+          "updatedAt": "2026-10-20T06:09:41Z",
+          "labels": []
+        },
+        {
+          "number": 1338,
+          "title": "Priority routing keeps using a profile on paid overage while other profiles still have included volume",
+          "url": "https://github.com/rynfar/meridian/issues/1338",
+          "author": "paulkolle",
+          "createdAt": "2026-10-11T15:25:22Z",
+          "updatedAt": "2026-10-11T15:27:55Z",
+          "labels": []
+        },
+        {
+          "number": 1311,
+          "title": "Feature: client-neutral agent role/name headers for Pi integrations",
+          "url": "https://github.com/rynfar/meridian/issues/1311",
+          "author": "nateberkopec",
+          "createdAt": "2026-10-08T01:20:38Z",
+          "updatedAt": "2026-10-08T01:20:38Z",
+          "labels": []
+        },
+        {
+          "number": 1302,
+          "title": "Feature request: detached start and stop commands for programmatic auto-start",
+          "url": "https://github.com/rynfar/meridian/issues/1302",
+          "author": "Blankeos",
+          "createdAt": "2026-10-07T16:33:52Z",
+          "updatedAt": "2026-10-07T16:33:52Z",
+          "labels": []
+        },
+        {
+          "number": 1229,
+          "title": "macOS/nono.sh: process-incarnation capture fails on setuid /bin/ps",
+          "url": "https://github.com/rynfar/meridian/issues/1229",
+          "author": "kalelkenobi",
+          "createdAt": "2026-10-01T21:15:24Z",
+          "updatedAt": "2026-10-01T21:15:39Z",
+          "labels": []
+        },
+        {
+          "number": 1094,
+          "title": "opencode: unpin v2 version",
+          "url": "https://github.com/rynfar/meridian/issues/1094",
+          "author": "lungsin",
+          "createdAt": "2026-09-21T16:12:13Z",
+          "updatedAt": "2026-10-21T15:39:27Z",
+          "labels": []
+        },
+        {
+          "number": 1073,
+          "title": "Subscription-backed Antigravity and unified provider experience",
+          "url": "https://github.com/rynfar/meridian/issues/1073",
+          "author": "rynfar",
+          "createdAt": "2026-09-19T02:52:31Z",
+          "updatedAt": "2026-09-19T18:53:15Z",
+          "labels": []
+        },
+        {
+          "number": 1011,
+          "title": "Land the two passthrough commits held back from #980",
+          "url": "https://github.com/rynfar/meridian/issues/1011",
+          "author": "rynfar",
+          "createdAt": "2026-09-10T21:04:46Z",
+          "updatedAt": "2026-09-11T14:40:49Z",
+          "labels": []
+        },
+        {
+          "number": 933,
+          "title": "npm test is flaky on CI (~1 in 3 runs) and blocked the 1.67.0 npm publish",
+          "url": "https://github.com/rynfar/meridian/issues/933",
+          "author": "rynfar",
+          "createdAt": "2026-09-04T09:50:00Z",
+          "updatedAt": "2026-09-26T07:38:11Z",
+          "labels": []
+        },
+        {
+          "number": 769,
+          "title": "Official OpenClaw scrub plugin (meridian-plugin-openclaw-scrub) \u2014 follow-up to #495",
+          "url": "https://github.com/rynfar/meridian/issues/769",
+          "author": "chris2k20",
+          "createdAt": "2026-08-07T12:40:44Z",
+          "updatedAt": "2026-09-26T07:36:22Z",
+          "labels": []
+        },
+        {
+          "number": 650,
+          "title": "Wire event-driven plugin-input bumps (repository_dispatch from plugin repos)",
+          "url": "https://github.com/rynfar/meridian/issues/650",
+          "author": "rynfar",
+          "createdAt": "2026-07-17T17:49:40Z",
+          "updatedAt": "2026-07-17T18:06:17Z",
+          "labels": []
+        }
+      ]
+    },
+    {
+      "repository": "rynfar/meridian-plugin-hermes-scrub",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [],
+      "issues": []
+    },
+    {
+      "repository": "rynfar/meridian-plugin-openclaw-scrub",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [],
+      "issues": []
+    },
+    {
+      "repository": "rynfar/meridian-plugin-opencode-scrub",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [
+        {
+          "number": 20,
+          "title": "chore(main): release meridian-plugin-opencode-scrub 0.3.0",
+          "url": "https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/20",
+          "head": "8f58c474f4fd9ee18ea9a1a1dd65360d49939e6f",
+          "branch": "release-please--branches--main--components--meridian-plugin-opencode-scrub",
+          "author": "github-actions[bot]",
+          "draft": false,
+          "createdAt": "2026-10-01T07:53:08Z",
+          "updatedAt": "2026-10-15T04:46:24Z"
+        }
+      ],
+      "issues": []
+    },
+    {
+      "repository": "rynfar/meridian-plugin-pi-scrub",
+      "archived": false,
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true
+      },
+      "pullRequests": [
+        {
+          "number": 15,
+          "title": "chore(main): release meridian-plugin-pi-scrub 0.2.3",
+          "url": "https://github.com/rynfar/meridian-plugin-pi-scrub/pull/15",
+          "head": "f650e9269a8adcdd31368527ab798473e5f73b29",
+          "branch": "release-please--branches--main--components--meridian-plugin-pi-scrub",
+          "author": "github-actions[bot]",
+          "draft": false,
+          "createdAt": "2026-10-01T06:33:17Z",
+          "updatedAt": "2026-10-01T06:33:18Z"
+        }
+      ],
+      "issues": []
+    }
+  ],
+  "gaps": [],
+  "accessibleOrganizationCount": 3
+}

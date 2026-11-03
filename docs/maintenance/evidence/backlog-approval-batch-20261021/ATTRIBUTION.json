@@ -1,0 +1,53 @@
+{
+  "summary": {
+    "repo": "rynfar/meridian",
+    "main": "c84af243708578c0f15c92acad90fa68e364aaa9",
+    "generatedAt": "2026-10-21T16:19:54.579Z",
+    "outsidePullRequests": 342,
+    "merged": 90,
+    "open": 12,
+    "relandedUnderMaintainer": 137,
+    "relandedWithoutTrailer": 0,
+    "closedForMaintainerPr": 20,
+    "closedForMaintainerPrWithoutTrailer": 19,
+    "landedAsAuthorPrClosed": 43,
+    "mergedButMaintainerAuthor": 0,
+    "closedNotLanded": 40,
+    "closedNotLandedByOwnerWithoutComment": 4,
+    "authorshipStatements": 52,
+    "unmappedForeignCommits": 1
+  },
+  "newContributions": [
+    {
+      "number": 1426,
+      "author": "alexgleason",
+      "title": "feat: read x-session-id as conversation identity on /v1/chat/completions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1440,
+      "author": "Nowaker",
+      "title": "fix(chatgpt): release a turn that fails before reaching the backend",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    }
+  ],
+  "legacyRelandsUnchanged": 137,
+  "newMaintainerRelands": 0,
+  "source": "Fresh full paginated GitHub snapshot and independent bare main/PR graph; original checkout not moved",
+  "unmapped": [
+    {
+      "via": 1209,
+      "landed": "0f2a4a541b3b7b14022317ecd9ffe14c149b8f1d",
+      "commit": "5f488d8ee7950babf60eb7e299cb2999f6a5cdc1",
+      "name": "Nate Berkopec"
+    }
+  ]
+}

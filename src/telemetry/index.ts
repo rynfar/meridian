@@ -1,8 +1,8 @@
 import { configPath } from "../configDir"
-import { env, envInt, envBool } from "../env"
+import { env, envBool, envInt, envIntValue, envSource, type EnvSource } from "../env"
 import { getSetting } from "../settings"
-import { MemoryTelemetryStore, resolveTelemetryCapacity } from "./store"
-import { MemoryDiagnosticLogStore, resolveDiagnosticLogCapacity } from "./logStore"
+import { MemoryTelemetryStore, resolveTelemetryCapacity, telemetryCapacityFromEnv } from "./store"
+import { diagnosticLogCapacityFromEnv, MemoryDiagnosticLogStore, resolveDiagnosticLogCapacity } from "./logStore"
 import type { ITelemetryStore, IDiagnosticLogStore, ResolvedTelemetryConfig } from "./types"
 
 /**
@@ -50,6 +50,43 @@ export function resolveTelemetryConfig(): ResolvedTelemetryConfig {
     retentionDays: envInt("TELEMETRY_RETENTION_DAYS", getSetting("telemetryRetentionDays") ?? 7),
     telemetrySize: resolveTelemetryCapacity(),
     diagnosticLogSize: resolveDiagnosticLogCapacity(),
+  }
+}
+
+/**
+ * How a set env var took part in resolveTelemetryConfig:
+ *   `value`   its value is what the setting resolves to
+ *   `default` it is not a usable value, so the built-in default applies and
+ *             the saved setting stays outranked
+ *   `ignored` it is empty or not a number, so resolution went on as though it
+ *             were unset (the saved setting, else the default)
+ */
+export type TelemetryEnvUse = "value" | "default" | "ignored"
+
+export interface TelemetryEnvSource extends EnvSource {
+  use: TelemetryEnvUse
+}
+
+function withUse(source: EnvSource | null, use: TelemetryEnvUse): TelemetryEnvSource | null {
+  return source ? { ...source, use } : null
+}
+
+function capacityUse(fromEnv: number | null | undefined): TelemetryEnvUse {
+  if (fromEnv === undefined) return "ignored"
+  return fromEnv === null ? "default" : "value"
+}
+
+/**
+ * The env var behind each telemetry setting resolveTelemetryConfig reads, for
+ * the settings page to name, judged by the same parse each resolver uses.
+ */
+export function telemetryEnvSources(): Record<"telemetryPersist" | "telemetryRetentionDays" | "telemetrySize" | "diagnosticLogSize", TelemetryEnvSource | null> {
+  return {
+    telemetryPersist: withUse(envSource("TELEMETRY_PERSIST"), "value"),
+    telemetryRetentionDays: withUse(envSource("TELEMETRY_RETENTION_DAYS"),
+      envIntValue("TELEMETRY_RETENTION_DAYS") === undefined ? "ignored" : "value"),
+    telemetrySize: withUse(envSource("TELEMETRY_SIZE"), capacityUse(telemetryCapacityFromEnv())),
+    diagnosticLogSize: withUse(envSource("DIAGNOSTIC_LOG_SIZE"), capacityUse(diagnosticLogCapacityFromEnv())),
   }
 }
 

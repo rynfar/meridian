@@ -204,7 +204,9 @@ try {
     assert.equal(code, 0, `${label}: OpenCode exit ${code}; see ${root}/${label}.stderr`)
     return stdout
   }
-  const primaryRows = () => observed.filter(row => row.path === '/v1/messages' && row.agent === 'build' && row.mode === 'primary' && row.source !== 'subagent-compaction')
+  // fork-compaction since #1448; subagent-compaction from an older V2 plugin.
+  const isCompaction = row => row.source === 'fork-compaction' || row.source === 'subagent-compaction'
+  const primaryRows = () => observed.filter(row => row.path === '/v1/messages' && row.agent === 'build' && row.mode === 'primary' && !isCompaction(row))
 
   await runClient('turn-1', ['--file', join(project, 'archive-1.txt')], 'The attached archive is context only. Reply with exactly ACK-1 and do not call tools.')
   const session = primaryRows()[0]?.session
@@ -221,8 +223,8 @@ try {
   second = await stopProxy(second)
 
   const replayRows = observed.slice(beforeReplay).filter(row => row.path === '/v1/messages')
-  const replay = replayRows.filter(row => row.agent === 'build' && row.mode === 'primary' && row.source !== 'subagent-compaction' && row.session === session).at(-1)
-  const compactions = observed.filter(row => row.source === 'subagent-compaction')
+  const replay = replayRows.filter(row => row.agent === 'build' && row.mode === 'primary' && !isCompaction(row) && row.session === session).at(-1)
+  const compactions = observed.filter(isCompaction)
   const usage = (second.requests ?? []).map(row => ({
     model: row.model, requestModel: row.requestModel, status: row.status ?? row.statusCode, lineage: row.lineageType,
     input: (row.inputTokens ?? 0) + (row.cacheReadInputTokens ?? 0) + (row.cacheCreationInputTokens ?? 0),

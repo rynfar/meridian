@@ -14,4 +14,4 @@ Items identified during architectural refactor planning that are intentionally d
 
 ## Feature Enhancements
 7. **`prepareMessages` / prompt builder extraction** — Centralize Anthropic messages → text prompt conversion. Fits into adapter pattern as `preparePrompt()`.
-8. **`maxTurns` configurability** — Currently hardcoded to 200. Should be configurable via env var or adapter config.
+8. **Native-mode `maxTurns` configurability** — Native (non-passthrough) SDK mode still hardcodes 200. Passthrough already computes its own budget (`computePassthroughMaxTurns` in `query.ts`: 1 by default, lifted for deferred tools, advisors, structured output or the early-stop kill switch) and can be pinned with `MERIDIAN_PASSTHROUGH_MAX_TURNS`. Native mode should get an equivalent env var or adapter config.

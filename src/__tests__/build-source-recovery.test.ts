@@ -68,6 +68,7 @@ function finiteTermResistantGit() {
   writeFileSync(join(bin, "git"), `#!/bin/sh
 trap '' TERM
 printf '{"pid":%s,"args":[]}\\n' "$$" >> ${quotedLog}
+printf 'READY\\n'
 exec /bin/sleep 1.5
 `)
   chmodSync(join(bin, "git"), 0o755)
@@ -176,10 +177,19 @@ console.log(JSON.stringify({rejected,elapsed:performance.now()-start}));`, fake.
   }, 12000)
   test("TERM-resistant finite Git cannot turn a timeout into clean success", () => {
     const fake = finiteTermResistantGit()
-    const control = probe(`import {spawnSync} from 'node:child_process';
-const start=performance.now(); const result=spawnSync('git',[],{timeout:400,killSignal:'SIGTERM'});
-console.log(JSON.stringify({status:result.status,elapsed:performance.now()-start}));`, fake.env)
+    // A default-SIGTERM control needs its ignored disposition installed first.
+    // Host scheduling before the shell's trap is not the timeout behavior under test.
+    const control = probe(`import {spawn} from 'node:child_process';
+import {once} from 'node:events';
+const child=spawn('git',[],{stdio:['ignore','pipe','pipe']});
+const closed=once(child,'close');let output='';child.stderr.resume();
+const ready=new Promise((resolve,reject)=>{child.once('error',reject);child.stdout.on('data',chunk=>{output+=chunk;if(output.includes('READY\\n'))resolve();});closed.then(()=>reject(Error('fixture exited before readiness')));});
+const limit=setTimeout(()=>child.kill('SIGKILL'),5000);let term;
+try{await ready;const start=performance.now();term=setTimeout(()=>child.kill('SIGTERM'),400);const[status,signal]=await closed;console.log(JSON.stringify({status,signal,elapsed:performance.now()-start,ready:true}));}
+finally{clearTimeout(term);clearTimeout(limit);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await closed;}}`, fake.env)
+    expect(control.ready).toBe(true)
     expect(control.status).toBe(0)
+    expect(control.signal).toBeNull()
     expect(control.elapsed).toBeGreaterThanOrEqual(1200)
     const result = probe(`import {gitOutput} from ${JSON.stringify(snapshotModule)};
 const start=performance.now(); let rejected=false; try{gitOutput(${JSON.stringify(scratch)},['rev-parse','HEAD'],400)}catch(error){rejected=error instanceof Error}

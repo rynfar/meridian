@@ -30,6 +30,7 @@ interface TelemetrySettingsResponse {
   wanted: { persist: boolean; retentionDays: number; telemetrySize: number; diagnosticLogSize: number; dbPath: string }
   effective: { kind: string; held: number; capacity?: number; diagnosticLogCapacity: number | null }
   envOverride: Record<string, boolean>
+  envSources: Record<string, { name: string; value: string | null; secret: boolean; use: string } | null>
   pendingRestart: string[]
   supervision: { kind: string; restartCommand: string | null }
   limits: typeof TELEMETRY_SETTING_LIMITS
@@ -45,6 +46,9 @@ describe("telemetry settings routes", () => {
     "MERIDIAN_TELEMETRY_SIZE",
     "MERIDIAN_DIAGNOSTIC_LOG_SIZE",
     "MERIDIAN_TELEMETRY_DB",
+    "CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS",
+    "CLAUDE_PROXY_TELEMETRY_SIZE",
+    "CLAUDE_PROXY_DIAGNOSTIC_LOG_SIZE",
   ]
 
   beforeEach(() => {
@@ -168,6 +172,105 @@ describe("telemetry settings routes", () => {
     expect(body.saved.telemetryRetentionDays).toBe(90)
     expect(body.wanted.retentionDays).toBe(3)
     expect(body.envOverride.telemetryRetentionDays).toBe(true)
+  })
+
+  it("names the variable that outranks a setting and its value, beside the value it resolves to", async () => {
+    setSetting("telemetryRetentionDays", 14)
+    process.env.MERIDIAN_TELEMETRY_RETENTION_DAYS = "30"
+
+    const body = await get()
+    expect(body.envSources.telemetryRetentionDays)
+      .toEqual({ name: "MERIDIAN_TELEMETRY_RETENTION_DAYS", value: "30", secret: false, use: "value" })
+    expect(body.wanted.retentionDays).toBe(30)
+    expect(body.envSources.telemetrySize).toBeNull()
+    expect(body.envSources.telemetryPersist).toBeNull()
+  })
+
+  it("names the legacy CLAUDE_PROXY_ variable when that is the one read", async () => {
+    process.env.CLAUDE_PROXY_TELEMETRY_SIZE = "2500"
+    const body = await get()
+    expect(body.envSources.telemetrySize)
+      .toEqual({ name: "CLAUDE_PROXY_TELEMETRY_SIZE", value: "2500", secret: false, use: "value" })
+    expect(body.wanted.telemetrySize).toBe(2500)
+  })
+
+  it("does not credit a retention variable that is not a number: the saved setting is used", async () => {
+    setSetting("telemetryRetentionDays", 14)
+    process.env.MERIDIAN_TELEMETRY_RETENTION_DAYS = "abc"
+
+    const body = await get()
+    expect(body.wanted.retentionDays).toBe(14)
+    expect(body.envSources.telemetryRetentionDays)
+      .toEqual({ name: "MERIDIAN_TELEMETRY_RETENTION_DAYS", value: "abc", secret: false, use: "ignored" })
+  })
+
+  it("does not credit an empty retention variable: the saved setting is used", async () => {
+    setSetting("telemetryRetentionDays", 14)
+    process.env.MERIDIAN_TELEMETRY_RETENTION_DAYS = ""
+
+    const body = await get()
+    expect(body.wanted.retentionDays).toBe(14)
+    expect(body.envSources.telemetryRetentionDays?.use).toBe("ignored")
+  })
+
+  it("does not credit an empty ring size variable: the saved setting is used", async () => {
+    setSetting("telemetrySize", 3000)
+    process.env.MERIDIAN_TELEMETRY_SIZE = ""
+
+    const body = await get()
+    expect(body.wanted.telemetrySize).toBe(3000)
+    expect(body.envSources.telemetrySize)
+      .toEqual({ name: "MERIDIAN_TELEMETRY_SIZE", value: "", secret: false, use: "ignored" })
+  })
+
+  it("an unusable ring size variable still outranks the saved setting, with the default", async () => {
+    setSetting("telemetrySize", 3000)
+    process.env.MERIDIAN_TELEMETRY_SIZE = "lots"
+
+    const body = await get()
+    expect(body.wanted.telemetrySize).toBe(1000)
+    expect(body.envSources.telemetrySize?.use).toBe("default")
+  })
+
+  it("judges the legacy ring size variable the same way", async () => {
+    setSetting("telemetrySize", 3000)
+    process.env.CLAUDE_PROXY_TELEMETRY_SIZE = ""
+    let body = await get()
+    expect(body.wanted.telemetrySize).toBe(3000)
+    expect(body.envSources.telemetrySize)
+      .toEqual({ name: "CLAUDE_PROXY_TELEMETRY_SIZE", value: "", secret: false, use: "ignored" })
+
+    process.env.CLAUDE_PROXY_TELEMETRY_SIZE = "-5"
+    body = await get()
+    expect(body.wanted.telemetrySize).toBe(1000)
+    expect(body.envSources.telemetrySize?.use).toBe("default")
+  })
+
+  it("an empty or unusable diagnostic log size variable outranks the saved setting with the default", async () => {
+    setSetting("diagnosticLogSize", 2000)
+    process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = ""
+    let body = await get()
+    expect(body.wanted.diagnosticLogSize).toBe(500)
+    expect(body.envSources.diagnosticLogSize?.use).toBe("default")
+
+    process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = "0"
+    body = await get()
+    expect(body.wanted.diagnosticLogSize).toBe(500)
+    expect(body.envSources.diagnosticLogSize?.use).toBe("default")
+
+    process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = "750"
+    body = await get()
+    expect(body.wanted.diagnosticLogSize).toBe(750)
+    expect(body.envSources.diagnosticLogSize?.use).toBe("value")
+  })
+
+  it("an empty persist variable still decides the backend", async () => {
+    setSetting("telemetryPersist", true)
+    process.env.MERIDIAN_TELEMETRY_PERSIST = ""
+
+    const body = await get()
+    expect(body.wanted.persist).toBe(false)
+    expect(body.envSources.telemetryPersist?.use).toBe("value")
   })
 })
 

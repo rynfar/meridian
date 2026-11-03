@@ -245,6 +245,11 @@ export interface QueryContext {
   sharedMemory?: boolean
   /** Run the WebFetch domain safety check (hostname sent to api.anthropic.com) */
   webFetchPreflight?: boolean
+  /** `cleanupPeriodDays` for Claude Code's own retention cleanup, as resolved
+   *  by transcriptRetention.ts. Anything but a positive integer (0 = off, the
+   *  default) passes no period, exactly as before #1261. Required so a new call
+   *  site states its retention instead of silently differing. */
+  transcriptRetentionDays: number
   /** Load the account's claude.ai MCP connectors (ignored in passthrough) */
   claudeAiConnectors?: boolean
   /** Per-request cost cap in USD */
@@ -795,6 +800,11 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
         // the check. `webFetchPreflight` is the positive form the settings
         // UI shows; the SDK setting is the negative one.
         skipWebFetchPreflight: ctx.webFetchPreflight === false,
+        // Opt-in retention (transcriptRetention.ts): only a positive integer
+        // is ever sent; off sends no key at all. See src/proxy/SPEC.md.
+        ...(Number.isSafeInteger(ctx.transcriptRetentionDays) && ctx.transcriptRetentionDays > 0
+          ? { cleanupPeriodDays: ctx.transcriptRetentionDays }
+          : {}),
       },
       // #634/#490: always explicit. Empty array → SDK emits
       // `--setting-sources=` → subprocess loads nothing. Omitting the key

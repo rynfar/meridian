@@ -112,7 +112,7 @@ test("OpenCode 2.0.16 host loads without catalog and keeps model, title, and sig
       await http?.({ sessionID: "ses_root", agent: "build", kind: "compaction",
         model: { providerID: "anthropic" }, request: compaction })
       expect(compaction.headers.get("x-opencode-session")).toBe("ses_root")
-      expect(compaction.headers.get("x-meridian-source")).toBe("subagent-compaction")
+      expect(compaction.headers.get("x-meridian-source")).toBe("fork-compaction")
       expect(compaction.headers.get("x-opencode-agent-mode")).toBe("primary")
       expect(compaction.headers.get(PRIORITY_ATTESTATION_HEADER)).toBeNull()
     } finally {

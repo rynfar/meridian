@@ -19,8 +19,16 @@ export function port(value: unknown): number {
   if (!Number.isInteger(value) || typeof value !== 'number' || value < 1024 || value > 65535) throw new Error('Port must be an integer between 1024 and 65535.')
   return value
 }
-export interface Preferences { backend?: 'claude' | 'antigravity' | 'combined'; allowAntigravityTools?: boolean; allowAntigravityBrowser?: boolean; allowAntigravitySubagents?: boolean; persistAntigravityHistory?: boolean; mode: 'managed' | 'attached'; endpoint: string; port: number; selected?: string; previous?: string; autoStart: boolean; notifications: boolean; notificationCritical: boolean; notificationRequests: boolean; notificationCache: boolean; notificationQuota: boolean; openWindowAtLaunch: boolean; hideDockIcon: boolean; quietUntil: number; apiKey?: string }
-export const defaults: Preferences = { mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: 3456, autoStart: false, notifications: false, notificationCritical: true, notificationRequests: false, notificationCache: false, notificationQuota: false, openWindowAtLaunch: true, hideDockIcon: false, quietUntil: 0 }
+/** Time range the dashboard summarises. 'today' starts at local midnight. */
+export type WindowKind = 'today' | '1h' | '24h' | '7d'
+export const windowKinds: readonly WindowKind[] = ['today', '1h', '24h', '7d']
+export function windowKind(value: unknown): WindowKind {
+  const kind = typeof value === 'string' ? value : text(object(value).kind)
+  if (!(windowKinds as readonly string[]).includes(kind)) throw new Error('Choose today, 1h, 24h or 7d.')
+  return kind as WindowKind
+}
+export interface Preferences { window: WindowKind; backend?: 'claude' | 'antigravity' | 'combined'; allowAntigravityTools?: boolean; allowAntigravityBrowser?: boolean; allowAntigravitySubagents?: boolean; persistAntigravityHistory?: boolean; mode: 'managed' | 'attached'; endpoint: string; port: number; selected?: string; previous?: string; autoStart: boolean; notifications: boolean; notificationCritical: boolean; notificationRequests: boolean; notificationCache: boolean; notificationQuota: boolean; openWindowAtLaunch: boolean; hideDockIcon: boolean; quietUntil: number; apiKey?: string }
+export const defaults: Preferences = { window: 'today', mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: 3456, autoStart: false, notifications: false, notificationCritical: true, notificationRequests: false, notificationCache: false, notificationQuota: false, openWindowAtLaunch: true, hideDockIcon: false, quietUntil: 0 }
 export interface Incident { id: string; title: string; detail: string; timestamp: number; requestId?: string; severity: 'warning' | 'error' }
 export class IncidentDetector {
   private seen = new Set<string>()
@@ -78,4 +86,97 @@ export function incidents(value: unknown): Incident[] {
 export function isMeridianHealth(value: unknown): boolean {
   const health = object(value)
   return typeof health.version === 'string' && typeof health.status === 'string' && (typeof object(health.plugin).opencode === 'string' || (object(health.build).version === health.version && ['npm', 'local', 'dev'].includes(text(object(health.build).source))))
+}
+
+/** What the UI renders instead of an empty table when the viewed service cannot be read. */
+export type ConnectionKind = 'ok' | 'stopped' | 'unauthorized' | 'wrong-port' | 'not-meridian' | 'starting'
+export interface ConnectionStatus { kind: ConnectionKind; message: string; fix: string }
+export type FailureCode = 'refused' | 'reset' | 'timeout' | 'invalid' | 'http' | 'network'
+/** A failed HTTP exchange with the viewed Meridian, typed for classification. */
+export class ApiError extends Error {
+  constructor(message: string, readonly path: string, readonly code: FailureCode, readonly status?: number, readonly data?: unknown) { super(message); this.name = 'ApiError' }
+}
+/** Normalise Node (undici), Bun and abort errors into one code. */
+export function failureCode(error: unknown): FailureCode {
+  if (error instanceof ApiError) return error.code
+  const value = object(error)
+  const cause = object(value.cause)
+  const codes = [value.code, cause.code, value.name, cause.name].map(text)
+  const message = `${text(value.message)} ${text(cause.message)}`
+  if (codes.some(code => ['ECONNREFUSED', 'ConnectionRefused'].includes(code)) || /ECONNREFUSED|Unable to connect|connection refused/i.test(message)) return 'refused'
+  if (codes.some(code => ['TimeoutError', 'AbortError', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT'].includes(code)) || /timed? ?out/i.test(message)) return 'timeout'
+  if (codes.some(code => ['ECONNRESET', 'ConnectionReset', 'ConnectionClosed', 'EPIPE', 'UND_ERR_SOCKET'].includes(code)) || /socket hang up|ECONNRESET|closed unexpectedly/i.test(message)) return 'reset'
+  return 'network'
+}
+export function httpStatus(error: unknown): number | undefined { return error instanceof ApiError ? error.status : number(object(error).status) }
+function host(baseUrl: string) { try { return new URL(baseUrl).host } catch { return baseUrl } }
+export interface ConnectionInput {
+  baseUrl: string; hasApiKey: boolean; managed?: boolean;
+  /** Health body when /health answered. */
+  health?: unknown;
+  /** Why /health failed, when it did. */
+  healthError?: unknown;
+  /** Status of the first failed telemetry/profile read, when health was fine. */
+  dataStatus?: number;
+  /** Another Meridian that detection verified, when the viewed one fails. */
+  alternative?: string;
+  /** A saved key exists but belongs to this other endpoint, so it is not sent here. */
+  keyElsewhere?: string;
+}
+/**
+ * Classify the viewed service. Pure: callers pass what they observed, the UI
+ * renders message + fix. An unreadable service is never an empty dashboard.
+ */
+export function classifyConnection(input: ConnectionInput): ConnectionStatus {
+  const where = host(input.baseUrl)
+  const start = input.managed ? 'Start the app-managed copy in Service, or start your own Meridian and choose Re-detect.' : 'Start your Meridian service (launchd, Docker or a terminal), then choose Re-detect.'
+  const unauthorized = (status: number): ConnectionStatus => ({
+    kind: 'unauthorized',
+    message: input.hasApiKey ? `Meridian on ${where} rejected the API key (${status}).` : `Meridian on ${where} requires an API key (${status}).${input.keyElsewhere ? ` The saved key was entered for ${host(input.keyElsewhere)} and is never sent to another service.` : ''}`,
+    fix: input.keyElsewhere && !input.hasApiKey ? `Enter the key for ${where} in Service → Connection.` : 'Enter the key in Service → Connection.',
+  })
+  const elsewhere = (reason: string): ConnectionStatus | undefined => input.alternative && input.alternative !== input.baseUrl
+    ? { kind: 'wrong-port', message: `${reason}, but Meridian is running on ${host(input.alternative)}.`, fix: `Choose Re-detect to view ${host(input.alternative)}, or change the address in Service → Connection.` }
+    : undefined
+  if (input.healthError !== undefined) {
+    const status = httpStatus(input.healthError)
+    if (status === 401 || status === 403) return unauthorized(status)
+    const code = failureCode(input.healthError)
+    if (code === 'refused' || code === 'reset') return elsewhere(`Nothing is answering on ${where}`) ?? { kind: 'stopped', message: `Meridian is not running on ${where} (connection refused).`, fix: start }
+    if (code === 'timeout') return elsewhere(`${where} did not answer in time`) ?? { kind: 'stopped', message: `Meridian on ${where} did not answer in time.`, fix: 'Check that the service is not stuck or still starting, then choose Re-detect.' }
+    if (code === 'http' || code === 'invalid') return elsewhere(`${where} is not Meridian`) ?? { kind: 'not-meridian', message: `${where} answered${status ? ` with HTTP ${status}` : ''}, but it is not Meridian.`, fix: 'Choose the port your Meridian listens on in Service → Connection, or choose Re-detect.' }
+    return elsewhere(`${where} cannot be reached`) ?? { kind: 'stopped', message: `Cannot reach Meridian on ${where}.`, fix: start }
+  }
+  if (!isMeridianHealth(input.health)) return elsewhere(`${where} is not Meridian`) ?? { kind: 'not-meridian', message: `${where} answered, but it is not Meridian.`, fix: 'Choose the port your Meridian listens on in Service → Connection, or choose Re-detect.' }
+  if (input.dataStatus === 401 || input.dataStatus === 403) return unauthorized(input.dataStatus)
+  return { kind: 'ok', message: `Viewing Meridian ${text(object(input.health).version)} on ${where}.`, fix: '' }
+}
+export function startingConnection(baseUrl: string): ConnectionStatus {
+  return { kind: 'starting', message: `Starting the app-managed Meridian on ${host(baseUrl)}.`, fix: 'Wait for startup to finish; requests appear once it is healthy.' }
+}
+/** A /health answer is a few hundred bytes; any local listener may be probed. */
+export const HEALTH_BODY_LIMIT = 64 * 1024
+/** The largest Meridian read (500 requests or logs) is a few MB. */
+export const API_BODY_LIMIT = 32 * 1024 * 1024
+export class ResponseTooLarge extends Error {}
+/** Read a response body as text, refusing (and cancelling) anything past `limit` bytes. */
+export async function readBody(response: Response, limit: number): Promise<string> {
+  const tooLarge = () => new ResponseTooLarge(`Response is larger than ${limit} bytes.`)
+  const declared = Number(response.headers.get('content-length') ?? Number.NaN)
+  if (Number.isFinite(declared) && declared > limit) { void response.body?.cancel().catch(() => undefined); throw tooLarge() }
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) { void reader.cancel().catch(() => undefined); throw tooLarge() }
+    chunks.push(value)
+  }
+  const joined = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength }
+  return new TextDecoder().decode(joined)
 }

@@ -244,7 +244,7 @@ function omitIn(message: AgMessage, kind: OmitKind, keep: number, min: number): 
 /**
  * renderAgPrompt plus an optional suffix, kept within `limit` bytes instead of letting agy drop the newest messages.
  * Shrinks the oldest large content first, to head-and-tail snippets and then to markers: tool results, tool_use
- * arguments and long text before the client's current request; then the tool work since it, except the newest round;
+ * arguments and long text before the client's current request; then older tool work and assistant text since it;
  * last, the newest round's tool results and arguments, including tool results sent with the request. The request's
  * own text is never shrunk: when it alone does not fit, the request fails with a 400 prompt-too-long error. Under the
  * limit the prompt is unchanged.
@@ -263,7 +263,7 @@ export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: strin
   const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i)
   const phases: Array<{ at: number[]; kinds: readonly OmitKind[]; passes: readonly (readonly [number, number])[] }> = [
     { at: range(0, current), kinds: ["result", "use", "text"], passes: [[300, 2000], [0, 200]] },
-    { at: range(current + 1, messages.length).filter(at => !newest.has(at)), kinds: ["result", "use"], passes: [[300, 2000], [0, 200]] },
+    { at: range(current + 1, messages.length).filter(at => !newest.has(at)), kinds: ["result", "use", "text"], passes: [[300, 2000], [0, 200]] },
     { at: [...newest].sort((a, b) => a - b), kinds: ["result", "use"], passes: [[4000, 10000], [1000, 2500]] },
   ]
   for (const { at, kinds, passes } of phases) for (const [keep, min] of passes) for (const kind of kinds) for (const i of at) {

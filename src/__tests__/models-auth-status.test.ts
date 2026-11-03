@@ -632,21 +632,37 @@ describe("auth refresh process ownership", () => {
     const { startProxyServer } = await import("../proxy/server")
     const instance = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true,
       profiles: [{ id: "owned-close-api", type: "api", apiKey: "fixture-key" }], defaultProfile: "owned-close-api" })
+    let restoreKill: (() => void) | undefined
     try {
       const address = instance.server.address()
       expect(address && typeof address === "object").toBe(true)
       if (!address || typeof address !== "object") throw new Error("Owned fixture listener missing")
       const response = await fetch(`http://127.0.0.1:${address.port}/health`)
       expect((await response.json() as { status: string }).status).toBe("degraded")
-      const closing = instance.close()
-      await tick()
       const fake = fakeAuthChildren[0]!
+      const signalled = Promise.withResolvers<Parameters<typeof fake.child.kill>[0]>()
+      const kill = fake.child.kill.bind(fake.child)
+      const observer = spyOn(fake.child, "kill").mockImplementation(signal => {
+        const result = kill(signal)
+        signalled.resolve(signal)
+        return result
+      })
+      restoreKill = () => observer.mockRestore()
+      const closing = instance.close()
+      // HTTP and GC shutdown precede auth cancellation. Observe that actual
+      // producer instead of assuming one timer tick reaches this phase.
+      const cancellation = await settledWithin(
+        Promise.race([signalled.promise, closing.then(() => "closed-before-signal")]), 1_000,
+      )
+      expect(cancellation).toBe("SIGTERM")
       expect(fake.signals).toEqual(["SIGTERM"])
+      expect(await settledWithin(closing, 20)).toBe(NOT_SETTLED)
       fake.callback(timeoutError(), { stdout: "", stderr: "" }); fake.witnesses(null, "SIGTERM")
       await closing
       expect(instance.server.listening).toBe(false)
       hungSpawns = []
     } finally {
+      restoreKill?.()
       releaseHungSpawns()
       await instance.close()
     }

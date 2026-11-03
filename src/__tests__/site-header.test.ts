@@ -514,8 +514,12 @@ describe("wide page layout", () => {
   })
 
   test("settings toggles, pricing rows and provider cards keep their values near their labels", () => {
-    expect(ruleIn(settingsPageHtml, 'html[data-layout="wide"] .feature-grid'))
+    // Contained, the 810px card holds two 360px-or-wider rows; a single column
+    // would put each control some 800px from its label.
+    expect(ruleIn(settingsPageHtml, ".setting-grid"))
       .toContain("grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr))")
+    expect(ruleIn(settingsPageHtml, 'html[data-layout="wide"] .setting-grid'))
+      .toContain("grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr))")
     expect(ruleIn(settingsPageHtml, 'html[data-layout="wide"] .pricing-table')).toContain("width: auto")
     expect(providerPageHtml)
       .toContain('html[data-layout="wide"] .provider-grid{grid-template-columns:repeat(auto-fill,minmax(min(480px,100%),1fr))}')

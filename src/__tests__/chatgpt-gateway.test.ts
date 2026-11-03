@@ -1222,6 +1222,67 @@ describe("owned mode signs its own seats in", () => {
     }
   })
 
+  // Read while its renewal is out, a seat was listed as needing a sign-in for
+  // as long as the exchange took, at every renewal.
+  for (const ending of ["renewed", "refused"] as const) {
+    it(`lists a seat as it was while its renewal is out, and as the exchange left it once it is done (${ending})`, async () => {
+      mkdirSync(storeDir, { recursive: true, mode: 0o700 })
+      const day = 24 * 3_600_000
+      const seat = `user-8${ending}__workspace-8`
+      const token = (issuedAt: number) => `${part({ alg: "none" })}.${part({
+        iat: Math.floor(issuedAt / 1000),
+        exp: Math.floor((issuedAt + 10 * day) / 1000),
+        "https://api.openai.com/auth": { chatgpt_account_id: "workspace-8", chatgpt_account_user_id: seat },
+      })}.sig`
+      const issuedAt = NOW - 9 * day
+      writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [{
+        accountUserId: seat, accountId: "workspace-8", email: "busy@example.test",
+        refreshToken: "rt-busy", accessToken: token(issuedAt), expiresAt: issuedAt + 10 * day,
+        tokenRotatedAt: issuedAt, exchangeStartedAt: null,
+      }] }), { mode: 0o600 })
+      let started = false
+      let answer!: (response: Response) => void
+      const serve = globalThis.fetch
+      globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+        if (url === TOKEN_URL && new URLSearchParams(String(init?.body)).get("grant_type") === "refresh_token") {
+          started = true
+          return new Promise<Response>(resolve => { answer = resolve })
+        }
+        return serve(input, init)
+      }) as typeof fetch
+      const proxy = await server("owned")
+      await proxy.chatGpt!.acquire()
+      try {
+        const listed = async () => {
+          await proxy.app.fetch(new Request("http://localhost/v1/usage/quota/all"))
+          const list = await (await proxy.app.fetch(new Request("http://localhost/profiles/list"))).json() as {
+            profiles: Array<{ seat?: string; loggedIn: boolean; tokenState?: string; firstUnauthedAt?: number | null }>
+          }
+          return list.profiles.find(p => p.seat === seat)!
+        }
+        expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok" })
+
+        const pass = proxy.chatGpt!.renewDue()
+        while (!started) await new Promise(resolve => setTimeout(resolve, 5))
+        expect(JSON.parse(readFileSync(storePath, "utf8")).accounts[0].exchangeStartedAt).not.toBeNull()
+        expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok" })
+
+        if (ending === "renewed") {
+          answer(Response.json({ access_token: token(Date.now()), refresh_token: "rt-renewed", expires_in: 10 * 86_400 }))
+          expect(await pass).toBe(true)
+          expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok" })
+        } else {
+          answer(new Response(JSON.stringify({ error: { code: "refresh_token_reused" } }), { status: 401, headers: { "content-type": "application/json" } }))
+          expect(await pass).toBe(false)
+          expect(await listed()).toMatchObject({ loggedIn: false, tokenState: "requires_reauth" })
+        }
+      } finally {
+        proxy.chatGpt!.release()
+      }
+    })
+  }
+
   it("cancels a pending sign-in on request, so its code can no longer be spent", async () => {
     const proxy = await server("owned")
     await proxy.chatGpt!.acquire()

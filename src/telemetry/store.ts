@@ -6,7 +6,7 @@
  */
 
 import type { RequestMetric, TelemetrySummary, ITelemetryStore, TelemetryRetention } from "./types"
-import { computeSummary } from "./percentiles"
+import { computeSummary, isCacheKeepaliveMetric } from "./percentiles"
 import { getPricingOverrides } from "./pricingStore"
 import { getSetting } from "../settings"
 
@@ -16,15 +16,24 @@ const DEFAULT_CAPACITY = 1000
  *  uses. A value that is not a positive integer is discarded at each step
  *  rather than falling through, so a typo cannot produce a zero-length ring. */
 export function resolveTelemetryCapacity(): number {
-  const raw = process.env.MERIDIAN_TELEMETRY_SIZE ?? process.env.CLAUDE_PROXY_TELEMETRY_SIZE
-  if (raw) {
-    const parsed = Number.parseInt(raw, 10)
-    if (Number.isFinite(parsed) && parsed > 0) return parsed
-    return DEFAULT_CAPACITY
-  }
+  const fromEnv = telemetryCapacityFromEnv()
+  if (fromEnv !== undefined) return fromEnv ?? DEFAULT_CAPACITY
   const saved = getSetting("telemetrySize")
   if (typeof saved === "number" && Number.isFinite(saved) && saved > 0) return Math.floor(saved)
   return DEFAULT_CAPACITY
+}
+
+/**
+ * What MERIDIAN_TELEMETRY_SIZE (else CLAUDE_PROXY_TELEMETRY_SIZE) contributes
+ * to resolveTelemetryCapacity: the size it sets; null when it is set but not a
+ * positive integer, so the default applies; undefined when it is unset or
+ * empty, so the saved setting is consulted.
+ */
+export function telemetryCapacityFromEnv(): number | null | undefined {
+  const raw = process.env.MERIDIAN_TELEMETRY_SIZE ?? process.env.CLAUDE_PROXY_TELEMETRY_SIZE
+  if (!raw) return undefined
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
 export class MemoryTelemetryStore implements ITelemetryStore {
@@ -67,11 +76,12 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   /**
    * Retrieve recent metrics, newest first.
    * @param options.limit - Max entries to return (default: 50)
-   * @param options.since - Only entries after this timestamp
+   * @param options.since - Only entries at or after this timestamp
+   * @param options.until - Only entries before this timestamp
    * @param options.model - Filter by model name
    */
-  getRecent(options: { limit?: number; since?: number; model?: string } = {}): RequestMetric[] {
-    const { limit = 50, since, model } = options
+  getRecent(options: { limit?: number; since?: number; until?: number; model?: string } = {}): RequestMetric[] {
+    const { limit = 50, since, until, model } = options
     const results: RequestMetric[] = []
 
     // Walk backwards from most recent entry
@@ -80,6 +90,7 @@ export class MemoryTelemetryStore implements ITelemetryStore {
       const metric = this.buffer[idx]
       if (!metric) continue
       if (since && metric.timestamp < since) break // ring buffer is time-ordered
+      if (until !== undefined && metric.timestamp >= until) continue
       if (model && metric.model !== model) continue
       results.push(metric)
     }
@@ -88,12 +99,13 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   }
 
   /** Find the most recent successful metric for a given SDK session ID.
-   *  Used by anomaly detection to compare consecutive turns. */
+   *  Used by anomaly detection to compare consecutive turns, so a keepalive
+   *  beat, which is not a turn, is skipped. */
   getLastForSession(sdkSessionId: string): RequestMetric | undefined {
     for (let i = 0; i < this.count; i++) {
       const idx = (this.head - 1 - i + this.capacity) % this.capacity
       const metric = this.buffer[idx]
-      if (metric && metric.sdkSessionId === sdkSessionId && metric.error === null) {
+      if (metric && metric.sdkSessionId === sdkSessionId && metric.error === null && !isCacheKeepaliveMetric(metric)) {
         return metric
       }
     }

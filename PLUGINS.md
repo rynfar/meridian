@@ -265,6 +265,26 @@ Visit `http://localhost:3456/plugins` to:
 - View adapter scope
 - Reload plugins without restarting
 
+## Update Checks
+
+With **Check for updates** on (`/settings`, Updates), Meridian also checks each
+loaded plugin that was installed from an npm package: it reads the `name` and
+`version` of the nearest `package.json` above the plugin file and compares
+them with that package's `latest` on the registry. Publish your plugin with
+its `package.json` beside the built entry and users are told when they fall
+behind.
+
+The same toggle governs both checks, so turning it on also sends every loaded
+plugin's npm package name to the registry (`https://registry.npmjs.org`, or
+`MERIDIAN_UPDATE_CHECK_REGISTRY`). Nothing is sent while it is off. A lone file
+in `plugins/` (or a symlink to one), a private package, and a package whose
+`publishConfig.registry` names a non-public registry other than the one being
+asked are listed as not checkable; packages published to public npm are
+checked through a configured mirror. An instance that points Meridian's own check at a mirror with
+`MERIDIAN_UPDATE_CHECK_URL` checks no plugin until
+`MERIDIAN_UPDATE_CHECK_REGISTRY` names the registry to use. See
+[Build provenance](docs/configuration.md#build-provenance-and-staying-current).
+
 ## Roadmap
 
 **Planned hooks:**

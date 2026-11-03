@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, spyOn } from "bun:test"
+import { assertAdmissionHeartbeat, measureAdmissionHeartbeat } from "./fixtures/bookkeeping-heartbeat"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
@@ -237,23 +238,20 @@ it("async-admits real production store operations against another Node writer wi
     process.stdin.resume(); process.stdin.once('data', () => { db.exec('ROLLBACK'); db.close(); process.exit(0) });
   `, handle.path], { stdio: ["pipe", "pipe", "pipe"] })
   const exit = once(child, "exit")
-  const ticks: number[] = []
-  let timer: ReturnType<typeof setInterval> | undefined
   try {
     const [bytes] = await once(child.stdout, "data")
     expect(String(bytes)).toContain("locked")
-    timer = setInterval(() => ticks.push(performance.now()), 5)
-    const started = performance.now()
-    await expect(admitSessionStoreWrite(() => storeSharedSession("blocked", "sdk"), { lockWaitMs: 150 }))
-      .rejects.toBeInstanceOf(SessionLifecycleLockError)
-    expect(performance.now() - started).toBeGreaterThanOrEqual(140)
-    expect(ticks.length).toBeGreaterThanOrEqual(20)
+    const heartbeat = await measureAdmissionHeartbeat(150, async () => {
+      await expect(admitSessionStoreWrite(() => storeSharedSession("blocked", "sdk"), { lockWaitMs: 150 }))
+        .rejects.toBeInstanceOf(SessionLifecycleLockError)
+    })
+    try { assertAdmissionHeartbeat(heartbeat) }
+    catch (error) { throw new Error(`Runtime admission heartbeat failed: ${JSON.stringify(heartbeat)}`, { cause: error }) }
     expect(lookupSharedSession("blocked")).toBeUndefined()
     child.stdin.write("release")
     expect((await exit)[0]).toBe(0)
     expect(await admitSessionStoreWrite(() => storeSharedSession("after", "sdk"))).not.toBe(false)
   } finally {
-    if (timer) clearInterval(timer)
     if (child.exitCode === null) {
       child.kill("SIGKILL")
       await exit

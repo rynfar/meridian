@@ -49,7 +49,8 @@ if (id !== undefined) {
   let expiryMs = 0,
     completed = 0,
     rejected = 0,
-    maxAdmissionMs = 0
+    maxAdmissionMs = 0,
+    maxWriteMs = 0
   const admissionBudgetMs = 250
   const rejections: Array<{ name: string; waitMs: number }> = []
   try {
@@ -72,6 +73,7 @@ if (id !== undefined) {
       try {
         await withBookkeepingWriteAsync(directory, { lockWaitMs: admissionBudgetMs }, (tx) => {
           const start = performance.now()
+          maxAdmissionMs = Math.max(maxAdmissionMs, start - before)
           try {
             tx.run(
               "INSERT INTO fence_slots VALUES('store',?,1)",
@@ -82,7 +84,7 @@ if (id !== undefined) {
           }
         })
         completed++
-        maxAdmissionMs = Math.max(maxAdmissionMs, performance.now() - before)
+        maxWriteMs = Math.max(maxWriteMs, performance.now() - before)
       } catch (error) {
         if (!(error instanceof SessionLifecycleLockError)) throw error
         rejected++
@@ -105,6 +107,7 @@ if (id !== undefined) {
         expiryMs,
         heartbeat,
         maxAdmissionMs,
+        maxWriteMs,
         timerLagP50: samples[Math.floor(samples.length / 2)],
         timerLagMax: samples.at(-1),
         delayedFraction: lagSum / elapsed,

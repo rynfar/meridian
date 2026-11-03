@@ -11,7 +11,7 @@
  *   4. Existing /v1/messages behavior is unaffected (no regressions)
  */
 
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -74,10 +74,20 @@ installMcpToolsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, buildNoClientCwdNote } = await import("../proxy/query")
 
+const testProxies: ReturnType<typeof createProxyServer>[] = []
+
 function createTestApp() {
-  const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-  return app
+  const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
+  testProxies.push(proxy)
+  return proxy.app
 }
+
+afterEach(async () => {
+  for (const proxy of testProxies.splice(0)) {
+    if (!proxy.closeBackend) throw new Error("HTTP fixture must expose joined backend cleanup")
+    await proxy.closeBackend()
+  }
+})
 
 async function postChatCompletion(
   app: ReturnType<typeof createTestApp>,
@@ -385,6 +395,35 @@ describe("POST /v1/chat/completions — non-streaming", () => {
       parent_tool_use_id: null,
     }])
   })
+
+  it("preserves base64 PDF file parts as document blocks for the SDK prompt", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "summarize this" },
+          { type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" } },
+        ],
+      }],
+    })
+
+    expect(res.status).toBe(200)
+    expect(capturedPromptMessages).toEqual([{
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "summarize this" },
+          { type: "document", title: "report.pdf", source: { type: "base64", media_type: "application/pdf", data: "JVBERi0x" } },
+        ],
+      },
+      parent_tool_use_id: null,
+    }])
+  })
 })
 
 describe("POST /v1/chat/completions — Jcode session continuity", () => {
@@ -525,6 +564,7 @@ describe("POST /v1/chat/completions — session-keyed continuity for the generic
   for (const [headerName, keyValue] of [
     ["x-session-affinity", "affinity-session-a"],
     ["x-opencode-session", "opencode-session-a"],
+    ["x-session-id", "generic-session-a"],
   ] as const) {
     it(`keeps the real messages and resumes across turns keyed by ${headerName}`, async () => {
       const app = createTestApp()
@@ -557,14 +597,53 @@ describe("POST /v1/chat/completions — session-keyed continuity for the generic
     })
   }
 
-  it("keeps distinct generic session keys isolated", async () => {
+  for (const headerName of ["x-session-affinity", "x-session-id"]) it(`keeps distinct ${headerName} conversations isolated`, async () => {
     const app = createTestApp()
 
-    await postChatCompletion(app, firstTurn, { "x-session-affinity": "session-a" })
-    await postChatCompletion(app, secondTurn, { "x-session-affinity": "session-b" })
+    expect((await postChatCompletion(app, firstTurn, { [headerName]: "session-a" })).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, { [headerName]: "session-b" })).status).toBe(200)
 
     expect(capturedOptionHistory).toHaveLength(2)
     expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.sessionId).not.toBe(capturedOptionHistory[0]?.sessionId)
+  })
+
+  for (const legacyHeader of ["x-opencode-session", "x-session-affinity"]) it(`preserves ${legacyHeader} identity when x-session-id changes`, async () => {
+    const app = createTestApp()
+    const innerRequests = captureInnerRequests(app)
+
+    expect((await postChatCompletion(app, firstTurn, { [legacyHeader]: "legacy-key", "x-session-id": "generic-a" })).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, { [legacyHeader]: "legacy-key", "x-session-id": "generic-b" })).status).toBe(200)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+    expect(innerRequests[1]?.headers.get(legacyHeader)).toBe("legacy-key")
+    expect(innerRequests[1]?.headers.get("x-session-id")).toBe("generic-b")
+  })
+
+  it("keeps blank x-session-id requests on the packed path", async () => {
+    const app = createTestApp()
+    expect((await postChatCompletion(app, firstTurn, { "x-session-id": " " })).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, { "x-session-id": "\t" })).status).toBe(200)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
+  })
+
+  it("permits the session header in the existing browser preflight", async () => {
+    const app = createTestApp()
+    const response = await app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://example.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type,x-session-id",
+      },
+    }))
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get("access-control-allow-headers")?.toLowerCase().split(/\s*,\s*/)).toContain("x-session-id")
   })
 
   it("packs history for an unkeyed generic request", async () => {
@@ -623,9 +702,9 @@ describe("POST /v1/chat/completions — session-keyed continuity for the generic
 
   // Guards the contract, not the change: a retry must never resume and
   // double-append the same turn onto the stored session.
-  it("replays fresh when a keyed turn is retried with an identical body", async () => {
+  for (const headerName of ["x-session-affinity", "x-session-id"]) it(`replays fresh when a ${headerName} turn is retried with an identical body`, async () => {
     const app = createTestApp()
-    const headers = { "x-session-affinity": "retry-key" }
+    const headers = { [headerName]: "retry-key" }
 
     await postChatCompletion(app, firstTurn, headers)
     await postChatCompletion(app, secondTurn, headers)

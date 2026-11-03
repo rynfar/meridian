@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import type { OAuthBankedResets, UsageEntryFields } from "../proxy/oauthUsage"
 
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
@@ -199,6 +200,7 @@ describe("GET /v1/usage/quota", () => {
         { type: "seven_day_omelette", utilization: 0.01, resetsAt: 1_730_333_333_333 },
       ],
       extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" },
+      bankedResets: null,
       fetchedAt: 1_730_000_000_000,
     }))
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -313,7 +315,7 @@ describe("GET /v1/usage/quota/all — null attribution", () => {
     resetOAuthUsageCache()
   })
 
-  async function fetchAll(profiles?: Array<{ id: string; claudeConfigDir: string }>) {
+  async function fetchAll(profiles?: Array<{ id: string; claudeConfigDir: string; type?: "claude-max" | "api" }>) {
     const { app } = createProxyServer({
       port: 0,
       host: "127.0.0.1",
@@ -321,12 +323,13 @@ describe("GET /v1/usage/quota/all — null attribution", () => {
     })
     const res = await app.fetch(new Request("http://localhost/v1/usage/quota/all"))
     expect(res.status).toBe(200)
-    return await res.json() as { profiles: Array<{ id: string; error: string | null }> }
+    return await res.json() as { profiles: Array<Omit<UsageEntryFields, "error"> & { id: string; error: string | null }> }
   }
 
   it("reports no_token when there is no cooldown", async () => {
     const body = await fetchAll()
     expect(body.profiles.map(p => p.error)).toEqual(["no_token"])
+    expect(body.profiles.map(p => p.bankedResets)).toEqual([null])
   })
 
   it("reports rate_limited once a 429 cooldown is active", async () => {
@@ -347,6 +350,80 @@ describe("GET /v1/usage/quota/all — null attribution", () => {
     ])
     expect(body.profiles.find(p => p.id === "work")?.error).toBe("rate_limited")
     expect(body.profiles.find(p => p.id === "personal")?.error).toBe("no_token")
+  })
+
+  it("serves each profile's last good reset inventory with its original freshness", async () => {
+    const bankedResets: OAuthBankedResets = {
+      eligible: true,
+      ineligibleReason: null,
+      nextGrantId: "remaining",
+      grants: [
+        { id: "expired", resetsLeft: 0, expiresAt: Date.UTC(2020, 0, 1), startsAt: null, paused: false, usableNow: false },
+        { id: "remaining", resetsLeft: 2, expiresAt: Date.UTC(2030, 0, 1), startsAt: Date.UTC(2026, 0, 1), paused: false, usableNow: true },
+      ],
+    }
+    const store = {
+      async read() {
+        return { claudeAiOauth: { accessToken: "t", refreshToken: "rt", expiresAt: Date.now() + 3_600_000 } }
+      },
+      async write() { return true },
+    }
+    const fresh = await fetchOAuthUsage({
+      force: true, profileId: "work", store,
+      fetchImpl: async () => Response.json({
+        five_hour: { utilization: 25 },
+        cedar_ember: { eligible: true, next_grant_id: "remaining", grants: [
+          { id: "expired", resets_left: 0, ends_at: "2020-01-01T00:00:00Z", paused: false, usable_now: false },
+          { id: "remaining", resets_left: 2, ends_at: "2030-01-01T00:00:00Z", starts_at: "2026-01-01T00:00:00Z", paused: false, usable_now: true },
+        ] },
+      }),
+    })
+    await fetchOAuthUsage({
+      force: true, profileId: "work", store, staleMaxMs: 0,
+      fetchImpl: async () => new Response("unavailable", { status: 503 }),
+    })
+
+    const body = await fetchAll([
+      { id: "work", claudeConfigDir: "/tmp/meridian-quota-work" },
+      { id: "personal", claudeConfigDir: "/tmp/meridian-quota-personal" },
+      { id: "api", claudeConfigDir: "/tmp/meridian-quota-api", type: "api" },
+    ])
+    const work = body.profiles.find(p => p.id === "work")
+    expect(work?.bankedResets).toEqual(bankedResets)
+    expect(work?.fetchedAt).toBe(fresh?.fetchedAt)
+    expect(work?.stale).toBe(true)
+    expect(work?.windows).toEqual(fresh?.windows)
+    expect(body.profiles.find(p => p.id === "personal")?.bankedResets).toBeNull()
+    expect(body.profiles.find(p => p.id === "api")?.bankedResets).toBeNull()
+    expect(body.profiles.find(p => p.id === "api")?.error).toBe("not_oauth")
+  })
+  it("does not attribute OAuth usage or banked grants to inferred token profiles", async () => {
+    const usage = mock(async () => ({
+      windows: [{ type: "five_hour", utilization: 0.5, resetsAt: null }],
+      extraUsage: null,
+      bankedResets: { eligible: true, ineligibleReason: null, nextGrantId: null, grants: [{ id: "host-grant", resetsLeft: 1, expiresAt: null, startsAt: null, paused: null, usableNow: null }] },
+      fetchedAt: 1_730_000_000_000,
+    }))
+    __setFetchOAuthUsageOverride(usage)
+    const { app } = createProxyServer({
+      port: 0, host: "127.0.0.1",
+      profiles: [
+        { id: "inferred", oauthToken: "fake-inferred-token" },
+        { id: "mislabelled", type: "claude-max", oauthToken: "fake-mislabelled-token" },
+      ],
+    })
+    const all = await app.fetch(new Request("http://localhost/v1/usage/quota/all"))
+    const body = await all.json() as { profiles: Array<{ id: string; type: string; error: string; bankedResets: unknown }> }
+    expect(body.profiles).toEqual([
+      expect.objectContaining({ id: "inferred", type: "oauth-token", error: "not_oauth", bankedResets: null }),
+      expect.objectContaining({ id: "mislabelled", type: "oauth-token", error: "not_oauth", bankedResets: null }),
+    ])
+    for (const profile of ["inferred", "mislabelled", "missing"]) {
+      const single = await app.fetch(new Request(`http://localhost/v1/usage/quota?profile=${profile}`))
+      expect(single.status).toBe(200)
+      expect(await single.json()).toMatchObject({ buckets: [], extraUsage: null, sources: { oauth: null } })
+    }
+    expect(usage).not.toHaveBeenCalled()
   })
 })
 

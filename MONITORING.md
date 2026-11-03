@@ -23,7 +23,118 @@ The default URL is `http://127.0.0.1:3456`. Protected routes require `x-api-key`
 - Read utilization together with the reset time and snapshot freshness. An unavailable or stale value is **not zero usage**. `no_token`, `rate_limited`, and `upstream_error` mean different things; an API-key profile may report `not_oauth`.
 - Quota reads use a cached upstream OAuth endpoint (normally a 30-second cache), not a local conversion from tokens to subscription percentage. SDK rate-limit events provide additional information when available. Frequent polling cannot make missing upstream data authoritative.
 
+Claude profiles in `/v1/usage/quota/all` also include `bankedResets`:
+
+```json
+{
+  "bankedResets": {
+    "eligible": true,
+    "ineligibleReason": null,
+    "nextGrantId": "example-reset-grant",
+    "grants": [
+      {
+        "id": "example-reset-grant",
+        "resetsLeft": 1,
+        "expiresAt": 1792684800000,
+        "startsAt": null,
+        "paused": false,
+        "usableNow": true
+      }
+    ]
+  }
+}
+```
+
+Each grant keeps its own remaining reset count and expiration date.
+`expiresAt` is Unix epoch milliseconds, or `null` when the date is unknown.
+`id` is the provider's grant identifier, or `null` when unavailable.
+`startsAt` (epoch milliseconds), `paused` and `usableNow` are the provider's
+own per-grant flags; `nextGrantId` is the grant the provider would redeem next
+(only when it names a listed grant) and `ineligibleReason` is the provider's
+reason the account is not eligible (for example `cli_version`). Each is `null`
+when absent or unreadable. Meridian passes these through and never chooses a
+grant for you.
+The list preserves provider inventory, including exhausted, paused,
+not-yet-started and expired grants. It is not a count of resets usable now,
+and `eligible` does not establish that a particular grant can be used.
+`bankedResets: null` means reset information is unavailable, including for
+non-OAuth profiles. A valid empty `grants` list means the provider returned
+no grants. Read reset data with the profile's `fetchedAt`, `stale` and `failure`
+fields, just like its usage windows. This endpoint only lists grants; it
+does not redeem them.
+
 Subscription limits, context occupancy, and API-equivalent cost are different measures. A cache hit does not mean zero subscription usage, and a large context window does not mean that much quota remains.
+
+### Redeeming a banked reset
+
+`POST /v1/usage/quota/reset` consumes a reset if Claude accepts the request.
+It is an explicit action, not a quota poll or health check. Send a JSON object:
+
+```json
+{
+  "profile": "work",
+  "grantId": "chosen-grant-id",
+  "requestId": "client-operation-uuid"
+}
+```
+
+All three fields are required. Use the profile and grant IDs from
+`/v1/usage/quota/all`; there is no active-profile or next-grant fallback.
+Use `profile: "default"` for the single-account entry when no profiles are
+configured. API-key and static token-only profiles cannot redeem Claude grants
+and report `not_oauth`; token-only profiles also cannot read the host account's
+grant inventory under their own profile ID.
+`grantId` accepts 1–40 lowercase letters, digits, underscores or hyphens.
+`requestId` accepts 1–64 letters, digits, underscores or hyphens.
+Generate a request ID once per intentional redemption and retain it with
+that operation.
+
+The endpoint uses the selected profile's OAuth token to resolve its organization.
+It inherits API-key authentication and rejects cross-origin browser requests.
+Responses use `Cache-Control: no-store`.
+
+A parsed provider response returns HTTP 200 with the requested IDs and
+`result`, `reason`, `resetsLeft`, `cleared`, `weeklyResetsAt` and `cooldownUntil`.
+Only `result: "reset"` confirms redemption. Other results are `already_used`,
+`not_limited`, `cooldown`, `ineligible` and `unavailable`.
+Times are epoch milliseconds, or `null` when unavailable; timezone-free provider
+timestamps are UTC. Invalid optional metadata becomes unknown without hiding
+a confirmed `result: "reset"`.
+Confirmed resets and `already_used` outcomes invalidate the selected account's
+cached usage. Superseded quota polls join the current read rather than reporting
+a false upstream failure.
+
+Only a confirmed reset clears local SDK windows explicitly listed in `cleared`
+and matching reported refusal state. Uncleared weekly/model limits and independent
+overage metadata survive. Unknown, non-quota and unrelated routing exclusions
+remain conservative; an uncertain outcome never erases known refusal state.
+
+Missing upstream OAuth credentials return HTTP 503 with `code: "no_token"`.
+HTTP 401 remains the Meridian API-key authentication failure.
+
+Meridian sends one redemption POST and does not retry it automatically.
+Transport failures or invalid responses after dispatch can return
+`indeterminate: true`: the reset may have been consumed even though the response
+was lost. Re-read quota and confirm the outcome before another intentional
+attempt.
+
+Only one redemption per profile runs at a time: another request for that
+profile while one is in flight returns HTTP 409 `reset_in_progress` and sends
+nothing upstream. Once Meridian has sent the mutation, it remembers the outcome
+for that profile and `requestId` for 15 minutes (up to 256 outcomes, oldest
+dropped first; a restart forgets them). Repeating the same `requestId` with the
+same `grantId` returns the remembered response again, with the same status and
+`replayed: true`, without contacting Claude — this includes uncertain outcomes,
+so a blind retry cannot spend a second grant. Repeating a `requestId` with a
+different `grantId` returns HTTP 409 `request_id_conflict`. Fresh responses carry
+`replayed: false`. Failures before the mutation was sent (`no_token`,
+`no_organization`, an unreadable organization) are not remembered. To make a new
+intentional attempt, use a new `requestId`. Claude's client reuses IDs after
+uncertain outcomes, but server-side deduplication is not guaranteed.
+
+Every Claude OAuth usage, identity and reset request identifies itself as the
+Claude Code version installed with Meridian.
+
 
 ## Reading Token and Cache Metrics
 
@@ -70,11 +181,18 @@ curl -s 'http://127.0.0.1:3456/v1/usage/quota/all' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/requests?limit=10' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/logs?category=token' | python3 -m json.tool
 curl -s 'http://127.0.0.1:3456/telemetry/summary?window=3600000' | python3 -m json.tool
+curl -s 'http://127.0.0.1:3456/telemetry/timeseries?window=86400000&bucket=3600000' | python3 -m json.tool
 ```
 
 Request queries support `limit` (up to 500), `since` (epoch milliseconds), and `model`. Logs support `limit` (up to 500), `since`, and `category`. Summary `window` is milliseconds and defaults to one hour.
 
+Timeseries covers `start` (inclusive) to `end` (exclusive, default now) in buckets of `bucket` milliseconds (default one hour, at least one minute) aligned to `start`, so passing local midnight yields local-hour buckets. `window` (default 24 hours) can replace `start`. A range over 31 days or 1,000 buckets, or with `start` not before `end`, answers 400 with `{error}`. Every bucket is returned, empty ones included, with `requests`, `errors`, the four token totals, `cacheHitRate`, `p50TotalMs`, `p50TtfbMs`, `costUsd` and `unpricedRequests`; the rates and latencies are `null` where a bucket has nothing to measure, and `costUsd` is `null` when every request in the bucket is unpriced. Buckets count what summary counts, so they sum to its totals for the same range. `truncated: true` means the store no longer holds the whole range (the in-memory ring has evicted older rows, or the range reaches past SQLite retention) or the read hit its 100,000-row bound.
+
 The CLI writes logs to stderr. The supervisor/service may redirect them to `~/.cache/meridian/proxy.err`; this is not a universal CLI log file. Use `docker logs <container>` or `journalctl --user -u meridian` for those deployments.
+
+## Prompt-Cache Keepalive
+
+When the operator turns on [prompt-cache keepalive](docs/configuration.md#prompt-cache-keepalive), its background requests are recorded with `requestSource: "cache-keepalive"`. They answer no client, so the request, error, cache-hit, route and cost figures leave them out; the dashboard's **Cache Keepalive** section, `cacheKeepalive` in `/telemetry/summary` (beats, reached, not reached, tokens, `estimatedUsd`) and `meridian_cache_keepalive_beats_total{outcome}` in `/metrics` report them separately. A beat that never reached upstream was skipped and is not an error.
 
 ## Persistence
 

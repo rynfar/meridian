@@ -12,20 +12,10 @@
 let
   inherit (lib.meta) getExe;
   inherit (lib.sources) cleanSource;
-  inherit (lib.strings) escapeShellArgs removePrefix versionOlder;
+  inherit (lib.strings) escapeShellArgs;
   inherit (lib.trivial) importJSON;
   inherit (stdenvNoCC) hostPlatform;
   package = importJSON "${self}/package.json";
-  # Sonnet 5.5 requires 2.1.284 before nixpkgs has packaged it. Reuse the
-  # nixpkgs derivation (patching, wrappers and version check), with Anthropic's
-  # immutable release manifest; automatically prefer nixpkgs once it catches up.
-  # Source: https://downloads.claude.ai/claude-code-releases/2.1.284/manifest.zst.json
-  claudeManifest = importJSON ./claude-code-manifest.json;
-  claudeCode =
-    if versionOlder claude-code.version claudeManifest.version then
-      claude-code.override { manifest = claudeManifest; }
-    else
-      claude-code;
 in
 stdenvNoCC.mkDerivation (finalAttrs: {
   inherit (package) version;
@@ -73,7 +63,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     makeWrapper ${getExe nodejs_22} $out/bin/${finalAttrs.meta.mainProgram} \
       --add-flags "$out/lib/meridian/dist/cli.js" \
-      --set-default MERIDIAN_CLAUDE_PATH ${getExe claudeCode}
+      --set-default MERIDIAN_CLAUDE_PATH ${getExe claude-code}
 
     makeWrapper ${getExe nodejs_22} $out/bin/meridian-bookkeeping \
       --add-flags "$out/lib/meridian/dist/session-bookkeeping.js"
@@ -89,9 +79,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   meta = {
     inherit (package) description;
-    broken = versionOlder claudeCode.version (
-      removePrefix "^" package.dependencies."@anthropic-ai/claude-code"
-    );
     homepage = "https://github.com/rynfar/${finalAttrs.pname}";
     license = lib.licenses.mit;
     mainProgram = finalAttrs.pname;

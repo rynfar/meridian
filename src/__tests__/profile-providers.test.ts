@@ -538,6 +538,41 @@ describe("the profiles page draws the same groups", () => {
     expect(storage.getItem(HIDDEN_PROVIDERS_KEY)).toBe('["chatgpt","claude"]')
   })
 
+  test("a card updating after a sign-in stays visible during a search for its old email", () => {
+    const storage = new MemoryStorage()
+    const profiles = [claude("c1", { email: "old@example.com" }), claude("c2", { email: "other@example.com" })]
+    // A seat on the page too, so turning the Claude chip off is not refused
+    // as hiding the last provider.
+    const { page } = rendered(storage, [...profiles, seat("g1")])
+    const cards = ["c1", "c2"].map(id => {
+      const el = stubElement()
+      el.attrs.set("data-id", id)
+      el.attrs.set("data-group", "claude")
+      return el
+    })
+    page.select("#content .profile-card[data-id]", cards)
+    const shown = () => cards.filter(c => !c.hidden).map(c => c.attrs.get("data-id"))
+    page.run("setProfileQuery('old@example.com')")
+    expect(shown()).toEqual(["c1"])
+
+    // The re-login landed on another account: the email changed under the
+    // search, and the card is still updating.
+    const updating = [claude("c1", { email: "new@example.com", factsRefresh: { state: "updating", since: 1 } }), profiles[1]]
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: updating })}; applyProfileFilter()`)
+    expect(shown()).toEqual(["c1"])
+    expect(page.element("profiles-filter-count").textContent).toBe("1 of 2")
+
+    // The page's own memory of the sign-in keeps it too, before the server says so.
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: [claude("c1", { email: "new@example.com" }), profiles[1]] })}; applyProfileFilter()`)
+    expect(shown()).toEqual([])
+    page.run("meridianCardStatus.beginUpdate('c1'); applyProfileFilter()")
+    expect(shown()).toEqual(["c1"])
+
+    // A hidden provider still hides it: the exemption is from the search only.
+    page.run("meridianProviders.setHidden('claude', true); applyProfileFilter()")
+    expect(shown()).toEqual([])
+  })
+
   test("a link to an account of a hidden provider shows that provider again", () => {
     const storage = new MemoryStorage()
     storage.setItem(HIDDEN_PROVIDERS_KEY, '["chatgpt"]')

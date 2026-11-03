@@ -32,7 +32,8 @@ import { WriterLeaseLostError } from "./lease"
 export const CHATGPT_TOKEN_URL = "https://auth.openai.com/oauth/token"
 /** The Codex CLI's OAuth client. Logins and refreshes must use the same one. */
 export const CHATGPT_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
-const EXCHANGE_TIMEOUT_MS = 15_000
+/** An exchange that has not answered by now is abandoned, so a stamp older than this belongs to no exchange still out. */
+export const EXCHANGE_TIMEOUT_MS = 15_000
 
 export type RequiresReauthReason =
   /** The provider processed the grant and refused it. */
@@ -96,6 +97,8 @@ export interface ChatGptRefresher {
    * after spending its refresh token leaves the seat needing a sign-in.
    */
   settle(): Promise<void>
+  /** Whether an exchange for this seat is out right now, from this process. */
+  exchanging(accountUserId: string): boolean
 }
 
 interface TokenExchangeResult {
@@ -264,6 +267,10 @@ export function createChatGptRefresher(options: ChatGptRefresherOptions): ChatGp
 
     async settle() {
       while (inflight.size > 0) await Promise.allSettled([...inflight.values()])
+    },
+
+    exchanging(accountUserId) {
+      return inflight.has(accountUserId)
     },
   }
 }

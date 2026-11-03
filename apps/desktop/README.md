@@ -43,7 +43,12 @@ not install Electron or need the app.
 
 ## Connect to an existing installation
 
-Opening the app detects Meridian at `http://127.0.0.1:3456`. Settings accepts
+Opening the app (or **Re-detect**) finds the Meridian your clients use: loaded
+launchd jobs, then the OpenCode and Pi configurations, then
+`http://127.0.0.1:3456`, then the saved address. Only local addresses that answer
+as Meridian are attached, and the app then views that service instead of
+starting its own copy; the managed copy runs only when none is found. The app
+shows which instance it is viewing (address, version, supervisor). Settings accepts
 another local HTTP address and an optional API key, encrypted with Electron's
 secure storage. Docker works through its published local port; Nix, npm and
 other supervisors expose the same Meridian HTTP interface. Remote connections
@@ -95,8 +100,10 @@ authorization code back into Meridian. Check the account selected in your browse
 before authorizing. Meridian shows progress and a persistent success or retry
 result; cancelling does not report an authentication failure.
 
-For externally managed services, **Copy sign-in command** provides the command
-to run in Terminal on the service’s host. Return to the desktop and refresh after
+For externally managed services, sign-in uses the service's own sign-in routes
+(paste the code Claude shows); older versions without them offer **Copy sign-in
+command** to run in Terminal on the service’s host. Removing a Claude account
+from an external service always needs that host's `meridian profile remove`. Return to the desktop and refresh after
 completing sign-in. Connecting to a service does not give the desktop ownership
 of its account files.
 

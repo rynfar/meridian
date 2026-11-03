@@ -144,8 +144,8 @@ describe("buildCodexRequest - the responses-lite hint", () => {
   })
 
   it("is absent for an ordinary Codex body, which it would otherwise 400 on every request", () => {
-    // Exactly the shape this repo captured from Codex 0.143 under "Verified
-    // wire format" in docs/superpowers/specs/2026-07-08-codex-responses-api-design.md:
+    // Exactly the shape this repo captured from Codex 0.143, recorded under
+    // "Codex Responses wire contract" in spec `proxy-core` (src/proxy/SPEC.md):
     // parallel_tool_calls true, no reasoning.context at all. gpt-5.6-sol is in
     // the lite set and is a model the operator actually runs.
     for (const model of LITE_MODELS) {

@@ -44,6 +44,9 @@ export interface MeridianSettings {
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
   priorityFailback?: PriorityFailbackPolicy
+  /** Pool-routing weekly reserve per profile id, in percent (e.g.
+   *  `{ "personal": 20 }`). MERIDIAN_WEEKLY_RESERVE env var takes precedence. */
+  weeklyReserve?: Record<string, number>
   /** The ChatGPT seat (accountUserId) unpinned ChatGPT turns go to first; POST /profiles/active. */
   chatGptActiveSeat?: string
   /** Operator-chosen profile ids for ChatGPT seats, keyed by seat id (accountUserId). */
@@ -84,11 +87,25 @@ export interface MeridianSettings {
    * MERIDIAN_ERROR_REPORTING_DSN wins. Read once at startup.
    */
   errorReportingDsn?: string
+  /**
+   * Opt-in: when set (1-3650), Claude Code's own retention cleanup runs in
+   * Meridian's SDK children and deletes its files older than this many days in
+   * each profile's config directory. Unset is off.
+   * MERIDIAN_TRANSCRIPT_RETENTION_DAYS wins, and a profile whose own
+   * settings.json names `cleanupPeriodDays` keeps that. Re-read on every
+   * request; see proxy/transcriptRetention.ts.
+   */
+  transcriptRetentionDays?: number
   /** Ask the npm registry once a day whether a newer Meridian is published.
    *  Off unless switched on: an instance only reaches a third party on a timer
    *  because someone asked it to. The header shows the running version either
    *  way. MERIDIAN_NO_UPDATE_CHECK=1 forces it off regardless. */
   checkForUpdates?: boolean
+  /** Keep idle one-hour-cache sessions warm with a few small cache-read
+   *  requests (prompt-cache keepalive). Off unless switched on, because each
+   *  one counts against the account's usage. MERIDIAN_CACHE_KEEPALIVE wins.
+   *  Re-read per turn and per scheduler tick. */
+  cacheKeepalive?: boolean
   /** Name the machine Meridian runs on beside the site header's status, so
    *  several instances can be told apart at a glance. Off unless switched on,
    *  because it also publishes the hostname in the unauthenticated /health. */

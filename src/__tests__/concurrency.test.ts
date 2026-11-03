@@ -101,6 +101,38 @@ describe("AbortableSemaphore", () => {
   })
 })
 
+describe("AbortableSemaphore.tryAcquire", () => {
+  test("takes a free permit at once and never queues", async () => {
+    const semaphore = new AbortableSemaphore(2)
+    const lease = semaphore.tryAcquire()
+    expect(lease).toBeDefined()
+    expect(semaphore.snapshot).toEqual({ active: 1, queued: 0, limit: 2 })
+    lease!.release()
+    expect(semaphore.snapshot.active).toBe(0)
+  })
+
+  test("leaves the reserved permits free for client work", () => {
+    const one = new AbortableSemaphore(1)
+    expect(one.tryAcquire(1)).toBeUndefined()
+    const two = new AbortableSemaphore(2)
+    const lease = two.tryAcquire(1)
+    expect(lease).toBeDefined()
+    expect(two.tryAcquire(1)).toBeUndefined()
+    lease!.release()
+  })
+
+  test("never goes ahead of a queued waiter", async () => {
+    const semaphore = new AbortableSemaphore(1)
+    const held = await semaphore.acquire()
+    const waiting = semaphore.acquire()
+    held.release()
+    // The waiter was granted on release; nothing is free for a background try.
+    expect(semaphore.tryAcquire()).toBeUndefined()
+    ;(await waiting).release()
+    expect(semaphore.tryAcquire()).toBeDefined()
+  })
+})
+
 describe("resolveMaxConcurrent", () => {
   const original = { ...process.env }
   afterEach(() => {

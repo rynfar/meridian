@@ -385,7 +385,7 @@ try {
     assert(afterCompact.some(event => event.type === 'text' && event.part?.text.includes(receipt)))
     const compactionRequests = requests.filter(row => row.headers['x-opencode-agent-name'] === 'compaction')
     assert(compactionRequests.length)
-    assert(compactionRequests.every(row => row.headers['x-opencode-session'] === session && row.headers['x-meridian-source'] === 'subagent-compaction'))
+    assert(compactionRequests.every(row => row.headers['x-opencode-session'] === session && row.headers['x-meridian-source'] === 'fork-compaction'))
   }
   assert(requests.length > 0, 'No API request reached fixture')
   assert(requests.some(row => row.headers['x-opencode-agent-mode'] === 'primary'), 'Primary plugin hook did not run')

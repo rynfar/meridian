@@ -6,7 +6,7 @@
  * Without this a supervisor draining a ChatGPT-only instance read `total: 0`
  * while responses were still streaming, and restarted through them.
  */
-import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -33,6 +33,8 @@ delete process.env.MERIDIAN_API_KEY
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { saveSettings } = await import("../settings")
 const { __setFetchOAuthUsageOverride, resetOAuthUsageCache } = await import("../proxy/oauthUsage")
+const { processSessionTree } = await import("../proxy/sessionTree")
+const { openCodeAdapter } = await import("../proxy/adapters/opencode")
 
 const CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
 const LOOPBACK = { incoming: { socket: { remoteAddress: "127.0.0.1" } } }
@@ -96,6 +98,7 @@ interface InflightBody {
 }
 
 let dir: string
+const proxies: ReturnType<typeof createProxyServer>[] = []
 
 async function server() {
   const pool = join(dir, "opencode", "oc-codex-multi-auth-accounts.json")
@@ -112,9 +115,12 @@ async function server() {
   const pluginConfigPath = join(dir, "plugins.json")
   writeFileSync(pluginConfigPath, JSON.stringify({ plugins: [] }))
   const proxy = createProxyServer({ port: 0, host: "127.0.0.1", silent: true, pluginDir: join(dir, "no-plugins"), pluginConfigPath })
+  proxies.push(proxy)
+  if (!proxy.getInFlightCount || !proxy.closeBackend) throw new Error("Fixture requires admission counts and joined backend cleanup")
+  const inFlightCount = proxy.getInFlightCount
   await proxy.initPlugins?.()
   const inflight = async () => (await (await proxy.app.fetch(new Request("http://localhost/inflight"), LOOPBACK)).json()) as InflightBody
-  return { app: proxy.app, inflight }
+  return { app: proxy.app, inflight, inFlightCount }
 }
 
 beforeEach(async () => {
@@ -130,6 +136,10 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const stream of streams) stream.release()
   await Bun.sleep(10)
+  for (const proxy of proxies.splice(0)) {
+    if (!proxy.closeBackend) throw new Error("Fixture lost joined backend cleanup")
+    await proxy.closeBackend()
+  }
   __setFetchOAuthUsageOverride(null)
   saveSettings({ chatGptActiveSeat: undefined, chatgpt: undefined })
   globalThis.fetch = realFetch
@@ -200,6 +210,32 @@ describe("GET /inflight counts ChatGPT turns", () => {
     const failed = await Promise.resolve(app.fetch(responses())).catch((error: unknown) => error)
     if (failed instanceof Response) await failed.text()
     expect((await inflight()).total).toBe(0)
+  })
+
+  for (const boundary of ["session-key", "session-tree"] as const) it(`drops a turn whose ${boundary} setup fails before the backend`, async () => {
+    const { app, inflight, inFlightCount } = await server()
+    const fail = () => { throw new Error("owned setup failure") }
+    const failure = boundary === "session-key"
+      ? spyOn(openCodeAdapter, "getSessionId").mockImplementation(fail)
+      : spyOn(processSessionTree, "register").mockImplementation(fail)
+    const request = responses()
+    request.headers.set("x-meridian-agent", "opencode")
+    const add = spyOn(request.signal, "addEventListener")
+    const remove = spyOn(request.signal, "removeEventListener")
+    try {
+      const failed = await Promise.resolve(app.fetch(request)).catch((error: unknown) => error)
+      if (failed instanceof Response) await failed.text()
+      expect(failure).toHaveBeenCalledTimes(1)
+      expect(add).toHaveBeenCalledTimes(1)
+      expect(remove).toHaveBeenCalledWith("abort", add.mock.calls[0]?.[1])
+    } finally {
+      failure.mockRestore()
+      add.mockRestore()
+      remove.mockRestore()
+    }
+    expect(streams).toHaveLength(0)
+    expect((await inflight()).total).toBe(0)
+    expect(inFlightCount()).toBe(0)
   })
 })
 

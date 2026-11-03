@@ -4,6 +4,7 @@
  * GET /telemetry            — HTML dashboard
  * GET /telemetry/requests   — Recent request metrics (JSON)
  * GET /telemetry/summary    — Aggregate statistics (JSON)
+ * GET /telemetry/timeseries — Per-bucket requests, tokens, latency, cost (JSON)
  * GET /telemetry/logs       — Diagnostic logs (JSON)
  */
 
@@ -14,6 +15,8 @@ import { iconResponse } from "./icon"
 import { withSavedLayout } from "./pageLayout"
 import type { SessionTreeSummary } from "./types"
 import { collapseRouteChains, summarizeRoutes } from "./routeChain"
+import { buildTimeseries, parseTimeseriesQuery, TIMESERIES_MAX_ROWS } from "./timeseries"
+import { getPricingOverrides } from "./pricingStore"
 
 /** Upper bound on the rows one /routes tally reads, matching the memory
  *  store's ring capacity so a window inside it is covered exactly. */
@@ -81,6 +84,26 @@ export function createTelemetryRoutes(deps: TelemetryRouteDeps = {}) {
     const summary = telemetryStore.summarize(windowMs)
     const sessionTree = deps.getSessionTree?.()
     return c.json(sessionTree ? { ...summary, sessionTree } : summary)
+  })
+
+  // Bucketed history over [start, end). Raw rows, not collapsed chains, so
+  // the buckets sum to /summary's totals for the same range.
+  routes.get("/timeseries", (c) => {
+    const now = Date.now()
+    const parsed = parseTimeseriesQuery({
+      start: c.req.query("start"),
+      end: c.req.query("end"),
+      window: c.req.query("window"),
+      bucket: c.req.query("bucket"),
+    }, now)
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400)
+    const { range } = parsed
+    const rows = telemetryStore.getRecent({ limit: TIMESERIES_MAX_ROWS, since: range.start, until: range.end })
+    return c.json(buildTimeseries(rows, range, {
+      limitReached: rows.length >= TIMESERIES_MAX_ROWS,
+      retention: telemetryStore.describe(),
+      now,
+    }, getPricingOverrides()))
   })
 
   // Diagnostic logs

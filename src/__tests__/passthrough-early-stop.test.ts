@@ -64,6 +64,12 @@ describe("isClientForwardedToolUse", () => {
     expect(isClientForwardedToolUse(toolUse("t1", "ToolSearch"))).toBe(false)
   })
 
+  it("treats ToolSearch as a client tool when the client owns the search", () => {
+    expect(isClientForwardedToolUse(toolUse("t1", "ToolSearch"), "mcp__oc__", true)).toBe(true)
+    // StructuredOutput stays internal in every mode.
+    expect(isClientForwardedToolUse(toolUse("t2", "StructuredOutput"), "mcp__oc__", true)).toBe(false)
+  })
+
   it("excludes internal MCP tools from other servers", () => {
     expect(isClientForwardedToolUse(toolUse("t1", "mcp__opencode__read"))).toBe(false)
   })

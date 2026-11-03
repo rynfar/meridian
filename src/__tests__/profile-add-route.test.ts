@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { resetPendingAdds } from "../proxy/profileAdd"
@@ -181,6 +181,37 @@ describe("profile add routes", () => {
     expect(profile.claudeConfigDir).not.toBe(join(configDir, "profiles", "work"))
     expect(JSON.parse(readFileSync(join(profile.claudeConfigDir, ".credentials.json"), "utf-8")).claudeAiOauth.accessToken)
       .toBe("add-route-access-token")
+  })
+
+  it.skipIf(skipOnDarwin)("reads the new profile's account with its own credential, never the first profile's", async () => {
+    // This server's profile list is pinned (like MERIDIAN_PROFILES), so the
+    // new profile is not in it and resolving it by id would fall back to
+    // "personal". Its credential must not be used to read the new account.
+    const personalDir = join(configDir, "profiles", "personal")
+    writeFileSync(join(personalDir, ".credentials.json"), JSON.stringify({ claudeAiOauth: {
+      accessToken: "personal-access-token", refreshToken: "personal-refresh",
+      expiresAt: Date.now() + 3_600_000, scopes: ["user:inference", "user:profile"], subscriptionType: "max",
+    } }))
+    const { addId } = await startAdd("work")
+    const accountReads: string[] = []
+    globalThis.fetch = Object.assign(
+      async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input)
+        if (url.startsWith("https://api.anthropic.com/api/oauth/")) {
+          accountReads.push(new Headers(init?.headers).get("authorization") ?? "")
+          return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_5x" } })
+        }
+        return new Response(JSON.stringify(TOKEN_RESPONSE), { status: 200, headers: { "Content-Type": "application/json" } })
+      },
+      { preconnect: originalFetch.preconnect },
+    )
+
+    const res = await post("/profiles/add/complete", { addId, code: "abc123" })
+    expect(res.status).toBe(200)
+    for (let waited = 0; waited < 2_000 && accountReads.length === 0; waited += 50) await Bun.sleep(50)
+
+    expect(accountReads.length).toBeGreaterThan(0)
+    expect(accountReads.every(header => header === "Bearer add-route-access-token")).toBe(true)
   })
 
   it.skipIf(skipOnDarwin)("creates the profile from the pasted callback URL", async () => {

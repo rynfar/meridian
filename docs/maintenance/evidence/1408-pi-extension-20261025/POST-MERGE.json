@@ -1,0 +1,24 @@
+{
+  "pr": 1408,
+  "merged_at": "2026-10-25T18:32:52Z",
+  "merge_commit": "bd021733deb054bbb95cacc0383fa816469e5773",
+  "merge_method": "squash --match-head-commit 388b05bbc3ca3c756ab9292d537ecdb2fc690272",
+  "parent": "9d94a3542f2e31edace685118d56e6e293feb4bd",
+  "author": "Nate Berkopec <nate.berkopec@gmail.com>",
+  "co_author_trailer": "Trevor Walker <rynfar@gmail.com>",
+  "commit_signature_verified": true,
+  "merged_tree_equals_validated_head_tree": true,
+  "contributor_original": { "sha": "33357ce4f794262e013ccb883a24071a28f4c929", "author": "Nate Berkopec", "author_date": "2026-10-19T07:19:47+09:00", "signature": "verified" },
+  "maintainer_corrections_on_contributor_branch": [
+    "7365a7953249efaf984cc80aa6abe961287d3b7c fix: keep a Pi extension directory Meridian did not install",
+    "e3bc9837d36ac6fa5e3ba06a699fcd3d47629437 docs: explain moving Pi from the models.json setup to the extension",
+    "1624ce4ce7f250793b9ae450d14fe6f6c5f38e59 test: escrow a Pi side-call wire harness and record the Pi E2E",
+    "89237ae55da3e5bf87903b50e3426a9caf9e8437 fix: keep Pi side calls on the conversation's model tier",
+    "9b2fe0cb02781ff41748704b99d8e7516476c5e7 fix: accept --client=pi and expand ~ in PI_CODING_AGENT_DIR",
+    "fd18eba56baa0bd4aef4e7279ce3aa5c1c4c8c58 test: type the pi-subagents system-prompt fixture",
+    "f1adfedfe8420b84b49941c447335f58e902cb32 docs: record the Pi extension contracts, layout and known limits",
+    "388b05bbc3ca3c756ab9292d537ecdb2fc690272 fix: report a moved Pi extension directory when setup fails"
+  ],
+  "push": "fast-forward 33357ce4f..388b05bbc to nateberkopec/meridian feat/pi-extension (maintainer edits allowed); no force push",
+  "final_head_ci": { "pass": 12, "skipping": 2, "required_test": "pass" }
+}

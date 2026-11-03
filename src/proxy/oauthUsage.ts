@@ -23,13 +23,29 @@
  */
 
 import { createHash } from "node:crypto"
+import { z } from "zod"
 import { claudeLog } from "../logger"
 import { isCredentialsReadOnly } from "./credentialsMode"
 import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
+import { bundledClaudeCodeVersion } from "./models"
 
-const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+// Policy for the query flag and User-Agent: profiles-routing.spec.md, "OAuth usage request identity".
+const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
 const OAUTH_BETA_HEADER = "oauth-2025-04-20"
+const OAUTH_USER_AGENT_FALLBACK_VERSION = "2.1.304"
+const CLAUDE_CODE_VERSION_FORMAT = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
+let oauthUserAgentValue: string | undefined
+
+/** The Claude Code client identity sent on every OAuth usage, identity and reset request. */
+export function oauthUserAgent(): string {
+  if (oauthUserAgentValue === undefined) {
+    const bundled = bundledClaudeCodeVersion()
+    const version = bundled && CLAUDE_CODE_VERSION_FORMAT.test(bundled) ? bundled : OAUTH_USER_AGENT_FALLBACK_VERSION
+    oauthUserAgentValue = `claude-cli/${version} (external, cli)`
+  }
+  return oauthUserAgentValue
+}
 
 /** Raw shape returned by Anthropic. Most fields are optional/nullable. */
 interface RawOAuthWindow {
@@ -69,6 +85,7 @@ interface RawOAuthUsageResponse {
   omelette_promotional?: RawOAuthWindow | null
   limits?: RawOAuthLimit[] | null
   extra_usage?: RawOAuthExtraUsage | null
+  cedar_ember?: unknown
 }
 
 export interface OAuthUsageWindow {
@@ -85,9 +102,30 @@ export interface OAuthExtraUsageInfo {
   currency: string
 }
 
+export interface OAuthBankedResetGrant {
+  id: string | null
+  resetsLeft: number
+  expiresAt: number | null
+  /** Epoch ms the grant becomes usable, or null when absent/unreadable. */
+  startsAt: number | null
+  /** Provider's flags; null when absent or not a boolean. */
+  paused: boolean | null
+  usableNow: boolean | null
+}
+
+export interface OAuthBankedResets {
+  eligible: boolean
+  /** Provider's reason the account is ineligible, or null when absent/unreadable. */
+  ineligibleReason: string | null
+  /** The grant the provider would redeem next; null unless it names a listed grant. */
+  nextGrantId: string | null
+  grants: OAuthBankedResetGrant[]
+}
+
 export interface OAuthUsageSnapshot {
   windows: OAuthUsageWindow[]
   extraUsage: OAuthExtraUsageInfo | null
+  bankedResets: OAuthBankedResets | null
   fetchedAt: number
   /** Set when this is a previous snapshot served because a fresh fetch
    *  failed transiently (credential-read blip, upstream error). */
@@ -152,6 +190,7 @@ export interface OAuthUsageResult extends RawUsageResult {
 export interface UsageEntryFields {
   windows: OAuthUsageWindow[]
   extraUsage: OAuthExtraUsageInfo | null
+  bankedResets: OAuthBankedResets | null
   fetchedAt: number | null
   /** True when the figures are a previous reading rather than one taken by the
    *  check that just ran. */
@@ -178,6 +217,7 @@ export function toUsageEntry(result: OAuthUsageResult): UsageEntryFields {
   return {
     windows: shown?.windows ?? [],
     extraUsage: shown?.extraUsage ?? null,
+    bankedResets: shown?.bankedResets ?? null,
     fetchedAt: shown?.fetchedAt ?? null,
     stale: shown != null && (result.snapshot === null || result.snapshot.stale === true),
     error: result.error,
@@ -251,6 +291,52 @@ function parseIsoToMs(raw: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null
 }
 
+const RESET_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/i
+const RESET_DATE_TIMEZONE = /(?:Z|[+-]\d{2}:\d{2})$/i
+
+function parseResetDate(raw: unknown): number | null {
+  if (typeof raw !== "string" || !RESET_DATE_FORMAT.test(raw)) return null
+  // Provider timestamps without an offset are UTC, never the host's timezone.
+  return parseIsoToMs(RESET_DATE_TIMEZONE.test(raw) ? raw : `${raw}Z`)
+}
+
+const GRANT_ID_FORMAT = /^[a-z0-9_-]{1,40}$/
+const INELIGIBLE_REASON_FORMAT = /^[a-z0-9_]{1,64}$/
+
+function optionalBoolean(raw: object, key: string): boolean | null {
+  const value: unknown = key in raw ? Reflect.get(raw, key) : undefined
+  return typeof value === "boolean" ? value : null
+}
+
+function parseBankedResets(raw: unknown): OAuthBankedResets | null {
+  if (typeof raw !== "object" || raw === null || !("eligible" in raw) || typeof raw.eligible !== "boolean"
+    || !("grants" in raw) || !Array.isArray(raw.grants)) return null
+
+  const grants: OAuthBankedResetGrant[] = []
+  const rawGrants: unknown[] = raw.grants
+  for (const grant of rawGrants) {
+    if (typeof grant !== "object" || grant === null || !("resets_left" in grant)
+      || typeof grant.resets_left !== "number" || !Number.isSafeInteger(grant.resets_left) || grant.resets_left < 0) continue
+
+    grants.push({
+      id: "id" in grant && typeof grant.id === "string" ? grant.id : null,
+      resetsLeft: grant.resets_left,
+      expiresAt: parseResetDate("ends_at" in grant ? grant.ends_at : null),
+      startsAt: parseResetDate("starts_at" in grant ? grant.starts_at : null),
+      paused: optionalBoolean(grant, "paused"),
+      usableNow: optionalBoolean(grant, "usable_now"),
+    })
+  }
+  const next: unknown = "next_grant_id" in raw ? raw.next_grant_id : null
+  const reason: unknown = "ineligible_reason" in raw ? raw.ineligible_reason : null
+  return {
+    eligible: raw.eligible,
+    ineligibleReason: typeof reason === "string" && INELIGIBLE_REASON_FORMAT.test(reason) ? reason : null,
+    nextGrantId: typeof next === "string" && GRANT_ID_FORMAT.test(next) && grants.some(grant => grant.id === next) ? next : null,
+    grants,
+  }
+}
+
 function normalizeUtilization(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null
   // OAuth returns 0..100. Normalize to 0..1 to match SDK rate_limit_event.
@@ -307,7 +393,7 @@ function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
       }
     : null
 
-  return { windows, extraUsage, fetchedAt: Date.now() }
+  return { windows, extraUsage, bankedResets: parseBankedResets(raw.cedar_ember), fetchedAt: Date.now() }
 }
 
 async function readAccessToken(store: CredentialStore): Promise<string | null> {
@@ -378,6 +464,7 @@ async function callAnthropic(
       Authorization: `Bearer ${token}`,
       "anthropic-beta": OAUTH_BETA_HEADER,
       Accept: "application/json",
+      "User-Agent": oauthUserAgent(),
     },
     signal: signal ?? AbortSignal.timeout(10_000),
   })
@@ -401,14 +488,15 @@ type UsageCallResult = Awaited<ReturnType<typeof callAnthropic>>
  */
 async function retryAfterRateLimitRun(
   limited: UsageCallResult,
-  ctx: { store: CredentialStore; refresh: RefreshFn; cacheKey: string; token: string; fetchImpl: FetchLike },
+  ctx: { store: CredentialStore; refresh: RefreshFn; cacheKey: string; token: string; fetchImpl: FetchLike; owner: Promise<RawUsageResult> },
 ): Promise<UsageCallResult> {
   const runLength = countRateLimited(ctx.cacheKey, ctx.token)
   if (!claimRateLimitRefresh(ctx.cacheKey, runLength)) return limited
   claudeLog("oauth_usage.refresh_on_429", { profile: ctx.cacheKey, runLength })
   const newToken = await refreshAndRead(ctx.store, ctx.refresh, ctx.cacheKey, "rate_limited")
-  if (!newToken) return limited
+  if (!newToken || inflightByProfile.get(ctx.cacheKey) !== ctx.owner) return limited
   const retried = await callAnthropic(newToken, ctx.fetchImpl)
+  if (inflightByProfile.get(ctx.cacheKey) !== ctx.owner) return retried
   if ("__status" in retried && retried.__status === 429) countRateLimited(ctx.cacheKey, newToken)
   else rateLimitRunByProfile.delete(ctx.cacheKey)
   return retried
@@ -427,6 +515,200 @@ export interface FetchOAuthUsageOpts {
   fetchImpl?: FetchLike
   /** Override the token refresh (for testing). Defaults to refreshOAuthToken. */
   refreshImpl?: RefreshFn
+}
+
+export const quotaResetBody = z.object({
+  profile: z.string().min(1),
+  grantId: z.string().regex(/^[a-z0-9_-]{1,40}$/),
+  requestId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+}).strict()
+
+export type OAuthQuotaResetRequest = z.infer<typeof quotaResetBody>
+const quotaResetIdentity = z.object({ organization: z.object({ uuid: z.string().uuid() }) })
+
+const quotaResetOutcome = z.object({
+  result: z.enum(["reset", "already_used", "not_limited", "cooldown", "ineligible", "unavailable"]),
+  reason: z.unknown().optional(),
+  resets_left: z.unknown().optional(),
+  cleared: z.unknown().transform(raw => Array.isArray(raw) ? raw.filter((entry: unknown): entry is string => typeof entry === "string") : []).default([]),
+  weekly_resets_at: z.unknown().optional(),
+  cooldown_until: z.unknown().optional(),
+})
+
+export type OAuthResetFailureCode = "no_token" | "no_organization"
+  | "upstream_auth" | "rate_limited" | "upstream_error" | "invalid_response" | "reset_indeterminate"
+
+type OAuthResetFailure = {
+  ok: false
+  status: 429 | 502 | 503
+  code: OAuthResetFailureCode
+  message: string
+  indeterminate: boolean
+  /** The mutation POST was handed to fetch; its outcome is then tied to the request ID. */
+  dispatched: boolean
+}
+
+export type OAuthResetResult = OAuthResetFailure | {
+  ok: true
+  outcome: {
+    result: z.infer<typeof quotaResetOutcome>["result"]
+    reason: string | null
+    resetsLeft: number | null
+    cleared: string[]
+    weeklyResetsAt: number | null
+    cooldownUntil: number | null
+  }
+}
+
+function invalidateResetUsage(profileId?: string | null): void {
+  clearOAuthUsageForProfile(profileId)
+  if (profileId == null) clearOAuthUsageForProfile("default")
+}
+
+function fail(status: OAuthResetFailure["status"], code: OAuthResetFailureCode, message: string, indeterminate = false): OAuthResetFailure {
+  return { ok: false, status, code, message, indeterminate, dispatched: false }
+}
+
+function afterDispatch(failure: OAuthResetFailure): OAuthResetFailure {
+  return { ...failure, dispatched: true }
+}
+
+function httpFailure(status: number): OAuthResetFailure {
+  if (status === 401 || status === 403) return fail(502, "upstream_auth", "Upstream rejected OAuth credentials")
+  if (status === 429) return fail(429, "rate_limited", "Upstream rate limited the request")
+  return fail(502, "upstream_error", "Upstream request failed")
+}
+
+/** One explicit mutation; request IDs are caller-owned, not a promise of provider deduplication. */
+export async function redeemOAuthQuotaReset(
+  input: OAuthQuotaResetRequest,
+  opts?: Pick<FetchOAuthUsageOpts, "store" | "profileId" | "claudeConfigDir" | "fetchImpl" | "refreshImpl">,
+): Promise<OAuthResetResult> {
+  const fetchImpl = opts?.fetchImpl ?? globalThis.fetch
+  const store = opts?.store ?? createPlatformCredentialStore({ claudeConfigDir: opts?.claudeConfigDir })
+  let token: string | null
+  try {
+    token = await tokenForCall(store, opts?.refreshImpl ?? refreshOAuthToken, opts?.profileId ?? DEFAULT_KEY)
+  } catch {
+    return fail(503, "no_token", "Could not read OAuth credentials")
+  }
+  if (!token) return fail(503, "no_token", "No OAuth access token available")
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "anthropic-beta": OAUTH_BETA_HEADER,
+    "User-Agent": oauthUserAgent(),
+    "Content-Type": "application/json",
+  }
+  let organization: string
+  try {
+    const identity = await fetchImpl("https://api.anthropic.com/api/oauth/profile", {
+      headers, redirect: "error", signal: AbortSignal.timeout(25_000),
+    })
+    if (!identity.ok) return httpFailure(identity.status)
+    const profile = quotaResetIdentity.safeParse(await identity.json())
+    if (!profile.success) return fail(502, "no_organization", "OAuth identity did not include a valid organization")
+    organization = profile.data.organization.uuid
+  } catch {
+    return fail(502, "upstream_error", "Could not read OAuth organization")
+  }
+  try {
+    const response = await fetchImpl(`https://api.anthropic.com/api/organizations/${organization}/reset_rate_limits`, {
+      method: "POST", headers, redirect: "error", signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({ program: "cedar_ember", grant_id: input.grantId, request_id: input.requestId }),
+    })
+    if (!response.ok) {
+      if (response.status >= 500) {
+        invalidateResetUsage(opts?.profileId)
+        return afterDispatch(fail(502, "reset_indeterminate", "Reset outcome is unknown; do not automatically retry", true))
+      }
+      return afterDispatch(httpFailure(response.status))
+    }
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      invalidateResetUsage(opts?.profileId)
+      return afterDispatch(fail(502, "invalid_response", "Reset response was invalid; outcome is unknown", true))
+    }
+    const result = quotaResetOutcome.safeParse(body)
+    if (!result.success) {
+      invalidateResetUsage(opts?.profileId)
+      return afterDispatch(fail(502, "invalid_response", "Reset response was invalid; outcome is unknown", true))
+    }
+    const value = result.data
+    if (value.result === "reset" || value.result === "already_used") invalidateResetUsage(opts?.profileId)
+    return { ok: true, outcome: {
+      result: value.result,
+      reason: typeof value.reason === "string" ? value.reason : null,
+      resetsLeft: typeof value.resets_left === "number" && Number.isSafeInteger(value.resets_left) && value.resets_left >= 0 ? value.resets_left : null,
+      cleared: value.cleared,
+      weeklyResetsAt: parseResetDate(value.weekly_resets_at),
+      cooldownUntil: parseResetDate(value.cooldown_until),
+    } }
+  } catch {
+    invalidateResetUsage(opts?.profileId)
+    return afterDispatch(fail(502, "reset_indeterminate", "Reset outcome is unknown; do not automatically retry", true))
+  }
+}
+
+const RESET_LEDGER_MAX_ENTRIES = 256
+const RESET_LEDGER_TTL_MS = 15 * 60_000
+/** Redemption currently running per ledger scope (profile). */
+const resetInflightByScope = new Map<string, { requestId: string; grantId: string }>()
+/** Settled, dispatched outcomes keyed by scope + request ID, oldest first. */
+const resetLedger = new Map<string, { grantId: string; result: OAuthResetResult; settledAt: number }>()
+
+function resetLedgerKey(scope: string, requestId: string): string {
+  return `${scope}\u0000${requestId}`
+}
+
+function pruneResetLedger(now: number): void {
+  for (const [key, entry] of resetLedger) {
+    if (now - entry.settledAt < RESET_LEDGER_TTL_MS && resetLedger.size <= RESET_LEDGER_MAX_ENTRIES) break
+    resetLedger.delete(key)
+  }
+}
+
+export type OAuthResetAttempt =
+  | { kind: "settled"; result: OAuthResetResult; replayed: boolean }
+  | { kind: "in_progress" }
+  | { kind: "request_id_conflict" }
+
+/**
+ * The route's entry point: at most one redemption per profile at a time, and a
+ * request ID whose mutation was dispatched replays its remembered outcome
+ * instead of reaching Anthropic again. See profiles-routing.spec.md.
+ */
+export async function redeemOAuthQuotaResetOnce(
+  input: OAuthQuotaResetRequest,
+  opts?: Parameters<typeof redeemOAuthQuotaReset>[1],
+): Promise<OAuthResetAttempt> {
+  const scope = input.profile
+  const key = resetLedgerKey(scope, input.requestId)
+  pruneResetLedger(Date.now())
+  const settled = resetLedger.get(key)
+  if (settled) {
+    return settled.grantId === input.grantId
+      ? { kind: "settled", result: settled.result, replayed: true }
+      : { kind: "request_id_conflict" }
+  }
+  const running = resetInflightByScope.get(scope)
+  if (running) {
+    return running.requestId === input.requestId && running.grantId !== input.grantId
+      ? { kind: "request_id_conflict" }
+      : { kind: "in_progress" }
+  }
+  resetInflightByScope.set(scope, { requestId: input.requestId, grantId: input.grantId })
+  try {
+    const result = await redeemOAuthQuotaReset(input, opts)
+    if (result.ok || result.dispatched) {
+      resetLedger.set(key, { grantId: input.grantId, result, settledAt: Date.now() })
+      pruneResetLedger(Date.now())
+    }
+    return { kind: "settled", result, replayed: false }
+  } finally {
+    resetInflightByScope.delete(scope)
+  }
 }
 
 /**
@@ -521,7 +803,8 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
   // `attempted` marks a check that actually reached the credential store or
   // upstream. The 429 cooldown turns polls away before either, and those must
   // not advance the failure count — see OAuthUsageFailure.
-  const staleOr = (reason: string, error: OAuthUsageError, attempted = true): RawUsageResult => {
+  const staleOr = (reason: string, error: OAuthUsageError, attempted = true): RawUsageResult | Promise<RawUsageResult> => {
+    if (attempted && inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
     if (attempted) recordFailure(cacheKey, error)
     const last = cacheByProfile.get(cacheKey)
     if (last && Date.now() - last.fetchedAt < staleMaxMs) {
@@ -551,9 +834,10 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
   const rateLimitBackoffMs = opts?.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS_DEFAULT
   const refresh = opts?.refreshImpl ?? refreshOAuthToken
 
-  const promise = (async () => {
+  async function fetchAndCacheUsage(): Promise<RawUsageResult> {
     try {
       let token = await tokenForCall(store, refresh, cacheKey)
+      if (inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
       if (!token) {
         // This read failing intermittently (e.g. a Keychain entry racing a
         // token-refresh rewrite) was previously silent — log it so flapping
@@ -563,6 +847,7 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
       }
 
       let result = await callAnthropic(token, fetchImpl)
+      if (inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
       if ("__status" in result && result.__status === 401) {
         claudeLog("oauth_usage.token_refresh_attempt", { profile: cacheKey })
         const refreshed = await refresh(store)
@@ -576,15 +861,18 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
           return staleOr("refresh_failed", "upstream_error")
         }
         const newToken = await readAccessToken(store)
+        if (inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
         if (!newToken) return staleOr("no_token_after_refresh", "no_token")
         token = newToken
         result = await callAnthropic(newToken, fetchImpl)
       }
+      if (inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
       if ("__status" in result && result.__status === 429) {
-        result = await retryAfterRateLimitRun(result, { store, refresh, cacheKey, token, fetchImpl })
+        result = await retryAfterRateLimitRun(result, { store, refresh, cacheKey, token, fetchImpl, owner: promise })
       } else {
         rateLimitRunByProfile.delete(cacheKey)
       }
+      if (inflightByProfile.get(cacheKey) !== promise) return fetchOAuthUsageImpl({ ...opts, force: false })
       if ("__status" in result) {
         if (result.__status === 429) {
           // Floor at the backoff, but cap at staleMaxMs: the cooldown suppresses
@@ -617,10 +905,11 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
       claudeLog("oauth_usage.fetch_failed", { profile: cacheKey, error: err instanceof Error ? err.message : String(err) })
       return staleOr("exception", "upstream_error")
     } finally {
-      inflightByProfile.delete(cacheKey)
+      if (inflightByProfile.get(cacheKey) === promise) inflightByProfile.delete(cacheKey)
     }
-  })()
+  }
 
+  const promise = fetchAndCacheUsage()
   inflightByProfile.set(cacheKey, promise)
   return promise
 }
@@ -657,4 +946,6 @@ export function resetOAuthUsageCache(): void {
   failureByProfile.clear()
   rateLimitRunByProfile.clear()
   lastRateLimitRefreshAtByProfile.clear()
+  resetInflightByScope.clear()
+  resetLedger.clear()
 }

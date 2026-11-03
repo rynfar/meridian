@@ -29,7 +29,8 @@ async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), 'meridian-desktop-test-'))
   const runner = join(directory, 'runner.mjs')
   await writeFile(runner, await readFile(join(import.meta.dir, '../../apps/desktop/src/runner.ts'), 'utf8'))
-  const manager = new Manager({ directory, runner, node: 'node', npm: 'unused', desktopVersion: 'test', encrypt: value => Buffer.from(value).toString('base64'), decrypt: value => Buffer.from(value, 'base64').toString(), changed: () => {}, notify: () => {} })
+  // Detection is faked: tests never probe the machine's real launchd jobs or :3456.
+  const manager = new Manager({ directory, runner, node: 'node', npm: 'unused', desktopVersion: 'test', encrypt: value => Buffer.from(value).toString('base64'), decrypt: value => Buffer.from(value, 'base64').toString(), changed: () => {}, notify: () => {}, detect: async () => ({ at: Date.now(), services: [], rejected: [] }) })
   fixtures.push({ manager, directory })
   await manager.init()
   await manager.configure({ mode: 'managed', port: await freePort() })

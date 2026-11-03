@@ -31,6 +31,7 @@ function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
     incompatibleTools: CLAUDE_CODE_ONLY_TOOLS,
     mcpServerName: MCP_SERVER_NAME,
     allowedMcpTools: ALLOWED_MCP_TOOLS,
+    transcriptRetentionDays: 0,
     ...overrides,
   }
 }
@@ -758,6 +759,43 @@ describe("buildQueryOptions", () => {
   it("carries the WebFetch preflight setting into passthrough mode", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true, webFetchPreflight: false }))
     expect((result.options as any).settings.skipWebFetchPreflight).toBe(true)
+  })
+
+  // Transcript retention: Claude Code sweeps old transcripts only when an
+  // enabled settings source names cleanupPeriodDays. settingSources enables
+  // none, so the flag settings are the only place the period can come from.
+  function flagSettings(overrides: Partial<QueryContext>) {
+    const { settings } = buildQueryOptions(makeContext(overrides)).options
+    if (settings === undefined || typeof settings === "string") throw new Error("expected inline flag settings")
+    return settings
+  }
+
+  it("passes the transcript retention period as cleanupPeriodDays", () => {
+    expect(flagSettings({ transcriptRetentionDays: 30 }).cleanupPeriodDays).toBe(30)
+  })
+
+  it("passes no cleanupPeriodDays at all when retention is off, never 0", () => {
+    expect(flagSettings({ transcriptRetentionDays: 0 })).not.toHaveProperty("cleanupPeriodDays")
+  })
+
+  it("sends exactly main's flag settings when retention is off", () => {
+    expect(flagSettings({ transcriptRetentionDays: 0 })).toEqual({
+      autoMemoryEnabled: true,
+      autoDreamEnabled: false,
+      skipWebFetchPreflight: false,
+    })
+  })
+
+  it("never sends a period Claude Code would reject", () => {
+    for (const days of [-1, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(flagSettings({ transcriptRetentionDays: days })).not.toHaveProperty("cleanupPeriodDays")
+    }
+  })
+
+  it("passes the retention period in passthrough mode without enabling any settings source", () => {
+    const { options } = buildQueryOptions(makeContext({ passthrough: true, settingSources: [], transcriptRetentionDays: 7 }))
+    expect(options.settingSources).toEqual([])
+    expect(flagSettings({ passthrough: true, settingSources: [], transcriptRetentionDays: 7 }).cleanupPeriodDays).toBe(7)
   })
 
   // The setting above only *reaches* the subprocess — it changes nothing

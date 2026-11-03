@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test"
 import * as childProcess from "node:child_process"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { open, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -8,6 +9,23 @@ import { createSdkProcessGate, getSdkGateNodeExecutable } from "../proxy/session
 import * as processIncarnation from "../proxy/session/processIncarnation"
 import { captureProcessIncarnation, type ProcessIncarnation } from "../proxy/session/processIncarnation"
 import { onPlatform, stubProbeExecFile } from "./processProbeStubs"
+
+/** Observe the opening under test without attributing another request's probe
+ * to it. Delegate every call so a forbidden synchronous spawn still executes
+ * and is reported, including after an asynchronous continuation. */
+async function observeOpening<T>(openGate: () => Promise<T>) {
+  const scope = new AsyncLocalStorage<boolean>()
+  const captures: Array<{ executable: string; stack: string | undefined }> = []
+  const original = childProcess.spawnSync
+  const observer = spyOn(childProcess, "spawnSync").mockImplementation(new Proxy(original, {
+    apply(target, receiver, args) {
+      if (scope.getStore()) captures.push({ executable: String(args[0]), stack: new Error("Synchronous process during gate opening").stack })
+      return Reflect.apply(target, receiver, args)
+    },
+  }))
+  try { return { gate: await scope.run(true, openGate), captures } }
+  finally { observer.mockRestore() }
+}
 
 describe("SDK process gate", () => {
   const roots: string[] = []
@@ -54,17 +72,60 @@ describe("SDK process gate", () => {
     roots.push(root)
     // What a running proxy captured of its host at start.
     expect(captureProcessIncarnation()).toBeDefined()
-    const synchronous = spyOn(childProcess, "spawnSync")
     let gate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
     try {
-      gate = await createSdkProcessGate(root, async () => undefined)
-      expect(synchronous).not.toHaveBeenCalled()
+      const observed = await observeOpening(() => createSdkProcessGate(root, async () => undefined))
+      gate = observed.gate
+      expect(observed.captures).toEqual([])
+      expect(gate.executor.pid).toBeGreaterThan(0)
     } finally {
-      synchronous.mockRestore()
+      // An assertion failure must not orphan the already-open wrapper.
+      if (gate) expect(await gate.closeAndJoin()).toBe(true)
     }
-    expect(gate.executor.pid).toBeGreaterThan(0)
-    expect(await gate.closeAndJoin()).toBe(true)
   })
+
+  it("does not attribute another operation's synchronous spawn to gate opening", async () => {
+    const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
+    roots.push(root)
+    expect(captureProcessIncarnation()).toBeDefined()
+    // This callback is registered outside the opening's asynchronous context.
+    const unrelated = new Promise<void>(resolve => setTimeout(() => {
+      childProcess.spawnSync(process.execPath, ["-e", "process.exit(0)"])
+      resolve()
+    }, 0))
+    const observed = await observeOpening(async () => {
+      const gate = await createSdkProcessGate(root, async () => undefined)
+      await unrelated
+      return gate
+    })
+    try { expect(observed.captures).toEqual([]) }
+    finally { expect(await observed.gate.closeAndJoin()).toBe(true) }
+  })
+
+  for (const position of ["before", "after"] as const) {
+    it(`retains a real forbidden synchronous spawn ${position} an asynchronous continuation`, async () => {
+      const root = mkdtempSync(join(tmpdir(), "meridian-sdk-gate-"))
+      roots.push(root)
+      expect(captureProcessIncarnation()).toBeDefined()
+      const original = processIncarnation.captureProcessIncarnationAsync
+      const capture = spyOn(processIncarnation, "captureProcessIncarnationAsync").mockImplementation(async (...args) => {
+        if (position === "after") await Promise.resolve()
+        childProcess.spawnSync(process.execPath, ["-e", "process.exit(0)"])
+        return original(...args)
+      })
+      let gate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
+      try {
+        const observed = await observeOpening(() => createSdkProcessGate(root, async () => undefined))
+        gate = observed.gate
+        expect(observed.captures).toHaveLength(1)
+        expect(observed.captures[0]?.executable).toBe(process.execPath)
+        expect(observed.captures[0]?.stack).toContain("Synchronous process during gate opening")
+      } finally {
+        capture.mockRestore()
+        if (gate) expect(await gate.closeAndJoin()).toBe(true)
+      }
+    })
+  }
 
   // CI runs this suite on Linux, where the capture reads /proc. This drives
   // the darwin capture, a ps child process, with execFile stubbed.
@@ -76,10 +137,9 @@ describe("SDK process gate", () => {
     expect(captureProcessIncarnation()).toBeDefined()
     const darwinStart = "Mon Jan  5 03:04:05 2026"
     const probe = stubProbeExecFile()
-    const synchronous = spyOn(childProcess, "spawnSync")
     let gate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
     try {
-      gate = await onPlatform("darwin", async () => {
+      const observed = await observeOpening(() => onPlatform("darwin", async () => {
         let settled = false
         const opening = createSdkProcessGate(root, async () => undefined).finally(() => { settled = true })
         await new Promise(resolve => setTimeout(resolve, 20))
@@ -90,15 +150,15 @@ describe("SDK process gate", () => {
         expect(call.args.slice(2)).toEqual(["-o", "lstart="])
         call.answer(0, `${darwinStart}\n`)
         return opening
-      })
-      expect(synchronous).not.toHaveBeenCalled()
+      }))
+      gate = observed.gate
+      expect(observed.captures).toEqual([])
+      expect(probe.calls[0]!.args.slice(0, 2)).toEqual(["-p", String(gate.executor.pid)])
+      expect(gate.executor).toMatchObject({ startId: darwinStart, startIdKind: "darwin-ps-lstart" })
     } finally {
-      synchronous.mockRestore()
       probe.restore()
+      if (gate) expect(await gate.closeAndJoin()).toBe(true)
     }
-    expect(probe.calls[0]!.args.slice(0, 2)).toEqual(["-p", String(gate.executor.pid)])
-    expect(gate.executor).toMatchObject({ startId: darwinStart, startIdKind: "darwin-ps-lstart" })
-    expect(await gate.closeAndJoin()).toBe(true)
   })
 
   // The capture is awaited, so the wrapper can die and be reaped while it runs,

@@ -22,7 +22,7 @@ COPY examples/opencode-plugin/antigravity-retry.js ./antigravity-clients/opencod
 # Run bun build directly (not "bun run build") to skip postbuild hook,
 # which calls "node --check" — unavailable in oven/bun image
 RUN rm -rf dist \
-    && bun build bin/cli.ts src/proxy/server.ts plugin/meridian-v2.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js' \
+    && bun build bin/cli.ts bin/session-bookkeeping.ts src/proxy/server.ts plugin/meridian-v2.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js' \
     && bun build plugin/meridian-v2/index.js --outdir dist/meridian-v2 --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js' \
     && cp plugin/meridian-v2/package.json dist/meridian-v2/package.json \
     && cp -r antigravity-clients dist/antigravity-clients

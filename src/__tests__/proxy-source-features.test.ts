@@ -67,6 +67,7 @@ describe("getOpenCodeSourceFeatureOverrides", () => {
     expect(getOpenCodeSourceFeatureOverrides("subagent-title")).toEqual({ codeSystemPrompt: false })
     expect(getOpenCodeSourceFeatureOverrides("subagent-summary")).toEqual({ codeSystemPrompt: false })
     expect(getOpenCodeSourceFeatureOverrides("subagent-compaction")).toEqual({})
+    expect(getOpenCodeSourceFeatureOverrides("fork-compaction")).toEqual({})
     expect(getOpenCodeSourceFeatureOverrides("subagent-explore")).toEqual({})
     expect(getOpenCodeSourceFeatureOverrides(undefined)).toEqual({})
     expect(getOpenCodeSourceFeatureOverrides("subagent-title", false)).toEqual({})

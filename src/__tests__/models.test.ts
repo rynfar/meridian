@@ -2,8 +2,10 @@
  * Unit tests for model mapping and utility functions.
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { bundledClaudeCodeVersion, mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -718,5 +720,18 @@ describe("rate-limit bench is scoped to the session that earned it (#901)", () =
       if (previous === undefined) delete process.env.MERIDIAN_SONNET_MODEL
       else process.env.MERIDIAN_SONNET_MODEL = previous
     }
+  })
+})
+
+describe("bundledClaudeCodeVersion", () => {
+  it("reads the installed @anthropic-ai/claude-code package version", () => {
+    const pkg = JSON.parse(readFileSync(fileURLToPath(import.meta.resolve("@anthropic-ai/claude-code/package.json")), "utf8")) as { version: string }
+    expect(bundledClaudeCodeVersion()).toBe(pkg.version)
+  })
+
+  it("is null when the package cannot be resolved or is not Claude Code", () => {
+    expect(bundledClaudeCodeVersion(() => { throw new Error("Synthetic missing package") })).toBeNull()
+    expect(bundledClaudeCodeVersion(() => fileURLToPath(import.meta.resolve("zod/package.json")))).toBeNull()
+    expect(bundledClaudeCodeVersion(() => "/nonexistent/meridian-test/package.json")).toBeNull()
   })
 })

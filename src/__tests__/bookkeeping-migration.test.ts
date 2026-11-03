@@ -12,7 +12,8 @@ import { canonicalizeLocator, resourceKey } from "../proxy/session/bookkeeping/l
 import {
   parseLegacySidecar, serializeLegacySidecar, STORE_META_KEY, getStoredSessionGeneration,
 } from "../proxy/session/bookkeeping/legacyCodec"
-import { readJournal, requireBarriers } from "../proxy/session/bookkeeping/maintenanceJournal"
+import { readJournal, requireBarriers, saveJournal, observeSource, SOURCE_NAMES } from "../proxy/session/bookkeeping/maintenanceJournal"
+import { acquireMaintenanceGuard } from "../proxy/session/bookkeeping/guard"
 import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
 import { writeBenchArtifact, buildNodeFixture } from "./fixtures/bookkeeping-support"
 import { insertMapping } from "../proxy/session/bookkeeping/resourceImport"
@@ -208,11 +209,15 @@ for (const point of ["PREPARED", "barrier:session-gc.json", "barrier:sessions.js
 
 it("a source that disappears after PREPARED is not silently imported as empty", async () => {
   source("sessions.json", { entry: mapping() })
-  expect((await buildNodeFixture("bookkeeping-migrate.ts", "migrate.mjs", directory)).success).toBe(true)
-  const child = spawnSync("node", [join(directory, "migrate.mjs"), directory], {
-    env: { ...process.env, MERIDIAN_BOOKKEEPING_TEST_CRASH: "PREPARED" }, timeout: 15000,
-  })
-  expect(child.signal).toBe("SIGKILL")
+  // PREPARED crash recovery, including stale legacy locks, is exercised above.
+  // This case isolates the missing-source guard from that independent 100 ms lock budget.
+  const guard = acquireMaintenanceGuard(directory)
+  try {
+    saveJournal(directory, { format: "meridian-bookkeeping-migration", version: 1,
+      targetVersion: 1, id: randomUUID(), phase: "PREPARED",
+      sources: SOURCE_NAMES.map(name => observeSource(directory, name).identity), residues: [] })
+  } finally { guard.close() }
+  expect(readJournal(directory)?.sources[1]?.existed).toBe(true)
   rmSync(join(directory, "sessions.json"))
   await expect(migrate()).rejects.toThrow("disappeared after PREPARED")
   expect(readJournal(directory)?.phase).toBe("PREPARED")

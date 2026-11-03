@@ -58,6 +58,12 @@ jobs:
             [ "${#id}" -eq 32 ] || { echo "machine-id length ${#id} != 32: [$id]" >&2; exit 1; }
           '
 
+      - name: Exercise packaged SQLite maintenance and awaited cleanup
+        run: |
+          docker run --rm --tmpfs /tmp:rw,mode=1777 --entrypoint node \
+            -v "$PWD/scripts/fixtures/docker-bookkeeping-smoke.mjs:/tmp/bookkeeping-smoke.mjs:ro" \
+            meridian:smoke /tmp/bookkeeping-smoke.mjs
+
       - name: Serve a request
         run: |
           set -euo pipefail

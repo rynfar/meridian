@@ -11,12 +11,13 @@
  * adapter is selected deterministically instead of falling through to the
  * default `opencode` adapter (whose preset defaults ON). Behaviour is
  * otherwise identical to `opencode` — same tools, MCP server, passthrough,
- * and transforms — the ONLY difference is the system-prompt preset default,
- * which is set OFF in sdkFeatures.ADAPTER_DEFAULTS. This mirrors the
- * `passthrough` adapter precedent (#190).
+ * and transforms. The system-prompt preset default is OFF in
+ * sdkFeatures.ADAPTER_DEFAULTS, mirroring the `passthrough` precedent (#190).
+ * The generic client's conversation-header alias is resolved here as well.
  *
  * NOTE: agent-specific. Keep this as a thin re-identification of the OpenCode
- * adapter; do not fork behaviour here.
+ * adapter; keep the generic header alias at this adapter boundary and share
+ * the underlying session behavior.
  */
 
 import { createHash } from "node:crypto"
@@ -26,6 +27,23 @@ import { openCodeAdapter } from "./opencode"
 export const openAiAdapter: AgentAdapter = {
   ...openCodeAdapter,
   name: "openai",
+
+  /**
+   * NOTE: agent-specific (OpenAI). Generic OpenAI clients have no
+   * Meridian-specific header, so `x-session-id` is accepted as well: OpenRouter
+   * documents it as the conversation's session key, and browser clients can
+   * send it to OpenRouter because its CORS allowlist names it, which it does
+   * not do for `x-session-affinity`. It ranks last so a client that sends the
+   * OpenCode headers too (OpenCode sends both, with one value) keeps its key
+   * and its agent scoping. Like the other headers it is read as conversation
+   * identity, not a stickiness hint.
+   */
+  getSessionId(c) {
+    const openCodeKey = openCodeAdapter.getSessionId(c)
+    if (openCodeKey !== undefined) return openCodeKey
+    const sessionId = c.req.header("x-session-id")
+    return sessionId?.trim() ? sessionId : undefined
+  },
 }
 
 /**

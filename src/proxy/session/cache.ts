@@ -39,6 +39,15 @@ import {
   type TokenUsage,
   type LineageResult,
 } from "./lineage"
+import {
+  markableSource,
+  recordStillMarks,
+  type InterruptedSessionSource,
+  type InterruptedTurn,
+  type InterruptedTurnRecord,
+} from "./interruptedTurn"
+
+export type { InterruptedSessionSource }
 
 export interface PrioritySessionPublication {
   readonly routeKey: string
@@ -110,6 +119,16 @@ let sessionCache = createSessionCache(activeMaxSessions)
 let fingerprintCache = createFingerprintCache(activeMaxSessions)
 let cacheEpoch = 0
 
+/**
+ * Interrupted turns this process kept, by durable mapping key. The store keeps
+ * such a mapping with its SDK reuse proof withheld, which every reader treats
+ * as a replay; only this record, bound to the exact generation it wrote, lets
+ * the next request here restore the proof after the interrupted-turn check.
+ * Process memory on purpose: a restart or another process finds no record and
+ * replays. See the session spec, *Interrupted turns*.
+ */
+let interruptedTurns = new LRUMap<string, InterruptedTurnRecord>(activeMaxSessions)
+
 function isSessionStoreTransactionActive(): boolean {
   return !!activeStoreBackend() && connectionFor(getSessionStoreDir()).scope !== undefined
 }
@@ -146,11 +165,13 @@ export async function clearSessionCache(): Promise<void> {
   const clearMemory = () => {
     sessionCache.clear()
     fingerprintCache.clear()
+    interruptedTurns.clear()
   }
   if (configuredLimit !== activeMaxSessions) {
     activeMaxSessions = configuredLimit
     sessionCache = createSessionCache(activeMaxSessions)
     fingerprintCache = createFingerprintCache(activeMaxSessions)
+    interruptedTurns = new LRUMap<string, InterruptedTurnRecord>(activeMaxSessions)
   } else {
     clearMemory()
   }
@@ -202,6 +223,7 @@ export function evictSession(
     // keys. Never apply one key's generation token to the other key.
     return mapStoreMutation(evictSharedSession(sessionId, expectedGeneration), evicted => {
       if (sql && evicted) afterSessionCacheCommit(invalidate, epoch)
+      if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(sessionId) }, epoch)
       return evicted
     })
   }
@@ -219,6 +241,7 @@ export function evictSession(
       if (!sql) invalidate()
       return mapStoreMutation(evictSharedSession(fp, expectedGeneration), evicted => {
         if (sql && evicted) afterSessionCacheCommit(invalidate, epoch)
+        if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(fp) }, epoch)
         return evicted
       })
     }
@@ -731,7 +754,102 @@ export function storeSession(
     afterSessionCacheCommit(() => {
       if (sessionId) sessionCache.set(sessionId, state)
       if (fp && !sessionId) fingerprintCache.set(fp, state)
+      interruptedTurns.delete(key)
     }, epoch)
     return generation
   })
 }
+
+/**
+ * Keep the mapping an interrupted turn resumed, marked interrupted.
+ *
+ * The durable record keeps its session, transcript locators and per-message
+ * hashes but loses its SDK reuse proof: an empty `lineageHash` with the hash
+ * kept as `clientLineageHash`, the encoding every reader already treats as
+ * "lineage owned, resume unproved", so a restart, another process or an older
+ * Meridian replays. This process records the turn against the generation it
+ * wrote; `takeInterruptedTurn` hands it to the next request. Returns the new
+ * generation, or false when the mapping is no longer the turn's source.
+ */
+export function markSessionInterrupted(
+  sessionId: string | undefined,
+  workingDirectory: string | undefined,
+  messages: Array<{ role: string; content: any }>,
+  expectedGeneration: StoredSessionGeneration,
+  source: InterruptedSessionSource,
+  turn: InterruptedTurn,
+): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
+  const key = sessionId || getConversationFingerprint(messages, workingDirectory)
+  if (!key) return false
+  const epoch = cacheEpoch
+  const current = lookupSharedSessionResult(key)
+  if (current.status === "error") throw current.error
+  if (current.status !== "found" || current.generation !== expectedGeneration) return false
+  if (!markableSource(current.session, source, turn)) return false
+  return mapStoreMutation(storeSharedSession(
+    key,
+    source.claudeSessionId,
+    source.messageCount,
+    "",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    expectedGeneration,
+    source.lineageHash,
+    undefined,
+  ), generation => {
+    if (!generation) return false
+    afterSessionCacheCommit(() => {
+      // The memory copies still carry the proof; drop them so a store read
+      // failure cannot fall back to a resumable state.
+      if (sessionId) sessionCache.delete(sessionId)
+      else fingerprintCache.delete(key)
+      interruptedTurns.set(key, { generation, markedFrom: expectedGeneration, claudeSessionId: source.claudeSessionId, turn })
+    }, epoch)
+    return generation
+  })
+}
+
+/** An interrupted turn recorded for the mapping the next request read. */
+export interface InterruptedTurnClaim {
+  readonly turn: InterruptedTurn
+  readonly generation: StoredSessionGeneration
+  readonly markedFrom: StoredSessionGeneration
+  /** The mapping with its SDK reuse proof restored, for a resume. */
+  readonly restored: SessionState
+}
+
+/**
+ * Take the interrupted turn recorded for `key`, if the mapping read at
+ * `generation` is still exactly the one this process marked. The record is
+ * removed either way: one request decides it.
+ */
+export function takeInterruptedTurn(
+  key: string | undefined,
+  generation: StoredSessionGeneration | undefined,
+  stored: StoredSession | undefined,
+): InterruptedTurnClaim | undefined {
+  if (!key) return undefined
+  const record = interruptedTurns.get(key)
+  if (!record) return undefined
+  interruptedTurns.delete(key)
+  if (!stored || !recordStillMarks(record, generation, stored)) return undefined
+  const state = stateFromSharedSession(stored)
+  return {
+    turn: record.turn,
+    generation: record.generation,
+    markedFrom: record.markedFrom,
+    restored: { ...state, lineageHash: record.turn.lineageHash, clientLineageHash: undefined },
+  }
+}
+
+/** Forget this process's interrupted-turn records, as a restart would. */
+export function forgetInterruptedTurnsForTests(): void {
+  interruptedTurns.clear()
+}
+

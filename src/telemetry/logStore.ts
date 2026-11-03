@@ -6,7 +6,7 @@
  * for users to dig through stderr to report issues.
  */
 
-import { env, envInt } from "../env"
+import { env, envIntValue } from "../env"
 import { getSetting } from "../settings"
 import type { DiagnosticLog, IDiagnosticLogStore } from "./types"
 export type { DiagnosticLog } from "./types"
@@ -24,13 +24,23 @@ const DEFAULT_CAPACITY = 500
  * a zero-length ring.
  */
 export function resolveDiagnosticLogCapacity(): number {
-  if (env("DIAGNOSTIC_LOG_SIZE") !== undefined) {
-    const parsed = envInt("DIAGNOSTIC_LOG_SIZE", DEFAULT_CAPACITY)
-    return parsed > 0 ? parsed : DEFAULT_CAPACITY
-  }
+  const fromEnv = diagnosticLogCapacityFromEnv()
+  if (fromEnv !== undefined) return fromEnv ?? DEFAULT_CAPACITY
   const saved = getSetting("diagnosticLogSize")
   if (typeof saved === "number" && Number.isFinite(saved) && saved > 0) return Math.floor(saved)
   return DEFAULT_CAPACITY
+}
+
+/**
+ * What MERIDIAN_DIAGNOSTIC_LOG_SIZE (else CLAUDE_PROXY_DIAGNOSTIC_LOG_SIZE)
+ * contributes to resolveDiagnosticLogCapacity: the size it sets; null when it
+ * is set (even empty) but not a positive integer, so the default applies;
+ * undefined when it is unset, so the saved setting is consulted.
+ */
+export function diagnosticLogCapacityFromEnv(): number | null | undefined {
+  if (env("DIAGNOSTIC_LOG_SIZE") === undefined) return undefined
+  const parsed = envIntValue("DIAGNOSTIC_LOG_SIZE")
+  return parsed !== undefined && parsed > 0 ? parsed : null
 }
 
 export class MemoryDiagnosticLogStore implements IDiagnosticLogStore {

@@ -7,10 +7,9 @@
  * server.ts forwards in-process to `/v1/messages` and pipes the response
  * through these translators.
  *
- * Scope is Phase 1 of the approved design spec
- * (docs/superpowers/specs/2026-07-08-codex-responses-api-design.md): text +
+ * Scope and rationale: spec `proxy-core` (src/proxy/SPEC.md): text +
  * function tool-calling, streaming and non-streaming, forced passthrough.
- * Reasoning items are omitted (verified working against real Codex 0.143).
+ * Incoming reasoning items are dropped (verified working against real Codex 0.143).
  * Also handles base64 data-URL image input and maps a `max_tokens` stop to an
  * `incomplete` Responses status.
  *

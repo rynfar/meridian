@@ -1,8 +1,8 @@
 /**
  * OpenAI Responses API translation — #475 (Codex CLI ≥ 0.96).
  *
- * Wire shapes mirror real Codex 0.143 traffic captured in the design spec
- * (docs/superpowers/specs/2026-07-08-codex-responses-api-design.md).
+ * Wire shapes mirror real Codex 0.143 traffic, recorded in spec `proxy-core`
+ * (src/proxy/SPEC.md → "Codex Responses wire contract").
  */
 
 import { describe, it, expect } from "bun:test"
