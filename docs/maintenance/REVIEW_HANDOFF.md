@@ -25,8 +25,15 @@ review and merge. No acceptance gate was waived; no external comment is authoriz
   The missing original transient evidence was not recreated by a green rerun.
 - [Review, exact source heads, scripts, results and limitations](evidence/1220-review-20261103/README.md).
   Live credentials remain access-only/read-only with Extra Usage disabled.
+- Durable evidence is draft [#1500](https://github.com/rynfar/meridian/pull/1500).
+  Instrumented E41 is not qualified: initial no-query plugin preflight failed,
+  then a frozen helper observed one turn but changed the SDK iterator route and
+  stopped on an unspecified iterator error. Offline discrimination is underway;
+  neither attempt establishes a product failure or credential problem.
 - Release Please #1486 currently proposes1.89.0; it has not been merged or
-  published by this review. Re-read its final head after #1220 acceptance.
+  published by this review. Preliminary exact-head/range review is saved; its
+  candidate currently excludes #1220 and lacks final CI/live-stop proof. Re-read
+  its final head after #1220 acceptance.
 
 The prior checkpoint below is retained as history.
 

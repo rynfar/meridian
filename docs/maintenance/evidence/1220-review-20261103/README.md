@@ -92,6 +92,40 @@ The runnable harness, safe before/after controls and reports are escrowed in
 `proof.tar.gz`; `manifest.json` lists exact member sizes/hashes. No grant, raw
 SDK transcript, raw client output or customer conversation is archived.
 
+## Instrumented E41 diagnostics — not acceptance
+
+The first wrapper attempt failed its server-plugin inventory preflight before any
+SDK query: a test-only `MERIDIAN_API_KEY` required auth on the fixture's unkeyed
+inventory GET. The helper also changed after READY while HOLD crossed launch;
+that attempt has invalid helper custody and is not accepted. The next attempt
+removed unrelated inherited environment and that auth setting, using an immutable
+hash-named readonly helper copy. No product constant or threshold changed.
+
+The frozen attempt observed one actual Opus5.5 query and its supported owned
+history, then the fixture's followup returned500 and stopped. The wrapper set
+`query-iterator-error` but retained no error/method detail, so it cannot distinguish
+an underlying iterator error from an observer callback/write error. Static review
+also proves the wrapper changed the real SDK's iterator selection: SDK0.2.141
+returns a separate `sdkMessages` iterator, but the wrapper forced Query to iterate
+itself and changed `return`/cleanup routing. The offline self-test only covered
+self-iterating objects. Therefore this is **not fidelity-qualified product failure
+or acceptance evidence**, and no credential/billing diagnosis is inferred.
+
+[e41-diagnostic](e41-diagnostic/) preserves both worker/supervisor receipts, exact
+helper, offline controls, public SDK-shape excerpt and invocation scope. A
+read-only offline discriminating control is underway. The four-mode E41 gate and
+historical200-token residual remain open. No blind live rerun is planned.
+
+## Preliminary release review
+
+[#1486 /1.89.0](https://github.com/rynfar/meridian/pull/1486), exact head
+`296676632c3ff5097b1420a81e41028b3e669f9c`, does not contain #1220. The full range
+from1.88.0 was inspected. Versions align; dependencies/lock/Nix hash are unchanged.
+No new material static #1480 defect was established. Its final-head CI and actual
+installed-package/live-stop proof are not complete; a prior desktop notarization
+failure remains recorded. [Full preliminary findings](review-1220-release-findings.md).
+Nothing has been merged or published by this review.
+
 Final-head CI, final local gates and the unchanged four-mode E41/causal-evidence
 gates remain required. No source-authorship-on-main claim is made before a real
 merge and git check.

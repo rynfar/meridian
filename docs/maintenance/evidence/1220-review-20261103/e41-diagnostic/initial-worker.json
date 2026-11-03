@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "result": "FAIL",
+  "scope": "owned qualified E41 protocol fixture only; not OpenCode executable",
+  "historicalResidualReproduced": false,
+  "encryptedFaultInjected": false,
+  "hashCoverage": "canonical own enumerable data; env/sensitive-key fields excluded; functions source-hashed, closures/opaque state not captured",
+  "limits": {
+    "queries": 16,
+    "events": 4096,
+    "historyRows": 1024,
+    "blocks": 256,
+    "promptItems": 256,
+    "nodes": 100000,
+    "depth": 64,
+    "reportBytes": 4194304,
+    "outputBytes": 8388608,
+    "defaultSeconds": 1000,
+    "maxSeconds": 1200,
+    "killGraceMs": 5000
+  },
+  "platform": "darwin/arm64",
+  "bun": "1.3.14",
+  "startedAt": "2026-11-03T08:22:42.701Z",
+  "queries": [],
+  "events": [],
+  "histories": [],
+  "stopped": false,
+  "sdkMessages": 0,
+  "promptItems": 0,
+  "source": {
+    "fixtureSha256": "9306af7e3e47c5ed55cb693d12a51a692d0350ae4614f162e8881861fd9fe3bf",
+    "fidelitySha256": "487765c355f1ef507a636d6b4e112368529b3d56c0228184c05ec63f0270f757",
+    "observerSource": "1cb9e53cb4ded92b8589177265cb736eb0978011:scripts/e2e-session-store-turns.mjs"
+  },
+  "requestedModel": "claude-opus-5-5",
+  "requestedModelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+  "stream": false,
+  "parallel": false,
+  "fixtureRoot": "/Volumes/DevSSD/meridian/private-1220-20261103/tmp/meridian-probe-proxy-gqfiEP",
+  "fixture": {
+    "result": "FAIL",
+    "joined": true,
+    "failureSha256": "6aec005e28f7b7a55de9f9a6a7679f2f3640010a1fd5b9dc10bdc9800c9c7343",
+    "clientPlugin": {
+      "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+      "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+      "packageName": "@rynfar/meridian",
+      "packageVersion": "1.88.0",
+      "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+      "pathSha256": "c878f7672a906b2ce517f277d22025a95ca5b65e51a43be50d166fb214270402",
+      "invocations": 0,
+      "errors": 0,
+      "preflight": true
+    }
+  },
+  "errorSha256": "6dc3b437b3b0ab6eda560af1b200760e3fcc536272fc5ee7a1bcdf7d8361df96",
+  "finishedAt": "2026-11-03T08:22:45.806Z"
+}

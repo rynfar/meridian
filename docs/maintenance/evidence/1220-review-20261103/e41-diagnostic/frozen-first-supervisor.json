@@ -1,0 +1,15 @@
+{
+  "result": "FAIL",
+  "deadlineMs": 300000,
+  "stdoutBytes": 427,
+  "stderrBytes": 647,
+  "timedOut": false,
+  "exceededOutputBound": false,
+  "closed": true,
+  "code": 1,
+  "signal": null,
+  "stdoutSha256": "d71c0e73982de2452e76828db5ca5f7f820c9fb066f45e81d5746b09fe4ddd7d",
+  "stderrSha256": "aabe501d6405cf1bcde8948757b7873c778b7c4d74d461681a59b1ca7b3277f3",
+  "report": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/instrumented-e41-1793694353443-41015.json",
+  "normalFixtureCustody": false
+}

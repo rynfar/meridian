@@ -1,0 +1,305 @@
+{
+  "schema": 1,
+  "result": "FAIL",
+  "scope": "owned qualified E41 protocol fixture only; not OpenCode executable",
+  "historicalResidualReproduced": false,
+  "encryptedFaultInjected": false,
+  "hashCoverage": "canonical own enumerable data; env/sensitive-key fields excluded; functions source-hashed, closures/opaque state not captured",
+  "limits": {
+    "queries": 16,
+    "events": 4096,
+    "historyRows": 1024,
+    "blocks": 256,
+    "promptItems": 256,
+    "nodes": 100000,
+    "depth": 64,
+    "reportBytes": 4194304,
+    "outputBytes": 8388608,
+    "defaultSeconds": 1000,
+    "maxSeconds": 1200,
+    "killGraceMs": 5000
+  },
+  "platform": "darwin/arm64",
+  "bun": "1.3.14",
+  "startedAt": "2026-11-03T08:25:53.521Z",
+  "queries": [
+    {
+      "query": 1,
+      "startedAt": "2026-11-03T08:26:00.583Z",
+      "optionsSha256": "12d6d8a0d6ec9907c7fcb7e8a0d75d26a71408f854c51fc3b5c66fb0f0f82faf",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "forkSession": false,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "string",
+      "promptSha256": "71a68166ca682d3f3a6e8c1850a32eff2eafe6351ffb6573d3133eb54ca715f8",
+      "promptHashKind": "canonical-string",
+      "sawToolUse": true
+    }
+  ],
+  "events": [
+    {
+      "order": 1,
+      "at": "2026-11-03T08:26:00.596Z",
+      "monotonicMs": 7125.689,
+      "kind": "query-start",
+      "query": 1
+    },
+    {
+      "order": 2,
+      "at": "2026-11-03T08:26:00.597Z",
+      "monotonicMs": 7126.532,
+      "kind": "prompt",
+      "query": 1,
+      "item": 0,
+      "sha256": "71a68166ca682d3f3a6e8c1850a32eff2eafe6351ffb6573d3133eb54ca715f8"
+    },
+    {
+      "order": 3,
+      "at": "2026-11-03T08:26:01.335Z",
+      "monotonicMs": 7864.722,
+      "kind": "session-init",
+      "query": 1,
+      "sdkOrder": 1,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "uuid": {
+        "value": "67c3d116-198f-4e93-a76e-3507d8aa1ba6"
+      }
+    },
+    {
+      "order": 4,
+      "at": "2026-11-03T08:26:02.940Z",
+      "monotonicMs": 9469.577,
+      "kind": "message_start",
+      "query": 1,
+      "sdkOrder": 3,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "uuid": {
+        "value": "b6e774f8-efad-4343-93cb-42b0d147c683"
+      },
+      "messageId": {
+        "value": "msg_011CgfgAR68GB56f7PKpZ1sq"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2782
+      },
+      "blocks": [],
+      "messageSha256": "8a434ebbdb5b2e09af402b2828c949ace1f55bd6c9015e009478e1424d35c5a6"
+    },
+    {
+      "order": 5,
+      "at": "2026-11-03T08:26:03.445Z",
+      "monotonicMs": 9975.035,
+      "kind": "native-assistant",
+      "query": 1,
+      "sdkOrder": 14,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "uuid": {
+        "value": "932d61d7-ac2c-4443-9ac4-a94b49031f81"
+      },
+      "messageId": {
+        "value": "msg_011CgfgAR68GB56f7PKpZ1sq"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2782
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "tool_use",
+          "sha256": "91c1b74f4cf3a6e4c615eb4179b4f1fbc2985f72ea5abac99cb8566657338340"
+        }
+      ],
+      "messageSha256": "6b947d7724100eec9909ab20c29e5fa06ba068e71ebcc7314b76d2d555c0010a"
+    },
+    {
+      "order": 6,
+      "at": "2026-11-03T08:26:03.460Z",
+      "monotonicMs": 9989.793,
+      "kind": "result",
+      "query": 1,
+      "sdkOrder": 20,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "uuid": {
+        "value": "9b5b1d3a-9da4-4ad9-8f5b-edd0eb30bc08"
+      },
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 104,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2782
+      },
+      "isError": true,
+      "toolBoundaryCandidate": true,
+      "subtype": "error_max_turns",
+      "subtypeSha256": "2ed5527ba2ba049eda01b45c59df0608018d0d688c8a3a85037cda6be9cb114a"
+    },
+    {
+      "order": 7,
+      "at": "2026-11-03T08:26:03.480Z",
+      "monotonicMs": 10009.661,
+      "kind": "query-iterator-end",
+      "query": 1,
+      "method": "return"
+    },
+    {
+      "order": 8,
+      "at": "2026-11-03T08:26:05.018Z",
+      "monotonicMs": 11547.632,
+      "kind": "supported-history",
+      "history": 1,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "rows": 3
+    }
+  ],
+  "histories": [
+    {
+      "order": 1,
+      "session": {
+        "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+      },
+      "startedAt": "2026-11-03T08:26:05.015Z",
+      "completedAt": "2026-11-03T08:26:05.017Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "be4eadc6-1d23-4d80-8d55-81d379726b31"
+          },
+          "session": {
+            "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+          },
+          "type": "user",
+          "rowSha256": "9eb360c2f350585d96eda62a9c08c1d3a95513707cb562a50131de0ff1423869",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "18077d335d117ec1ad2953687dc250777539817a0648f9d1052c687e2eeb43d5"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "932d61d7-ac2c-4443-9ac4-a94b49031f81"
+          },
+          "session": {
+            "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+          },
+          "type": "assistant",
+          "rowSha256": "14bbf7486fdadb326a5a1179a7498763bea293e78790f57da92da93d8efe04bf",
+          "messageId": {
+            "value": "msg_011CgfgAR68GB56f7PKpZ1sq"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 104,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2782
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "91c1b74f4cf3a6e4c615eb4179b4f1fbc2985f72ea5abac99cb8566657338340"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "1ecb22b1-f846-4aa8-9daf-d4fc76a41c2d"
+          },
+          "session": {
+            "value": "cf91f8e5-c1cd-4649-9553-0d42b70443aa"
+          },
+          "type": "user",
+          "rowSha256": "9189e0006fb2da00891952d0f2fb1999dba098a564a4d0f622accff4fc42b481",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "a0a6fd8f6ac70ebe14a5e4b047efbdd367a975b1bcf56944b1e3fb4000e08db5"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stopped": true,
+  "sdkMessages": 20,
+  "promptItems": 0,
+  "source": {
+    "fixtureSha256": "9306af7e3e47c5ed55cb693d12a51a692d0350ae4614f162e8881861fd9fe3bf",
+    "fidelitySha256": "487765c355f1ef507a636d6b4e112368529b3d56c0228184c05ec63f0270f757",
+    "observerSource": "1cb9e53cb4ded92b8589177265cb736eb0978011:scripts/e2e-session-store-turns.mjs"
+  },
+  "requestedModel": "claude-opus-5-5",
+  "requestedModelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+  "stream": false,
+  "parallel": false,
+  "fixtureRoot": "/Volumes/DevSSD/meridian/private-1220-20261103/tmp/meridian-probe-proxy-HPTRcD",
+  "stopReason": "query-iterator-error",
+  "fixture": {
+    "result": "FAIL",
+    "joined": true,
+    "modelOk": true,
+    "failureSha256": "f3f96a9c49b5c91ddce748897955ece6111674229be7d50e96d6d039b361d8df",
+    "cacheMisses": [],
+    "clientPlugin": {
+      "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+      "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+      "packageName": "@rynfar/meridian",
+      "packageVersion": "1.88.0",
+      "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+      "pathSha256": "c878f7672a906b2ce517f277d22025a95ca5b65e51a43be50d166fb214270402",
+      "invocations": 2,
+      "errors": 0,
+      "preflight": true
+    },
+    "scrubPreflight": {
+      "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+      "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+      "packageVersion": "0.3.0",
+      "runtimeVersion": "0.3.0",
+      "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+      "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+      "invocations": 0,
+      "errors": 0
+    }
+  },
+  "errorSha256": "86ed7ede2c86b84a6370d784bee036ba465e137b75473fca2bdaa7d1803c9750",
+  "finishedAt": "2026-11-03T08:26:05.397Z"
+}
