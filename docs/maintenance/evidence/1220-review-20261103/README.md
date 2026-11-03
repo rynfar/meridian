@@ -56,8 +56,17 @@ or public interfaces changed in this review.
   8,263pass/65skip/1fail in group0. The failure is the unchanged two-second build
   fingerprint deadline in bookkeeping-cli beforeAll. The exact stack is retained.
   This does not explain the original October failure. Groups1–25 did not run in
-  that invocation because `npm test` uses `&&`. A final frozen-head full run is
-  pending; no final green is inferred from partial or prior-head runs.
+  that invocation because `npm test` uses `&&`.
+- Frozen-head `npm test` also exits1: group0 has8,287pass/65skip/5fail/1error,
+  8,357tests across485files in958.63s; groups1–25 did not run. Five Antigravity
+  probe fixture cases fail with timeout/readiness/missing calls files, followed
+  by a teardown-related unhandled spawn error. No regression cause is yet
+  established. The unchanged candidate/baseline probes are under independent
+  bounded investigation. [Receipt](final-local-suite.json); sanitized full log
+  is `final-npm-test.log.gz`.
+- Final-head GitHub CI is **green**, including required `test`, on exactly
+  `67d02f56`. [Exact check URLs and results](final-head-ci.json). This does not
+  erase the failed local full gate.
 
 ## Historical acceptance gates — still open
 
@@ -113,8 +122,14 @@ or acceptance evidence**, and no credential/billing diagnosis is inferred.
 
 [e41-diagnostic](e41-diagnostic/) preserves both worker/supervisor receipts, exact
 helper, offline controls, public SDK-shape excerpt and invocation scope. A
-read-only offline discriminating control is underway. The four-mode E41 gate and
-historical200-token residual remain open. No blind live rerun is planned.
+read-only [offline discriminating control](e41-diagnostic/offline-iterator-diagnosis.json)
+passes: the original distinct iterator avoids Query.cleanup; this observer enters
+it, and a synthetic rejection poisons stop state even when the unchanged real
+idle guard swallows it. Callback failures and native rejections also lose their
+method/phase in the same catch. This establishes observer defects, **not** the
+exact live failure cause. The live `return`-end was already recorded, so claiming
+that specific return rejected would overstate the proof. The four-mode E41 gate
+and historical200-token residual remain open. No blind live rerun is planned.
 
 ## Preliminary release review
 
@@ -129,3 +144,13 @@ Nothing has been merged or published by this review.
 Final-head CI, final local gates and the unchanged four-mode E41/causal-evidence
 gates remain required. No source-authorship-on-main claim is made before a real
 merge and git check.
+
+## Assumptions and unchanged boundaries
+
+The source and installed plugin artifacts are trusted for this test. Live history
+inspection is limited to the newly owned fixture through supported SDK APIs.
+The original failing fixture's missing transient state cannot be inferred from
+hashes in a new run. No product constants, public API, dependency versions,
+cache95% threshold, original fixture assertions or billing controls were changed.
+The external diagnostic supervisor uses a selected300s safety bound and isolated
+loopback ports; those are test settings, not product changes.

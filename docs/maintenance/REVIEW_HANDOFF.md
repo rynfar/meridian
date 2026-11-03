@@ -18,8 +18,11 @@ review and merge. No acceptance gate was waived; no external comment is authoriz
 - Independent reviews and discriminating tests pass; typecheck/build pass.
   Original-client installed-tarball E2E passes on OpenCode1.18.34, Opus5.5,
   SDK0.2.141, explicit native2.1.284, Darwinarm64 with both required plugins.
-  Supported API inspection confirms the actual model. Final full suite and CI
-  are still running; initial group0 hit the unchanged fingerprint2s deadline.
+  Supported API inspection confirms the actual model. Final-head CI is green,
+  including required test. Frozen local full suite exits1: group0 has8,287pass,
+  65skip,5 Antigravity probe failures and1 unhandled teardown error; groups1–25
+  were skipped. Independent unchanged-baseline/candidate probe diagnosis is
+  active. The earlier full run hit the unchanged fingerprint2s deadline.
 - **Historical gate remains open:** published3332 → next read3132 misses95%.
   Separate aggregation/parser issues do not explain the200-token residual.
   The missing original transient evidence was not recreated by a green rerun.
@@ -28,8 +31,10 @@ review and merge. No acceptance gate was waived; no external comment is authoriz
 - Durable evidence is draft [#1500](https://github.com/rynfar/meridian/pull/1500).
   Instrumented E41 is not qualified: initial no-query plugin preflight failed,
   then a frozen helper observed one turn but changed the SDK iterator route and
-  stopped on an unspecified iterator error. Offline discrimination is underway;
-  neither attempt establishes a product failure or credential problem.
+  stopped on an unspecified iterator error. Offline discrimination proves the
+  observer custody/error-provenance defects, not that live rejection's cause;
+  neither attempt establishes a product failure or credential problem. A separate
+  iterator-preserving observer is being qualified offline, with no blind retry.
 - Release Please #1486 currently proposes1.89.0; it has not been merged or
   published by this review. Preliminary exact-head/range review is saved; its
   candidate currently excludes #1220 and lacks final CI/live-stop proof. Re-read

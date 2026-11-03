@@ -1,5 +1,21 @@
 # Instrumented qualified E41 helper — PR #1220
 
+## Portable archive names
+
+This directory preserves the failed frozen observer as `helper.mjs`; it is
+**not fidelity-qualified**. See `iterator-diagnosis.md` and the worker receipts.
+Do not use it for live acceptance. The read-only offline control is runnable:
+
+```sh
+E2E_MERIDIAN_ROOT=<absolute Meridian checkout> bun <this-directory>/offline-iterator-diagnosis.mjs
+```
+
+Its only path adjustment points to the archived `helper.mjs` filename; original
+assertions and immutable helper SHA256 remain unchanged. The result is written
+beside the control. The original source-helper paths below identify the earlier
+private invocation, not a claim that they are portable checkout paths.
+
+
 This is an external diagnostic wrapper, not a source change or acceptance result.
 It imports the selected checkout's **unchanged**
 `scripts/e2e-qualified-passthrough-turns.mjs` after installing Bun SDK spies.

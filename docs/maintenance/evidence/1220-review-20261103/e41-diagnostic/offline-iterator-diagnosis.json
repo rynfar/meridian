@@ -1,0 +1,41 @@
+{
+  "result": "PASS",
+  "scope": "offline distinct-iterator diagnostic only",
+  "modelCalls": 0,
+  "credentialReads": 0,
+  "frozenHelperSha256": "8514c16b9dd4d93fe3c4425d24eb1eeffe4b60bbfee67b525af4749ef970899c",
+  "rawDistinctIterator": [
+    "query.asyncIterator",
+    "inner.next",
+    "inner.return"
+  ],
+  "frozenWrapper": [
+    "query.next",
+    "inner.next",
+    "query.return",
+    "query.cleanup"
+  ],
+  "frozenWrapperRejectsSyntheticCleanupSentinel": true,
+  "realIdleGuardSwallowsSyntheticReturnRejectionButObserverStopPersists": true,
+  "distinctIteratorPreservedControl": [
+    "query.asyncIterator",
+    "inner.next",
+    "inner.return"
+  ],
+  "distinctIteratorPreservedControlStopped": false,
+  "onErrorLosesMethodAndPhase": [
+    {
+      "kind": "callback",
+      "args": 0
+    },
+    {
+      "kind": "native",
+      "args": 0
+    }
+  ],
+  "originalRunExactRejectionCauseEstablished": false,
+  "limitations": "Synthetic cleanup rejection discriminates custody change only. Original live error/phase/method was not retained, so its exact cause remains unknown.",
+  "completedAt": "2026-11-03T08:29:11.587Z",
+  "bun": "1.3.14",
+  "platform": "darwin/arm64"
+}
