@@ -1238,8 +1238,11 @@ settle, which used to replay the whole history too.
 Meridian still replays the whole history when no fork point qualifies, when
 the estimated history is over the model's replay budget (a forked session
 cannot drop old messages the way a replay does), when the request lost a race
-for the session, and in every other case that replayed fresh before. A fork the
-SDK refuses at run time also replays fresh, as an undo does.
+for the session, for an OpenCode request without a session header (it was
+matched by its opening message, so it may be a side agent), and in every other
+case that replayed fresh before. A refused fork logs
+`rollback-tail refused (<reason>)`. A fork the SDK refuses at run time also
+replays fresh, as an undo does.
 
 The request line reads
 `lineage=rollback-tail session=<id> rollback=<uuid> from=<cause> prefix=<n> tail=<m>`:
