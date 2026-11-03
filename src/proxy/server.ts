@@ -3685,7 +3685,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // Client usage describes its resumed context, not the fresh transcript;
         // derive replay capacity from the actual SDK model's window instead.
         const modelReplayBudget = () => replayBudgetFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel())
+        // The one eligibility rule for both places a rollback-tail is taken
+        // (a divergence below, an unsettled checkpoint after the resume is
+        // planned), so they cannot drift apart.
         const rollbackTailRefusal = (tail: RollbackTail): string | undefined => {
+          // A headerless OpenCode request was matched by fingerprint and may be
+          // a side agent sharing a prefix with the user's conversation; it keeps
+          // its replay, as its undo does above.
+          if (adapterBase === "opencode" && !agentSessionId) return "headerless-opencode"
+          // The branch a request that lost a commit race carries is no longer
+          // the session's.
+          if (lostRaceWhileWaiting) return "lost-race"
           // Native results settle the fork point only for calls Meridian
           // forwarded to the client and stopped at.
           if (tail.settledToolIds.length > 0 && !passthrough) return "unforwarded-tool-calls"
@@ -3704,13 +3714,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           )
           return undefined
         }
-        // A headerless OpenCode request was matched by fingerprint and may be
-        // a side agent sharing a prefix with the user's conversation; it keeps
-        // its replay, as its undo does above.
         const rollbackDivergence = lineageResult.type === "diverged" ? lineageResult : undefined
         if (
-          rollbackDivergence?.rollbackTail && !lostRaceWhileWaiting
-          && !(adapterBase === "opencode" && !agentSessionId)
+          rollbackDivergence?.rollbackTail
           && (rollbackDivergence.reason === "undo-gap" || rollbackDivergence.reason === "modified-history")
         ) {
           lineageResult = takeRollbackTail(rollbackDivergence.rollbackTail, rollbackDivergence.reason) ?? lineageResult
