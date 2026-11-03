@@ -416,6 +416,12 @@ pages, and chips appear only while two or more providers have accounts. A
 card moves only among its own provider's cards, because each provider's pool
 is ranked on its own.
 
+Beside them, login-state chips show or hide accounts by state: Authenticated
+(`--green`), Expires soon (`--yellow`) and Needs auth (`--red`), each with its
+count. They reuse the provider chips' shape and phone sizing, start on, are
+remembered the same way, and appear while two or more accounts are listed. A
+card shows when its provider's chip and its state's chip are both on.
+
 The desktop menu bar separates account quota groups and labels combined activity.
 Provider selection belongs in managed-service settings, with tool permission as
 a separate opt-in. An attached service remains controlled by its owner.

@@ -213,6 +213,20 @@ curl -H "x-meridian-profile: work" ...
 
 You can also switch profiles from the web UI — click an account card on the home page (`http://127.0.0.1:3456/`) or use the Profiles page at `/profiles`. The site header on every page shows which profile is active.
 
+### Filter accounts by login state
+
+With two or more accounts, `/` and `/profiles` show login-state chips beside the provider chips: **Authenticated**, **Expires soon** and **Needs auth**, each with its count. Every account is in exactly one state. **Needs auth** is an account with the red needs-login border (logged out, or no token); **Expires soon** is a logged-in Claude account whose refresh deadline is within `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` (3 days by default); every other account is **Authenticated**. All chips start on; turn one off to hide its accounts. The browser remembers the choice for both pages, and **Show all states** turns every chip back on.
+
+A link can open either page on given states without changing that remembered choice, alone or with `?provider=`:
+
+```
+/profiles?login=needs-auth
+/profiles?login=needs-auth&provider=claude
+/?login=expires-soon,needs-auth
+```
+
+An empty `?login=` turns every state chip off. A card that is updating after a sign-in stays on screen until its new state is known.
+
 ### Sticky session routing
 
 With multiple profiles (e.g. two Claude Max subscriptions), Meridian can distribute sessions across profiles automatically while preserving **session affinity** — Anthropic's prompt caching is per-account, so keeping a session on one account helps preserve its cache:
