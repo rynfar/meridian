@@ -134,7 +134,7 @@ beforeEach(async () => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
   await clearSessionCache()
-  clearSharedSessions()
+  await clearSharedSessions()
 })
 
 describe("Tool blocking: normal mode (non-passthrough)", () => {

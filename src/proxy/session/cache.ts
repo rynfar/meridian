@@ -222,7 +222,7 @@ export function evictSession(
     // Header-keyed and fingerprint-keyed conversations are independent durable
     // keys. Never apply one key's generation token to the other key.
     return mapStoreMutation(evictSharedSession(sessionId, expectedGeneration), evicted => {
-      if (sql && evicted) afterSessionCacheCommit(invalidate, epoch)
+      if (evicted) afterSessionCacheCommit(invalidate, epoch)
       if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(sessionId) }, epoch)
       return evicted
     })
@@ -240,7 +240,7 @@ export function evictSession(
       const sql = !!activeStoreBackend()
       if (!sql) invalidate()
       return mapStoreMutation(evictSharedSession(fp, expectedGeneration), evicted => {
-        if (sql && evicted) afterSessionCacheCommit(invalidate, epoch)
+        if (evicted) afterSessionCacheCommit(invalidate, epoch)
         if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(fp) }, epoch)
         return evicted
       })

@@ -104,7 +104,7 @@ for (const stream of [false, true]) describe(`OpenCode primary-agent changes (st
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
       const session = crypto.randomUUID()
       const prior = [{ role: "user", content: "OWNED_CHECKPOINT_OBJECTIVE" }]
-      storeSession(session, prior, "owned-old-agent-sdk", undefined, [null, "owned-tool-uuid"], undefined,
+      await storeSession(session, prior, "owned-old-agent-sdk", undefined, [null, "owned-tool-uuid"], undefined,
         "owned-tool-uuid", ["owned-call-1404"], undefined, undefined, undefined, undefined, true,
         openCodePrimaryAgentContextHash("primary", "build"))
       const response = await app.fetch(new Request("http://localhost/v1/messages", {
@@ -144,7 +144,7 @@ for (const stream of [false, true]) describe(`OpenCode primary-agent changes (st
       if (turn === 0) {
         const stored = lookupSharedSession(session)!
         // An old writer has no primary-agent proof; force a real durable read.
-        storeSharedSession(session, stored.claudeSessionId, undefined, undefined, undefined, undefined,
+        await storeSharedSession(session, stored.claudeSessionId, undefined, undefined, undefined, undefined,
           undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
       } else if (turn === 1) {
         expect(captured.at(-1)!.options.resume).toBeUndefined()

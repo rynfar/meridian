@@ -103,7 +103,7 @@ describe("native structured output", () => {
     queryCalls = 0
     waitBeforeMessages = undefined
     await clearSessionCache()
-    clearSharedSessions()
+    await clearSharedSessions()
   })
 
   afterEach(() => {

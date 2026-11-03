@@ -248,8 +248,8 @@ describe("copy-on-write store mutations", () => {
     const hashes = ["original"]
     const blocks = [["original-block"]]
     const locator = { sessionId: "claude-captured", configDir: "/tmp/original" }
-    const write = (await storeSharedSession("captured", "claude-captured", 1, "h", hashes,
-      undefined, undefined, blocks, undefined, undefined, locator))
+    const write = storeSharedSession("captured", "claude-captured", 1, "h", hashes,
+      undefined, undefined, blocks, undefined, undefined, locator)
     hashes[0] = "changed"
     blocks[0]![0] = "changed-block"
     locator.configDir = "invalid-relative-path"
@@ -261,7 +261,7 @@ describe("copy-on-write store mutations", () => {
 
     const attached = { sessionId: "claude-attached", configDir: "/tmp/attached" }
     await storeSharedSession("attached", attached.sessionId)
-    const attachment = (await attachSharedTranscriptLocator("attached", attached.sessionId, attached))
+    const attachment = attachSharedTranscriptLocator("attached", attached.sessionId, attached)
     attached.configDir = "invalid-relative-path"
     await attachment
     expect(lookupSharedSession("attached")?.currentTranscript?.configDir).toBe("/tmp/attached")

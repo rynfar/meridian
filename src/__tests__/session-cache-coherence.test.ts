@@ -30,8 +30,8 @@ describe("cross-process session cache coherence", () => {
     const sessionId = keyed ? "owned-cache-session" : undefined
     const uuids = ["original-uuid"]
     const locator = { sessionId: "owned-sdk", configDir: "/tmp/owned-config" }
-    const pending = (await storeSession(sessionId, messages, "owned-sdk", cwd, uuids,
-      undefined, undefined, undefined, locator))
+    const pending = storeSession(sessionId, messages, "owned-sdk", cwd, uuids,
+      undefined, undefined, undefined, locator)
     uuids[0] = "changed-uuid"
     locator.configDir = "invalid-relative-path"
     await pending
@@ -52,7 +52,7 @@ describe("cross-process session cache coherence", () => {
     const cwd = "/tmp/cleanup-ordering"
     const sessionId = keyed ? "client-session" : undefined
     const key = sessionId ?? getConversationFingerprint(messages, cwd)
-    const pending = (await storeSession(sessionId, messages, "before-cleanup", cwd))
+    const pending = storeSession(sessionId, messages, "before-cleanup", cwd)
     const cleanup = clearSessionCache()
     await Promise.all([pending, cleanup])
     expect(lookupSharedSession(key)).toBeUndefined()
@@ -68,9 +68,9 @@ describe("cross-process session cache coherence", () => {
     const cwd = "/tmp/cleanup-ordering"
     const sessionId = keyed ? "client-session" : undefined
     const key = sessionId ?? getConversationFingerprint(messages, cwd)
-    const old = (await storeSession(sessionId, messages, "before-cleanup", cwd))
+    const old = storeSession(sessionId, messages, "before-cleanup", cwd)
     const cleanup = clearSessionCache()
-    const later = (await storeSession(sessionId, messages, "after-cleanup", cwd))
+    const later = storeSession(sessionId, messages, "after-cleanup", cwd)
     await Promise.all([old, cleanup, later])
     expect(lookupSharedSession(key)?.claudeSessionId).toBe("after-cleanup")
     writeFileSync(join(dir, "sessions.json"), "corrupt fixture")
@@ -78,6 +78,45 @@ describe("cross-process session cache coherence", () => {
     expect(found.type).toBe("continuation")
     if (found.type !== "continuation") throw new Error("expected continuation")
     expect(found.session.claudeSessionId).toBe("after-cleanup")
+  })
+
+  it.each([true, false])("eviction clears local fallback repopulated before its durable write (keyed=%s)", async keyed => {
+    const messages = [{ role: "user", content: "hello" }]
+    const continuation = [...messages, { role: "user", content: "next" }]
+    const cwd = "/tmp/eviction-ordering"
+    const sessionId = keyed ? "client-session" : undefined
+    const key = sessionId ?? getConversationFingerprint(messages, cwd)
+    await storeSession(sessionId, messages, "before-eviction", cwd)
+
+    const eviction = evictSession(sessionId, cwd, messages)
+    lookupSession(sessionId, continuation, cwd)
+    expect(await eviction).toBe(true)
+    expect(lookupSharedSession(key)).toBeUndefined()
+
+    // No successful cache lookup may hide a stale fallback by observing absence.
+    writeFileSync(join(dir, "sessions.json"), "corrupt fixture")
+    expect(lookupSession(sessionId, continuation, cwd))
+      .toEqual({ type: "diverged", reason: "not-found" })
+  })
+
+  it.each([true, false])("eviction preserves a write started after it (keyed=%s)", async keyed => {
+    const messages = [{ role: "user", content: "hello" }]
+    const continuation = [...messages, { role: "user", content: "next" }]
+    const cwd = "/tmp/eviction-ordering"
+    const sessionId = keyed ? "client-session" : undefined
+    await storeSession(sessionId, messages, "before-eviction", cwd)
+
+    const eviction = evictSession(sessionId, cwd, messages)
+    lookupSession(sessionId, continuation, cwd)
+    const later = storeSession(sessionId, messages, "after-eviction", cwd)
+    expect(await eviction).toBe(true)
+    expect(await later).not.toBe(false)
+
+    writeFileSync(join(dir, "sessions.json"), "corrupt fixture")
+    const found = lookupSession(sessionId, continuation, cwd)
+    expect(found.type).toBe("continuation")
+    if (found.type !== "continuation") throw new Error("expected continuation")
+    expect(found.session.claudeSessionId).toBe("after-eviction")
   })
 
   it("refreshes a stale in-memory generation from the shared mapping", async () => {
