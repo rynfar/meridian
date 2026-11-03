@@ -106,6 +106,12 @@ export interface MeridianSettings {
    *  one counts against the account's usage. MERIDIAN_CACHE_KEEPALIVE wins.
    *  Re-read per turn and per scheduler tick. */
   cacheKeepalive?: boolean
+  /** When a client's history stops continuing its stored SDK session after a
+   *  rewrite (undo-gap, modified history, an unsettled tool checkpoint), fork
+   *  that session at the last verified assistant turn and send only the
+   *  changed tail, instead of replaying the whole history. Off unless switched
+   *  on. MERIDIAN_PARTIAL_REPLAY wins. Re-read per turn. */
+  partialReplay?: boolean
   /** Name the machine Meridian runs on beside the site header's status, so
    *  several instances can be told apart at a glance. Off unless switched on,
    *  because it also publishes the hostname in the unauthenticated /health. */
