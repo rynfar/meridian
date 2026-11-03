@@ -118,12 +118,14 @@ export interface RequestMetric {
   isPassthrough: boolean
 
   /** Session lineage classification: how the incoming messages related to the stored session.
-   *  - continuation: normal follow-up (prefix matched)
-   *  - compaction:   older messages rewritten, recent preserved (suffix matched)
-   *  - undo:         user undid recent messages (prefix preserved, suffix changed) → SDK fork
-   *  - diverged:     no overlap with stored session → fresh start
-   *  - new:          first request, no stored session to compare */
-  lineageType?: "continuation" | "compaction" | "undo" | "diverged" | "new"
+   *  - continuation:  normal follow-up (prefix matched)
+   *  - compaction:    older messages rewritten, recent preserved (suffix matched)
+   *  - undo:          user undid recent messages (prefix preserved, suffix changed) → SDK fork
+   *  - rollback-tail: opt-in partial replay; SDK fork at the last proved assistant
+   *                   turn, every later message delivered
+   *  - diverged:      no overlap with stored session → fresh start
+   *  - new:           first request, no stored session to compare */
+  lineageType?: "continuation" | "compaction" | "undo" | "rollback-tail" | "diverged" | "new"
 
   /** Whether deferred tool loading was active (auto-defer or client defer_loading) */
   hasDeferredTools?: boolean

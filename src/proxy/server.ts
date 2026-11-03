@@ -68,7 +68,7 @@ import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG, resolveBackendConfig } from "./types"
 import { createAntigravityServer } from "./backends/antigravity"
-import { env, envBool, envInt, envIntValue, envVarSource } from "../env"
+import { env, envBool, envInt, envIntValue, envVarSource, resolveSwitch } from "../env"
 import { installErrorReporter } from "../errorReporting"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
@@ -92,7 +92,7 @@ export type {
 // transforms through the same runner meridian uses internally.
 export { runTransformHook, runObserveHook, buildPipeline, createRequestContext } from "./transform"
 import { claudeLog } from "../logger"
-import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
+import { estimateHistoryTokens, replayBudgetFor, trimReplayHistory } from "./replayBudget"
 import { haikuThinkingCompatibilityError } from "./haikuCompatibility"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
@@ -148,7 +148,7 @@ import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapter
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, leadWithToolResults, splitRollbackTail, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
@@ -228,7 +228,12 @@ import {
   inheritSdkUuids,
   independentRequestCause,
   formatDivergence,
+  formatRollbackTail,
+  planRollbackTail,
   type LineageResult,
+  type RollbackTail,
+  type RollbackTailCause,
+  type RollbackTailLineage,
   type TokenUsageIteration,
   type TokenUsage,
 } from "./session/lineage"
@@ -3460,9 +3465,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const advancedAcrossProcesses = arrivalRevision !== undefined
           ? arrivalRevision !== currentDurableRevision && !waitedOutOwnInterruption(arrivalRevision, interruptedClaim)
           : durableMappingAtTurn.status === "found"
+        // Opt-in partial replay; see the rollback-tail decision below.
+        const partialReplay = resolveSwitch(env("PARTIAL_REPLAY"), () => getSetting("partialReplay"))
         let lineageResult: LineageResult = isIndependentSession
           ? { type: "diverged", reason: "independent-request" }
-          : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
+          : lookupSession(profileSessionId, lineageMessages, profileScopedCwd, { partialReplay })
         // The stored mapping withholds its resume proof while it is
         // interrupted. Restore it only when this request adds nothing but user
         // content to what the session holds; otherwise the client kept output
@@ -3740,6 +3747,45 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // until the atomic route+mapping CAS wins at the terminal barrier.
           lineageResult = { type: "diverged", reason: "priority-failback" }
         }
+        // Opt-in partial replay (`partialReplay`): a history that stopped
+        // continuing its stored session inside a verified prefix forks that
+        // session at the prefix's last proved assistant turn and is sent the
+        // rest, instead of a replay of the whole history. Decided after every
+        // reclassification above, so a lost race, a moved conversation or a
+        // priority failback keeps its replay.
+        // Client usage describes its resumed context, not the fresh transcript;
+        // derive replay capacity from the actual SDK model's window instead.
+        const modelReplayBudget = () => replayBudgetFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel())
+        const rollbackTailRefusal = (tail: RollbackTail): string | undefined => {
+          // Native results settle the fork point only for calls Meridian
+          // forwarded to the client and stopped at.
+          if (tail.settledToolIds.length > 0 && !passthrough) return "unforwarded-tool-calls"
+          // A resumed session cannot trim its history the way a fresh replay
+          // does, so a history over the replay budget replays fresh.
+          if (estimateHistoryTokens(executionMessages) > modelReplayBudget()) return "over-budget"
+          return undefined
+        }
+        const takeRollbackTail = (tail: RollbackTail, cause: RollbackTailCause): RollbackTailLineage | undefined => {
+          const refusal = rollbackTailRefusal(tail)
+          if (!refusal) return { type: "rollback-tail", cause, ...tail }
+          claudeLog("session.rollback_tail_refused", { cause, reason: refusal })
+          diagnosticLog.lineage(
+            `${requestMeta.requestId} rollback-tail refused (${refusal}) for ${cause}: replaying the full history`,
+            requestMeta.requestId,
+          )
+          return undefined
+        }
+        // A headerless OpenCode request was matched by fingerprint and may be
+        // a side agent sharing a prefix with the user's conversation; it keeps
+        // its replay, as its undo does above.
+        const rollbackDivergence = lineageResult.type === "diverged" ? lineageResult : undefined
+        if (
+          rollbackDivergence?.rollbackTail && !lostRaceWhileWaiting
+          && !(adapterBase === "opencode" && !agentSessionId)
+          && (rollbackDivergence.reason === "undo-gap" || rollbackDivergence.reason === "modified-history")
+        ) {
+          lineageResult = takeRollbackTail(rollbackDivergence.rollbackTail, rollbackDivergence.reason) ?? lineageResult
+        }
         // A growing passthrough request with revised history can replay its
         // complete body after losing a commit race. Keep stale undo, replayed
         // and unrelated requests subject to the ordinary conflict guard.
@@ -3766,16 +3812,22 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // and carries digests and shapes, never content.
         if (pipeline.some(t => t.onSession)) {
           // verifyLineage attaches the detail on modified-history, where it has
-          // the stored digests in hand; nothing recomputes it here.
-          const mismatch = lineageResult.type === "diverged" ? lineageResult.mismatch : undefined
+          // the stored digests in hand; nothing recomputes it here. A
+          // rollback-tail keeps the divergence it replaces.
+          const divergence = lineageResult.type === "diverged" ? lineageResult
+            : lineageResult.type === "rollback-tail" ? rollbackDivergence : undefined
+          const mismatch = divergence?.mismatch
           runTransformHook(pipeline, "onSession", {
             adapter: adapterBase,
-            lineage: lineageResult.type,
-            reason: lineageResult.type === "diverged" ? lineageResult.reason : undefined,
+            // The plugin contract names four kinds; a rollback-tail forks at a
+            // rollback point, as an undo does, and reports the divergence it
+            // replaces as its reason.
+            lineage: lineageResult.type === "rollback-tail" ? "undo" : lineageResult.type,
+            reason: divergence?.reason,
             sessionKey: profileSessionId,
             storedCount: mismatch?.storedCount,
             incomingCount: (body.messages || []).length,
-            prefixOverlap: lineageResult.type === "diverged" ? lineageResult.prefixOverlap : undefined,
+            prefixOverlap: divergence?.prefixOverlap,
             mismatch: mismatch && mismatch.index >= 0 ? {
               index: mismatch.index,
               storedDigest: mismatch.storedDigest,
@@ -3787,7 +3839,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
 
         let isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
-        let isUndo = lineageResult.type === "undo"
+        let isUndo = lineageResult.type === "undo" || lineageResult.type === "rollback-tail"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         let resumeSessionId = cachedSession?.claudeSessionId
         // Stable client/checkpoint identity survives a failed managed fork.
@@ -3801,8 +3853,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           ? lineageResult.resumeContentFrom
           : undefined
         // For undo: fork the session at the rollback point
-        let undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
+        let undoRollbackUuid = lineageResult.type === "undo" || lineageResult.type === "rollback-tail"
+          ? lineageResult.rollbackUuid
+          : undefined
         let sdkUndo = isUndo && Boolean(undoRollbackUuid)
+        // A rollback-tail also delivers every client message after its fork point.
+        let rollbackTail = lineageResult.type === "rollback-tail" ? lineageResult : undefined
         if (isUndo && !undoRollbackUuid) {
           // Forks remap copied-history UUIDs. Without a valid boundary in the
           // preserved prefix, replay fresh rather than first attempting a
@@ -3835,6 +3891,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           isUndo = false
           sdkUndo = false
           undoRollbackUuid = undefined
+          rollbackTail = undefined
           resumeSessionId = undefined
         }
         // Raw lineage still decides ownership and concurrency. Its offsets do
@@ -3863,6 +3920,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           isUndo = false
           sdkUndo = false
           undoRollbackUuid = undefined
+          rollbackTail = undefined
           resumeSessionId = undefined
         }
         // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
@@ -3876,7 +3934,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             : "string"
           return `${m.role}[${contentTypes}]`
         }).join(" → ")
-        const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
+        let lineageType: LineageResult["type"] | "new" = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
         // `lineage=` renders every divergence without a cached session as the
         // same `new`, so a key that never resolved, a history that did not
         // match and a request that never looked were indistinguishable (#820).
@@ -3887,7 +3945,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${rollbackTail ? ` ${formatRollbackTail(rollbackTail, msgCount)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -3943,7 +4001,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // search past intervening user turns to find a matching tool echo.
         messagesToConvert = durableCheckpointContinuation
       } else if ((isResume || isUndo) && cachedSession) {
-        if (isUndo && undoRollbackUuid) {
+        if (rollbackTail) {
+          // The fork keeps the history through the rollback assistant; every
+          // later client message is delivered (see rebuildReplayPrompt).
+          messagesToConvert = allMessages.slice(rollbackTail.rollbackIndex + 1)
+        } else if (isUndo && undoRollbackUuid) {
           // Undo with SDK rollback: the SDK will fork to the correct point,
           // so we only need to send the new user message.
           messagesToConvert = getLastUserMessage(allMessages)
@@ -4025,15 +4087,34 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // rewind and the structured tool-result expectation.
         } else {
           // Partial, late, duplicate, or unknown results get one safe fresh
-          // replay rather than an invalid SDK resume.
+          // replay rather than an invalid SDK resume. With partial replay on,
+          // a rollback-tail forks at the last proved checkpoint before them.
           claudeLog("passthrough.checkpoint_replay", {
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
             reason: "incomplete_or_mismatched_results",
           })
+          const checkpointTail = partialReplay && lineageResult.type === "continuation"
+            ? planRollbackTail(lineageResult.session, lineageMessages, lineageResult.resumeFrom)
+            : undefined
+          const tailLineage = checkpointTail ? takeRollbackTail(checkpointTail, "checkpoint-mismatch") : undefined
           isResume = false
-          resumeSessionId = undefined
           passthroughToolCallAssistantUuid = undefined
-          messagesToConvert = executionMessages
+          if (tailLineage) {
+            lineageResult = tailLineage
+            lineageType = tailLineage.type
+            rollbackTail = tailLineage
+            isUndo = true
+            sdkUndo = true
+            undoRollbackUuid = tailLineage.rollbackUuid
+            messagesToConvert = allMessages.slice(tailLineage.rollbackIndex + 1)
+            // Decided after the request line, which still reads `lineage=continuation`.
+            const line = `${requestMeta.requestId} lineage=rollback-tail session=${resumeSessionId?.slice(0, 8)} rollback=${tailLineage.rollbackUuid.slice(0, 8)} ${formatRollbackTail(tailLineage, msgCount)}`
+            plog(`[PROXY] ${line}`)
+            diagnosticLog.session(line, requestMeta.requestId)
+          } else {
+            resumeSessionId = undefined
+            messagesToConvert = executionMessages
+          }
         }
       }
 
@@ -4054,9 +4135,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
       const freshReplay = !isResume && !resumeSessionId
-      // Client usage describes its resumed context, not the fresh transcript;
-      // derive replay capacity from the actual SDK model's window instead.
-      const modelReplayBudget = () => replayBudgetFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel())
       let currentReplayBudget = modelReplayBudget()
       let replayTrimRetries = 0
       let replayOmittedMessages = 0
@@ -4263,7 +4341,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // Keep a trailing reminder in its live user turn before framing;
         // otherwise the request becomes history and only metadata stays live.
         // Original client messages remain untouched for lineage and budgeting.
-        const replayMessages = coalesceTrailingSystemReminders(messagesToConvert ?? [])
+        // A rollback-tail keeps the fork point's own tool results native and
+        // renders the rest of its tail as a fresh replay renders history.
+        const tail = rollbackTail ? splitRollbackTail(messagesToConvert ?? [], rollbackTail.settledToolIds) : undefined
+        const replayMessages = coalesceTrailingSystemReminders(tail ? tail.rendered : messagesToConvert ?? [])
         if (hasMultimodal || hasPassthroughToolResults) {
           // Structured messages preserve image/document/file and tool_result blocks.
           // On resume, only send user messages (SDK has assistant context already).
@@ -4379,6 +4460,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }
           }
         }
+        if (tail && tail.toolResults.length > 0) {
+          // One SDK input: the results the forked tool_use expects, then the
+          // rendered remainder of the tail.
+          const toolResults = normalizeStructuredUserContent(
+            stripCacheControlDeep(tail.toolResults), true, undefined, renderReplayToolName, !clientToolSearch,
+          )
+          structuredMessages = [{
+            type: "user",
+            message: { role: "user", content: leadWithToolResults(Array.isArray(toolResults) ? toolResults : [], structuredMessages ?? textPrompt) },
+            parent_tool_use_id: null,
+          }]
+          textPrompt = undefined
+        }
       }
       rebuildReplayPrompt()
 
@@ -4408,6 +4502,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         replayTrimRetries++
         rebuildReplayPrompt()
         return true
+      }
+
+      // A rollback-tail cannot trim the history its fork keeps, and the budget
+      // check before it is an estimate: an overflow replays the whole history
+      // fresh instead, which trims to the budget as any fresh replay does.
+      function rollbackTailOverflowed(errMsg: string): boolean {
+        return rollbackTail !== undefined && extractSdkTermination(errMsg).reason === "context_overflow"
       }
 
       // Create a fresh prompt value — can be called multiple times for retry
@@ -5079,14 +5180,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   // and replay the history as a fresh session (one-shot).
                   // An auxiliary request never resumed the session, so it has no
                   // mapping to evict or history to replay.
-                  if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal)) {
+                  const tailOverflow = rollbackTailOverflowed(errMsg)
+                  if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal || tailOverflow)) {
+                    const unusable = tailOverflow ? "rollback-tail-overflow" : refusal
                     claudeLog("session.resume_replay", {
                       mode: "non_stream",
-                      refusal,
+                      refusal: unusable,
                       rollbackUuid: undoRollbackUuid,
                       resumeSessionId,
                     })
-                    plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
+                    plog(`[PROXY] ${requestMeta.requestId} session unusable (${unusable}), evicting and replaying as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("resume_replay")
                     if (!(await evictSession(
@@ -6506,14 +6609,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     // non-stream branch above for the full rationale.
                     // An auxiliary request never resumed the session, so it has no
                     // mapping to evict or history to replay.
-                    if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal)) {
+                    const tailOverflow = rollbackTailOverflowed(errMsg)
+                    if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal || tailOverflow)) {
+                      const unusable = tailOverflow ? "rollback-tail-overflow" : refusal
                       claudeLog("session.resume_replay", {
                         mode: "stream",
-                        refusal,
+                        refusal: unusable,
                         rollbackUuid: undoRollbackUuid,
                         resumeSessionId,
                       })
-                      plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
+                      plog(`[PROXY] ${requestMeta.requestId} session unusable (${unusable}), evicting and replaying as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("resume_replay")
                       if (!(await evictSession(
