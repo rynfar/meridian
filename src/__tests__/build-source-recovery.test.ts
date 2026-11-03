@@ -55,7 +55,7 @@ function fakeGit(body: string) {
 const args=process.argv.slice(4); appendFileSync(${JSON.stringify(log)},JSON.stringify({pid:process.pid,args})+'\\n');
 ${body}\n`)
   chmodSync(join(bin, "git"), 0o755)
-  return { env: { PATH: bin + delimiter + process.env.PATH }, log }
+  return { script: join(bin, "git"), env: { PATH: bin + delimiter + process.env.PATH }, log }
 }
 // The 400ms boundary is a process timeout, not a Node startup benchmark.
 // Install the ignored signal disposition in the shell, then exec finite sleep
@@ -147,21 +147,74 @@ console.log(JSON.stringify(captureBuildRuntime({root:${JSON.stringify(root)},mod
   })
   test("slow optional Git facts share one recovery budget after root and SHA", () => {
     const { root, sha } = fixture()
-    const fake = fakeGit(`process.on('SIGTERM',()=>{});
-setTimeout(()=>{if(args[1]==='--show-toplevel') console.log(${JSON.stringify(root)});
+    const fake = fakeGit(`if(args[1]==='--show-toplevel') console.log(${JSON.stringify(root)});
 else if(args[1]==='HEAD') console.log(${JSON.stringify(sha)});
-else if(args[1]==='--abbrev-ref') console.log('main'); else console.log('');},600);`)
-    const result = probe(`import {sourceIdentity} from ${JSON.stringify(snapshotModule)};
-const start=performance.now(); const info=sourceIdentity(${JSON.stringify(root)}); console.log(JSON.stringify({info,elapsed:performance.now()-start}));`, fake.env)
-    const calls = joined(fake.log)
-    console.log(JSON.stringify({ case: "shared-recovery-budget", ...result, calls: calls.map(call => call.args), directChildrenJoined: true }))
+else { process.on('SIGTERM',()=>{}); setTimeout(()=>console.log(args[1]==='--abbrev-ref'?'main':''),600); }`)
+    // Account for deadline policy separately from native startup/scheduling.
+    // Only this fixture's Git route uses explicit Node; its real children still
+    // receive the unchanged native timeout/options and must all be joined.
+    const result = probe(`import childProcess from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
+const nativeSpawnSync = childProcess.spawnSync;
+const root = ${JSON.stringify(root)}, script = ${JSON.stringify(fake.script)}, fixturePath = ${JSON.stringify(fake.env.PATH)};
+const calls = []; let now = 0;
+childProcess.spawnSync = (command, args, options) => {
+  if(command !== 'git' || args?.[0] !== '-C' || args[1] !== root || process.env.PATH !== fixturePath) return nativeSpawnSync(command, args, options);
+  const gitArgs = args.slice(2);
+  const mandatory = gitArgs[0] === 'rev-parse' && (gitArgs[1] === '--show-toplevel' || gitArgs[1] === 'HEAD');
+  const spawned = nativeSpawnSync(${JSON.stringify(node)}, [script, ...args], options);
+  const charge = mandatory ? 800 : options.timeout;
+  calls.push({args:gitArgs, timeout:options.timeout, killSignal:options.killSignal, charge, pid:spawned.pid,
+    status:spawned.status, signal:spawned.signal, stdout:spawned.stdout, stderr:spawned.stderr,
+    error:spawned.error ? {name:spawned.error.name, message:spawned.error.message, code:spawned.error.code, errno:spawned.error.errno, syscall:spawned.error.syscall} : null});
+  now += charge;
+  if(mandatory && (spawned.error || spawned.status !== 0)) throw Error('Mandatory Git failed: ' + JSON.stringify(calls));
+  return spawned;
+};
+syncBuiltinESMExports();
+const {sourceIdentity} = await import(${JSON.stringify(snapshotModule)});
+const realNow = performance.now.bind(performance);
+Object.defineProperty(performance, 'now', {value:() => now, configurable:true});
+const start = realNow(); const info = sourceIdentity(root);
+console.log(JSON.stringify({info, elapsed:realNow()-start, logicalElapsed:now, calls}));`, fake.env)
+    const calls: {
+      args: string[], timeout: number, killSignal: string, charge: number, pid: number,
+      status: number | null, signal: string | null, stdout: string, error: { code: string } | null,
+    }[] = result.calls
+    // Native results retain PIDs even if an optional child never reaches JS.
+    for (const call of calls) {
+      expect(call.pid).toBeGreaterThan(0)
+      let alive = false
+      try { process.kill(call.pid, 0); alive = true }
+      catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error }
+      expect(alive).toBe(false)
+    }
+    const scriptCalls = joined(fake.log)
+    console.log(JSON.stringify({ case: "shared-recovery-budget", ...result, scriptCalls, directChildrenJoined: true }))
     expect(result.info.sha).toBe(sha)
     expect(result.info.branch).toBeUndefined()
     expect(result.info.dirty).toBeUndefined()
+    // This remains a real-process safety bound, not the deadline-policy proof.
     expect(result.elapsed).toBeLessThan(2500)
-    expect(calls.slice(0, 2).map(call => call.args)).toEqual([["rev-parse", "--show-toplevel"], ["rev-parse", "HEAD"]])
-    expect(calls.filter(call => call.args[0] === "status")).toHaveLength(1)
-    expect(calls.length).toBeLessThanOrEqual(5)
+    expect(calls.map(call => call.timeout)).toEqual([2000, 1200, 250, 150])
+    expect(result.logicalElapsed).toBe(2000)
+    expect(calls.map(call => call.args)).toEqual([
+      ["rev-parse", "--show-toplevel"], ["rev-parse", "HEAD"],
+      ["rev-parse", "--abbrev-ref", "HEAD"], ["status", "--porcelain=v1", "--untracked-files=all"],
+    ])
+    expect(calls.map(call => call.charge)).toEqual([800, 800, 250, 150])
+    expect(calls.map(call => call.killSignal)).toEqual(["SIGKILL", "SIGKILL", "SIGKILL", "SIGKILL"])
+    expect(calls.map(call => call.stdout.trim())).toEqual([root, sha, "", ""])
+    for (const call of calls.slice(0, 2)) {
+      expect(call.status).toBe(0)
+      expect(call.signal).toBeNull()
+      expect(call.error).toBeNull()
+    }
+    for (const call of calls.slice(2)) {
+      expect(call.status).toBeNull()
+      expect(call.signal).toBe("SIGKILL")
+      expect(call.error?.code).toBe("ETIMEDOUT")
+    }
   }, 12000)
   test("an exhausted root deadline does not start subsequent Git commands", () => {
     const { root } = fixture()
