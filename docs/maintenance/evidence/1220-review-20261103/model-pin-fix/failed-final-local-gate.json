@@ -1,0 +1,23 @@
+{
+  "head": "93b188f68d9664c46df62aa3249b4defffd884af",
+  "result": "FAIL",
+  "exit": 1,
+  "seconds": 763.3926626662724,
+  "group0": {
+    "pass": 8247,
+    "skip": 65,
+    "fail": 2,
+    "tests": 8314,
+    "files": 485,
+    "seconds": 753.45
+  },
+  "failures": [
+    "bookkeeping-cli.beforeAll production full fingerprint2s deadline in hashFileInto->budget.consume",
+    "integration concurrent together GC cleanup notjoined within5000ms; primaryrequests200/ownershipassertionspass"
+  ],
+  "groups1through25": "notrun because && after failedgroup0",
+  "postSuiteTypecheckAndBuild": "notrun because &&; earlierfocusedtypecheckandbuildpass, notfinalfullgate",
+  "noBlindRetry": true,
+  "productionCause": "notestablished",
+  "acceptance": "notmerged; finalmodel/E41/contributor/releaseholdremain"
+}

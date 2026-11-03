@@ -1,5 +1,14 @@
 # Explicit-model refusal fallback — #1505
 
+## Latest final local gate: FAIL
+
+The final93b188f6 local run exits1:8247pass/65skip/2fail in group0. Bookkeeping
+CLI beforeAll fails the unchanged2s full fingerprint; concurrent together passes
+all200/ownership assertions but cleanupGC does not join within5000ms. Causes are
+not established. Latergroups/typecheck/build do not run. No merge/timeoutchange
+or green retry follows. [Receipt](failed-final-local-gate.json) and compressed
+exact sanitized log retain the red; bounded independent diagnoses are pending.
+
 Signed source head `41df72d664301d235df190a5afe2563aaf458c68` is independent
 of contributor #1220. The existing per-request pin for recognized versioned IDs
 adds `CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1`. Bare aliases stay unchanged.

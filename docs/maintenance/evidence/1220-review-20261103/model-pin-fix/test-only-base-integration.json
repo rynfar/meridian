@@ -1,0 +1,16 @@
+{
+  "validatedRuntimeHead": "41df72d664301d235df190a5afe2563aaf458c68",
+  "currentSourceHead": "93b188f68d9664c46df62aa3249b4defffd884af",
+  "base": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+  "deltaFiles": [
+    "src/__tests__/antigravity-probe.test.ts",
+    "src/__tests__/build-source-recovery.test.ts"
+  ],
+  "runtimeDependencyConfigAndSpecDelta": [],
+  "allThreeModelSourceTestHashesUnchanged": true,
+  "productSpecSHA256": "113dea856134c4e9104fe46962f993e0f088fc521b12425982bf4bffd7608725",
+  "liveEvidence": "independently installed package from validatedRuntimeHead; same runtime bytes, later delta only testfixtures",
+  "currentLocalSuite": "running",
+  "currentCI": "pending refresh; not acceptance",
+  "noContributorCommits": true
+}

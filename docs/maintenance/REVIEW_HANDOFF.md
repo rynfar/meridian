@@ -1,5 +1,31 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 20:48 UTC: #1505 local gate failed; no merge
+
+Final local `npm test` on`93b188f68d9664c46df62aa3249b4defffd884af` exits1 after763.39s.
+Group0:8247pass/65skip/2fail,8314tests/485files in753.45s. Groups1–25 and
+post-suite typecheck/build do not run because the command uses`&&`.
+
+- `bookkeeping-cli.test.ts` beforeAll builds the real package; post-build full
+  source fingerprint exceeds unchanged2s budget in`hashFileInto → consume`.
+  This is the previously observed failure class, not a diagnosed model-pin bug.
+- Concurrent headerless together fixture receives all three200responses and
+  passes ownership/publication assertions; its cleanup GC sweep fails to join
+  within unchanged5000ms. Unjoined maintenance remains a failure. Cause is not
+  established; no green rerun or production timeout change is authorized by it.
+- Two independent read-only diagnoses are bounded to these failures. No new
+  model calls, full-suite retry or production edits are running. Prior actual
+  client/package PASS and independent narrow model review remain scoped evidence,
+  not a replacement for this red final-local gate. Final CI status must still be
+  refreshed; even green CI cannot erase the local failure.
+- #1504 remains merged/verified at`1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52`.
+  #1505 remains open/unmerged; #1220 still unmerged, E41 halted, historical holds
+  unresolved and release conditional. No tag/publish or external comment.
+
+[Exact failed gate and sanitized log](evidence/1220-review-20261103/model-pin-fix/failed-final-local-gate.json).
+
+Earlier timestamps below retain their original state.
+
 ## 2026-11-03 20:35 UTC: #1504 merged; #1505 final gates running
 
 - **#1504 merged normally**, exact reviewed head`813cac6c` → signed squash

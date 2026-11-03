@@ -92,9 +92,30 @@
   "currentHead": "93b188f68d9664c46df62aa3249b4defffd884af",
   "additionalFiles": [
     {
+      "name": "failed-final-full-npm-test.log.gz",
+      "sha256": "0f2f2ed3bcb3123fe0007b38ba417b5fd1fdc9b07c904532b27ed34274d2fce9",
+      "bytes": 299114
+    },
+    {
+      "name": "failed-final-local-gate.json",
+      "sha256": "539fb8d3c7e3d9b5475086517f40f10e827552c95ff32bedc988d1ac8364e042",
+      "bytes": 798
+    },
+    {
       "name": "final-adversarial-review.md",
       "sha256": "edadfa5e82bb6f7a7ed351d0a069c8f4266d7b1d092036f5183af2aa2b58504a",
       "bytes": 14928
+    },
+    {
+      "name": "initial-head-ci.json",
+      "sha256": "9f39df8a8b9c8879c131a7c4caaabcd1ea6513207483a6b89334b17d448eecff",
+      "bytes": 3883
+    },
+    {
+      "name": "test-only-base-integration.json",
+      "sha256": "464c68c028a251c4aecac7df32eae2fd1ca44fc5cef7a9f19803974a720748f2",
+      "bytes": 746
     }
-  ]
+  ],
+  "currentLocalResult": "FAIL; no merge"
 }

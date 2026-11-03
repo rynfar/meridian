@@ -5,7 +5,15 @@ Review base: `697f9482c23865e9d9a02095e35d79b0922047a7`.
 Contributor update: `bb2e18a3f8362d1a2b3a3529cd50007361bc070b`.
 Additive, GitHub-verified signed maintainer correction: `67d02f56ba69b7e738aea67119ba5b1376ef0db0`.
 
-## Latest: #1504 merged; #1505 final verification
+## Latest: #1505 final local gate is red
+
+#1504 remains merged and verified. #1505 final93b188f6 local run fails in
+bookkeeping build fingerprinting and concurrent fixture GC cleanup; latergroups,
+typecheck/build were skipped by`&&`. Causes are not established. No #1505 merge,
+#1220 acceptance or release follows. [Failed local gate](model-pin-fix/failed-final-local-gate.json)
+and the latest handoff retain exact counts/limits; bounded diagnoses are pending.
+
+## Earlier: #1504 merged; #1505 final verification
 
 Test-only #1504 merged normally at `1e24a969` after all26local test groups
 (8819pass/65skip/0fail), typecheck/build, independent review and exact-head CI.
