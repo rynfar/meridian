@@ -178,6 +178,7 @@ import {
   shouldPromotePriorityAssignment,
   planFreshReplayRelease,
   shouldReleaseOnFreshReplay,
+  priorityFreshReplayPromptDigest,
   isPriorityFreshReplay,
   resolvePriorityOrder,
   choosePriorityProfile,
@@ -459,7 +460,7 @@ interface PriorityFreshReplayAttempt {
   readonly sessionKey: string
   readonly releasableFrom?: string
   released?: { readonly reason: string }
-  replayed?: { readonly historyDigest: string }
+  replayed?: { readonly promptDigest: string }
 }
 
 interface HandleMessagesOptions {
@@ -1848,17 +1849,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   }
 
   /**
-   * Keep a conversation on the account whose attempt served it. Process memory
-   * preserves only legacy/keyless new-conversation affinity; trusted attempts
-   * publish authority at the atomic durable terminal barrier and must not
-   * poison adoption on errors or cancel. A fresh replay is remembered only
-   * here, once an account served it, because only then does that account's
-   * cache hold the history.
+   * Keep a conversation on the account whose attempt answered it. Process
+   * memory preserves only legacy/keyless new-conversation affinity; trusted
+   * attempts publish authority at the atomic durable terminal barrier and must
+   * not poison adoption on errors or cancel.
+   *
+   * The fresh replay is remembered only when the attempt exposed model output
+   * (a `message_start`, assistant content, a tool call or structured output):
+   * the upstream processed, and so cached, the prompt before emitting any of
+   * it. An answer that is an error frame or body the account relayed without
+   * output (an overload, a later hop's honest error) keeps the assignment but
+   * is no evidence that this account's cache holds the prompt.
    */
   function recordPriorityPlacement(
     options: PriorityDispatchOptions,
     candidate: string,
     freshReplay: PriorityFreshReplayAttempt | undefined,
+    exposure: PriorityAttemptExposure,
   ): void {
     if (!options.sessionKey || options.durableRoute) return
     const previousAssignment = priorityAssignments.get(options.sessionKey)
@@ -1866,10 +1873,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       profileId: candidate,
       requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
     })
-    if (freshReplay?.replayed) {
+    if (freshReplay?.replayed && exposure.committed) {
       priorityFreshReplays.set(freshReplay.sessionKey, {
         profileId: candidate,
-        historyDigest: freshReplay.replayed.historyDigest,
+        promptDigest: freshReplay.replayed.promptDigest,
         at: Date.now(),
       })
     }
@@ -2039,7 +2046,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               continue
             }
             if (isCancelled()) break
-            recordPriorityPlacement(options, candidate, freshReplay)
+            recordPriorityPlacement(options, candidate, freshReplay, exposure)
             if (previous) {
               claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
               plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
@@ -2229,8 +2236,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
-        // An honest error answer keeps the account but proves no cached replay.
-        recordPriorityPlacement(options, candidate, sniffed.response.ok ? freshReplay : undefined)
+        recordPriorityPlacement(options, candidate, freshReplay, exposure)
         if (previous) {
           claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
           plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
@@ -3833,11 +3839,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // served is remembered so an identical retry keeps the account caching it.
         const freshReplayAttempt = options.priorityFreshReplay
         if (freshReplayAttempt && lineageResult.type === "diverged" && isPriorityFreshReplay(lineageResult)) {
-          const historyDigest = computeLineageHash(lineageMessages)
+          // The cache identity, not only the lineage: a retry with another
+          // system prompt, model, tool list or thinking setting misses the cache.
+          const promptDigest = priorityFreshReplayPromptDigest({
+            lineageHash: computeLineageHash(lineageMessages),
+            model,
+            system: pipelineCtx.systemContext ?? systemContext,
+            tools: body.tools,
+            thinking,
+          })
           if (freshReplayAttempt.releasableFrom !== undefined && shouldReleaseOnFreshReplay({
             assignedProfileId: freshReplayAttempt.releasableFrom,
             lineage: lineageResult,
-            historyDigest,
+            promptDigest,
             lastFreshReplay: priorityFreshReplays.get(freshReplayAttempt.sessionKey),
             now: Date.now(),
           })) {
@@ -3849,7 +3863,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // Nothing was sent upstream or recorded; the dispatcher discards this.
             return new Response(null, { status: 204 })
           }
-          freshReplayAttempt.replayed = { historyDigest }
+          freshReplayAttempt.replayed = { promptDigest }
         }
         // A growing passthrough request with revised history can replay its
         // complete body after losing a commit race. Keep stale undo, replayed

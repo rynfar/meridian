@@ -77,13 +77,18 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   key (Pi's title generation, the loser of a concurrent race) moves it too: it
   replaces the conversation's session on whichever account serves it, so the
   next turn fresh-replays there either way. One exception keeps a fresh replay
-  where it is: an exact replay of a history this account served fresh in the
+  where it is: an exact replay of a prompt this account served fresh in the
   last 60 minutes, such as a retry after a failed attempt, reads that whole
-  history from this account's cache. A per-key LRU record of the last fresh
-  replay (account, lineage hash, time) tracks this; it is written only when the
-  attempt is served, so a refused or cancelled attempt cannot claim a cache it
-  never wrote. Subagents keyed apart from their root neither move it nor write
-  its record.
+  prompt from this account's cache. A per-key LRU record of the last fresh
+  replay (account, prompt digest, time) tracks this. The digest covers the
+  lineage hash plus the model, system prompt, tool list and thinking setting,
+  because the lineage hash ignores those and a change to any of them misses
+  the cache. The record is written only when the attempt exposed model output
+  (a `message_start`, assistant content, a tool call or structured output),
+  since only that proves the upstream processed the prompt; a refused,
+  cancelled or error-only answer (an overload frame or body) keeps the
+  assignment but cannot claim a cache it never wrote. Subagents keyed apart
+  from their root neither move it nor write its record.
 - **`active+priority`** puts the manually active profile first and the priority
   order behind it, and the active profile **outranks** an existing session
   assignment: here the head moves only because a human or supervisor moved it,
