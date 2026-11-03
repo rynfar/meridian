@@ -1,5 +1,26 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 22:25 UTC: one owner-approved hosted diagnostic running
+
+Owner approved one bounded diagnostic after status clarification. Diagnostic-only
+branch`diagnostic/1506-lock-20261103`, signed head`d26da6f3403dff4c9cca7b295f31c597b2f5f494`, no PR1506 source change.
+[Hosted run41730535471](https://github.com/rynfar/meridian/actions/runs/41730535471) is running once, full original npmtest
+context on Ubuntu/Node22/Bun1.4.3. Exact2/1 PREPARED parentresume gains opt-in
+buffered native fs/deathprobe/ownedlock snapshots only. Original100ms/0stale,
+SQLite qualification and all53 original assertionlines/order unchanged. Offline
+recordercontrols4/0/23assertions, typecheck/syntax and independentreviewPASS.
+Read-onlyhashnamedhelper custody and invalidobserver/cap/missingtrace checks applied.
+
+No original failed gate is cleared by this run; green may remain inconclusive.
+No second run or source correction authorized by an unexplained pass. Root owns
+backgroundwatch; download exact artifact/log oncompletion, classify nativeoutcome
+and observation separately, preserve beforecleanup state, then propose bounded
+nextaction. #1506/#1505/#1220 unmerged and release conditional. No model calls.
+
+[Approval, exactsources, review, controls and limitations](evidence/1220-review-20261103/test-fixture-isolation/approved-lock-diagnostic/README.md).
+
+Earlier checkpoints retain their historical states.
+
 ## 2026-11-03 21:25 UTC: #1506 local PASS, required hosted test FAIL
 
 Final reviewed/source `c2adc2b5784e9bcd6020193cfcc538883f7695ee` is unchanged. Local27 testprocesses

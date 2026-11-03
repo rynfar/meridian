@@ -1,0 +1,30 @@
+{
+  "originalAssertionLines": 53,
+  "identicalInOrder": true,
+  "unchangedPaths": {
+    "package.json": {
+      "sha256": "66021fc0fcde62ab4d57a3a168cbf7c1901176434cd69f7c570ffbe984ba2d74",
+      "equalsReviewed1506": true
+    },
+    "bun.lock": {
+      "sha256": "9f3ccf8982f9e3a46c212d4f73f33a1ff5386cd30cda86e93dd780229aff08b8",
+      "equalsReviewed1506": true
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "b4ccdf5c9983dad0b140a862c4d5fad7c34a9a3299be3a7e3f7dc297db53e64c",
+      "equalsReviewed1506": true
+    },
+    "src/proxy/sessionStore.ts": {
+      "sha256": "aef0c3fe4e87c9f3b97d54112599823af6bbd71e6a346e6feb919a0d9924b23c",
+      "equalsReviewed1506": true
+    },
+    "src/proxy/session/processIncarnation.ts": {
+      "sha256": "08f08b51bd77f801e273ae31831577eed1400eb277c048fc091d70f75ebee41b",
+      "equalsReviewed1506": true
+    },
+    "src/proxy/session/bookkeeping/migration.ts": {
+      "sha256": "bbd6e2f9f5e3b5e82f9c8af58ecdfaed5623f35d6d030181cd7cc2d7b9ab5e4b",
+      "equalsReviewed1506": true
+    }
+  }
+}
