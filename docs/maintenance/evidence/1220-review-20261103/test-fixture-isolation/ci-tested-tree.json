@@ -1,0 +1,11 @@
+{
+  "mergeCommit": "c0373e7d97aaccdda088bc41005f80ce256e719b",
+  "parents": [
+    "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+    "c2adc2b5784e9bcd6020193cfcc538883f7695ee"
+  ],
+  "mergeTree": "60497430f4d51fa83fbf0243e8ba79e417b1dbe7",
+  "reviewedHeadTree": "60497430f4d51fa83fbf0243e8ba79e417b1dbe7",
+  "equal": true,
+  "note": "Fetched immutable hosted merge object after initial local absence; hosted failure tests same tree as local feature head"
+}

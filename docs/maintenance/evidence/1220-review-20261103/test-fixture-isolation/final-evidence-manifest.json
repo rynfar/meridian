@@ -1,0 +1,66 @@
+{
+  "build-final.log.gz": {
+    "sha256": "be48eee76e51c9e92ed74b0b222695d7d4809ae6b5db1315959b19dffacac4d2",
+    "bytes": 993
+  },
+  "typecheck-final.log.gz": {
+    "sha256": "538d2f0f0e00b6ad058592ab6818851370ae3bc30b44c142d02155b232bc54fc",
+    "bytes": 73
+  },
+  "final-head-ci-failed.json": {
+    "sha256": "9e142581f344cbad49c352d72c63d8eae8d468e0bbb1761b907d505bc759800d",
+    "bytes": 5676
+  },
+  "test-isolation-adversarial-review.md": {
+    "sha256": "ace1e98a63e3d79aaac3dcfda6b1095b8c315b45c40eed2c9beb65e5bb48a92b",
+    "bytes": 8445
+  },
+  "final-local-receipt.json": {
+    "sha256": "e4f47e36d4c543df52f5e01317f9174709ec72ec1c165915b56400286bcca487",
+    "bytes": 1026
+  },
+  "source-hashes.json": {
+    "sha256": "6aa02b0083af638714a2b83937938d75e48466b36b761ef8fe4420f9cb8be9ec",
+    "bytes": 425
+  },
+  "ci-test-failed.log.gz": {
+    "sha256": "45096646124ab6727e2c78d0f1259a358ce74588a8b334b544b3c777c8ae6ff9",
+    "bytes": 391503
+  },
+  "concurrent-fixture-isolation-findings.md": {
+    "sha256": "4e7ceed15ab3f739c8937ef114eed6dd171a05738c35a4e298b5a0a90a269ce2",
+    "bytes": 7425
+  },
+  "fixture-ci-crash-findings.md": {
+    "sha256": "2fef8f39f2859f2f3f7c7e658b3cf277fcae626be15bc5f94becbbddfb45b5f9",
+    "bytes": 9079
+  },
+  "focused-evidence.tar.gz": {
+    "sha256": "f727eef05a209a2cfdc5d9e82be75906aa68116b96e31a8354ac302ea54562ef",
+    "bytes": 25969
+  },
+  "ci-failure-excerpt.txt": {
+    "sha256": "f4e98a64fab2f8b461aca893747e6af6431464846b86ae230b08392d87e498f2",
+    "bytes": 3343
+  },
+  "README.md": {
+    "sha256": "80dbb491aaafcc0d293e8105d84bbf1aea16e555bbb52e75e578d04c18486cee",
+    "bytes": 5299
+  },
+  "bookkeeping-cli-fixture-findings.md": {
+    "sha256": "e2cff7b020fcda563ee966fc46896b5154c77d8857f8b19ac0435addb18ebfd5",
+    "bytes": 6398
+  },
+  "full-npm-test.log.gz": {
+    "sha256": "584db3449ce8eed2a0a0edba6c43edfe0f2536bb2b40d7a62ba64bd5c6f06660",
+    "bytes": 327206
+  },
+  "ci-tested-tree.json": {
+    "sha256": "90192cff78278dc5c8703d7f8186fb29bd385f6db6eaba2644f4904ed55307d4",
+    "bytes": 454
+  },
+  "focused-manifest.json": {
+    "sha256": "153cc50ac0842ce4021f2689ff30ef321c9cdd28ce5427f31110d37730f8dea0",
+    "bytes": 3289
+  }
+}

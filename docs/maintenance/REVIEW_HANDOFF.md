@@ -1,5 +1,30 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 21:25 UTC: #1506 local PASS, required hosted test FAIL
+
+Final reviewed/source `c2adc2b5784e9bcd6020193cfcc538883f7695ee` is unchanged. Local27 testprocesses
+**8819pass/65skip/0fail**, typecheck and certified build PASS; combined1015.51s.
+Hosted final-head test **FAIL**: run41718313625/job126204064158, group0
+8305pass/28skip/1fail; `SIGKILL migration 2/1 PREPARED`, parent resume times out
+on `sessions.json.lock`, test212.37ms. Later hostedgroups never ran. Child
+spawnSync kill/status assertions passed; expected snapshot uses a different path,
+so stack localizes the failure to the parent post-kill resume.100ms legacy
+maintenance lock budget,0 stale-age unchanged. Deadline can be consumed by
+publication/fsync before recovery or recovery work, but trace does not prove
+which; no exact cause, permanentleak or unrelated-baseline claim.
+
+No #1506 merge, CI rerun, timeout/qualification weakening or new model call.
+Independent static diagnosis is complete: post-kill resume localized, but no
+causal branch or leaked mock proved and no source correction justified. Diagnosis
+stops; a separately approved bounded native timing/probe/failure-state run is the
+next discriminator, not a green retry. No more speculative fixtures.
+#1505/#1220 stay unmerged and release conditional. Previously red local #1505
+result remains unwaived; #1506 local PASS is not its final-head acceptance.
+
+[All final local/CI logs and receipts](evidence/1220-review-20261103/test-fixture-isolation/README.md).
+
+Earlier checkpoints retain their historical states.
+
 ## 2026-11-03 21:06 UTC: fixture PR #1506 final gates running
 
 Maintainer-only #1506 `c2adc2b5784e9bcd6020193cfcc538883f7695ee` contains the reviewed bookkeeping

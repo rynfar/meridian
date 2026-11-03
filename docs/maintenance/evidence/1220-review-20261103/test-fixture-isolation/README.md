@@ -17,8 +17,19 @@ change. All source [hashes](source-hashes.json) match independently reviewed fil
   testgroup wiring, ownedsettings/Claude/project/sidecar and finaljoins checked.
 - [Exact focused logs, snapshots and manifests](focused-evidence.tar.gz),
   [archive/member hashes](focused-manifest.json), including both red attempts.
-- Final local npm test/typecheck/build and exact-head CI running/pending.
-  These remain merge gates. No live model call for test-only changes.
+- [Final local gate](final-local-receipt.json):27 processes,8819pass/65skip/0fail,
+  typecheck PASS and certified build PASS, combined1015.51s/exit0.
+  Exact [test](full-npm-test.log.gz), [typecheck](typecheck-final.log.gz),
+  [build](build-final.log.gz) logs preserved.
+- [Final-head hosted CI](final-head-ci-failed.json) **test FAIL** at
+  run41718313625/job126204064158: group0 8305pass/28skip/1fail;
+  SIGKILL migration2/1 PREPARED resume cannot acquire sessions.json.lock within
+  unchanged100ms bound. [Complete hosted log](ci-test-failed.log.gz),
+  [exact failure excerpt](ci-failure-excerpt.txt). Other groups never ran.
+  Failure is post-kill parent migration, not expected snapshot; native child
+  SIGKILL/status assertions passed. Exact deadline consumption/dead-owner cause
+  remains unobserved. No blind retry, timeout change or merge.
+  No live model call for test-only changes.
 
 The old final #1505 local gate stays red and unwaived. These changes fix actual
 test isolation/dependency issues, not the proven cause of either historical
@@ -44,3 +55,25 @@ cost distribution only; helper changes timing/budget-interface identity, and
 neither a green build nor observed counters establish the earlier failed run's
 cause or transparent fidelity. Production full2s bound and all input caps unchanged.
 No second diagnostic run. Historical initializer/cache/E41 holds unchanged.
+
+## Bounded hosted failure diagnosis
+
+[Independent static report](fixture-ci-crash-findings.md) localizes the failure
+but finds no justified source correction. The resume uses explicit100ms/0stale,
+not environment timeout values. Throw atstore512 is after a failed publication
+and expired deadline, before the next recovery attempt; it does not establish
+which iteration, whether death probing ran, or why recovery was refused. Candidate
+publication/fsync/scheduling and fail-closed dead-owner/age checks remain distinct
+unobserved possibilities. Bounded earlier-test clock/host/incarnation scan found
+no concrete leaked mock; it does not rule out all contamination.
+
+No native operation timing, childPID/incarnation/lockmtime or failure state was
+retained by this hosted run, and cleanup removed the fixture. Diagnosis stops:
+no speculative correction or green retry is justified. Any new diagnostic run
+requires a separately approved bounded plan retaining failure state and original
+native timing/probe observations, unchanged100ms/death/engine/assertion gates.
+#1506, #1505 and #1220 remain unmerged; release is not authorized by this result.
+
+[Hosted tested merge tree](ci-tested-tree.json) is fetched and equals the reviewed
+feature tree; parents match the reviewed base/head. The failure excerpt normalizes
+trailing whitespace only; compressed full hosted log retains exact bytes.
