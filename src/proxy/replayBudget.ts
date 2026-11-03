@@ -22,6 +22,11 @@ export function estimateTokens(content: unknown): number {
   }, 0)
 }
 
+/** What a whole history costs in the same estimate the replay budget uses. */
+export function estimateHistoryTokens(messages: ReadonlyArray<{ content: unknown }>): number {
+  return messages.reduce((sum, message) => sum + estimateTokens(message.content), 0)
+}
+
 /** resolvedModel is the effective SDK tier pin, including profile/shell and
  * per-request overrides. Haiku 5.5's 1M window is native, not a [1m] beta, and
  * plain `sonnet` on Sonnet 5+ already runs with a 1M window (#1212). */

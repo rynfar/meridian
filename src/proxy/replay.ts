@@ -138,6 +138,45 @@ export function frameStructuredReplay<T extends { message: { content: unknown } 
   return coalesceStructuredUserMessages(framed)
 }
 
+/**
+ * Split what a rollback-tail delivers after its fork point. The first
+ * message's tool_result blocks for the fork point's own calls stay native:
+ * the forked SDK session ends at that tool_use and expects exactly them.
+ * Everything else, assistant turns included, is rendered as replay context.
+ */
+export function splitRollbackTail(
+  tail: readonly ReplayMessage[],
+  settledToolIds: readonly string[],
+): { toolResults: unknown[]; rendered: ReplayMessage[] } {
+  const [first, ...rest] = tail
+  if (!first || settledToolIds.length === 0 || !Array.isArray(first.content)) return { toolResults: [], rendered: [...tail] }
+  const settled = new Set(settledToolIds)
+  const toolResults: unknown[] = []
+  const remainder: unknown[] = []
+  for (const block of first.content) {
+    if (record(block) && block.type === "tool_result" && typeof block.tool_use_id === "string" && settled.has(block.tool_use_id)) {
+      toolResults.push(block)
+    } else {
+      remainder.push(block)
+    }
+  }
+  return { toolResults, rendered: remainder.length > 0 ? [{ ...first, content: remainder }, ...rest] : rest }
+}
+
+/** One SDK input for a rollback-tail: native results first, as the API
+ *  requires after a tool_use, then the rendered rest of the tail. */
+export function leadWithToolResults(
+  toolResults: readonly unknown[],
+  rendered: string | ReadonlyArray<{ message: { content: unknown } }> | undefined,
+): unknown[] {
+  const after = typeof rendered === "string"
+    ? (rendered ? [{ type: "text", text: rendered }] : [])
+    : (rendered ?? []).flatMap(entry => Array.isArray(entry.message.content)
+      ? entry.message.content
+      : entry.message.content ? [{ type: "text", text: String(entry.message.content) }] : [])
+  return [...toolResults, ...after]
+}
+
 /** One rendered piece of replay text, and whether the client put a cache
  * breakpoint on the block it came from. */
 export interface ReplayPart {

@@ -15,6 +15,8 @@
  * mapping and runs each beat.
  */
 
+import { resolveSwitch } from "../env"
+
 /** Lifetime of the one-hour cache tier; each read restarts it. */
 export const PROMPT_CACHE_TTL_MS = 60 * 60_000
 
@@ -52,10 +54,7 @@ export const CACHE_KEEPALIVE_SOURCE = "cache-keepalive"
  * values fall through to the setting, and the default is off.
  */
 export function resolveCacheKeepaliveEnabled(envValue: string | undefined, setting: () => unknown): boolean {
-  const value = envValue?.trim().toLowerCase()
-  if (value === "1" || value === "true" || value === "yes" || value === "on") return true
-  if (value === "0" || value === "false" || value === "no" || value === "off") return false
-  return setting() === true
+  return resolveSwitch(envValue, setting)
 }
 
 /** Concurrent beats allowed; clamped to a small number. */
