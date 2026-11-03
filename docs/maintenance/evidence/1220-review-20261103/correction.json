@@ -1,0 +1,14 @@
+{
+  "sha": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "parent": "bb2e18a3f8362d1a2b3a3529cd50007361bc070b",
+  "author": "Trevor Walker <rynfar@gmail.com>",
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "api": "https://api.github.com/repos/Nowaker/meridian/commits/67d02f56ba69b7e738aea67119ba5b1376ef0db0"
+  },
+  "sourcePr": 1220,
+  "sourceAuthor": "Nowaker",
+  "status": "pushed additive correction; no merge yet",
+  "noPublicContractOrConstantsChanged": true
+}

@@ -1,4 +1,34 @@
-# Meridian review checkpoint — 2026-11-02 UTC
+# Meridian review checkpoint — 2026-11-03 UTC
+
+## 2026-11-03: Nowaker #1220 resumed; release authorized after acceptance
+
+The owner asked to find the PR he had promised to merge. His 2026-11-02 reply and
+Nowaker's conflict-resolution update identify **[#1220](https://github.com/rynfar/meridian/pull/1220)**,
+not the contributor's other new PRs. The owner then authorized a release after
+review and merge. No acceptance gate was waived; no external comment is authorized.
+
+- **Not merged.** Contributor head `bb2e18a3` was reviewed against main `697f9482`.
+  GitHub-verified signed maintainer correction `67d02f56` is additive on
+  Nowaker's original branch. Source authorship has not yet been checked on main.
+- Fixed the async JSON eviction cache-repopulation gap; added keyed/fingerprint
+  regressions and later-writer controls. Current HTTP requests already refuse
+  store-read errors, so the proof is an internal fallback contract regression,
+  not a demonstrated unsafe HTTP resume. Corrected async fixture/harness callers,
+  pending-write tests and the session spec/architecture description.
+- Independent reviews and discriminating tests pass; typecheck/build pass.
+  Original-client installed-tarball E2E passes on OpenCode1.18.34, Opus5.5,
+  SDK0.2.141, explicit native2.1.284, Darwinarm64 with both required plugins.
+  Supported API inspection confirms the actual model. Final full suite and CI
+  are still running; initial group0 hit the unchanged fingerprint2s deadline.
+- **Historical gate remains open:** published3332 → next read3132 misses95%.
+  Separate aggregation/parser issues do not explain the200-token residual.
+  The missing original transient evidence was not recreated by a green rerun.
+- [Review, exact source heads, scripts, results and limitations](evidence/1220-review-20261103/README.md).
+  Live credentials remain access-only/read-only with Extra Usage disabled.
+- Release Please #1486 currently proposes1.89.0; it has not been merged or
+  published by this review. Re-read its final head after #1220 acceptance.
+
+The prior checkpoint below is retained as history.
 
 Last code delivery: `3a700e365fef08b4549642746a9ccbf59c64d95e` (#1480). The 2026-11-02 work is recorded first, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
 

@@ -1,0 +1,131 @@
+{
+  "head": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "members": [
+    {
+      "path": "actual-client-invocation.json",
+      "bytes": 883,
+      "sha256": "1f73aca10779d3a894564b0307268972eafba18e27baa9829a040f1dcdad066c"
+    },
+    {
+      "path": "actual-client-original.log",
+      "bytes": 321,
+      "sha256": "695a2bf9bf112042b1c457518c3b8a5b99888e2d95c979227c62c2940d7ec3c2"
+    },
+    {
+      "path": "actual-client-report.json",
+      "bytes": 4826,
+      "sha256": "bed8cb4e791f0ed9090b55628e4573dbaf784ae2ca8ccc0471dcf4e1ae3e809b"
+    },
+    {
+      "path": "actual-client-supported-history-final.json",
+      "bytes": 2960,
+      "sha256": "e15768b62886bc3909e374692f6558d9a649b128cfc99fb9aa2cb2a02bdc6b5a"
+    },
+    {
+      "path": "actual-client/e2e-mcp-client-opencode.mjs",
+      "bytes": 9680,
+      "sha256": "5afba34d61e13b58a68e61a4a62e8613d414f81b8982d3f481c37e33c9ba0837"
+    },
+    {
+      "path": "actual-client/lib-opencode-scrub-preflight.mjs",
+      "bytes": 2900,
+      "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514"
+    },
+    {
+      "path": "corrected-race-tests.log",
+      "bytes": 4595,
+      "sha256": "b6fac38467267e8d292090529ab7ad75cac08464c25794412890faf92c7f4d83"
+    },
+    {
+      "path": "e41-fidelity.log",
+      "bytes": 529,
+      "sha256": "c27200026f95af0ab82f1211361aa5280a14bcca34e6de9f1b37b78a26e2c2b1"
+    },
+    {
+      "path": "eviction-fallback-baseline.log",
+      "bytes": 443,
+      "sha256": "86e75d154eb629cec69d54cd8d560f66261750aa0828db4e8632852b180181c9"
+    },
+    {
+      "path": "eviction-fallback-fixed.log",
+      "bytes": 451,
+      "sha256": "a62746a4b111f6ca7e73a279b19f860265cfaf330902c51adadc9f9e8b6532f1"
+    },
+    {
+      "path": "eviction-fallback-head.log",
+      "bytes": 479,
+      "sha256": "32787177539d077d6c990f95d903972ead3ed2946fa6f895f988fd5bbb15c710"
+    },
+    {
+      "path": "eviction-fallback-json-tests.log",
+      "bytes": 2649,
+      "sha256": "f7f33ec542b098a52c0d4bc0afc63ac9ae0910471cf7c5feb747cc808e36be8c"
+    },
+    {
+      "path": "eviction-fallback-negative-tests.log",
+      "bytes": 5484,
+      "sha256": "2ada5397b33449b20f80fb5a1075937d95741412daf8a146f39565a13c0ce34e"
+    },
+    {
+      "path": "eviction-fallback-probe.mjs",
+      "bytes": 1795,
+      "sha256": "e99781f864c34dba50caf0d53263cd374dba681d36e6ae10d44d1ed58fe47d9b"
+    },
+    {
+      "path": "eviction-fallback-sql-tests.log",
+      "bytes": 1870,
+      "sha256": "b2c827ad2dab033215b495aaf0455ad76c26646fcf5ccb9ee4869dfe47951f4b"
+    },
+    {
+      "path": "final-build.log",
+      "bytes": 3020,
+      "sha256": "eb0354f0b4f0ac9b89702b56fd4dfe406a75c9eaa33f0c5d84b226ccc5ba8caf"
+    },
+    {
+      "path": "final-typecheck.log",
+      "bytes": 53,
+      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199"
+    },
+    {
+      "path": "locator-commands.txt",
+      "bytes": 799,
+      "sha256": "53f40070c85ebb7f4c7faf9d58739884f325b8c6099e7c1f054cedbae8d92b1d"
+    },
+    {
+      "path": "locator-container-machine-id",
+      "bytes": 33,
+      "sha256": "fb07c54030544bf3096e1cf65ca76dfa1d5e1f273adc48930ad34b4874883515"
+    },
+    {
+      "path": "locator-linux-identity-after.log",
+      "bytes": 1299,
+      "sha256": "1cb323485172ce49212dd1f03c8e8a1dcf6a9133ba2111d5d7de1a9c5a434729"
+    },
+    {
+      "path": "locator-linux-identity-before.log",
+      "bytes": 502,
+      "sha256": "5a1e8f2f1e8731926b6bd339b5c0d25364c8ad19dc31467c16eb7f66b115eda9"
+    },
+    {
+      "path": "locator-noop-before-original.ts",
+      "bytes": 5449,
+      "sha256": "b446867976f706af9a05bca004579e61b1f1043225ac7a9e13792fd652c4f557"
+    },
+    {
+      "path": "ownership-controls.json",
+      "bytes": 590,
+      "sha256": "fb9eb6a634e94b89ca8ae09eff1b55428dc7d6e8655dd8c85e143304c43a1fa1"
+    },
+    {
+      "path": "ownership-masked-control.log",
+      "bytes": 3316,
+      "sha256": "6f04f4fbbd1b7974303c4139e708cf5eb41f93088e7884dc47c0bb85392aa9f1"
+    },
+    {
+      "path": "ownership-negative-control.log",
+      "bytes": 4683,
+      "sha256": "b60080efd61256a4f6201b6ee29986002359d1e1a2f7d804b25be49504f60b94"
+    }
+  ],
+  "archiveSha256": "049513602072aa135637ea62c855d88ffe9f0a7f4e5df80f3d75ed1d57542316"
+}
