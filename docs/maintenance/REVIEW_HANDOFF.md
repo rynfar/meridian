@@ -1,5 +1,27 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 22:39 UTC: approved one-shot diagnostic passed; cause unresolved
+
+Exactly one [hosted diagnostic41730535471](https://github.com/rynfar/meridian/actions/runs/41730535471) completed on
+isolated signedhead`d26da6f3403dff4c9cca7b295f31c597b2f5f494`. Native fullnpmtest **8856pass/28skip/0fail**,
+27processes,724.71s; allpipes/processgroupjoined; uncapped qualifiedtrace matches
+frozenhelper/sourcehashes. Exact2/1 PREPARED postkillresume returned; observed
+procENOENT/deadtrue fourtimes, storelockage27.48ms, PREPARED→READY. Entire
+resume38.39ms; firstcandidateopenthroughsuccessfullink2.22ms, candidatefsync
+0.282/0.289ms. No slow/false-death branch reproduced.
+
+**Original cause unresolved; no product correction established.** This observed
+pass cannot explain the earlier100ms timeout. Import/snapshot/observer timing and
+runner scheduling differ. One-shot authorization consumed, no second run. Original
+#1506 requiredtest remainsFAILED atunchangedc2adc2b5 and is not replaced by this
+diagnostic job. #1506/#1505/#1220 remainunmerged; release conditional. No models,
+timeout/engine/assertion weakening or acceptancewaiver. Saveindependentartifact
+audit thenstop; proposea decision ratherthanretryingforgreen.
+
+[Exact hosted artifacts, source/limits/control/review and result](evidence/1220-review-20261103/test-fixture-isolation/approved-lock-diagnostic/README.md).
+
+Earlier checkpoints remain historical.
+
 ## 2026-11-03 22:25 UTC: one owner-approved hosted diagnostic running
 
 Owner approved one bounded diagnostic after status clarification. Diagnostic-only

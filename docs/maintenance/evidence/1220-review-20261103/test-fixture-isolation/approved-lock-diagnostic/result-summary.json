@@ -1,0 +1,50 @@
+{
+  "diagnosticHead": "d26da6f3403dff4c9cca7b295f31c597b2f5f494",
+  "run": 41730535471,
+  "url": "https://github.com/rynfar/meridian/actions/runs/41730535471",
+  "conclusion": "Qualified observed pass; original failure not reproduced/cause unresolved",
+  "nativeNpmExit": 0,
+  "groups": 27,
+  "counts": {
+    "pass": 8856,
+    "skip": 28,
+    "fail": 0
+  },
+  "childJoinedSignal": "SIGKILL",
+  "firstCandidateOpenToSuccessfulLinkMs": 2.2174969999759924,
+  "storeCandidateFsyncMs": [
+    0.2823179999832064,
+    0.28933100000722334
+  ],
+  "nativeChildDeathResults": [
+    true,
+    true,
+    true,
+    true
+  ],
+  "nativeProcReadErrors": [
+    "ENOENT",
+    "ENOENT",
+    "ENOENT",
+    "ENOENT"
+  ],
+  "lockAgeBeforeMs": 27.4814453125,
+  "journalBefore": "PREPARED",
+  "journalAfter": "READY",
+  "limits": {
+    "maxEvents": 10000,
+    "maxBytes": 4194304,
+    "bytes": 26181,
+    "capped": false
+  },
+  "runtimeCustody": {
+    "sha256": "a18956f68bba3efeea1c2c2267cdab4917b7b80097f75bf087f5d5047a375f31",
+    "mode": "0444",
+    "verified": true
+  },
+  "groupJoined": true,
+  "noFurtherRun": true,
+  "acceptance": "Original PR1506 required test remains failed; no merge/release. Timing/import/observer differs; pass does not identify prior cause.",
+  "resumeMonotonicElapsedMs": 38.391781000013,
+  "snapshotAfterJoinMonotonicMs": 3.323834999988321
+}
