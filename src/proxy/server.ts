@@ -176,6 +176,9 @@ import {
   classifyRouteKind,
   getPriorityFailbackPolicy,
   shouldPromotePriorityAssignment,
+  planFreshReplayRelease,
+  shouldReleaseOnFreshReplay,
+  isPriorityFreshReplay,
   resolvePriorityOrder,
   choosePriorityProfile,
   chooseActivePriorityCandidates,
@@ -192,6 +195,7 @@ import {
   WEEKLY_RESERVE_WINDOW,
   type CooldownWindow,
   type PriorityAssignment,
+  type PriorityFreshReplay,
   type RoutingMode,
   type WeeklyReserveHold,
   type WeeklyUsageReading,
@@ -443,6 +447,21 @@ interface PriorityAttemptExposure {
   reason?: string
 }
 
+/**
+ * `priorityFailback: fresh-replay` state for one attempt of a process-local
+ * priority assignment. handleMessages sets `replayed` when the attempt is
+ * about to serve a fresh replay, which the dispatcher remembers if the attempt
+ * is served. Only the dispatcher's first attempt, on the assigned account,
+ * carries `releasableFrom`; handleMessages sets `released` when that attempt
+ * hands the conversation back instead of serving it.
+ */
+interface PriorityFreshReplayAttempt {
+  readonly sessionKey: string
+  readonly releasableFrom?: string
+  released?: { readonly reason: string }
+  replayed?: { readonly historyDigest: string }
+}
+
 interface HandleMessagesOptions {
   body: any
   forcedProfileId?: string
@@ -458,6 +477,7 @@ interface HandleMessagesOptions {
   forceFreshPriorityReplay?: boolean
   priorityPublication?: PrioritySessionPublication
   priorityAttemptExposure?: PriorityAttemptExposure
+  priorityFreshReplay?: PriorityFreshReplayAttempt
 }
 
 function totalQueueWaitMs(meta: RequestMeta): number {
@@ -762,6 +782,16 @@ type PriorityDispatchOptions = {
     readonly expectedGeneration: string
     /** The stored route no longer proves the current mapping generation. */
     readonly forceFreshReplay?: boolean
+  }
+  /**
+   * Set under `priorityFailback: fresh-replay` for a process-local assignment.
+   * `releaseTo` is where the conversation goes if the assigned account's
+   * attempt would only fresh-replay it: the candidates a new conversation
+   * gets. Absent when that placement would pick the assigned account anyway.
+   */
+  readonly freshReplay?: {
+    readonly sessionKey: string
+    readonly releaseTo?: readonly string[]
   }
 }
 
@@ -1538,6 +1568,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const priorityExhaustion = new ProfileExhaustion()
   const PRIORITY_ASSIGNMENTS_MAX = 5000
   const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX)
+  // `priorityFailback: fresh-replay`: the last fresh replay served per
+  // assignment key, so a byte-identical retry keeps the account whose cache
+  // already holds that history.
+  const priorityFreshReplays = new AssignmentStore<PriorityFreshReplay>(PRIORITY_ASSIGNMENTS_MAX)
   // The per-window reset cap lives in routing.ts (cooldownCapMs): a single
   // constant here is what let a 6-hour bound flatten a weekly reset (#790).
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
@@ -1791,6 +1825,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       : undefined
     // Fork the hop's telemetry, retaining the request ID for routeChain.
     const attemptMeta = { ...forkAttemptMeta(options.requestMeta, attempt), routeAttempt: attempt + 1 }
+    // Only the first attempt, which is the assigned account's, may release.
+    const freshReplay: PriorityFreshReplayAttempt | undefined = options.freshReplay
+      ? {
+          sessionKey: options.freshReplay.sessionKey,
+          ...(attempt === 0 && options.freshReplay.releaseTo ? { releasableFrom: candidate } : {}),
+        }
+      : undefined
     const inner = await handleMessages(options.context, attemptMeta, {
       body: options.body,
       forcedProfileId: candidate,
@@ -1801,8 +1842,37 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
       priorityPublication,
       priorityAttemptExposure: exposure,
+      priorityFreshReplay: freshReplay,
     })
-    return { inner, exposure }
+    return { inner, exposure, freshReplay }
+  }
+
+  /**
+   * Keep a conversation on the account whose attempt served it. Process memory
+   * preserves only legacy/keyless new-conversation affinity; trusted attempts
+   * publish authority at the atomic durable terminal barrier and must not
+   * poison adoption on errors or cancel. A fresh replay is remembered only
+   * here, once an account served it, because only then does that account's
+   * cache hold the history.
+   */
+  function recordPriorityPlacement(
+    options: PriorityDispatchOptions,
+    candidate: string,
+    freshReplay: PriorityFreshReplayAttempt | undefined,
+  ): void {
+    if (!options.sessionKey || options.durableRoute) return
+    const previousAssignment = priorityAssignments.get(options.sessionKey)
+    priorityAssignments.set(options.sessionKey, {
+      profileId: candidate,
+      requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
+    })
+    if (freshReplay?.replayed) {
+      priorityFreshReplays.set(freshReplay.sessionKey, {
+        profileId: candidate,
+        historyDigest: freshReplay.replayed.historyDigest,
+        at: Date.now(),
+      })
+    }
   }
 
   /**
@@ -1888,6 +1958,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       attempt: number
       inner: Response
       exposure: PriorityAttemptExposure
+      freshReplay: PriorityFreshReplayAttempt | undefined
       lastError: unknown
       previous: string | null
       previousReason: string
@@ -1930,7 +2001,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // The handed attempt is always relayed: its reader owns the cancel.
             if (!handed && isCancelled()) break
             activeExposure = handed ? start.exposure : { committed: false }
-            const { inner, exposure } = handed
+            const { inner, exposure, freshReplay } = handed
               ? start
               : await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken, requestAbort, activeExposure)
             lastInner = inner
@@ -1968,17 +2039,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               continue
             }
             if (isCancelled()) break
-            if (options.sessionKey && !options.durableRoute) {
-              // Process memory preserves only legacy/keyless new-conversation
-              // affinity. Trusted attempts publish authority at the atomic
-              // durable terminal barrier and must not poison adoption on
-              // errors or cancel.
-              const previousAssignment = priorityAssignments.get(options.sessionKey)
-              priorityAssignments.set(options.sessionKey, {
-                profileId: candidate,
-                requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
-              })
-            }
+            recordPriorityPlacement(options, candidate, freshReplay)
             if (previous) {
               claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
               plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
@@ -2138,27 +2199,38 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const sharedQuota = new Set<string>()
     for (const [attempt, candidate] of options.candidateIds.entries()) {
       if (sharedQuota.has(candidate)) continue
-      const { inner, exposure } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
+      const { inner, exposure, freshReplay } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
+      const released = freshReplay?.released
+      const releaseTo = released ? options.freshReplay?.releaseTo : undefined
+      if (released && releaseTo) {
+        // The assigned account answered nothing: it handed the conversation
+        // back before any SDK work, so this is a placement, not a failover.
+        await responseCompletions.get(inner)?.catch(() => {})
+        claudeLog("priority.fresh_replay_release", {
+          from: candidate,
+          to: releaseTo[0],
+          reason: released.reason,
+          sessionKey: options.sessionKey,
+        })
+        plog(`[PROXY] ${options.requestMeta.requestId} PRIORITY fresh-replay release ${candidate} -> ${releaseTo[0]} (${released.reason})`)
+        return dispatchPriority({
+          ...options,
+          candidateIds: releaseTo,
+          freshReplay: { sessionKey: freshReplay.sessionKey },
+        })
+      }
       // A non-SSE answer is decided here and keeps its HTTP status. Once an
       // account streams, headers go out and the remaining candidates are
       // tried inside the stream.
       if (options.wantsStream && isEventStream(inner)) {
         return streamPriorityDispatch(options, attemptOwnerToken, settleAttempt, {
-          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset, sharedQuota,
+          attempt, inner, exposure, freshReplay, lastError, previous, previousReason, earliestPoolReset, sharedQuota,
         })
       }
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
-        if (options.sessionKey && !options.durableRoute) {
-          // Process memory preserves only legacy/keyless new-conversation
-          // affinity. Trusted attempts publish authority at the atomic durable
-          // terminal barrier and must not poison adoption on errors or cancel.
-          const previousAssignment = priorityAssignments.get(options.sessionKey)
-          priorityAssignments.set(options.sessionKey, {
-            profileId: candidate,
-            requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
-          })
-        }
+        // An honest error answer keeps the account but proves no cached replay.
+        recordPriorityPlacement(options, candidate, sniffed.response.ok ? freshReplay : undefined)
         if (previous) {
           claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
           plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
@@ -2687,8 +2759,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // subagent keyed apart from its parent stays on the parent's
             // account (AgentIdentity.getRootSessionId).
             const adapterSessionId = adapter.getSessionId(c, body)
+            const rootSessionId = rootSessionIdOf(adapter, c, body)
             const sessionKey = getPriorityAssignmentKey(
-              rootSessionIdOf(adapter, c, body),
+              rootSessionId,
               lineageMessages,
               assignmentCwd,
             )
@@ -2830,29 +2903,41 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 }, 429, retryAfterHeaders(retryAfter))
               }
               const unavailable = (id: string) => priorityExhaustion.isExhausted(id) || reserveHolds.has(id)
-              let candidates: string[]
-              if (routingMode === ACTIVE_PRIORITY) {
-                const activeId = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
-                candidates = retainOnlyProfile
-                  ? [retainOnlyProfile]
-                  : chooseActivePriorityCandidates(activeId, order, unavailable, assignedProfile)
-                      .filter(id => !reserveHolds.has(id))
-                if (candidates.length === 0) candidates = [order[0]!]
-              } else {
-                const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
-                const first = retainOnlyProfile
-                  ?? (shouldPromote
-                    ? preferred
-                    : assignmentIsHealthy
-                      ? assignedProfile
-                      : pick?.id ?? preferred)
-                // Unsigned, hidden, replayed, or malformed work may resume only
-                // the retained route. It cannot create a cross-profile transcript
-                // that the durable route has no authenticated authority to adopt.
-                candidates = retainOnlyProfile
-                  ? [retainOnlyProfile]
-                  : [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
+              const activeId = routingMode === ACTIVE_PRIORITY
+                ? resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
+                : undefined
+              // The candidates for a conversation held by `held`, or for a new
+              // conversation when `held` is undefined.
+              const candidatesHeldBy = (held: string | undefined): string[] => {
+                if (activeId !== undefined) {
+                  const active = chooseActivePriorityCandidates(activeId, order, unavailable, held)
+                    .filter(id => !reserveHolds.has(id))
+                  return active.length > 0 ? active : [order[0]!]
+                }
+                const first = held ?? choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))?.id ?? preferred
+                return [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
               }
+              // Unsigned, hidden, replayed, or malformed work may resume only
+              // the retained route. It cannot create a cross-profile transcript
+              // that the durable route has no authenticated authority to adopt.
+              const candidates = retainOnlyProfile
+                ? [retainOnlyProfile]
+                : candidatesHeldBy(activeId !== undefined
+                    ? assignedProfile
+                    : shouldPromote
+                      ? preferred
+                      : assignmentIsHealthy ? assignedProfile : undefined)
+              const freshReplayPlan = sessionKey
+                ? planFreshReplayRelease({
+                    policy: failbackPolicy,
+                    durableRoute: durableRoute !== undefined,
+                    ownsAssignment: rootSessionId === adapterSessionId,
+                    assignedProfileId: assignmentIsHealthy ? assignedProfile : undefined,
+                    candidates,
+                    placement: () => candidatesHeldBy(undefined),
+                  })
+                : undefined
+              const freshReplay = sessionKey && freshReplayPlan ? { sessionKey, ...freshReplayPlan } : undefined
               return dispatchPriority({
                 context: c,
                 body,
@@ -2867,6 +2952,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 claimTurn: trustedTurn,
                 durableRoute,
                 routing: routingMode,
+                freshReplay,
               })
             }
           }
@@ -3739,6 +3825,31 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // pre-journaled fresh target. The old mapping remains authoritative
           // until the atomic route+mapping CAS wins at the terminal barrier.
           lineageResult = { type: "diverged", reason: "priority-failback" }
+        }
+        // `priorityFailback: fresh-replay`, decided on the lineage this account
+        // would actually serve, after every reclassification above and before
+        // anything goes upstream. A release hands the conversation back to the
+        // dispatcher, which places it like a new one; a fresh replay that is
+        // served is remembered so an identical retry keeps the account caching it.
+        const freshReplayAttempt = options.priorityFreshReplay
+        if (freshReplayAttempt && lineageResult.type === "diverged" && isPriorityFreshReplay(lineageResult)) {
+          const historyDigest = computeLineageHash(lineageMessages)
+          if (freshReplayAttempt.releasableFrom !== undefined && shouldReleaseOnFreshReplay({
+            assignedProfileId: freshReplayAttempt.releasableFrom,
+            lineage: lineageResult,
+            historyDigest,
+            lastFreshReplay: priorityFreshReplays.get(freshReplayAttempt.sessionKey),
+            now: Date.now(),
+          })) {
+            freshReplayAttempt.released = { reason: lineageResult.reason }
+            diagnosticLog.session(
+              `${requestMeta.requestId} priority.fresh_replay_release from=${profile.id} diverged=${lineageResult.reason}`,
+              requestMeta.requestId,
+            )
+            // Nothing was sent upstream or recorded; the dispatcher discards this.
+            return new Response(null, { status: 204 })
+          }
+          freshReplayAttempt.replayed = { historyDigest }
         }
         // A growing passthrough request with revised history can replay its
         // complete body after losing a commit race. Keep stale undo, replayed

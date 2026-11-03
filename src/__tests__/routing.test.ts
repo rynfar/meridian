@@ -13,6 +13,10 @@ import {
   getRoutingMode,
   getPriorityFailbackPolicy,
   shouldPromotePriorityAssignment,
+  planFreshReplayRelease,
+  shouldReleaseOnFreshReplay,
+  isPriorityFreshReplay,
+  PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS,
   resolvePriorityOrder,
   choosePriorityProfile,
   chooseActivePriorityCandidates,
@@ -161,15 +165,15 @@ describe("priority routing (#priority-spec)", () => {
 })
 
 describe("priority failback policy", () => {
-  it("resolves unset and invalid values to new-conversation and accepts next-user-turn", () => {
+  it("resolves unset and invalid values to new-conversation and accepts the named policies", () => {
     // Given
-    const values = [undefined, "eventually", "next-user-turn"]
+    const values = [undefined, "eventually", "next-user-turn", "fresh-replay", "Fresh-Replay"]
 
     // When
     const actual = values.map(getPriorityFailbackPolicy)
 
     // Then
-    expect(actual).toEqual(["new-conversation", "new-conversation", "next-user-turn"])
+    expect(actual).toEqual(["new-conversation", "new-conversation", "next-user-turn", "fresh-replay", "fresh-replay"])
   })
 
   it("promotes only for a changed human request under next-user-turn", () => {
@@ -189,6 +193,164 @@ describe("priority failback policy", () => {
 
     // Then
     expect(actual).toEqual([false, false, true, false, false, false])
+  })
+
+  it("never promotes under fresh-replay", () => {
+    // Given
+    const input: PriorityPromotionInput = {
+      policy: "fresh-replay",
+      requestId: "request-2",
+      requestKind: "human",
+      assignment: PERSONAL_ASSIGNMENT,
+    }
+
+    // When
+    const actual = shouldPromotePriorityAssignment(input)
+
+    // Then
+    expect(actual).toBe(false)
+  })
+})
+
+describe("fresh-replay failback", () => {
+  const T0 = 1_800_000_000_000
+  const plan = (overrides: Partial<Parameters<typeof planFreshReplayRelease>[0]> = {}) => planFreshReplayRelease({
+    policy: "fresh-replay",
+    durableRoute: false,
+    ownsAssignment: true,
+    assignedProfileId: "personal",
+    candidates: ["personal", "work"],
+    placement: () => ["work", "personal"],
+    ...overrides,
+  })
+  const release = (overrides: Partial<Parameters<typeof shouldReleaseOnFreshReplay>[0]> = {}) => shouldReleaseOnFreshReplay({
+    assignedProfileId: "personal",
+    lineage: { type: "diverged", reason: "compaction" },
+    historyDigest: "digest-a",
+    lastFreshReplay: undefined,
+    now: T0,
+    ...overrides,
+  })
+
+  it("lets a held conversation release to the head a new conversation would get", () => {
+    // When
+    const actual = plan()
+
+    // Then
+    expect(actual).toEqual({ releaseTo: ["work", "personal"] })
+  })
+
+  it("keeps the old behavior when the policy is not fresh-replay", () => {
+    // When
+    const actual = (["new-conversation", "next-user-turn"] as const).map(policy => plan({ policy }))
+
+    // Then
+    expect(actual).toEqual([undefined, undefined])
+  })
+
+  it("leaves durable routes and subagents sharing the root key untouched", () => {
+    // When
+    const actual = [plan({ durableRoute: true }), plan({ ownsAssignment: false })]
+
+    // Then
+    expect(actual).toEqual([undefined, undefined])
+  })
+
+  it("only records when there is nothing to release from or nowhere else to go", () => {
+    // When
+    const actual = [
+      plan({ assignedProfileId: undefined, candidates: ["work", "personal"] }),
+      plan({ placement: () => ["personal", "work"] }),
+      plan({ candidates: ["work", "personal"] }),
+      plan({ placement: () => [] }),
+    ]
+
+    // Then
+    expect(actual).toEqual([{}, {}, {}, {}])
+  })
+
+  it("computes the new-conversation placement only when the assigned account could release", () => {
+    // Given
+    let placements = 0
+    const placement = () => { placements++; return ["work", "personal"] }
+
+    // When
+    plan({ policy: "new-conversation", placement })
+    plan({ durableRoute: true, placement })
+    plan({ assignedProfileId: undefined, placement })
+    plan({ placement })
+
+    // Then
+    expect(placements).toBe(1)
+  })
+
+  it("counts only a conversation's own divergences as fresh replays", () => {
+    // Given
+    const lineages = [
+      { type: "diverged", reason: "compaction" },
+      { type: "diverged", reason: "unrelated-history" },
+      { type: "diverged", reason: "undo-gap" },
+      { type: "diverged", reason: "modified-history" },
+      { type: "diverged", reason: "moved-on-elsewhere" },
+      { type: "diverged", reason: "concurrent-race" },
+      { type: "diverged", reason: "not-found" },
+      { type: "diverged", reason: "missing-session-header" },
+      { type: "diverged", reason: "interrupted-turn-kept" },
+      { type: "diverged", reason: "replayed-request" },
+      { type: "diverged", reason: "independent-request" },
+      { type: "diverged", reason: "priority-failback" },
+      { type: "continuation" },
+      { type: "compaction" },
+      { type: "undo" },
+    ]
+
+    // When
+    const actual = lineages.map(isPriorityFreshReplay)
+
+    // Then
+    expect(actual).toEqual([true, true, true, true, true, true, true, true, true, true, false, false, false, false, false])
+  })
+
+  it("releases a fresh replay on the assigned account", () => {
+    // When
+    const actual = release()
+
+    // Then
+    expect(actual).toBe(true)
+  })
+
+  it("never releases a continuation, a compaction resume or an undo", () => {
+    // When
+    const actual = (["continuation", "compaction", "undo"] as const).map(type => release({ lineage: { type } }))
+
+    // Then
+    expect(actual).toEqual([false, false, false])
+  })
+
+  it("keeps an identical replay of what the assigned account served fresh within the window", () => {
+    // Given
+    const lastFreshReplay = { profileId: "personal", historyDigest: "digest-a", at: T0 - PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS + 1 }
+
+    // When
+    const actual = release({ lastFreshReplay })
+
+    // Then
+    expect(actual).toBe(false)
+  })
+
+  it("releases once the identical replay is older than the window, or was another history or account", () => {
+    // Given
+    const recent = { profileId: "personal", historyDigest: "digest-a", at: T0 - 1 }
+
+    // When
+    const actual = [
+      release({ lastFreshReplay: { ...recent, at: T0 - PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS } }),
+      release({ lastFreshReplay: { ...recent, historyDigest: "digest-b" } }),
+      release({ lastFreshReplay: { ...recent, profileId: "work" } }),
+    ]
+
+    // Then
+    expect(actual).toEqual([true, true, true])
   })
 })
 
