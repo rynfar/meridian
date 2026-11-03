@@ -1,6 +1,6 @@
 {
-  "head": "e1413322c891384f59651774fe2fb14b724b832c",
-  "result": "MERGED normal squash, tree equals reviewed signed head; all26groups8819pass65skip0fail typecheck/build exactheadCI pass",
+  "head": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+  "result": "MERGED normal squash; verified landed tree equals reviewed tree; all26groups8819pass65skip0fail typecheck/build exactheadCI pass",
   "members": [
     {
       "name": "adversarial-review.md",
@@ -8,19 +8,19 @@
       "bytes": 6560
     },
     {
-      "name": "antigravity-focused.log",
-      "sha256": "18a4fdf6e64c810b54f66c781978334c558453ee3f946fcb040f44fc133cceb2",
-      "bytes": 6947
+      "name": "antigravity-focused.log.gz",
+      "sha256": "8b15ec7d70b66b7b5fe0c8ed40c1ab12968b27a22168dfc4cc8d5dde45c1177c",
+      "bytes": 1286
     },
     {
-      "name": "build.log",
-      "sha256": "e779cc2e9abb9528fcf183bc77d6fac411f1748730a699792a51d85e6a6707ac",
-      "bytes": 3020
+      "name": "build.log.gz",
+      "sha256": "56ab67da075b395cc49c0e477ae642801048b33f76a779afcb4d2c1cf575e9ce",
+      "bytes": 993
     },
     {
-      "name": "final-build.log",
-      "sha256": "92c3c891cbe971c88cddc489880443f68e44f464d4dd390eba3f7c428f952b4e",
-      "bytes": 3019
+      "name": "final-build.log.gz",
+      "sha256": "409a4a418b294f085187535f174ed0c4789c8ab1320a9fc382b99b084393d028",
+      "bytes": 993
     },
     {
       "name": "final-full-npm-test.log.gz",
@@ -33,9 +33,9 @@
       "bytes": 3888
     },
     {
-      "name": "final-typecheck.log",
-      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199",
-      "bytes": 53
+      "name": "final-typecheck.log.gz",
+      "sha256": "538d2f0f0e00b6ad058592ab6818851370ae3bc30b44c142d02155b232bc54fc",
+      "bytes": 73
     },
     {
       "name": "final-validation.json",
@@ -63,9 +63,9 @@
       "bytes": 296632
     },
     {
-      "name": "typecheck.log",
-      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199",
-      "bytes": 53
+      "name": "typecheck.log.gz",
+      "sha256": "538d2f0f0e00b6ad058592ab6818851370ae3bc30b44c142d02155b232bc54fc",
+      "bytes": 73
     },
     {
       "name": "validation.json",

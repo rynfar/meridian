@@ -88,5 +88,13 @@
       "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199"
     }
   ],
-  "archiveSha256": "49fee77c3b6f53faac1eb14cf0630392bbb33a603f4983ee4e51d8fabdd042ed"
+  "archiveSha256": "49fee77c3b6f53faac1eb14cf0630392bbb33a603f4983ee4e51d8fabdd042ed",
+  "currentHead": "93b188f68d9664c46df62aa3249b4defffd884af",
+  "additionalFiles": [
+    {
+      "name": "final-adversarial-review.md",
+      "sha256": "edadfa5e82bb6f7a7ed351d0a069c8f4266d7b1d092036f5183af2aa2b58504a",
+      "bytes": 14928
+    }
+  ]
 }
