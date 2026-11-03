@@ -41,6 +41,8 @@ The same login also records the account's plan (`subscriptionType`, `rateLimitTi
 
 A profile whose credentials expired can be logged in again from the Profiles page, with no shell on the Meridian host. Click **Log in from browser** on the profile's card, sign in to that profile's Claude account, and you are done — Claude sends you back to Meridian, which finishes the login and updates the card. There is nothing to copy and paste.
 
+When `MERIDIAN_API_KEY` is set, opening the Profiles page first sends the browser to `/login`, where the key is entered once; see [Signing in from a browser](configuration.md#signing-in-from-a-browser).
+
 Browser login requires an explicit `claudeConfigDir` on the profile or an inherited
 `CLAUDE_CONFIG_DIR`, so credentials go to the same location model requests use.
 An implicit default credential context is refused rather than silently creating
