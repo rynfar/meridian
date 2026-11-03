@@ -37,7 +37,10 @@ export const ACTIVE_PRIORITY = "active+priority" as const
  */
 export const ROUTING_MODES: readonly RoutingMode[] = ["active", "sticky", "priority", ACTIVE_PRIORITY]
 
-export type PriorityFailbackPolicy = "new-conversation" | "next-user-turn"
+export type PriorityFailbackPolicy = "new-conversation" | "next-user-turn" | "fresh-replay"
+
+/** Every accepted failback policy; the first is the default for unset or unknown values. */
+export const PRIORITY_FAILBACK_POLICIES: readonly PriorityFailbackPolicy[] = ["new-conversation", "next-user-turn", "fresh-replay"]
 
 export type PriorityAssignment = {
   readonly profileId: string
@@ -76,7 +79,8 @@ export function isPoolRouting(mode: RoutingMode): boolean {
 }
 
 export function getPriorityFailbackPolicy(raw: string | undefined): PriorityFailbackPolicy {
-  return raw?.toLowerCase() === "next-user-turn" ? "next-user-turn" : "new-conversation"
+  const lower = raw?.toLowerCase()
+  return PRIORITY_FAILBACK_POLICIES.find(policy => policy === lower) ?? "new-conversation"
 }
 
 export function shouldPromotePriorityAssignment(input: PriorityPromotionInput): boolean {
@@ -85,6 +89,93 @@ export function shouldPromotePriorityAssignment(input: PriorityPromotionInput): 
     && input.requestKind === "human"
     && input.requestId !== undefined
     && input.requestId !== input.assignment.requestId
+}
+
+/**
+ * How long a fresh replay of one exact history stays worth retrying on the
+ * account that served it. A byte-identical replay reads its whole prefix from
+ * that account's prompt cache, so a retry inside this window keeps its account.
+ */
+export const PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS = 60 * 60_000
+
+/** The last fresh replay served for one process-local assignment key. */
+export type PriorityFreshReplay = {
+  readonly profileId: string
+  readonly historyDigest: string
+  readonly at: number
+}
+
+/** The final lineage a priority attempt is about to serve, as the release decision reads it. */
+export type PriorityServedLineage = {
+  readonly type: string
+  readonly reason?: string
+}
+
+/**
+ * Whether serving this lineage writes the conversation's history from scratch
+ * and replaces the conversation's session on the serving account. That covers
+ * a side call sharing the conversation's key (Pi's title generation, a lost
+ * concurrent race): it replaces the session wherever it is served, so the
+ * conversation's next turn fresh-replays on that account either way.
+ * Independent requests never publish over the conversation, and a
+ * priority-failback replay belongs to the durable route, which this policy
+ * does not touch.
+ */
+export function isPriorityFreshReplay(lineage: PriorityServedLineage): boolean {
+  return lineage.type === "diverged"
+    && lineage.reason !== "independent-request"
+    && lineage.reason !== "priority-failback"
+}
+
+/**
+ * How a priority dispatch takes part in `priorityFailback: fresh-replay`.
+ * Undefined when it does not: another policy, a durable route (its own
+ * attested failback owns that conversation), or a request that is not the
+ * conversation its assignment key names (a subagent sharing its root's key
+ * must neither move its root nor overwrite the root's fresh-replay record).
+ * Otherwise its fresh replays are recorded, and `releaseTo` is set when the
+ * first candidate is the healthy assigned account while a new conversation
+ * would be placed elsewhere: then that first attempt may release.
+ */
+export function planFreshReplayRelease(input: {
+  readonly policy: PriorityFailbackPolicy
+  readonly durableRoute: boolean
+  readonly ownsAssignment: boolean
+  /** The assigned account, when it is healthy and in the pool. */
+  readonly assignedProfileId: string | undefined
+  readonly candidates: readonly string[]
+  /** The candidates the same request would get as a new conversation, computed only when needed. */
+  readonly placement: () => readonly string[]
+}): { readonly releaseTo?: readonly string[] } | undefined {
+  if (input.policy !== "fresh-replay" || input.durableRoute || !input.ownsAssignment) return undefined
+  const assigned = input.assignedProfileId
+  if (assigned === undefined || input.candidates[0] !== assigned) return {}
+  const placement = input.placement()
+  const placedAt = placement[0]
+  return placedAt !== undefined && placedAt !== assigned ? { releaseTo: placement } : {}
+}
+
+/**
+ * Whether the assigned account's attempt releases the conversation instead of
+ * serving it: the lineage Meridian is about to serve there is a fresh replay,
+ * so the prompt cache past the shared system prefix is lost on every account.
+ * The exception is a replay of the same history this account already served
+ * fresh inside the retry window: that one reads its prefix from cache here.
+ */
+export function shouldReleaseOnFreshReplay(input: {
+  readonly assignedProfileId: string
+  readonly lineage: PriorityServedLineage
+  readonly historyDigest: string
+  readonly lastFreshReplay: PriorityFreshReplay | undefined
+  readonly now: number
+}): boolean {
+  if (!isPriorityFreshReplay(input.lineage)) return false
+  const last = input.lastFreshReplay
+  const retriesOwnReplay = last !== undefined
+    && last.profileId === input.assignedProfileId
+    && last.historyDigest === input.historyDigest
+    && input.now - last.at < PRIORITY_FRESH_REPLAY_RETRY_WINDOW_MS
+  return !retriesOwnReplay
 }
 
 /**
@@ -306,15 +397,16 @@ export class ProfileExhaustion {
  * write therefore delete-then-set to refresh recency.
  *
  * Deliberately not persisted: this is routing hygiene, not durable truth.
- * After a restart the next request re-establishes the assignment.
+ * After a restart the next request re-establishes the assignment. The same
+ * bounded LRU keeps each assignment key's last fresh replay.
  */
-export class AssignmentStore {
-  private readonly entries = new Map<string, PriorityAssignment>()
+export class AssignmentStore<T = PriorityAssignment> {
+  private readonly entries = new Map<string, T>()
 
   constructor(private readonly max: number) {}
 
-  /** Read an assignment, marking it most-recently-used. */
-  get(key: string): PriorityAssignment | undefined {
+  /** Read an entry, marking it most-recently-used. */
+  get(key: string): T | undefined {
     const value = this.entries.get(key)
     if (value === undefined) return undefined
     this.entries.delete(key)
@@ -322,8 +414,8 @@ export class AssignmentStore {
     return value
   }
 
-  /** Write an assignment, marking it most-recently-used and evicting if over capacity. */
-  set(key: string, value: PriorityAssignment): void {
+  /** Write an entry, marking it most-recently-used and evicting if over capacity. */
+  set(key: string, value: T): void {
     this.entries.delete(key)
     this.entries.set(key, value)
     if (this.entries.size > this.max) {
@@ -334,8 +426,8 @@ export class AssignmentStore {
 
   compareAndSet(
     key: string,
-    expected: PriorityAssignment | undefined,
-    value: PriorityAssignment,
+    expected: T | undefined,
+    value: T,
   ): boolean {
     if (this.entries.get(key) !== expected) return false
     this.set(key, value)

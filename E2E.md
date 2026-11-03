@@ -1649,6 +1649,34 @@ that the title parses and the client copies a random fixture value through its
 tool loop. It does not mock client or model responses or exercise the terminal
 UI. Both fixtures isolate Meridian state and work only in temporary directories.
 
+### Priority fresh-replay failback
+
+`priorityFailback: fresh-replay` is checked against a running instance through
+the Pi adapter with Oh My Pi's request shape (`x-meridian-agent: pi`, the
+conversation key in `metadata.user_id`), unpinned, with real accounts. Run the
+build as a second instance beside the usual one. Give it its own config,
+session and telemetry state, a `profiles.json` naming the same profile
+directories, and `MERIDIAN_CREDENTIALS_READONLY=1` so it never refreshes or
+writes the shared credentials:
+
+```bash
+B=/tmp/meridian-fresh-e2e; mkdir -p $B/config $B/sessions $B/work
+cp ~/.config/meridian/profiles.json $B/config/
+echo '{"routing":"priority","profileOrder":["X","Y"]}' > $B/config/settings.json
+MERIDIAN_PORT=3457 MERIDIAN_CONFIG_DIR=$B/config MERIDIAN_SESSION_DIR=$B/sessions \
+MERIDIAN_TELEMETRY_DB=$B/telemetry.db MERIDIAN_WORKDIR=$B/work MERIDIAN_CREDENTIALS_READONLY=1 \
+MERIDIAN_CHATGPT_CREDENTIALS=off MERIDIAN_PRIORITY_FAILBACK=fresh-replay node dist/cli.js &
+E2E_MERIDIAN_URL=http://127.0.0.1:3457 bun scripts/e2e-priority-fresh-replay.mjs
+```
+
+**Pass criteria:** the script prints `PASS` and one line per step with the
+serving profile, lineage and cache read/write. A new conversation lands on X;
+after the order flips to Y, continuations stay on X and read their history from
+cache; a summary-compacted request moves to Y (`PRIORITY fresh-replay release X
+-> Y (compaction)` in the log) and writes its history there; after the order
+flips back, an identical retry of that fresh replay stays on Y and reads it from
+cache; the next continuation stays on Y. The script restores the order it found.
+
 ### Update check consent
 
 The registry check behind `build.latest` and the header's **update available**
