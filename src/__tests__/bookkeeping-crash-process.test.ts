@@ -72,7 +72,7 @@ beforeAll(async () => {
   idleReaderScript = join(readerDirectory, "reader.mjs")
 })
 afterAll(() => { rmSync(buildDirectory, { recursive: true, force: true }) })
-function child(action: string, directory: string, point: string): void {
+function child(action: string, directory: string, point: string) {
   const result = spawnSync("node", [join(buildDirectory, "transition.mjs"), action, directory], {
     env: { ...process.env, MERIDIAN_BOOKKEEPING_TEST_CRASH: point }, encoding: "utf8", timeout: 15000,
   })
@@ -80,6 +80,7 @@ function child(action: string, directory: string, point: string): void {
   expect(unexpectedNodeSqliteStderr(result.stderr)).toBe("")
   expect(result.status).toBeNull()
   expect(result.signal).toBe("SIGKILL")
+  return result
 }
 function seed(directory: string, sidecarVersion: number, storeVersion: number) {
   const locator = canonicalizeLocator({ configDir: directory, sessionId: "session" })
@@ -127,8 +128,18 @@ for (const sidecarVersion of [1, 2] as const) for (const storeVersion of [1, 3])
       for (const table of ["priority_assignments", "priority_attempts", "priority_rollbacks"]) {
         expect(expected.counts[table]).toBe(storeVersion === 3 ? 1 : 0)
       }
-      child("migrate", directory, point)
-      const result = await migrateBookkeeping(directory, { writersStopped: true })
+      const killed = child("migrate", directory, point)
+      let result: Awaited<ReturnType<typeof migrateBookkeeping>>
+      if (process.env.BOOKKEEPING_LOCK_DIAGNOSTIC_DIR && sidecarVersion === 2 && storeVersion === 1 && point === "PREPARED") {
+        const joinedWallMs = Date.now(), joinedMonotonicMs = performance.now()
+        const helperFile = process.env.BOOKKEEPING_LOCK_DIAGNOSTIC_HELPER_FILE
+        if (!helperFile) throw new Error("diagnostic helper custody path is required")
+        const { pathToFileURL } = await import("node:url")
+        const helper: typeof import("./fixtures/store-lock-diagnostic") = await import(pathToFileURL(helperFile).href)
+        result = await helper.diagnoseStoreLockResume(directory,
+          { pid: killed.pid, status: killed.status, signal: killed.signal, joinedWallMs, joinedMonotonicMs },
+          () => migrateBookkeeping(directory, { writersStopped: true }))
+      } else result = await migrateBookkeeping(directory, { writersStopped: true })
       expect(result.resources).toBe(2)
       expect(result.mappings).toBe(3)
       expect(richSnapshot(directory)).toEqual(expected)

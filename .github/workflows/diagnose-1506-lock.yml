@@ -1,0 +1,35 @@
+name: One-shot store-lock diagnostic
+
+on:
+  push:
+    branches: [diagnostic/1506-lock-20261103]
+
+permissions:
+  contents: read
+
+jobs:
+  lock-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.3"
+      - run: bun install
+      - run: npm run typecheck
+      - name: One contextual run with unchanged assertions and deadlines
+        run: node scripts/diagnose-1506-lock.mjs
+        env:
+          BOOKKEEPING_LOCK_DIAGNOSTIC_DIR: ${{ runner.temp }}/store-lock-diagnostic
+      - name: Preserve red or green evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-lock-diagnostic-${{ github.sha }}
+          path: ${{ runner.temp }}/store-lock-diagnostic/
+          if-no-files-found: error
+          retention-days: 30
