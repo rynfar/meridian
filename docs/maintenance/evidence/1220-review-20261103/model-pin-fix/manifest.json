@@ -1,0 +1,92 @@
+{
+  "sourceHead": "41df72d664301d235df190a5afe2563aaf458c68",
+  "scope": "narrow refusal-switch model pin; actual independently installed happy path, not triggered-refusal-switch or E41 acceptance",
+  "members": [
+    {
+      "name": "actual-client.mjs",
+      "bytes": 11957,
+      "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7"
+    },
+    {
+      "name": "adversarial-review.md",
+      "bytes": 11261,
+      "sha256": "cf525d0bdf0c643a4a365202974418cbe4ce1d628c02362e5438d713dfc250f7"
+    },
+    {
+      "name": "build.log",
+      "bytes": 3021,
+      "sha256": "e3cfdbdb68b8f8b019cd0a17b2b7414c6408ae9b1c8c20c1dea9c0975eb83c37"
+    },
+    {
+      "name": "final-client-receipt.json",
+      "bytes": 2472,
+      "sha256": "da63b7e40207497562b18be6b516f16eda7a96c7fe09d8fea2c9525038156b04"
+    },
+    {
+      "name": "final-client-report.json",
+      "bytes": 8040,
+      "sha256": "723e38ea97cc0afde762dca346a2ed55875caf58b77d66191ff46d2b33c89ec9"
+    },
+    {
+      "name": "focused-tests.log",
+      "bytes": 15062,
+      "sha256": "11f89a97429527d1cc2ca09f32112ac2a32d8287a18e1e39859c168712c8357f"
+    },
+    {
+      "name": "gate-observer-75af2733bc17.mjs",
+      "bytes": 2859,
+      "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a"
+    },
+    {
+      "name": "gate-observer-offline-result.json",
+      "bytes": 291,
+      "sha256": "0543359ab207daa6d5f7f42526ab4c6705fbf5c428a544a2fc289c435ed06912"
+    },
+    {
+      "name": "gate-observer-offline.mjs",
+      "bytes": 3254,
+      "sha256": "6d9c39d08bac23b92619d77ea622b1afb7a72794bcd1f62b615e53827f46b47f"
+    },
+    {
+      "name": "implementation-report.md",
+      "bytes": 3090,
+      "sha256": "b079f1d1255adcf498d97f7afb722b35038b6587966c115c88c1af8e1751146b"
+    },
+    {
+      "name": "initial-client-observer-failure.json",
+      "bytes": 1042,
+      "sha256": "7c6121dae3b3bad81aa933d46db91042f8df5420c054d4687449de37f77257b2"
+    },
+    {
+      "name": "lib-opencode-scrub-preflight.mjs",
+      "bytes": 2900,
+      "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514"
+    },
+    {
+      "name": "models-tests.log",
+      "bytes": 10445,
+      "sha256": "89188588ce80ece89a35b9dbd1089482d58815838c818af26485d56d763bee86"
+    },
+    {
+      "name": "native-fallback-static.json",
+      "bytes": 2381,
+      "sha256": "b92a8b4d56b043886112bd6e8904785cfce51405f8788a8b1562b32ad0e100fb"
+    },
+    {
+      "name": "red-tests.log",
+      "bytes": 19922,
+      "sha256": "16b8729594d99e4190a22c5c2b2c5e0957b4aea5c903610d34af057bd16a03ed"
+    },
+    {
+      "name": "sdk-process-gate-offline.mjs",
+      "bytes": 20943,
+      "sha256": "16d25c9ac8533f6e3f5ebee4344f33bd54d55d545b38d9728daf55f0f6988e72"
+    },
+    {
+      "name": "typecheck.log",
+      "bytes": 53,
+      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199"
+    }
+  ],
+  "archiveSha256": "49fee77c3b6f53faac1eb14cf0630392bbb33a603f4983ee4e51d8fabdd042ed"
+}

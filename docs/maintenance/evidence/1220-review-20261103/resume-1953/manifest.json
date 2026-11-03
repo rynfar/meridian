@@ -1,0 +1,144 @@
+{
+  "format": 1,
+  "scope": "2026-11-03 resumed qualified E41; metadata only; all attempts including failures retained",
+  "sourceHead": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "baseHead": "697f9482c23865e9d9a02095e35d79b0922047a7",
+  "members": [
+    {
+      "name": "acceptance-plan.md",
+      "size": 13874,
+      "sha256": "45af2065bf9237469f92c9fa8966031f9a2c653df047fd7507afd8f61a0a2edf"
+    },
+    {
+      "name": "baseline-chain-json-launch.json",
+      "size": 279,
+      "sha256": "23fd708f4090386c6019210f3ebb89683abc0581eaac970a3dcadd19a4fda470"
+    },
+    {
+      "name": "baseline-chain-json-original.json",
+      "size": 2837,
+      "sha256": "8ff0c7bdfbe4dd9ba224c87973d9041915696365cc689b3104edffc68e27e88c"
+    },
+    {
+      "name": "baseline-nofallback-chain-json-launch.json",
+      "size": 279,
+      "sha256": "7bb5b1a22d84b4d9ec075f096a01f3ee4c4f993fff3d2da96d9e78dee0632376"
+    },
+    {
+      "name": "baseline-nofallback-chain-json-original.json",
+      "size": 3954,
+      "sha256": "4e54fb1bddc8402c375e8af2df876f5b23ee81ca02ac17e7375f394b32faf4b3"
+    },
+    {
+      "name": "baseline-shipping-chain-json-launch.json",
+      "size": 279,
+      "sha256": "0a25634c28040d4418a34823c58f7cb502f993c605018de1a6ccafa19632fef5"
+    },
+    {
+      "name": "baseline-shipping-chain-json-original.json",
+      "size": 5053,
+      "sha256": "006d4badbaf714e050efe7dc691ad60f98ebe94143a2cff9c84abb365e2217e3"
+    },
+    {
+      "name": "candidate-nofallback-chain-json-launch.json",
+      "size": 279,
+      "sha256": "b0cb70b5300bf346fc60099f75fa0fd1c5264c9bf7b493662152072583c14843"
+    },
+    {
+      "name": "candidate-nofallback-chain-json-original.json",
+      "size": 5113,
+      "sha256": "d534730a13905bf54ec5a3cedf031a8636b96103ab53ebf77454f67e5f7475d3"
+    },
+    {
+      "name": "candidate-shipping-chain-json-launch.json",
+      "size": 279,
+      "sha256": "94d413e4a827f4effc90b1cf6556fad5ffcec94b4b0831c601ad11c6a84d9e22"
+    },
+    {
+      "name": "candidate-shipping-chain-json-original.json",
+      "size": 2288,
+      "sha256": "b77572b1d4e5b20f28796cdbb0e4bc10032f16c7b4e7b4ea6de039158fb7aac2"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735631393-61416-supervisor.json",
+      "size": 525,
+      "sha256": "26aec15b21123d062bd94d5fdccc687021669ac220716cbb838fe4c1540b38b0"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735631393-61416.json",
+      "size": 67634,
+      "sha256": "acb3911c84c010b7e437881337a91f1e234f5ef5df4836f34fb980db7a25e7f2"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735759863-66723-supervisor.json",
+      "size": 525,
+      "sha256": "d733261f8b1555a5c2170e1533df35e69409ea5ce18a76be58bf1533dd231282"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735759863-66723.json",
+      "size": 142056,
+      "sha256": "eefbe47bda6313a185077c056d11529f2d163fb6de2cf6e57feeb5a8fbaef145"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735813470-68961-supervisor.json",
+      "size": 525,
+      "sha256": "3dbadd3345ac1f1de85775b255cba4a7346a5eef131177f69f7627c535217374"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735813470-68961.json",
+      "size": 39849,
+      "sha256": "32a9090cc809f2291a1b74f1c0c876384ee11337c60d84d3e118c6d54a9ecee6"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735991180-79507-supervisor.json",
+      "size": 525,
+      "sha256": "c460060b09c5ca9d5054b2955c7a81996f35776d35dedba11605cf234976b624"
+    },
+    {
+      "name": "instrumented-e41-v2-1793735991180-79507.json",
+      "size": 142081,
+      "sha256": "659d2add692f64e137753f5af22494a4739a05ac1fa0a3417f86cd6a6469719d"
+    },
+    {
+      "name": "instrumented-e41-v2-1793736041809-81934-supervisor.json",
+      "size": 525,
+      "sha256": "8501c696b9d71dda415d973165476b3956299ddcc0e64d407d4c2c70d4ad3d6b"
+    },
+    {
+      "name": "instrumented-e41-v2-1793736041809-81934.json",
+      "size": 95044,
+      "sha256": "8fd10d11fa6c01434a6eb448bbf82f2721ff0cd5b6dd6967a3fd673e50f2a4f5"
+    },
+    {
+      "name": "native-fallback-static.json",
+      "size": 2381,
+      "sha256": "b92a8b4d56b043886112bd6e8904785cfce51405f8788a8b1562b32ad0e100fb"
+    },
+    {
+      "name": "nofallback-qualification-contract.json",
+      "size": 869,
+      "sha256": "84d7334b8db3a6c53cf2444b92dca275b6c6561e6f7294530bc048c1b72b79f9"
+    },
+    {
+      "name": "observer-readme.md",
+      "size": 9694,
+      "sha256": "839bf034f383112cd42b0f2d9bd74ec26e5aa0c10f972b22c527e034fda729a8"
+    },
+    {
+      "name": "observer.mjs",
+      "size": 43671,
+      "sha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff"
+    },
+    {
+      "name": "quota-preflight.json",
+      "size": 335,
+      "sha256": "b1a64cc27572dae731a0d40cfd8a126891ac4780e41839cd88b1d502b9c2a9f9"
+    },
+    {
+      "name": "resume-status.json",
+      "size": 2171,
+      "sha256": "fac97b059a057f413fd3da159a71a91358b59b5b19c5e402831447225db0ac31"
+    }
+  ],
+  "archiveSha256": "9645434164c201adb22a05ab55c3e1a00309e18445aa96cdc561eb8801dd3999"
+}

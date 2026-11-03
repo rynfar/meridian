@@ -1,5 +1,52 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 20:19 UTC: isolated fixes verified; final suite running
+
+This resumes the deferred #1220 checkpoint below; it does not accept or merge it.
+Fresh main remains`697f9482`, contributor final head remains`67d02f56`.
+
+- **#1504 test-only**, signed head`813cac6c`: explicit Node argv for registered
+  synthetic Antigravity scripts and joined readiness-failure cleanup. Initial
+  focused41/0, typecheck/build and independent review pass; exact-head CI test
+  passed. Initial local full group0:8270pass/65skip/1fail, all Antigravity tests
+  green. The remaining unchanged source-recovery case conflated mandatory
+  startup/sleep overhead with shared deadline accounting. A deterministic
+  isolated-clock/native-child replacement passes10/0/75 assertions; both
+  shadow-source faults fail. Independent review passes. No production deadline,
+  timeout or control was relaxed. **Final combined npm test/typecheck/build is
+  running; fresh exact-head CI is required.** Groups1–25 of the prior red run
+  were skipped. [Both fixes and original red](evidence/1220-review-20261103/recovery-fixture-fix/README.md).
+- **#1505 narrow product fix**, signed head`41df72d6`: recognized explicit
+  versioned model pins disable native refusal alternate-model fallback. Aliases,
+  refusals, same-model retry and separately configured SDK fallbackModel stay
+  unchanged. Focused41/0+models99/0, typecheck/build, spec and independent review
+  pass. Independently installed exact-head tarball passes actual OpenCode1.18.34,
+  SDK0.2.141/native2.1.296/Node22.22.3/Darwinarm64/Opus5.5: four200s, actual
+  read/result/continuation, supported history only5.5, exact native env flag
+  publication and every child/pipe joined. First enhanced observer failed at
+  the harmless wrapper env; it also used unintended Node25. That attempt stays
+  failed, not a product finding. Final observer is independently reviewed,
+  offline-discriminated and hash-frozen. Full local/final-head CI remain gates.
+  [Exact reports, harness and limits](evidence/1220-review-20261103/model-pin-fix/README.md).
+- **E41 matrix HALTED.** Qualified v2 old-native main switches5.5→4.8 in query2.
+  Shipping native2.1.296 main passes, candidate switches5.5→4.8 in query1.
+  No causal candidate/store regression is established; v2 omits fallback notices.
+  A declared test-only no-model-switch lane passes candidate chainJSON with full
+  native cache continuity and all original predicates. Matched main then refuses
+  on5.5 at query4; valid observer, all joined. No next arm or green rerun follows.
+  [All attempts and strict unchanged95% floor](evidence/1220-review-20261103/resume-1953/README.md).
+- Included usage only, Extra Usage disabled, isolated access-only read-only grant;
+  no credential refresh/write or paid/model/account fallback. Both generationV1
+  client plugin and scrub0.3.0 preflight/runtime witnesses are retained. Qualified
+  E41 protocol fixture is not misrepresented as the actual OpenCode executable.
+- Historical3332→3132 residual and fingerprint/initializer causal holds remain;
+  no owner supersession is implied. **No #1220 merge, release merge/tag/publish,
+  contributor-author-on-main claim or external comment.** Maintainer fixes carry
+  no contributor commits. User checkout remains untouched. Final local/CI gates,
+  contributor integration and release validation remain outstanding.
+
+The earlier checkpoint is retained as history.
+
 ## 2026-11-03: Nowaker #1220 deferred at gates; release remains conditional
 
 The owner asked to find the PR he had promised to merge. His 2026-11-02 reply and

@@ -5,6 +5,16 @@ Review base: `697f9482c23865e9d9a02095e35d79b0922047a7`.
 Contributor update: `bb2e18a3f8362d1a2b3a3529cd50007361bc070b`.
 Additive, GitHub-verified signed maintainer correction: `67d02f56ba69b7e738aea67119ba5b1376ef0db0`.
 
+## Resumed work at 19:53 UTC
+
+The [resumed verification record](resume-1953/README.md) supersedes the stopped-work
+status below. Qualified v2 live attempts retain default-model drift failures,
+one passing candidate no-model-switch arm, and a failed matched baseline native
+refusal. The E41 matrix is halted, not accepted. Test-only launcher PR #1504 and
+separate explicit-model refusal-switch PR #1505 are in progress; neither carries
+contributor commits. The original local failures and historical holds remain.
+No merge or release has occurred.
+
 ## Disposition
 
 **Deferred at explicit acceptance blockers; not merged or released.** The owner

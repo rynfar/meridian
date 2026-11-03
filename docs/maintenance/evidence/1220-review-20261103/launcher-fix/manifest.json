@@ -1,0 +1,46 @@
+{
+  "head": "e1413322c891384f59651774fe2fb14b724b832c",
+  "result": "NOT ACCEPTED; focused/build/typecheck/review pass, local full red unchanged source-recovery fixture",
+  "members": [
+    {
+      "name": "adversarial-review.md",
+      "sha256": "768965673df242bb7ebbf212a9b9c0230148e9c513120e23cf1a749688b9c963",
+      "bytes": 6560
+    },
+    {
+      "name": "antigravity-focused.log",
+      "sha256": "18a4fdf6e64c810b54f66c781978334c558453ee3f946fcb040f44fc133cceb2",
+      "bytes": 6947
+    },
+    {
+      "name": "build.log",
+      "sha256": "e779cc2e9abb9528fcf183bc77d6fac411f1748730a699792a51d85e6a6707ac",
+      "bytes": 3020
+    },
+    {
+      "name": "implementation-handoff.md",
+      "sha256": "46d1e124c8c1a657a7f73bd87862ed7080f47343fd58c0015e4776fa8685abd7",
+      "bytes": 4178
+    },
+    {
+      "name": "original-full-npm-test.log.gz",
+      "sha256": "df6ce964a33d03ef998ef4a81aa16a3d05fd07d75d65279d46b3de06cebe0b3e",
+      "bytes": 296632
+    },
+    {
+      "name": "typecheck.log",
+      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199",
+      "bytes": 53
+    },
+    {
+      "name": "validation.json",
+      "sha256": "d57c1c5628a6262a01218ba32b50d6f2080694321e41aca6267f6ca5e0a9b312",
+      "bytes": 1650
+    },
+    {
+      "name": "implementation.diff.gz",
+      "sha256": "bb2da11ea7a2785c856f7bcee0fda167a95992ea8828ec72392fb02009bd5ddd",
+      "bytes": 2376
+    }
+  ]
+}

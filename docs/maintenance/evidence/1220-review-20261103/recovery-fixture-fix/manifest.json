@@ -1,0 +1,63 @@
+{
+  "head": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+  "testSHA256": "f4b9e510928500b7567f9d8b37354e0cba82337ec16d5146e2e1a4933e4c8bfd",
+  "scope": "deterministic test clock propagation with native timeouts; no production cause claim",
+  "members": [
+    {
+      "name": "adversarial-review.md",
+      "bytes": 6611,
+      "sha256": "2f9986471b6145a7a37613f6aca6dee439484f2ab6c35cbf9efa60a6de934fe5"
+    },
+    {
+      "name": "build-source-recovery.f4b9e510928500b7567f9d8b37354e0cba82337ec16d5146e2e1a4933e4c8bfd.test.ts",
+      "bytes": 16730,
+      "sha256": "f4b9e510928500b7567f9d8b37354e0cba82337ec16d5146e2e1a4933e4c8bfd"
+    },
+    {
+      "name": "focused-file.log",
+      "bytes": 3341,
+      "sha256": "5dda947e0300d3f08b6bc2599905c5254c81fedf98f6c9cb2e31b96a819f7a3f"
+    },
+    {
+      "name": "implementation-report.md",
+      "bytes": 6951,
+      "sha256": "2f069d40ccff3a975de5cb1721e7d74b4359db5414c5c269b6951deca4a41247"
+    },
+    {
+      "name": "initial-findings.md",
+      "bytes": 8293,
+      "sha256": "04a19d43e3fa32241cc318634ada7806251cd50812db16d474046020334fc447"
+    },
+    {
+      "name": "invalid-shadow-attempt.json",
+      "bytes": 941,
+      "sha256": "64187a11f9f732017a8709948bdf0eda213a404423f1bfe02785da50921dca84"
+    },
+    {
+      "name": "negative-fresh-per-command-budget-corrected.log",
+      "bytes": 2969,
+      "sha256": "e45f3362411882fc4ac8af8a4b633477fb6a2c57ab6051cf3e331f290b581498"
+    },
+    {
+      "name": "negative-fresh-per-command-budget-invalid-entrypoint-roots.log",
+      "bytes": 434,
+      "sha256": "bf6311b841e00b9a4849116fb4e00639ee0c0b4ec27c7aeabe7bb3799163ccc4"
+    },
+    {
+      "name": "negative-spawn-after-exhaustion.log",
+      "bytes": 2949,
+      "sha256": "cce6e1d0cdd953e9f3a4a7374cf2dd2b5308f87b671e3c555daeb2a2030413ce"
+    },
+    {
+      "name": "typecheck.log",
+      "bytes": 53,
+      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199"
+    },
+    {
+      "name": "validation-custody.json",
+      "bytes": 16007,
+      "sha256": "02af629f9c1219c398901a832f384f35ca19dde62418644fbe7b44e218fef273"
+    }
+  ],
+  "archiveSha256": "69e38f44b19bcebaeea462dfd8b021ac4adcb5a8bb499a1d8cb5e48e793653ef"
+}
