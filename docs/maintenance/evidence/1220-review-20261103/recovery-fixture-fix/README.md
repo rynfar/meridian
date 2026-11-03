@@ -21,6 +21,8 @@ Both shadow negatives fail: fresh per-command deadline gives
 build-root attempt is retained separately, not counted as discrimination.
 
 Independent review found no material source issue. Final combined local
-npm test/typecheck/build and fresh exact-head CI are running; not accepted yet.
+npm test passes all26 groups (8819pass/65skip/0fail); typecheck/build and
+exact-head CI pass. PR #1504 merged normally at `1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52`.
+The signed landed tree equals the reviewed tree; no production code changed.
 [proof.tar.gz](proof.tar.gz)/[manifest.json](manifest.json) retain exact source,
 logs, mutation receipts, negative controls and independent review; hashes verified.

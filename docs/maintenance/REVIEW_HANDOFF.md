@@ -1,5 +1,23 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-03 20:35 UTC: #1504 merged; #1505 final gates running
+
+- **#1504 merged normally**, exact reviewed head`813cac6c` → signed squash
+  `1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52`. Landed tree equals the reviewed tree; parent is
+  `697f9482`. All26local groups8819pass/65skip/0fail, typecheck/build and required
+  final-head CI test pass. No production changes or deadline increases.
+- **#1505 still open**, now`93b188f68d9664c46df62aa3249b4defffd884af` after additive merge of
+  test-only main. Product source/test hashes and spec are unchanged from the
+  independently reviewed and actual-client installed-package validated head.
+  Final local suite/typecheck/build and refreshed CI are running.
+- **#1220 unmerged**, corrected contributor head`67d02f56`. E41 remains halted
+  at the matched unchanged-main5.5 refusal, historical holds not superseded,
+  no release/tag/publication or external comment. Both maintainer fixes carry
+  no contributor commits; owner checkout remains preserved.
+- [Final local, CI and tree/signature merge receipt](evidence/1220-review-20261103/launcher-fix/merge.json).
+
+Earlier timestamps below retain their original state.
+
 ## 2026-11-03 20:19 UTC: isolated fixes verified; final suite running
 
 This resumes the deferred #1220 checkpoint below; it does not accept or merge it.

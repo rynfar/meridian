@@ -1,5 +1,15 @@
 # Resumed verification — 2026-11-03 19:53 UTC
 
+## 20:35 UTC update
+
+Test-only #1504 is **merged** at `1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52` after all26 local
+suite groups pass (8819pass/65skip/0fail), typecheck/build and final-head CI.
+The signed landed tree equals the reviewed tree. It does not change production
+code or establish the exact historical failure causes. #1505 now includes that
+test-only main through an additive merge at `93b188f68d9664c46df62aa3249b4defffd884af`;
+its product source is unchanged and its final suite/CI are running. #1220 remains
+unmerged, its E41 matrix halted, and release authorization remains conditional.
+
 This supplements the earlier checkpoint. #1220 is still **unmerged** at
 `67d02f56ba69b7e738aea67119ba5b1376ef0db0`; main remains `697f9482`.
 No release, historical acceptance-gate supersession or external comment occurred.

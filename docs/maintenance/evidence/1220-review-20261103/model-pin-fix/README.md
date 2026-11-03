@@ -9,7 +9,11 @@ refusals, same-model retry or separately configured SDK `fallbackModel`.
 Focused tests fail36/5 without production change, pass41/0 after; model99/0,
 typecheck/build pass. Final independent review covers all seven request/recovery
 routes, env merge/stripping, POSIX/Windows gate forwarding and scoped limits.
-Module spec records the decision. Full local suite/final-head CI remain gates.
+Module spec records the decision. The validated product head was `41df72d6`.
+After test-only #1504 merged, additive main integration advances #1505 to
+`93b188f68d9664c46df62aa3249b4defffd884af`. Only the two test fixture files change in that merge;
+all three model source/test hashes and the product spec remain unchanged.
+Final combined local suite/typecheck/build and fresh final-head CI are running.
 
 ## Independently installed actual-client PASS
 

@@ -5,6 +5,17 @@ Review base: `697f9482c23865e9d9a02095e35d79b0922047a7`.
 Contributor update: `bb2e18a3f8362d1a2b3a3529cd50007361bc070b`.
 Additive, GitHub-verified signed maintainer correction: `67d02f56ba69b7e738aea67119ba5b1376ef0db0`.
 
+## Latest: #1504 merged; #1505 final verification
+
+Test-only #1504 merged normally at `1e24a969` after all26local test groups
+(8819pass/65skip/0fail), typecheck/build, independent review and exact-head CI.
+[Tree/signature/local/CI receipt](launcher-fix/merge.json) confirms the landed
+reviewed tree. #1505 is still open at`93b188f6`; its final local suite and CI
+are running after additive integration of those tests. Its product bytes and
+spec are unchanged from the independently installed actual-client PASS.
+#1220 remains unmerged, E41 halted, historical holds unresolved, release conditional.
+Earlier dated sections below retain their original status, not current approvals.
+
 ## Resumed work at 19:53 UTC
 
 The [resumed verification record](resume-1953/README.md) supersedes the stopped-work

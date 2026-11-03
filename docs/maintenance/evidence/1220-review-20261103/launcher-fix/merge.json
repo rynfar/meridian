@@ -1,0 +1,42 @@
+{
+  "pr": 1504,
+  "state": "MERGED",
+  "reviewedHead": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+  "reviewedBase": "697f9482c23865e9d9a02095e35d79b0922047a7",
+  "mergeCommit": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+  "treeMatchesReviewed": true,
+  "githubVerifiedSignature": true,
+  "mergeMode": "normal squash with match-head-commit; no admin/bypass",
+  "fullLocal": {
+    "head": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+    "scope": "PR1504 test-only native fixture fixes; no contributor source commits",
+    "result": "PASS",
+    "command": "npm test && npm run typecheck && npm run build",
+    "exit": 0,
+    "seconds": 805.3931915001012,
+    "testGroups": 26,
+    "pass": 8819,
+    "skip": 65,
+    "fail": 0,
+    "allOriginalGroupsCompleted": true,
+    "initialGroup": {
+      "pass": 8271,
+      "skip": 65,
+      "fail": 0,
+      "files": 485,
+      "seconds": 546.47
+    },
+    "sourceHashes": {
+      "src/__tests__/antigravity-probe.test.ts": "bd259b98673fb9a929f624201ac4ab034738b513d9fa3015add391f1c9156bcf",
+      "src/__tests__/build-source-recovery.test.ts": "f4b9e510928500b7567f9d8b37354e0cba82337ec16d5146e2e1a4933e4c8bfd"
+    },
+    "typecheckExit": 0,
+    "buildExit": 0,
+    "productionChanges": false,
+    "productionDeadlineChanges": false,
+    "historicalFailureCauseClaim": false,
+    "priorRedsRetained": true
+  },
+  "contributorCommitsIncluded": false,
+  "productionChanges": false
+}
