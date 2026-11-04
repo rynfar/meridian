@@ -1,0 +1,39 @@
+{
+  "selectedNativePath": "/Volumes/DevSSD/meridian/review-1220-20261103/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+  "selectedNativeSha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937",
+  "selectedNativeVersionOutput": "2.1.296 (Claude Code)",
+  "envE2E_NATIVE_BIN": "/Volumes/DevSSD/meridian/review-1220-20261103/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+  "helperAssignment": "MERIDIAN_CLAUDE_PATH=process.env.E2E_NATIVE_BIN before import/start server; env overrides default installed dependency",
+  "installedNativeDependencyVersion": "2.1.318 is not selected",
+  "clientPath": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+  "clientResolvedPath": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/opencode-ai/bin/opencode.exe",
+  "clientSha256": "7b63b34fafabded7d9231f6a9032755d0cdeaf8b9d2b70df8e25535471469eea",
+  "envNoExternalRefusalFallbackFlag": true,
+  "helperFreeze": [
+    {
+      "path": "actual-model-pin-ffcf54ca7091.mjs",
+      "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7",
+      "mode": "0o444"
+    },
+    {
+      "path": "gate-observer-75af2733bc17.mjs",
+      "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a",
+      "mode": "0o444"
+    },
+    {
+      "path": "lib-opencode-scrub-preflight.mjs",
+      "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514",
+      "mode": "0o444"
+    }
+  ],
+  "actorCommands": [
+    "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+    "/Users/rynfar/.hermes/node/bin/node",
+    "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+    "/bin/sh",
+    "/bin/sh",
+    "/bin/sh",
+    "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+    "/bin/sh"
+  ]
+}

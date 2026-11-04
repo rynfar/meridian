@@ -1,5 +1,14 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04: #1505 merged; final integrated #1220 gates running
+
+**#1505 MERGED normally at`16c214941bf3f05aa4015a70d8b81bd94857a88f`**, signed squash treeaa1659cd equals reviewed19bf2128. Final independent review no material issue; exact independently installed actual OpenCode personal-account read/result/continuation/history/pin/flag/plugin/scrub andoriginaljoinsPASS. ExtraUsageOFF confirmedHTTP200; no refresh/ownercredentialwrite. Selectednative2.1.296 hashc9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937; installeddefault2.1.318NOTqualified. Oldrevoked/ON/429receiptsretained.
+
+#1220 signed conflict-free additiveacceptedmainintegration **`ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`** pushedNowakerfork, preservesbb2e18a3/67d02f56. Exactlyaccepted1505fivefileschanged; sessionStoreunchangedfromreviewed9b35b229. Focused47/0+typecheckPASS. FreshinternalAPFSfullnpm/typecheck/certifiedbuildandrequiredCI**41868161833**running; independentfull-deltareviewrunning. No concurrentlocalbaselinebuild; baselineexactacceptedmainartifactbuildfollowslocalgate. ThenpredeclaredserialfinalsourceE41baselinechainJSON/candidatechainJSONandonlyifbothpasscandidatechainSSE/parallelJSON/parallelSSE, unchangedfixture/v2/300s/95%, eachonce; finalinstalledcandidateactualclientstorage/runtimealso required. Noexternalflaginjectionorhistoricalcausalcredit.
+
+[Finalsourceplan and ongoing gates](evidence/1220-review-20261103/final-source-1220-20261104/README.md); [#1505finalpersonalproof](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/personal-extra-off/README.md). #1220unmerged,norelease. Historicalcache3332→3132/native.284vs.296scope/initializer/fingerprintcausesremainexplicitownerdispositionholds. Earlier checkpoints remain historical.
+
+
 ## 2026-11-04: personal admitted; #1505 exact installed-client live PASS
 
 Owner disabled personal Extra Usage; one read-only preflight HTTP200 confirms **ExtraUsageOFF**, weekly67%. Private access-only grant copied from personal, no refresh or owner credential write. Prior ExtraUsageON, kraken429 and old isolated-grant revoked-token failures remain archived.

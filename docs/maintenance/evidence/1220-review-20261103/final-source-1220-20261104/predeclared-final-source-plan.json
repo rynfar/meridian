@@ -1,0 +1,74 @@
+{
+  "status": "FINAL_HEADS_FROZEN_GATES_PENDING",
+  "baseline": "accepted main includes1504+1506+1505; excludes1220",
+  "candidate": "contributor existing branch plus additive merge of same accepted main; preservesalloriginalauthors",
+  "worktrees": {
+    "baseline": "/Users/rynfar/Library/Caches/meridian-validation.noindex/main-after-1505-20261104",
+    "candidate": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-final-after-1505-20261104"
+  },
+  "artifactPolicy": "clean exact head certified source build plus independent npm install tarball, matching plugin in each arm",
+  "fullCandidateGates": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build",
+    "required finalhead CI",
+    "independentlyinstalled packagedstorage/runtime",
+    "actualOpenCode read/result/continuation"
+  ],
+  "e41": {
+    "helperSha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff",
+    "fixtureSha256": "9306af7e3e47c5ed55cb693d12a51a692d0350ae4614f162e8881861fd9fe3bf",
+    "fidelitySha256": "487765c355f1ef507a636d6b4e112368529b3d56c0228184c05ec63f0270f757",
+    "arms": [
+      "baselinechainJSON",
+      "candidatechainJSON",
+      "candidatechainSSE",
+      "candidateparallelJSON",
+      "candidateparallelSSE"
+    ],
+    "serial": true,
+    "attemptsEach": 1,
+    "laterArmsOnlyIfPairPasses": true,
+    "deadlineSeconds": 300,
+    "outerTimeoutSeconds": 315,
+    "nativeCacheFloor": 0.95,
+    "originalHttpAccountingAlsoRequired": true,
+    "productCodeProvidesPinAndNoSwitch": true,
+    "externalNoSwitchInjection": false,
+    "stopOn": [
+      "refusal",
+      "modelDrift",
+      "missingCompletion",
+      "cacheHistoryFailure",
+      "observerInvalid",
+      "childPipeJoinFailure",
+      "timeout"
+    ],
+    "noPromptChanges": true,
+    "noHelperChanges": true,
+    "requiredAssertions": "original batching1+1+1/3together, threeactualquotedresults, pairedIDs, distinctdurableforks, activefollowup, immutableparents, exactmodel, native95% + fixtureaccounting, validobserver+worker+supervisor+originaljoins"
+  },
+  "tuple": {
+    "sdk": "0.2.141",
+    "nativePath": "/Volumes/DevSSD/meridian/review-1220-20261103/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "nativeSha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937",
+    "native": "2.1.296",
+    "model": "claude-opus-5-5",
+    "platform": "darwin/arm64",
+    "client": "OpenCode1.18.34",
+    "clientPlugin": "matchinginstalledMeridianV1",
+    "scrub": "0.3.0"
+  },
+  "credentialPolicy": "owner-authorizedpersonal privateaccessonlygrant, no refresh/ownercredentialwrites; includedusage ExtraUsageOFF confirmed before model lanes",
+  "historicalHolds": "allretained:3332\u21923132below95%, oldnative.284scope, initializer[0,1], fingerprintcauses; no supersessionwithoutownerdisposition",
+  "noRepeatedHostedLockDiagnostic": true,
+  "noMergeReleaseFromPartialMatrix": true,
+  "baselineHead": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "candidateHead": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "candidateTree": "83877acdaa4c8d5a414c0ebc46b7674aa75eb2b9",
+  "authorCommitsRetained": [
+    "bb2e18a3f8362d1a2b3a3529cd50007361bc070b",
+    "67d02f56ba69b7e738aea67119ba5b1376ef0db0"
+  ],
+  "integration": "signed additive conflictfree merge, onlyfive accepted1505fileschanged; sessionStoreunchangedfrompreviousreviewed9b35"
+}

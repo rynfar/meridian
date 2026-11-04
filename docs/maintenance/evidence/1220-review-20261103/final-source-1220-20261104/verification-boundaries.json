@@ -1,0 +1,7 @@
+{
+  "basis": "same accepted #1505 tree exact local8829/65skip/0fail+typecheck/requiredCI41798125923 and livePASS",
+  "postMergeVerification": "GitHub squashed merge tree must equal reviewedhead tree; signature and freshCI observed",
+  "baselineBuild": "new clean internalAPFS build once, same unchanged2s budget, pin same SDK/native; no changes to source, helper or prompt",
+  "candidateFullLocal": "new additive head requires fullnpm/typecheck/build, exacthead CI, installed storage/runtime and actualclient",
+  "allHistoricalRedsRetained": true
+}
