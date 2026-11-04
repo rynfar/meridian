@@ -23,3 +23,12 @@ The first local launch omitted Bun from PATH and exited127 before tests; it rema
 Old required CI failure and the one-shot diagnostic pass remain separate, durable and unwaived. No second lock diagnostic. #1505 and #1220 remain unmerged. Final-source live E41 qualification follows accepted supporting fixes on matched artifacts with every existing exact-model/95%/history/plugin/join assertion unchanged; no prompt change or green-seeking retry. Missing historical causal/scope evidence remains an explicit acceptance decision, not proof inferred from prospective passes.
 
 [Focused proof, sources, reviews, failure launch and receipts](focused-proof.tar.gz) ([per-member hashes](focused-proof-manifest.json)). Full in-progress logs will be escrowed on completion.
+
+
+## Final corrected head: certification passed in isolated validation checkout
+
+Final head `effa8bf33dfe85bfd4975a90cd276a3bab728bb8` commits only the independently reviewed canonical-store fixture correction after the previous head. Normal certification **PASS** with unchanged production fingerprint code and2s/caps in a fresh clean detached checkout under `validation.noindex`. [Receipt](certified-build-receipt.json) and [exact provenance manifest](certified-build-provenance.json) record identity/source/artifact hashes. No system indexing settings or daemons were changed. This is environment-qualified final-artifact evidence; it does not explain or fix the original worktree timeout.
+
+The proposed fingerprint allocation patch is **rejected and absent from PR1506**. Real allocation savings did not produce persuasive timing improvement (copied-corpus medians57.10→56.17ms), and its initial form amplified growing-file reads. No further comparator runs. [Rejected investigation and review](rejected-fingerprint-investigation.tar.gz) ([member manifest](rejected-fingerprint-manifest.json)) retain the limitation rather than landing speculative performance code.
+
+Fresh final-head local fullsuite/typecheck, [required CI41794707547](https://github.com/rynfar/meridian/actions/runs/41794707547) and independently installed certified-package gate are running. [State](final-head-gates.json). Nothing merged or released; #1505/#1220 still await accepted supporting fixes and their own acceptance.

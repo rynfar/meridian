@@ -1,0 +1,29 @@
+{
+  "head": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+  "worktree": "/Volumes/DevSSD/meridian/validation.noindex/1506-final-20261104",
+  "branch": "detached",
+  "sourceTreeIdentity": "same git commit and clean tree",
+  "certified": true,
+  "manifestSha256": "1ad71c83e278206df33ede8167ed60550fcd559ed0ff482c3eeedf122e6781ae",
+  "build": {
+    "source": "local",
+    "kind": "artifact",
+    "version": "1.88.0",
+    "releaseVersion": "1.88.0",
+    "sha": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+    "dirty": false,
+    "sourceHash": "d6842dc07d5312772c7ad69440350c0864f44c7a57d9a6f4d8994a1a08a9721e",
+    "commitUrl": "https://github.com/rynfar/meridian/commit/effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+    "counter": 1,
+    "counterScope": "6af2a1b5-36b9-4f45-acdc-79bde61d35e8",
+    "attemptId": "fa35d9c2-0580-4551-b241-e6ec51c87ef1",
+    "builtAt": "2026-11-04T07:46:53.189Z",
+    "displayVersion": "v1.88.0-1-detached-effa8bf3",
+    "certification": "verified"
+  },
+  "productionBuildFingerprintChanged": false,
+  "deadlineMs": 2000,
+  "environmentDifference": "fresh worktree under validation.noindex rather than prior worktree; no system index/daemon config changed",
+  "doesNotProve": "cause of old fingerprint/hosted lock timeouts, or that original worktree certification is fixed",
+  "historicalFailures": "retained and unresolved; prospective environment-qualified pass only"
+}

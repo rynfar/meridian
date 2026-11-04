@@ -1,0 +1,14 @@
+{
+  "head": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+  "base": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+  "sourceDeltaSincePreviousPassedLocalAndCI": "canonical preparedStore fixture seed + exact full equality; no production change",
+  "productionFingerprintSourceChanged": false,
+  "fullLocal": "RUNNING",
+  "requiredCiRun": 41794707547,
+  "requiredCiUrl": "https://github.com/rynfar/meridian/actions/runs/41794707547",
+  "requiredCi": "RUNNING",
+  "certifiedBuild": "PASS environment-qualified fresh validation.noindex clean detached tree; originalfailure unresolved",
+  "certifiedPackage": "RUNNING",
+  "historicalScope": "all original failed gates and causes retained; no retrospective fix or waiver",
+  "newUnapprovedDiagnostics": false
+}
