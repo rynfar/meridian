@@ -63,12 +63,17 @@ describe('Antigravity expanded boundaries', () => {
     const root = await mkdtemp(join(tmpdir(), 'meridian hook test '))
     try {
       const file = join(root, 'hook probe.cjs')
-      await writeFile(file, 'console.log("HOOK_OK")')
-      const command = agHookCommand(process.execPath, file)
+      await writeFile(file, 'console.log(JSON.stringify({ marker: "HOOK_OK", node: process.versions.node, bun: process.versions.bun ?? null }))')
+      const node = Bun.which('node')
+      if (!node) throw new Error('Node is required for Antigravity hook fixtures')
+      const command = agHookCommand(node, file)
       const result = process.platform === 'win32'
         ? await promisify(execFile)('cmd.exe', ['/d', '/s', '/c', '"' + command + '"'], { timeout: 5000, windowsVerbatimArguments: true })
         : await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
-      expect(result.stdout.trim()).toBe('HOOK_OK')
+      const output = JSON.parse(result.stdout)
+      expect(output.marker).toBe('HOOK_OK')
+      expect(output.node).toEqual(expect.any(String))
+      expect(output.bun).toBeNull()
     } finally { await rm(root, { recursive: true, force: true }) }
     expect(() => agHookCommand('C:\\%BAD%\\node.exe', 'C:\\hook.cjs', 'win32')).toThrow('percent')
   })

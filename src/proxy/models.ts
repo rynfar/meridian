@@ -99,6 +99,9 @@ export function resolveSdkModelDefaults(
  * With canonical pins alone, an explicit `claude-sonnet-5` silently resolved
  * to the canonical sonnet — a proxy must never substitute models, so a
  * fully-versioned id overrides its tier's pin for that request only.
+ * Also disable native alternate-model refusal fallback, which can otherwise
+ * substitute a different model after the initial pin. Refusals and same-model
+ * refusal retries are unchanged.
  *
  * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
  * undefined and keep the canonical pins. Mythos rides the fable tier
@@ -110,7 +113,10 @@ export function explicitModelPin(requestedModel: string): Record<string, string>
   const match = /^claude-(sonnet|opus|haiku|fable|mythos)-\d[\w.-]*$/.exec(base)
   if (!match) return undefined
   const tier = match[1] === "mythos" ? "FABLE" : match[1]!.toUpperCase()
-  return { [`ANTHROPIC_DEFAULT_${tier}_MODEL`]: base }
+  return {
+    [`ANTHROPIC_DEFAULT_${tier}_MODEL`]: base,
+    CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1",
+  }
 }
 export interface ClaudeAuthStatus {
   loggedIn?: boolean

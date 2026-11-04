@@ -86,6 +86,12 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     `[Image attached]` / `[Document attached]`, so unkeyed, only the latest
     turn's media reaches the model (media nested in a packed tool result is
     still dropped).
+- **Explicit Claude versions disable refusal model switching.** The existing
+  per-request family pin also sets `CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1`
+  for recognized versioned Claude IDs. Native refusal fallback can otherwise
+  change the model after initial alias resolution. Bare aliases keep their
+  inherited behavior. Refusals and same-model refusal retries are unchanged;
+  an independently configured SDK `fallbackModel` remains outside this switch.
 - **Per-model 1M override.** `[1m]` stays the default for Opus and Fable;
   `MERIDIAN_OPUS_MODEL=opus` / `MERIDIAN_FABLE_MODEL=fable` opt a tier out
   (Mythos follows Fable). Values are normalized; an unrecognized value warns

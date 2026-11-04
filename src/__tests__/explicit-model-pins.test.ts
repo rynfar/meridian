@@ -20,33 +20,35 @@ const { explicitModelPin, CANONICAL_FABLE_MODEL, CANONICAL_SONNET_MODEL, CANONIC
 
 describe("explicitModelPin (#631)", () => {
   it("pins fully-versioned sonnet ids", () => {
-    expect(explicitModelPin("claude-sonnet-5-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5" })
-    expect(explicitModelPin("claude-sonnet-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5" })
-    expect(explicitModelPin("claude-sonnet-4-6")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6" })
+    expect(explicitModelPin("claude-sonnet-5-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-sonnet-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-sonnet-4-6")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
   })
 
   it("pins fully-versioned opus and date-suffixed haiku ids", () => {
-    expect(explicitModelPin("claude-opus-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" })
-    expect(explicitModelPin("claude-opus-5")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5" })
-    expect(explicitModelPin("claude-opus-4-7")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7" })
-    expect(explicitModelPin("claude-haiku-4-5-20251001")).toEqual({ ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001" })
+    expect(explicitModelPin("claude-opus-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-opus-5")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-opus-4-7")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-haiku-4-5-20251001")).toEqual({ ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
   })
 
   it("routes mythos ids through the fable tier pin", () => {
-    expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5" })
-    expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1" })
-    expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5" })
+    expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
   })
 
   it("strips the [1m] context suffix before pinning", () => {
-    expect(explicitModelPin("claude-sonnet-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5" })
-    expect(explicitModelPin("claude-sonnet-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5" })
+    expect(explicitModelPin("claude-sonnet-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-sonnet-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
   })
 
   it("leaves bare aliases and family names on the canonical pins", () => {
     expect(explicitModelPin("sonnet")).toBeUndefined()
     expect(explicitModelPin("sonnet[1m]")).toBeUndefined()
     expect(explicitModelPin("opus")).toBeUndefined()
+    expect(explicitModelPin("opus[1m]")).toBeUndefined()
+    expect(explicitModelPin("claude-opus")).toBeUndefined()
     expect(explicitModelPin("claude-sonnet")).toBeUndefined()
     expect(explicitModelPin("gpt-4o")).toBeUndefined()
     expect(explicitModelPin("")).toBeUndefined()
