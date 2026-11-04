@@ -1,0 +1,18 @@
+{
+  "head": "9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+  "purpose": "Qualify exact final artifact in a distinct internal-disk validation environment, not repeat same external source paths for green",
+  "previousFailureWorktree": "/Volumes/DevSSD/meridian/validation.noindex/1220-integrated-20261104",
+  "previousVolume": "/Volumes/DevSSD external /dev/disk4s1",
+  "newWorktree": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-9b35b229-20261104",
+  "newVolume": "internal APFS /System/Volumes/Data",
+  "sameCommitTree": true,
+  "deadlineMs": 2000,
+  "fingerprintAlgorithmAndCapsUnchanged": true,
+  "attempts": 1,
+  "noAutoRetry": true,
+  "fullLocalTests": "already8855/65skip/0fail exact commit; new build also runs its own declaration/Node gates",
+  "doesNotEstablish": "historical fingerprint or lock cause, zero external-volume regression, missing live model/cache acceptance",
+  "sourceCodeChanges": [],
+  "noSystemIndexingChanges": true,
+  "ownerCheckoutPreserved": true
+}

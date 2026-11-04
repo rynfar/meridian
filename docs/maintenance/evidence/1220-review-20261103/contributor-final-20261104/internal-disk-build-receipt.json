@@ -1,0 +1,42 @@
+{
+  "plan": {
+    "head": "9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+    "purpose": "Qualify exact final artifact in a distinct internal-disk validation environment, not repeat same external source paths for green",
+    "previousFailureWorktree": "/Volumes/DevSSD/meridian/validation.noindex/1220-integrated-20261104",
+    "previousVolume": "/Volumes/DevSSD external /dev/disk4s1",
+    "newWorktree": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-9b35b229-20261104",
+    "newVolume": "internal APFS /System/Volumes/Data",
+    "sameCommitTree": true,
+    "deadlineMs": 2000,
+    "fingerprintAlgorithmAndCapsUnchanged": true,
+    "attempts": 1,
+    "noAutoRetry": true,
+    "fullLocalTests": "already8855/65skip/0fail exact commit; new build also runs its own declaration/Node gates",
+    "doesNotEstablish": "historical fingerprint or lock cause, zero external-volume regression, missing live model/cache acceptance",
+    "sourceCodeChanges": [],
+    "noSystemIndexingChanges": true,
+    "ownerCheckoutPreserved": true
+  },
+  "exit": 0,
+  "durationSeconds": 12.287980999797583,
+  "certification": "PASS",
+  "manifest": {
+    "source": "local",
+    "kind": "artifact",
+    "version": "1.88.0",
+    "releaseVersion": "1.88.0",
+    "sha": "9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+    "dirty": false,
+    "sourceHash": "4d4a55b95f96e2d2daf1878d4a91a970c185f47b810d426876d6e30b416076b8",
+    "commitUrl": "https://github.com/rynfar/meridian/commit/9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+    "counter": 1,
+    "counterScope": "245bfd3d-c07b-4d79-b0b1-d302b549d691",
+    "attemptId": "04e037df-560e-4abe-9547-a459522e1a87",
+    "builtAt": "2026-11-04T08:54:01.871Z",
+    "displayVersion": "v1.88.0-1-detached-9b35b229",
+    "certification": "verified"
+  },
+  "externalVolumeFailure": "retained and unresolved",
+  "currentLiveGate": "BLOCKED revokedOAuth",
+  "release": "NOT_DONE"
+}
