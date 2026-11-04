@@ -1,0 +1,16 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "main": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "newEvidence": {
+    "supportedHistoryNativeRefusal": "[cyber] guard on ordinaryownedfiletest; exactnative stop_reasonrefusal observedviaSDKsupportedhistory",
+    "promptIntegrity": "exactQ1/Q2reconstructionmatchfrozenobserver; Q2exactonecorrectREALOUTPUTalpharesult; modelinputdifferenceJSON/SSEonlyownedpaths/originaltoolids",
+    "remainingRuntimeOptions": "sharedbuilder streambranch no effect forpassthrough; privateCLI/providerguardcauseunknown",
+    "AGisolatedOriginalFirstCase": "PASS with failedbodydiagnostic1/0; notfix",
+    "AGbaselineSuiteContext": "sixAGcasesPASS, wholebaselinecapturestillrunning; original503notreproduced",
+    "nextLocalQualification": "oneisolatedBun1.4.3matchingCI runonexactcandidate no sourcechanges; separateenvironmentreceipt, nothistoricalfix"
+  },
+  "currentRedsRetained": true,
+  "noPromptOrProductionLimitChanges": true,
+  "scope": "landcontributorPR only; releaseafterwardsnotdelay",
+  "acceptanceDispositionNeededIfNoProductBug": "providerrefusal/currentmatrixcannotbesilentlycalledPASS"
+}

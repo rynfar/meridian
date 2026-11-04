@@ -1,0 +1,51 @@
+# #1220 SSE refusal: focused construction findings — 2026-11-04
+
+## Conclusion
+
+**No concrete malformed Q1/Q2 input or SSE-specific model-facing construction fault found. Request integrity is now positively established at the SDK prompt boundary, not inferred from an eventual error or a history-only comparison.** The failed Q2 supported history explicitly reports native Opus 5.5 safeguards `[cyber]`, including the provider's warning that ordinary non-cybersecurity work can be flagged. That identifies the refusal class; it does not prove why the guard flagged these inputs, or fix the failure. E41 stays red. No rerun, model switch, prompt change, bypass, or acceptance waiver is recommended.
+
+Reviewed candidate `ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a` and baseline `16c214941bf3f05aa4015a70d8b81bd94857a88f` at the supplied worktrees. Head provenance is the parent's frozen receipt; no commands refreshed it.
+
+## New decisive prompt proof
+
+I reconstructed the complete *actual SDK input value* from unchanged source and safe owned fixture metadata, then reproduced the frozen observer's canonical hash. This goes beyond matching supported-history block projections.
+
+- **Q1:** reconstruct the unchanged sequential-read string with each recorded owned fixture root and `a.txt`, `b.txt`, `c.txt`. Both candidate modes and baseline exactly match their frozen Q1 prompt hashes and supported-history text-block hashes. Replacing only the owned root yields one identical prompt hash in all three: `8221f981e24fac1f3699cc90d1a2e620dd528fdb137712b417fa22ecff62572d`.
+- **Q2:** reconstruct the object below with each arm's original Q1 tool ID from the supported SDK projection. Both its item hash and ordered-iterable hash exactly match the frozen observer. There is **no `is_error`, synthetic denial, assistant echo, added text, missing result, or second input item**. Normalizing only the consistently paired tool ID makes the two inputs identical.
+
+```json
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"<original Q1 tool ID>","content":"REALOUTPUT[alpha]"}]},"parent_tool_use_id":null}
+```
+
+| Candidate arm | Exact Q2 item SHA256 | Completed iterable SHA256 |
+|---|---|---|
+| JSON PASS | `0318f80e0e63898f3baecfe600bb3ea56ab54a11ede35c88cb10b0d334ecf744` | `61508585babf40046f47dceb2ea14a94c1783e21893154404d557221a22c6f44` |
+| SSE FAIL | `c940bce94920c7ab5fb721247b7aaac938de0c5593fefd62b1622f2d567b72f6` | `a5e84ad2cfcc62529e919ae5a4cc7584b9c27cd5d48de02575c899fa15f42917` |
+
+Normalized Q2 item hash: `0edfa7a6d0bc0aabf06e4edafe0531f083aee0db4fc16ab7a400cdaf2827e975`.
+
+Exact algorithm: feed SHA256 UTF-8 `JSON.stringify(token) + "\n"` for each token. Strings emit `["string", value]`; null emits `["object", null]`; booleans/numbers emit their JavaScript type and value. Objects/arrays emit `["object"]`/`["array"]`, then each own enumerable key in lexicographic order as `["key", key]` followed recursively by its value, then `["end"]`. Arrays use enumerable numeric-string keys, without nonenumerable `length`. Repeated objects emit `["reference", firstVisitNodeNumber]`; none occur in these reconstructions. The iterable hash is SHA256 of each item hash plus newline, in order. No getters, `toJSON`, opaque objects, functions, or env fields occur in these reconstructed prompt values. This matches frozen `fingerprint`/`observePrompt`, rather than hashing ordinary JSON text.
+
+Evidence: `evidence/focused-completion-20261104/sse-investigation/sdk-prompt-reconstruction.json`. Parent's `normalized-supported-prefix-comparison.json` independently confirms the first three native fork rows agree after only owned-path/UUID/paired-ID normalization. Failed fork retains the original Q1 assistant/tool ID and exactly one real alpha result; its Q1 synthetic denial remains only in the immutable parent, not the fork.
+
+## Source ownership trace and remaining differences
+
+All line references are candidate source.
+
+1. **Client and scrub.** `scripts/e2e-qualified-passthrough-turns.mjs` invokes the installed V1 `chat.headers` hook, not the OpenCode executable. `plugin/meridian.ts:161–202` only sets routing headers/attestation; it cannot change body prompt/tool/result fields or select SSE. Its inputs are the same primary build message in Q1/Q2. Installed scrub 0.3.0 `dist/index.js` hash `fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7` only edits `systemContext`; with no fixture `body.system` and no task-agent addendum, it returns unchanged. It has no response/event hook and cannot drop assistant IDs or signatures. Failed arm lacks final scrub counters, so invocation completion remains unwitnessed; this does not manufacture an input difference.
+2. **Shared prompt assembly.** `server.ts:2988–3018,3860–3866,3881–3981` selects unchanged execution history and verified complete checkpoint continuation. `4021–4028,4204–4233,4357–4363` takes the native structured-result path on Q2. Only the user result is sent; resumed assistant context comes from the native SDK checkpoint. Q1 uses the same flattening/text path in both modes (`4274–4305`).
+3. **Shared options.** JSON `server.ts:4938–4953` and SSE `6384–6399` pass the same fields to `buildQueryOptions`, differing only in `stream:false/true`. `query.ts:660–918` uses `stream` only at line732; because `passthrough=true`, **both request `includePartialMessages:true`**. Both observed Q1/Q2 maxTurns are1; thinking and effort fingerprints match the absent value. Both use native assistant `resumeSessionAt`, `forkSession:true`, and preallocated target `sessionId`. Model/tool policies, system-prompt resolution, settings, settingSources, hooks, MCP definition construction and env construction are shared. `models.ts:111–119` disables alternate-model refusal fallback for explicit model IDs; same-model native refusal attempts remain possible. No Meridian Q3 exists.
+4. **Tools and denial.** `passthroughTools.ts:343–415` registers the same eager read schema as `mcp__oc__read`, deterministic definitions, new server per query. Stub handler says `passthrough`, but the PreToolUse hook prevents it from running: `server.ts:4608–4785` captures the call then returns block + `PASSTHROUGH_DENY_REASON`. The deny is an SDK synthetic error tool_result, not the real client result. Generation-end holds and complete tool-ID settlement freeze the assistant UUID, not the denial UUID (`passthroughEarlyStop.ts:127–185`; JSON `server.ts:5237–5315`; SSE `6693–6729,6783–6797`). The cap stops a hidden digest. Both Q2 supported histories and exact prompt hashes prove that denial was successfully rewound/replaced here.
+5. **Durability/ownership.** `runGatedSdkQuery` journals and leases source/target, selects the same native query interface, closes/joins the SDK writer before lease release (`server.ts:1321–1382`). Fork preparation precedes query (`4030–4122`). JSON publication is `5748–5847`; SSE `7202–7309` waits for the canonical result and stores the settled assistant checkpoint before terminal permission (`7076–7089`). Candidate changes add async store ordering/publication fences, not prompt/tool generation. Supported history proves the intended Q1 checkpoint and replacement real result actually landed in the failed fork; no speculative ownership race is needed to explain the input.
+6. **SSE parser/output.** `scripts/lib/e41-assistant-response.ts` preserves all received block fields, including thinking/signature/redacted data; accumulates complete tool JSON; replay uses `structuredClone`. JSON and SSE consume the same parser API. SSE names/indexes and arguments are transformed by `server.ts:6860–6978`; JSON merges/renames by `5339–5393`. Envelope message IDs differ by transport, but are not replayed into SDK Q2: only original tool ID links result ownership. Q1 native history contains one tool block, no thinking/signature block to lose; exact Q2 prompt + native fork retain the correct ID and file. No signature-loss hypothesis fits this incident.
+7. **Usage/error.** Usage changes neither Q2 content nor resume selection: fixture usage only checks its cache assertion; server usage is telemetry/stored context accounting. The failed native result aggregates two response attempts; not two SDK queries. Refusal occurs before another tool call, so no Q2 denial result can cause it. Existing SSE catch reports error before `message_stop` (`8691–8753`); fixture rejects provider errors before parser/replay. Thus the refusal text never becomes a Q3 replay in this arm, and no successful handoff is falsely established.
+
+## Bound unknown and next engineering action
+
+The frozen **whole-options hashes are not per-field runtime parity proof**: they include different UUIDs/cwd/opaque runtime state and exclude the entire env. Source call sites/options builder establish no transport-specific model-facing option branch for this passthrough case; they cannot retrospectively recover excluded runtime env or provider-internal guard state. The supported histories and hash reconstruction establish visible conversation and SDK prompt integrity, not the private safeguard decision. There is no evidence-backed source correction to apply for this refusal.
+
+The smallest remaining discriminating engineering action is an **offline paired HTTP→SDK-boundary regression using the existing test host**, capturing JSON/SSE Q1 output then feeding it into Q2, comparing field-level query options and the exact result-only prompt, plus a terminal native-refusal/error arm. Proposal: `evidence/focused-completion-20261104/sse-investigation/offline-parity-regression-proposal.md`. This worker did not implement or run it. It can find a concrete option/error-path mismatch; it cannot establish provider acceptance. No further model diagnostic is proposed. Parent owns the acceptance decision.
+
+## Scope
+
+Only Python reads/analysis of source and owned safe evidence plus new report/proposal files. No commands, tests, builds, network/model/SDK calls, private SDK transcript reads, credentials, or customer logs. No source edits, model/prompt changes, constants/threshold/timeouts changes. Assumption: supplied safe projections and frozen head/runtime receipts describe the named runs; Q1/Q2 prompt hashes independently validate the reconstructed values against those receipts.

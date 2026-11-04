@@ -1,0 +1,15 @@
+{
+  "sdkSupportedHistory": true,
+  "session": "a5f77845-4d9c-4c0b-a2d9-245d2fc22547",
+  "assistantUUID": "d9784a56-f5b1-4d07-90df-a93c1cbef5ac",
+  "model": "<synthetic>",
+  "stopReason": "refusal",
+  "providerClassification": "cyber",
+  "providerDiagnostic": "Opus5.5 safeguards flagged session; warning says non-cyber work can be incorrectly flagged",
+  "requestMeaning": "ordinary owned a/b/c file reads, first result alpha",
+  "forkPrefixEqualsPassingJSONAfterPathsAndIDsNormalized": true,
+  "leftoverDenialInFork": false,
+  "notAuthOrAccountEntitlement": true,
+  "notCauseOfProviderClassification": "unknown; no appeal/bypass/rephraseattempt",
+  "currentE41Gate": "FAIL retained, do notclaimfix"
+}

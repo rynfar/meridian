@@ -1,0 +1,27 @@
+{
+  "purpose": "one accepted-main sequentialSSE causalcontrol after nativehistorydiagnosis; NOT failedcandidate rerun or matrixrestart",
+  "baselineHead": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "candidateHeadNotRetested": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "sameFixtureAndHelper": true,
+  "tuple": {
+    "sdk": "0.2.141",
+    "nativePath": "/Volumes/DevSSD/meridian/review-1220-20261103/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "nativeSha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937",
+    "native": "2.1.296",
+    "model": "claude-opus-5-5",
+    "platform": "darwin/arm64",
+    "client": "OpenCode1.18.34",
+    "clientPlugin": "matchinginstalledMeridianV1",
+    "scrub": "0.3.0"
+  },
+  "attempts": 1,
+  "source": "/Users/rynfar/Library/Caches/meridian-validation.noindex/main-after-1505-20261104",
+  "plugin": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/baseline-installed/node_modules/@rynfar/meridian/dist/meridian/index.js",
+  "billing": "checkcurrentpersonal usageExtraUsageOFF first; no refresh/ownercredentialwrites",
+  "noPromptOrThresholdChanges": true,
+  "stopOnAnyFailure": true,
+  "passInterpretation": "doesnotprovecontributorcause; earlierbaselineJSON/candidateJSONpassing + oneSSEsample insufficientstatisticaldiagnosis",
+  "failureInterpretation": "ifmatchingnativeproviderrefusal showsbaselinealsoaffected; notproofhistoricalcause/currentmatrixPASS",
+  "doesNotClear": "candidateE41FAILSTOPPED or localnpmred; historicalcausalholds",
+  "execution": "afterbaselinefullsuitelocaldiagnosticsettles, serialmodelonly"
+}

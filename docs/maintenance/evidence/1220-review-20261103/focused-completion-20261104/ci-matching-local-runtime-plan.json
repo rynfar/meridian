@@ -1,0 +1,17 @@
+{
+  "purpose": "Final local qualification using the same Bun version as required CI, not retry same local runtime untilgreen",
+  "previousLocalBun": "1.3.14",
+  "ciBun": "1.4.3",
+  "packageManagerMetadata": "bun@1.3.11",
+  "chosenRuntime": "isolated Bun1.4.3matchingrequiredCI",
+  "host": "Darwinarm64 remains same actual platform; LinuxCIgreen doesnotclearDarwinred",
+  "sourceHead": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "sourceChanges": [],
+  "productionConstantsChanged": [],
+  "sqliteQualification": "same explicitly qualified3.53.4 library; nativeengineversion tests muststillpass",
+  "attempts": 1,
+  "originalRed": "retained; upgradedrunnerpassnotcauseproof",
+  "scope": "newenvironmentqualifiedfullnpm/typecheck/build afterbaselinecapturefinished",
+  "noAmbientRunnerUpgrade": true,
+  "selectedBinarySha256": "28c7dd0a06916aba284d570ef44a2d70e9c538eaf2ba58dfe0910525563b3f79"
+}
