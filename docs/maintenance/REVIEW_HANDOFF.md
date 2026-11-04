@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 08:32 UTC: finalmodelcodegreen; actualclientblockedrevokedOAuthgrant
+
+#1505corrected`19bf2128916c6aefc9e7128011bc9c201de27a07` local28groups8829pass/65skip/0fail+typecheck+certifiedbuildPASS; requiredCI41798125923npm8866pass/28skip/0fail+probes/buildPASS. InstalledcertifiedactualOpenCode1.18.34/SDK0.2.141/native2.1.296/5.5 **FAIL_AUTHENTICATION**: officialnative“Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.” PluginV1matching/config/route/session+agentheadersandactivescrub0.3.0verifiedbeforediagnosis; bothnativegates5.5pin/flag1,observererrors0,allchildren/pipesjoined. No completion/history/continuationacceptance; no retry,refresh,credentialwrite,paidfallback oralternateaccount. OwneraskednormalClaude signin sameaccountExtraUsageoff,no tokenpasted. #1505notmerged.
+
+Independent#1220accepted-main2297d61eintegrationcontinuesoncontributorbranch preservingcommits. Onestoreconflictresolved: asyncacquire/release/queueunchanged; occupancyhintappliedtosynchronouslegacymaintenanceonly. Focusedlocking/typecheck+independentreviewrunningbeforeadditivesignedmerge. Fullfinallocal/CIaftercommit. No livemodelcallswhileauthblocked; #1220/release remainopen. Earliercausal/scopeholdsretainunknowns.
+
+[Finalmodelcodechecks, exactsanitizedauthfailure and frozenproof](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 08:17 UTC: model-pin final local hook fixture red corrected; new gates running
 
 #1506 remainsMERGED2297d61e. #1505 previous5708dfd1fullgatefailed group0:8270pass/65skip/1fail, hookquotedBunCJS subprocess5s/nooutput; latergroups/type/buildskipped. ConcreteNodepackaged-runtimefixturecorrection addsabsoluteBun.whichNode+marker/Nodeversion/noBunwitness, sameplatformshell/spaces/5000ms/percentnegative. Buncontrol5/1, finalNode6/0+typecheck. Runtimechoiceisproved; priorhangcauseUNRESOLVED. Independentreviewnoissue.

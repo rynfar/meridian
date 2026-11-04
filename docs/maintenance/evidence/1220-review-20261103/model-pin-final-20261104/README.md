@@ -13,3 +13,11 @@ Only testfixture changes after5708dfd1; fourproduct/spec/testhashesremainunchang
 ## Corrected local acceptance PASS
 
 Finalhead`19bf2128916c6aefc9e7128011bc9c201de27a07` full local28processes **8829pass/65skip/0fail**, typecheck and **certified build PASS** fromcleanvalidation.noindexcheckout. [Localreceipt](corrected-local-receipt.json) and [buildprovenance](corrected-build-provenance.json) retainexactidentity. IndependentlyinstalledcertifiedpackagewithexactSDK0.2.141isnowrunningactualOpenCode1.18.34/native2.1.296/Opus5.5qualificationwithfrozenhelper,matchingV1plugin+scrub0.3.0,nativepin/flagwitness,readonlyaccess-onlygrant/includedusage. Noexternallyinjectedno-switchflag. RequiredcorrectedCI andactualclientmustbothpassbeforemerge.
+
+## Final corrected gates and external authentication hold
+
+RequiredCI41798125923 **PASS8866pass/28skip/0fail**,28processes plusadditionalprobes/build; full local **8829pass/65skip/0fail**,typecheck+certifiedbuildPASS. Independent finalproduct and Nodefixture reviewsfindnomaterialissue.
+
+Finalcertifiedartifact independentlyinstalledwithSDK0.2.141; actualOpenCode1.18.34/native2.1.296/5.5 gate **FAIL_AUTHENTICATION**: officialnative reports **“Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.”** MatchingV1plugin/config/routing/session+agentheaders andscrub0.3.0wereverifiedfirst; bothnativegatescontainproduct5.5pin/flag1,observererrors0,andalloriginalchildren/pipesjoined. No modelcompletion/history/continuationacceptance. No retry/refresh/credentialwrite/paidfallback/alternateaccount. The olderrorclassification api_error is not a safety-refusal finding. [Exact sanitized auth failure](actual-client-auth-failure.json), [frozen helper/report/diagnostic proof](actual-client-auth-failure-proof.tar.gz), [memberhashes](actual-client-proof-manifest.json).
+
+Ownerwasaskedtonormallysigninagainwithsameaccount,keepExtraUsageoff,notpasteatoken. No #1505/#1220mergeorreleasebeforemissinglivegateisresolved. Independentaccepted-mainintegration/localchecksfor#1220continue; maintainerPR1505sourceisnotcopiedtocontributorbranchbeforeacceptance.

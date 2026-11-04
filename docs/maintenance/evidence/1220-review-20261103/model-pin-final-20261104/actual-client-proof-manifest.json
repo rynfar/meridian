@@ -1,0 +1,42 @@
+{
+  "source-manifest.json": {
+    "sha256": "f63962955a2f28857eb6048156154843ad2e3e1b75c694328fb757d90a3e94bd",
+    "bytes": 479
+  },
+  "lib-opencode-scrub-preflight.mjs": {
+    "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514",
+    "bytes": 2900
+  },
+  "gate-observer-75af2733bc17.mjs": {
+    "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a",
+    "bytes": 2859
+  },
+  "actual-model-pin-ffcf54ca7091.mjs": {
+    "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7",
+    "bytes": 11957
+  },
+  "report.json": {
+    "sha256": "d13238da304167b221f4c2d90874f95454bd852593a4b111e501913fdc34a2b1",
+    "bytes": 3635
+  },
+  "actual-client-plan.json": {
+    "sha256": "5ee1b349a45fdc270c28e22f522d304fc3636b92b4babbb4c3c63228295018fa",
+    "bytes": 1297
+  },
+  "actual-client-auth-failure.json": {
+    "sha256": "7dda1234d6d6732e514faa78c06276e070f636e7791bd5b032e51b8f822b4256",
+    "bytes": 1033
+  },
+  "sanitized-provider-diagnostic.log": {
+    "sha256": "30257f4c4013690becae67dbf14d7ea5337eb6e508988d91b0c4a8376c477994",
+    "bytes": 953
+  },
+  "launch.stdout": {
+    "sha256": "8a3adeaa9e97d6a8f5a8f66a2f322674851a808576b97df7e9ec983d6de2e8eb",
+    "bytes": 220
+  },
+  "launch.stderr": {
+    "sha256": "b7e5a9de8188a923afb9b14609a243918d9e17ce7fe51be9a565435a4c126a72",
+    "bytes": 204
+  }
+}
