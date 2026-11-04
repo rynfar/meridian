@@ -1,0 +1,13 @@
+{
+  "originalHead": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "acceptedMain": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "file": "src/proxy/sessionStore.ts",
+  "resolution": "Preserve contributor async acquireLock, releaseLock and ordered mutation queue. Move main occupancy helper to contributor synchronous acquireLegacyMaintenanceLockSync; merged body skips occupied durable staging there, exactly the main maintenance behavior. No async ownership rewrite.",
+  "constantChange": false,
+  "authBlockedIndependentWork": true,
+  "sourceSha256": "9d629f7f4c58542a76cdba8f88c99f87c7ef323ec2dcad72ce9157f72ef93b1e",
+  "verifiedComparisons": {
+    "asyncAcquireReleaseQueueSettled": "byte-identical contributor67d02f56",
+    "syncOccupancyAcquire": "byte-identical acceptedmain2297d61e except preexisting contributor function name"
+  }
+}
