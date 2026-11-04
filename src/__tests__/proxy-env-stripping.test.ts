@@ -185,6 +185,7 @@ describe("Environment variable stripping", () => {
     // Consume the stream to trigger the query
     await res.text()
     expect(capturedQueryOptions).toBeDefined()
+    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("1")
     expect(capturedQueryOptions.env.ANTHROPIC_API_KEY).toBeUndefined()
     expect(capturedQueryOptions.env.ANTHROPIC_BASE_URL).toBeUndefined()
   })
@@ -200,6 +201,7 @@ describe("SDK model pin injection (fixes #419)", () => {
     "MERIDIAN_DEFAULT_OPUS_MODEL",
     "MERIDIAN_DEFAULT_SONNET_MODEL",
     "MERIDIAN_DEFAULT_HAIKU_MODEL",
+    "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK",
   ]
   const savedModelEnv: Record<string, string | undefined> = {}
 
@@ -227,6 +229,25 @@ describe("SDK model pin injection (fixes #419)", () => {
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-5-5")
+    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBeUndefined()
+  })
+
+  it("explicit model requests disable alternate-model refusal fallback over inherited false", async () => {
+    process.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK = "false"
+    const app = createTestApp()
+    const res = await post(app, { ...BASIC_REQUEST, model: "claude-opus-5-5" })
+    expect(res.status).toBe(200)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5")
+    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("1")
+    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_RETRY).toBe(process.env.CLAUDE_CODE_DISABLE_REFUSAL_RETRY)
+  })
+
+  it("bare aliases preserve inherited alternate-model refusal fallback settings", async () => {
+    process.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK = "false"
+    const app = createTestApp()
+    const res = await post(app, { ...BASIC_REQUEST, model: "opus" })
+    expect(res.status).toBe(200)
+    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("false")
   })
 
   it("explicit claude-opus-4-6 requests pin the SDK env to 4.6", async () => {
