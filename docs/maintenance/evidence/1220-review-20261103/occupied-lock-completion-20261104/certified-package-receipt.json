@@ -1,0 +1,30 @@
+{
+  "head": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+  "harnessSha256": "616b61c0f36945cad3d87a3db4b84fe291fe468016e7437314d3a2cd112d1b4b",
+  "exit": 0,
+  "result": "PASS",
+  "certification": "verified",
+  "certifiedManifestSha256": "1ad71c83e278206df33ede8167ed60550fcd559ed0ff482c3eeedf122e6781ae",
+  "tarball": {
+    "filename": "rynfar-meridian-1.88.0.tgz",
+    "sha256": "2d1dac92ab8d4e9abef1d909c18e394cf5a38b37f0b2d6b383c7c2692a13f4f8",
+    "integrity": "sha512-I63ifY4/qtRKcZyXHMZNcczML00LOHg5d5EYu6NwRvMhAPgjbWWsOGgL6VgC5LNMm4h64yH3hEBXT2zg5Wtopw=="
+  },
+  "runtime": {
+    "node": "22.22.3",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "scope": "actual independently installed certified Node package; no model calls",
+  "cases": [
+    "PREPARED SIGKILL journal/ownerPID resumeREADY exportexact lockgone",
+    "two HTTP processes",
+    "runtime restart",
+    "export baseline read",
+    "migration guard and barriers",
+    "bootstrap crash recovery",
+    "all original children/pipes joined"
+  ],
+  "historicalTimeoutCause": "UNRESOLVED",
+  "fullFinalHeadLocalAndCI": "RUNNING"
+}
