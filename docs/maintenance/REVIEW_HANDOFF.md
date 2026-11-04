@@ -1,5 +1,20 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 09:00 UTC: code/package checks complete; live authentication blocked
+
+**Merged: #1506 at2297d61e. Unmerged: #1505/#1220. No release. No jobs running.**
+
+#1220 head`9b35b229ebe9422e85fcf7437c77a4bf894ec022` retainsallcontributorauthorcommits; signedadditivemainintegrationreviewed. RequiredCI41800656709npm8892/28skip/0failPASS; full local8855/65skip/0fail28groups+typecheckPASS. Externalvolume postgatescertificationfailed2s; exactredretained,causeunknown. Onepredeclaredsame-clean-commitinternalAPFSbuild **certifiedPASS**, unchangedcode/limits; independentlyinstalledcertifiedNode22storage/runtimepackage **PASS**, allchildren/pipesjoined. Environment-qualifiedartifactacceptance, notexternal/historicalfixproof.
+
+#1505head19bf2128 code/CI/certifiedbuildPASS; finalactualOpenCode1.18.34/SDK.141/native.296/5.5stoppedwith **OAuth tokenrevoked**. MatchingV1Meridianplugin/config/route/session+agentheaders, scrub0.3.0 andproductpin/flagverifiedfirst; nohistory/continuationcompletion. OwneraskednormalClaude signin sameaccountExtraUsageoff,nopastedtoken. No automaticrefresh/write/retry/paidfallback/alternateaccount.
+
+Next aftersignin: admitfreshisolatedaccess-onlygrantwithsamebilling/read-onlyboundaries, finalinstalled#1505livegate; onlythenmergeaccepted#1505normally, additivelyintegrateacceptedmaininto#1220andrunitsfinalsourcegates+predeclaredE41/clientacceptance. Historicalcache3332→3132below95%, oldnative2.1.284vsprospective2.1.296scopeandinitializer/fingerprintcausalholdsremainexplicitownerdispositionsafterprospectivepasses, notsilentwaivers. Contributorlandingmustpreserveexistingauthors/commitsandverifyonmain. Authorizedreleaseonlyafteracceptedmergeandfullreleaseverification.
+
+[Contributor current receipts](evidence/1220-review-20261103/contributor-final-20261104/README.md); [exact auth failure and model checks](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 08:56 UTC: contributor CI/tests green; certification and revoked-auth gates open
 
 **#1506 merged2297d61e. #1505/#1220 unmerged, no release.** #1505corrected19bf2128 local8829/65skip/0fail+typecheck+certifiedbuild andCI41798125923npm8866/28skip/0failPASS; installedactualOpenCode fails because officialnative reportsOAuth tokenrevoked aftermatchingV1plugin/route/scrub/pin+flagevidence, allchildrenjoined. OwneraskednormalClaude signin sameaccountExtraUsageoff; no pastedtoken,refresh/credentialwrite/alternateaccount/paidfallbackorretry.

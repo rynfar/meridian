@@ -28,5 +28,5 @@
   "activeRuntimeJobs": [],
   "nextAction": "Owner normal signin restores live prerequisite. Build certification failure retained; no justified fingerprint source correction from prior allocation comparison, no automatic retry.",
   "internalDiskCertifiedBuild": "PASS exact clean head, no limit/source changes; external red remains unresolved",
-  "certifiedPackage": "RUNNING"
+  "certifiedPackage": "PASS independently installed Node22 tarball, actualstorage/runtime cases, joined"
 }
