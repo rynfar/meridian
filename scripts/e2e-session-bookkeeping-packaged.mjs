@@ -97,6 +97,7 @@ try {
   assert.equal(killed.error, undefined)
   assert.equal(killed.status, null)
   assert.equal(killed.signal, "SIGKILL")
+  assert.equal(JSON.parse(readFileSync(join(prepared, "session-bookkeeping-migration.json"), "utf8")).phase, "PREPARED")
   assert.equal(JSON.parse(readFileSync(join(prepared, "sessions.json.lock"), "utf8")).pid, killed.pid)
   const resumed = JSON.parse(run(process.execPath, [cli, "migrate", "--session-dir", prepared, "--writers-stopped", "--json"], root))
   assert.equal(resumed.phase, "ready")
