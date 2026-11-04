@@ -1,0 +1,18 @@
+{
+  "head": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+  "exit": 0,
+  "npmTest": {
+    "pass": 8827,
+    "skip": 65,
+    "fail": 0,
+    "processes": 28
+  },
+  "durationSeconds": 865.0059883752838,
+  "typecheck": "PASS",
+  "certifiedBuild": "PASS clean validation.noindex environment",
+  "certifiedPackage": "PASS independently installed Node22",
+  "requiredCi": 41794707547,
+  "historicalCauses": "UNRESOLVED and retained",
+  "newSourceChangesAfterFreeze": "canonical preparedStore fixture only; reviewed and rerun full local/CI/package",
+  "mergeGate": "all current final-head gates PASS"
+}

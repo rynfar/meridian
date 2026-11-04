@@ -1,0 +1,13 @@
+{
+  "pr": 1506,
+  "head": "effa8bf33dfe85bfd4975a90cd276a3bab728bb8",
+  "base": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+  "merged": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "tree": "04d41c1c124e0c43c2e1a45369216ea5977b280f",
+  "reviewedHeadTreeMatches": true,
+  "signatureVerified": true,
+  "method": "normal squash --match-head-commit; no admin",
+  "allCurrentLocalCiCertifiedPackageGatesPass": true,
+  "historicalCauses": "UNRESOLVED, retained",
+  "noContributorCommits": true
+}

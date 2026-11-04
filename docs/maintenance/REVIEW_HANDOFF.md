@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 08:04 UTC: supporting PR1506 merged; PR1505 final gates running
+
+#1506 **MERGED** normally at `2297d61e4f157ad6448dc787c64849f565f4377f`, signed and treeidentical toreviewedhead`effa8bf33dfe85bfd4975a90cd276a3bab728bb8`. Final28localgroups8827pass/65skip/0fail+typecheck; requiredCI41794707547npm8864pass/28skip/0fail+additionalprobes/build; certifiedbuild andindependentlyinstalledcertifiedNodepackagePASS. No limitschanged orfingerprintoptimizationlanded. Originalworktreefingerprint/lockcausesremainunknown andredretained; freshnoindexcheckoutcertifiesunchangedcode, nothistoricalfixproof.
+
+#1505 additivemainintegrationhead`5708dfd19062e4aff35d284e7971661fd11d8bf6`; productfourfilediffandhashesunchanged. Freshcleanvalidation.noindex finalfullnpm/type/build+CI41796586620running; installedactualOpenCode/model/pin/flagflowwillfollowbuild. #1220 and release remainopen; no contributorcommitswerecarriedintomaintainerPRs. Continuecompletion, notstopatmilestone.
+
+[Supporting merge and exact final proof](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 07:43 UTC: required CI/local tests pass; certification remains open
 
 #1506 corrected02554a0a requiredCI **8864pass/28skip/0fail**, local28groups **8827pass/65skip/0fail**, typecheck pass. Normal build exits0 but reports an **uncertified archive**; direct snapshot hits unchanged2s fingerprint consume bound, so certified-build gate remainsOPEN. Minimalresourcecost correction is being evaluated; no budget/cap increase.
