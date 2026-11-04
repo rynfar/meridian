@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 07:23 UTC: completion resumed; corrected #1506 final gates running
+
+User asks to finish #1220 and the authorized release. Diagnostic completion is not task completion. No second lock diagnostic or waiver. PR #1506 now has independently reviewed occupied-path durable staging correction, signed head `02554a0a748f695b79982da071145f83c402415c`. Focused old1pass/7expectedfail → fixed8pass/0fail; native EEXIST race passes both. Adjacent locking7/0, exact PREPARED1/0, typecheck pass. No production limit/identity/age/SQLite/cache/dependency/interface changes; historical hosted timeout cause unresolved.
+
+Corrected full local npm/typecheck/certified-build and [required CI41791701869](https://github.com/rynfar/meridian/actions/runs/41791701869) are running. Parent's first local launch omitted Bun from explicit PATH and exited127 before tests; retained separately, actual Bun-path invocation now running. Committed installed-package PREPARED SIGKILL/resume/export gate awaits build. No merge/release until final gates and package verification complete. #1505/#1220 remain open. Final-source E41 follows accepted prerequisites; historic causal/scope holds remain explicit, with unchanged95% and model/plugin/history/join rules.
+
+[Correction, frozen proof and independent review](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-03 22:39 UTC: approved one-shot diagnostic passed; cause unresolved
 
 Exactly one [hosted diagnostic41730535471](https://github.com/rynfar/meridian/actions/runs/41730535471) completed on
