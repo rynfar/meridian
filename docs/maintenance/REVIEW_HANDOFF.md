@@ -1,5 +1,14 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04: owner authorizes personal or kraken; billing preflight holds live test
+
+**Current account authorization supersedes older same-account-only notes.** Owner explicitly made personal and kraken available. Read-only checks of both: **personalHTTP200, Extra Usage enabled**; **krakenHTTP429, Extra Usage/available included usage unknown**. No inference, refresh, owner credential write, billing change or new isolated grant. Do not ask for another personal login on this evidence; owner asked to disable Extra Usage. No automatic quota polling. Previous revoked-token actual-client failure is retained for its old grant, not attributed to these accounts.
+
+Current #1505/#1220 heads remain19bf2128/9b35b229, bothOPEN; origin/main refreshed, required prior checks retained. No merge/release. #1220 local8855/65skip/0fail/typecheck/internalAPFScertification/installedpackagePASS; external2sfingerprintred stillunresolved. Next: verify Extra Usage off and included capacity on an authorized account before running frozen #1505 installed actual OpenCode gate with matching MeridianV1plugin/config/route/headers/scrub witnesses and joined children. Later contributor/final-sourceE41 and historicalholdsremainopen.
+
+[Authorized-account receipt and frozen probe](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/README.md). Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 09:00 UTC: code/package checks complete; live authentication blocked
 
 **Merged: #1506 at2297d61e. Unmerged: #1505/#1220. No release. No jobs running.**

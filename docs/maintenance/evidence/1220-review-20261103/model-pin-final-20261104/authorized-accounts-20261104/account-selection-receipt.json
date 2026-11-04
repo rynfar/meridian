@@ -1,0 +1,57 @@
+{
+  "authorization": "Owner explicitly made personal and kraken available for live testing; either account may be selected after qualification",
+  "result": "BLOCKED_BILLING_PREFLIGHT",
+  "accountChecks": [
+    {
+      "account": "personal",
+      "scope": "read-only auth/quota; no inference",
+      "credentialWrites": 0,
+      "refreshCalls": 0,
+      "modelCalls": 0,
+      "result": "BLOCKED",
+      "accessTokenPresent": true,
+      "expiresAt": 1793821311811,
+      "subscriptionType": "max",
+      "status": 200,
+      "extraUsageEnabled": true,
+      "windows": {
+        "five_hour": null,
+        "seven_day": {
+          "utilization": 67,
+          "resetsAt": "2026-11-08T17:00:00.881773+00:00"
+        },
+        "seven_day_opus": null
+      },
+      "reason": "extra_usage_not_confirmed_off"
+    },
+    {
+      "account": "kraken",
+      "scope": "read-only auth/quota; no inference",
+      "credentialWrites": 0,
+      "refreshCalls": 0,
+      "modelCalls": 0,
+      "result": "BLOCKED",
+      "accessTokenPresent": true,
+      "expiresAt": 1793813200416,
+      "subscriptionType": "max",
+      "status": 429,
+      "extraUsageEnabled": null,
+      "windows": {},
+      "reason": "usage_endpoint_rejected"
+    }
+  ],
+  "selectedAccount": null,
+  "modelCalls": 0,
+  "ownerCredentialWrites": 0,
+  "refreshCalls": 0,
+  "accessOnlyGrantCreated": false,
+  "earlierRevokedTokenFailure": "Retained; applies to prior isolated grant, not proof personal or kraken currently fail authentication",
+  "nextAction": "Owner disables Extra Usage on personal; recheck read-only usage once before admitting actual installed client live test. Kraken429 retained; no polling or inference while settings unknown.",
+  "frozenHelper": {
+    "file": "account-preflight-f46de0818662.mjs",
+    "sha256": "f46de0818662a95ebdbccf3731b9cb6050335cb6707fa6567e861880393ea951",
+    "mode": "0444"
+  },
+  "requiredClientPreflight": "All actual OpenCode requests must use installed matching Meridian V1 plugin and preserve route/header/scrub witnesses; usage endpoint checks are not model/client acceptance",
+  "noAcceptanceCredit": true
+}
