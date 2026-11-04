@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 08:17 UTC: model-pin final local hook fixture red corrected; new gates running
+
+#1506 remainsMERGED2297d61e. #1505 previous5708dfd1fullgatefailed group0:8270pass/65skip/1fail, hookquotedBunCJS subprocess5s/nooutput; latergroups/type/buildskipped. ConcreteNodepackaged-runtimefixturecorrection addsabsoluteBun.whichNode+marker/Nodeversion/noBunwitness, sameplatformshell/spaces/5000ms/percentnegative. Buncontrol5/1, finalNode6/0+typecheck. Runtimechoiceisproved; priorhangcauseUNRESOLVED. Independentreviewnoissue.
+
+Correctedsignedhead`19bf2128916c6aefc9e7128011bc9c201de27a07`: onlyonehooktestdeltaafter5708dfd1, modelproducthashesunchanged. Freshfullsuite/typecheck/certifiedbuildand[requiredCI41798125923](https://github.com/rynfar/meridian/actions/runs/41798125923)running. ActualinstalledOpenCodequalificationfollowsbuild. No newmodelcall, mergeorreleaseyet. Continueoriginalcompletion; #1220/E41/historicalrequirementsremainopen.
+
+[Exact failure, correction/control, independentreview and active gates](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 08:04 UTC: supporting PR1506 merged; PR1505 final gates running
 
 #1506 **MERGED** normally at `2297d61e4f157ad6448dc787c64849f565f4377f`, signed and treeidentical toreviewedhead`effa8bf33dfe85bfd4975a90cd276a3bab728bb8`. Final28localgroups8827pass/65skip/0fail+typecheck; requiredCI41794707547npm8864pass/28skip/0fail+additionalprobes/build; certifiedbuild andindependentlyinstalledcertifiedNodepackagePASS. No limitschanged orfingerprintoptimizationlanded. Originalworktreefingerprint/lockcausesremainunknown andredretained; freshnoindexcheckoutcertifiesunchangedcode, nothistoricalfixproof.

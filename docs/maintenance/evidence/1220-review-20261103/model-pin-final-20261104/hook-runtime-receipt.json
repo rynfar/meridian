@@ -1,0 +1,17 @@
+{
+  "previousHead": "5708dfd19062e4aff35d284e7971661fd11d8bf6",
+  "unchanged5000msShellTimeout": true,
+  "fixedSha256": "921f8d765b5ac60e8f2532e8835d72a35413bedbc9276d3b83ad870cf997900c",
+  "bunControlExit": 1,
+  "nodeFixtureExit": 0,
+  "changes": "Node via shell path; marker and process.versions.node string plus absent Bun witness",
+  "controlsRun": "bounded25s external per run, independent worktrees, real shells/CJS",
+  "oldFullFailure": "retained; blank-output launch hang not explained by this control",
+  "productionConstantsChanged": [],
+  "finalHead": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "finalAbsoluteNodeFixtureExit": 0,
+  "finalFocused": "6pass/0fail/38assertions",
+  "typecheck": "PASS",
+  "nodeResolution": "Bun.which node absolute path; explicitmissingerror",
+  "blankOutputTimeoutCause": "UNRESOLVED; control proves runtime choice only"
+}
