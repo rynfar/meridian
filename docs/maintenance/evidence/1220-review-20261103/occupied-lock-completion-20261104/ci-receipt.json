@@ -1,0 +1,94 @@
+{
+  "head": "02554a0a748f695b79982da071145f83c402415c",
+  "run": 41791701869,
+  "url": "https://github.com/rynfar/meridian/actions/runs/41791701869",
+  "conclusion": "SUCCESS",
+  "npmTest": {
+    "pass": 8864,
+    "skip": 28,
+    "fail": 0,
+    "processes": 28
+  },
+  "allTestJobSteps": [
+    [
+      "Set up job",
+      "success"
+    ],
+    [
+      "Run actions/checkout@v4",
+      "success"
+    ],
+    [
+      "Run actions/setup-node@v4",
+      "success"
+    ],
+    [
+      "Run oven-sh/setup-bun@v2",
+      "success"
+    ],
+    [
+      "Run bun install",
+      "success"
+    ],
+    [
+      "Run npm run typecheck",
+      "success"
+    ],
+    [
+      "Run npm test",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-implicit-attachments.mjs --run",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-rejected-tool-handoff.mjs --case=rejected",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-rejected-tool-handoff.mjs --case=registered",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-capped-turns.mjs --case=client-refusal --stream",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-capped-turns.mjs --case=unparsed-input --stream",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-compaction-summary.mjs",
+      "success"
+    ],
+    [
+      "Run bun scripts/e2e-compaction-summary.mjs --legacy",
+      "success"
+    ],
+    [
+      "Run bun run build",
+      "success"
+    ],
+    [
+      "Post Run oven-sh/setup-bun@v2",
+      "success"
+    ],
+    [
+      "Post Run actions/setup-node@v4",
+      "success"
+    ],
+    [
+      "Post Run actions/checkout@v4",
+      "success"
+    ],
+    [
+      "Complete job",
+      "success"
+    ]
+  ],
+  "localGate": "RUNNING",
+  "independentlyInstalledPackageGate": "PENDING",
+  "oldTimeoutCause": "UNRESOLVED",
+  "gateWaiver": false
+}

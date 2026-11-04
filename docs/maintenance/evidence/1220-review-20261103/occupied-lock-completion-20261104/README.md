@@ -12,7 +12,9 @@ Parent added an explicit installed-package PREPARED SIGKILL/journal/PID/resumeRE
 
 ## Pending final gates
 
-Full corrected local npm test → typecheck → certified build is running. First launch omitted Bun from PATH and exited127 before any test; exact failed launch retained separately, corrected invocation uses the actual installed Bun path without source change. New required [CI41791701869](https://github.com/rynfar/meridian/actions/runs/41791701869) is running against the corrected head. No merge before both required/local gates, independently installed package acceptance and final review pass.
+Required [CI41791701869](https://github.com/rynfar/meridian/actions/runs/41791701869) **PASS** on exact corrected head: npm test **8864pass/28skip/0fail across28 processes**, all additional headless probes and build pass. Windows smoke and the other current checks pass. [CI receipt](ci-receipt.json) distinguishes npm totals from later probes; full job/watch logs are retained compressed. [Complete seven-file independent review](complete-pr-review.md) finds no material integration issue and verifies the old test command is recovered by removing only the two new isolated test groups and their ignores.
+
+Full corrected local npm test → typecheck → certified build is still running. First launch omitted Bun from PATH and exited127 before any test; exact failed launch retained separately, corrected invocation uses the actual installed Bun path without source change. No merge before local gates and independently installed package acceptance also pass. The green hosted run does not substitute for pending local evidence.
 
 Old required CI failure and the one-shot diagnostic pass remain separate, durable and unwaived. No second lock diagnostic. #1505 and #1220 remain unmerged. Final-source live E41 qualification follows accepted supporting fixes on matched artifacts with every existing exact-model/95%/history/plugin/join assertion unchanged; no prompt change or green-seeking retry. Missing historical causal/scope evidence remains an explicit acceptance decision, not proof inferred from prospective passes.
 

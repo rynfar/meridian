@@ -1,0 +1,17 @@
+# Complete PR #1506 supplement
+
+**No material integration issue found** in the complete seven-file final diff supplied for head `02554a0a748f695b79982da071145f83c402415c` (diff SHA256 `daf8e5746501816b09329e6cf78ce9ef23a21eea0fc5cda81a4d56a98fa1fdf2`). Read the full diff and the prior fixture review, then verified the three CLI/concurrent fixture source hashes still match that review. No programs, runtime tests, network calls or source edits were performed; this supplement is the only new file written.
+
+## Composition checked
+
+- **CLI fixture:** the unchanged correction bundles the actual Node CLI entrypoint into a private fixture directory instead of invoking the unrelated full application build inside the suite. It retains CLI assertions, crash cases and time bounds. This narrow fixture does not claim packaging/certification coverage; the separate build and installed-package gate still supply that boundary.
+- **Concurrent HTTP fixture:** extraction removes the cases and their held SDK/log controls from `integration.test.ts`, rather than duplicating them. The dedicated file retains overlap, completion-order, durable mapping/lease and HTTP assertions, adds exact owned namespaces, and preserves controls/paths until backend owners join. The occupancy optimization does not alter those publication or lifecycle rules; it only avoids staging against an already occupied canonical store lock.
+- **Native lock proof:** the new test's real killed child, incarnation checks and scoped fs/clock spies run in their own fresh Bun process, separately from both SDK-mocked group 0 and the concurrent fixture. The production hard-link authority, stale/death/identity checks and 100 ms / stale 0 maintenance values remain unchanged.
+- **Test command:** the only script changes are the two group-0 ignore patterns plus one explicit command for each extracted/new file. Removing those four additions reproduces the old command exactly. There are 28 sequential groups; both isolated files execute once, existing groups remain, and no test deadline, pretest typecheck, dependency or lockfile changes.
+- **Packaged gate:** the added installed-Node-CLI case uses a separate state directory, joins native PREPARED self-SIGKILL, checks journal phase and lock owner PID, resumes to ready, exports unchanged JSON and verifies lock removal. Its crash knob is passed only to that invocation. It does not weaken the surrounding independent-install, HTTP, migration/export, barrier or bootstrap cases, and it does not substitute narrow bundling for certified package evidence.
+
+The seven paths contain one production change (`sessionStore.ts`), five test/harness files, and `package.json` script wiring. No observer, contributor commit, public API, SDK behavior, dependency or packaging metadata change is introduced. Production constants changed: **none**.
+
+## Evidence boundary
+
+The occupancy-specific before/after and native race-control evidence is covered by `occupied-lock-adversarial-review.md`; unchanged fixture findings remain in `test-isolation-adversarial-review.md`. The parent reports required hosted CI passed at exact head `02554a0a`; this reviewer did not independently query CI. The local full suite is still running, so this supplement grants it no pass credit; the failed PATH launch also grants none. Final local suite/build and installed-package execution remain parent-owned gates. Historical timeout causality remains unresolved; this is an integration review, not release approval.
