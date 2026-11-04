@@ -1,0 +1,13 @@
+{
+  "purpose": "accepted-mainSSEcausalcontrol",
+  "preflight": "HTTP429",
+  "result": "NOT_RUN_BILLING_PREFLIGHT_UNAVAILABLE",
+  "modelCalls": 0,
+  "newGrantCreated": false,
+  "noPollNoModelRetry": true,
+  "extraUsageOff": "latestpriorconfirmedoff retained, current429indeterminate; no inferenceadmitted",
+  "currentCandidateSSE": "FAILnative[cyber]refusalretained",
+  "supportedPromptIntegrity": "exacthashverified noSSEreplaydifference",
+  "candidateNewRuntimeLocalGate": "RUNNING",
+  "remainingIndependentWork": "complete exactcandidateCI-matchingruntimegate; no newresearchround"
+}

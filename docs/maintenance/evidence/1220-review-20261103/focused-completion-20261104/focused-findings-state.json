@@ -12,5 +12,9 @@
   "currentRedsRetained": true,
   "noPromptOrProductionLimitChanges": true,
   "scope": "landcontributorPR only; releaseafterwardsnotdelay",
-  "acceptanceDispositionNeededIfNoProductBug": "providerrefusal/currentmatrixcannotbesilentlycalledPASS"
+  "acceptanceDispositionNeededIfNoProductBug": "providerrefusal/currentmatrixcannotbesilentlycalledPASS",
+  "acceptedMainFullSuiteDiagnostic": "PASS8829/65skip/0fail28groups; originalAG503notreproduced",
+  "candidateCIrunnerLocal": "RUNNING Bun1.4.3 samecandidatehead",
+  "baselineSSEControl": "notrun read-onlyusage429; no modelarmadmitted",
+  "noProductionChanges": true
 }
