@@ -89,6 +89,22 @@ try {
     contextUsage: { input_tokens: 77, output_tokens: 11 },
   } }), { mode: 0o600 })
   const cli = join(candidate, "dist", "session-bookkeeping.js")
+  const prepared = join(root, "prepared-resume")
+  mkdirSync(prepared, { mode: 0o700 })
+  const preparedStore = { "\u0000meridian-session-store": { version: 1, slots: {} } }
+  writeFileSync(join(prepared, "sessions.json"), JSON.stringify(preparedStore), { mode: 0o600 })
+  const killed = spawnSync(process.execPath, [cli, "migrate", "--session-dir", prepared, "--writers-stopped", "--json"],
+    { cwd: root, env: { ...env, MERIDIAN_BOOKKEEPING_TEST_CRASH: "PREPARED" }, encoding: "utf8", timeout: 30_000 })
+  assert.equal(killed.error, undefined)
+  assert.equal(killed.status, null)
+  assert.equal(killed.signal, "SIGKILL")
+  assert.equal(JSON.parse(readFileSync(join(prepared, "session-bookkeeping-migration.json"), "utf8")).phase, "PREPARED")
+  assert.equal(JSON.parse(readFileSync(join(prepared, "sessions.json.lock"), "utf8")).pid, killed.pid)
+  const resumed = JSON.parse(run(process.execPath, [cli, "migrate", "--session-dir", prepared, "--writers-stopped", "--json"], root))
+  assert.equal(resumed.phase, "ready")
+  run(process.execPath, [cli, "export-json", "--session-dir", prepared, "--json"], root)
+  assert.deepEqual(JSON.parse(readFileSync(join(prepared, "sessions.json"), "utf8")), preparedStore)
+  assert(!existsSync(join(prepared, "sessions.json.lock")))
   const legacy = await start(baseline, directory, "json")
   await usage(legacy.url, 200)
   await stop(legacy.child)

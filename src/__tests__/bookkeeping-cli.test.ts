@@ -1,7 +1,7 @@
-import { afterEach, beforeAll, beforeEach, expect, it } from "bun:test"
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { NativeDatabase as Database } from "../proxy/session/bookkeeping/nativeDatabase"
 import { migrateBookkeeping } from "../proxy/session/bookkeeping/migration"
 import { runBookkeepingCli } from "../proxy/session/bookkeeping/cli"
@@ -14,10 +14,23 @@ import { seedResidueInventory } from "./fixtures/bookkeeping-residue-inventory"
 import { buildNodeFixture } from "./fixtures/bookkeeping-support"
 
 let directory: string
-beforeAll(() => {
-  const build = spawnSync("npm", ["run", "build"], { encoding: "utf8", timeout: 180000 })
-  expect(build.status, build.stdout + build.stderr).toBe(0)
+let cliBuildDirectory: string
+let cliPath: string
+beforeAll(async () => {
+  cliBuildDirectory = realpathSync(mkdtempSync(join(tmpdir(), "bookkeeping-cli-build-")))
+  const repository = realpathSync(join(import.meta.dir, "../.."))
+  symlinkSync(realpathSync(join(repository, "node_modules")), join(cliBuildDirectory, "node_modules"), "junction")
+  cliPath = join(cliBuildDirectory, "session-bookkeeping.mjs")
+  const build = await Bun.build({
+    entrypoints: [join(repository, "bin/session-bookkeeping.ts")],
+    target: "node",
+    naming: "session-bookkeeping.mjs",
+    outdir: cliBuildDirectory,
+    external: ["libsql"],
+  })
+  expect(build.success, build.logs.join("\n")).toBe(true)
 }, 190000)
+afterAll(() => { rmSync(cliBuildDirectory, { recursive: true, force: true }) })
 beforeEach(() => {
   directory = realpathSync(mkdtempSync(join(tmpdir(), "bookkeeping-cli-")))
   writeFileSync(join(directory, "sessions.json"), "{}", { mode: 0o600 })
@@ -25,7 +38,7 @@ beforeEach(() => {
 })
 afterEach(() => { rmSync(directory, { recursive: true, force: true }) })
 function cli(command: string, flags: string[] = [], crash?: string) {
-  return spawnSync("node", ["dist/session-bookkeeping.js", command, "--session-dir", directory, "--json", ...flags],
+  return spawnSync("node", [cliPath, command, "--session-dir", directory, "--json", ...flags],
     { encoding: "utf8", timeout: 15000, env: { ...process.env,
       ...(crash ? { MERIDIAN_BOOKKEEPING_TEST_CRASH: crash } : {}) } })
 }
@@ -73,7 +86,7 @@ it("an external child read transaction still refuses export with exit 4 and WAL-
   }
   expect(success("export-json").phase).toBe("exported")
 }, 20000)
-it("packaged CLI completes legacy → ready → exported → ready with stable inspection", () => {
+it("Node CLI completes legacy → ready → exported → ready with stable inspection", () => {
   const names = readdirSync(directory).sort()
   expect(success("inspect").phase).toBe("legacy")
   expect(readdirSync(directory).sort()).toEqual(names)
@@ -327,7 +340,7 @@ for (const preexisting of [false, true]) it(`foreign SQLite race preserves files
 })
 
 for (const scenario of ["occupied-private", "replaced-public", "resume-linked"]) {
-  it(`packaged export release ${scenario} preserves foreign data or resumes its own inode`, () => {
+  it(`Node CLI export release ${scenario} preserves foreign data or resumes its own inode`, () => {
     success("migrate", ["--writers-stopped"])
     const point = scenario === "occupied-private" ? "intent" : "captured"
     expect(cli("export-json", [], `barrier:${point}:sessions.json`).signal).toBe("SIGKILL")

@@ -630,6 +630,16 @@ function publishInitializedLockFile(path: string, contents: string): boolean {
   }
 }
 
+function lockPathIsOccupied(lockPath: string): boolean {
+  try {
+    lstatSync(lockPath)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
+  }
+}
+
 function acquireLegacyMaintenanceLockSync(lockPath: string, waitMs = getLockWaitMs(), staleMs = STALE_LOCK_THRESHOLD_MS): StoreLock {
   const incarnation = captureProcessIncarnation()
   if (!incarnation) throw new Error("[sessionStore] cannot capture lock owner process incarnation")
@@ -643,7 +653,10 @@ function acquireLegacyMaintenanceLockSync(lockPath: string, waitMs = getLockWait
 
   while (true) {
     try {
-      if (publishInitializedLockFile(lockPath, token)) return { path: lockPath, token }
+      // The occupancy check avoids needless durable staging, not the atomic publication check.
+      if (!lockPathIsOccupied(lockPath) && publishInitializedLockFile(lockPath, token)) {
+        return { path: lockPath, token }
+      }
     } catch (error) {
       throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
     }
