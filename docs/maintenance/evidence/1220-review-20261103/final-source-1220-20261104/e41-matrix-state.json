@@ -1,0 +1,208 @@
+{
+  "baselinechainJSON": {
+    "head": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+    "result": "PASS",
+    "fixture": {
+      "result": "PASS",
+      "joined": true,
+      "parallel": false,
+      "sourceHistoryOk": true,
+      "modelOk": true,
+      "followUpOk": true,
+      "forkShapeOk": true,
+      "toolShapeOk": true,
+      "delivered": 3,
+      "toolCallBatchSizes": [
+        1,
+        1,
+        1
+      ],
+      "cacheMisses": [],
+      "clientPlugin": {
+        "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+        "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+        "packageName": "@rynfar/meridian",
+        "packageVersion": "1.88.0",
+        "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+        "pathSha256": "5c54a782236521c4d3e3428d87a9eeaced1aef964ba80760002beb9b056807fa",
+        "invocations": 5,
+        "errors": 0,
+        "preflight": true
+      },
+      "scrubPreflight": {
+        "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+        "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+        "packageVersion": "0.3.0",
+        "runtimeVersion": "0.3.0",
+        "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+        "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+        "invocations": 0,
+        "errors": 0
+      },
+      "scrubFinal": {
+        "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+        "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+        "packageVersion": "0.3.0",
+        "runtimeVersion": "0.3.0",
+        "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+        "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+        "invocations": 5,
+        "errors": 0
+      }
+    },
+    "supervisor": {
+      "result": "PASS",
+      "deadlineMs": 300000,
+      "stdoutBytes": 1777,
+      "stderrBytes": 647,
+      "timedOut": false,
+      "exceededOutputBound": false,
+      "closed": true,
+      "code": 0,
+      "signal": null,
+      "stdoutSha256": "7f1d83537897c432533b7f38f14220ece091712261e8e364c507b8bf78ef7bcf",
+      "stderrSha256": "aabe501d6405cf1bcde8948757b7873c778b7c4d74d461681a59b1ca7b3277f3",
+      "report": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-1793811034470-91683.json",
+      "normalFixtureCustody": true
+    },
+    "queries": 5
+  },
+  "candidatechainJSON": {
+    "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "result": "PASS",
+    "fixture": {
+      "result": "PASS",
+      "joined": true,
+      "parallel": false,
+      "sourceHistoryOk": true,
+      "modelOk": true,
+      "followUpOk": true,
+      "forkShapeOk": true,
+      "toolShapeOk": true,
+      "delivered": 3,
+      "toolCallBatchSizes": [
+        1,
+        1,
+        1
+      ],
+      "cacheMisses": [],
+      "clientPlugin": {
+        "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+        "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+        "packageName": "@rynfar/meridian",
+        "packageVersion": "1.88.0",
+        "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+        "pathSha256": "f1739a48a9609f0ebbb74a10bbf8e1408b383e1028552f3f0fa175ac1ac4c9e1",
+        "invocations": 5,
+        "errors": 0,
+        "preflight": true
+      },
+      "scrubPreflight": {
+        "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+        "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+        "packageVersion": "0.3.0",
+        "runtimeVersion": "0.3.0",
+        "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+        "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+        "invocations": 0,
+        "errors": 0
+      },
+      "scrubFinal": {
+        "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+        "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+        "packageVersion": "0.3.0",
+        "runtimeVersion": "0.3.0",
+        "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+        "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+        "invocations": 5,
+        "errors": 0
+      }
+    },
+    "supervisor": {
+      "result": "PASS",
+      "deadlineMs": 300000,
+      "stdoutBytes": 1780,
+      "stderrBytes": 647,
+      "timedOut": false,
+      "exceededOutputBound": false,
+      "closed": true,
+      "code": 0,
+      "signal": null,
+      "stdoutSha256": "645d3c29008544185f97410561e5c424898eb1016cc97ce4b6d67ff4b946317a",
+      "stderrSha256": "aabe501d6405cf1bcde8948757b7873c778b7c4d74d461681a59b1ca7b3277f3",
+      "report": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-1793811092486-2577.json",
+      "normalFixtureCustody": true
+    },
+    "queries": 5
+  },
+  "remaining": [],
+  "historicalCauses": "retainedunresolved, nodispositionfrompairPASS",
+  "localNpmRed": "remainsmergehold",
+  "candidatechainSSE": {
+    "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "result": "FAIL",
+    "reason": "native-refusal query2",
+    "fixture": {
+      "result": "FAIL",
+      "joined": true,
+      "modelOk": true,
+      "failureSha256": "e5650b9e92ab9a554158d5a17c352eacf149f1654b2f94efafb3759d13561a68",
+      "cacheMisses": [],
+      "clientPlugin": {
+        "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+        "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+        "packageName": "@rynfar/meridian",
+        "packageVersion": "1.88.0",
+        "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+        "pathSha256": "f1739a48a9609f0ebbb74a10bbf8e1408b383e1028552f3f0fa175ac1ac4c9e1",
+        "invocations": 2,
+        "errors": 0,
+        "preflight": true
+      },
+      "scrubPreflight": {
+        "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+        "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+        "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+        "packageVersion": "0.3.0",
+        "runtimeVersion": "0.3.0",
+        "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+        "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+        "invocations": 0,
+        "errors": 0
+      }
+    },
+    "supervisor": {
+      "result": "FAIL",
+      "deadlineMs": 300000,
+      "stdoutBytes": 449,
+      "stderrBytes": 647,
+      "timedOut": false,
+      "exceededOutputBound": false,
+      "closed": true,
+      "code": 1,
+      "signal": null,
+      "stdoutSha256": "9d0b751e47e8c895db3a276a0b44b959c1bdf25e4b179f44adfb2189b371dfe3",
+      "stderrSha256": "aabe501d6405cf1bcde8948757b7873c778b7c4d74d461681a59b1ca7b3277f3",
+      "report": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-1793811146757-7474.json",
+      "normalFixtureCustody": false
+    },
+    "queries": 2,
+    "evidenceValid": true,
+    "stopReason": "native-refusal"
+  },
+  "notRun": [
+    "candidateparallelJSON",
+    "candidateparallelSSE"
+  ],
+  "matrixResult": "FAIL_STOPPED",
+  "retry": false
+}

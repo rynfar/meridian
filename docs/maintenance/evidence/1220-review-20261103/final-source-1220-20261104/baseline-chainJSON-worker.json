@@ -1,0 +1,5177 @@
+{
+  "schema": 2,
+  "result": "PASS",
+  "evidenceValid": true,
+  "observerFailures": [],
+  "iteratorFailures": [
+    {
+      "query": 1,
+      "at": "2026-11-04T16:50:41.354Z",
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "query": 2,
+      "at": "2026-11-04T16:50:45.905Z",
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "query": 3,
+      "at": "2026-11-04T16:50:50.172Z",
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    }
+  ],
+  "scope": "owned qualified E41 protocol fixture only; not OpenCode executable",
+  "historicalResidualReproduced": false,
+  "encryptedFaultInjected": false,
+  "hashCoverage": "canonical own enumerable data; env/sensitive-key fields excluded; functions source-hashed, closures/opaque state not captured",
+  "limits": {
+    "queries": 16,
+    "events": 4096,
+    "historyRows": 1024,
+    "blocks": 256,
+    "promptItems": 256,
+    "nodes": 100000,
+    "depth": 64,
+    "reportBytes": 4194304,
+    "outputBytes": 8388608,
+    "defaultSeconds": 1000,
+    "maxSeconds": 1200,
+    "killGraceMs": 5000
+  },
+  "platform": "darwin/arm64",
+  "bun": "1.3.14",
+  "startedAt": "2026-11-04T16:50:34.504Z",
+  "queries": [
+    {
+      "query": 1,
+      "startedAt": "2026-11-04T16:50:36.535Z",
+      "optionsSha256": "f555e298f8b336c3fb19cdc997902849c33b56750fc556dd4c3a2843dd9d6deb",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "forkSession": false,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "string",
+      "promptSha256": "e7c640b2fc8cc185fecc9ff82e826304937268bbfc57cdd9a3c8ae65bcffe9ec",
+      "promptHashKind": "canonical-string",
+      "sawToolUse": true
+    },
+    {
+      "query": 2,
+      "startedAt": "2026-11-04T16:50:42.949Z",
+      "optionsSha256": "cdc4b7b2f244dcb36e003350da7b60995c1e693abf58fb39bfef9cd0e7f117ff",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "resume": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "checkpoint": {
+        "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+      },
+      "forkSession": true,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "async-iterable",
+      "promptSha256": "f9571cf255e74cfb67e9519067f837db89cad5fd18a6aeed0d48b5b9fa09214b",
+      "promptHashKind": "ordered-item-digests",
+      "promptComplete": true,
+      "sawToolUse": true
+    },
+    {
+      "query": 3,
+      "startedAt": "2026-11-04T16:50:47.472Z",
+      "optionsSha256": "bb1030840bdcc19e4a0f17e30f71f30365019fc6988798a2e80fddad8349e019",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "resume": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "checkpoint": {
+        "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+      },
+      "forkSession": true,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "async-iterable",
+      "promptSha256": "e94a7ab6bf8765ae97dbf4bb691935041571fcc83755fe970b03eb877960f7de",
+      "promptHashKind": "ordered-item-digests",
+      "promptComplete": true,
+      "sawToolUse": true
+    },
+    {
+      "query": 4,
+      "startedAt": "2026-11-04T16:50:52.063Z",
+      "optionsSha256": "d0fb043cb9cfc1db9b29c4c72fffcce20e66f460f6cfd6dedeb9f22471b2542b",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "resume": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "checkpoint": {
+        "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+      },
+      "forkSession": true,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "async-iterable",
+      "promptSha256": "d3c2926f8218b54b10afb2fa7ae7ef8930e6fbea50a465135bf36a71cb193fda",
+      "promptHashKind": "ordered-item-digests",
+      "promptComplete": true
+    },
+    {
+      "query": 5,
+      "startedAt": "2026-11-04T16:50:55.373Z",
+      "optionsSha256": "d7989217a500a7f2cb97618f2e2e1904e2f0d0cac8a14b1752be4a9bac326011",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "resume": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "forkSession": true,
+      "maxTurns": 1,
+      "targetSession": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "thinkingSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "effortSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+      "promptKind": "string",
+      "promptSha256": "ce4bd44ff3bf17e622fc7afa85b73c6ff7ffb62a76f41436d0d96f6ea5875289",
+      "promptHashKind": "canonical-string"
+    }
+  ],
+  "events": [
+    {
+      "order": 1,
+      "at": "2026-11-04T16:50:36.540Z",
+      "monotonicMs": 2061.399,
+      "kind": "query-start",
+      "query": 1
+    },
+    {
+      "order": 2,
+      "at": "2026-11-04T16:50:36.540Z",
+      "monotonicMs": 2061.567,
+      "kind": "prompt",
+      "query": 1,
+      "item": 0,
+      "sha256": "e7c640b2fc8cc185fecc9ff82e826304937268bbfc57cdd9a3c8ae65bcffe9ec"
+    },
+    {
+      "order": 3,
+      "at": "2026-11-04T16:50:36.545Z",
+      "monotonicMs": 2066.525,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "start"
+    },
+    {
+      "order": 4,
+      "at": "2026-11-04T16:50:36.545Z",
+      "monotonicMs": 2066.553,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "selected",
+      "distinct": true
+    },
+    {
+      "order": 5,
+      "at": "2026-11-04T16:50:36.545Z",
+      "monotonicMs": 2066.725,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 6,
+      "at": "2026-11-04T16:50:37.290Z",
+      "monotonicMs": 2811.314,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 7,
+      "at": "2026-11-04T16:50:37.290Z",
+      "monotonicMs": 2811.485,
+      "kind": "session-init",
+      "query": 1,
+      "sdkOrder": 1,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "uuid": {
+        "value": "a3a6b36c-d2a7-4c39-9a05-ea4797ffd312"
+      }
+    },
+    {
+      "order": 8,
+      "at": "2026-11-04T16:50:37.290Z",
+      "monotonicMs": 2811.771,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 9,
+      "at": "2026-11-04T16:50:37.301Z",
+      "monotonicMs": 2822.757,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 10,
+      "at": "2026-11-04T16:50:37.301Z",
+      "monotonicMs": 2822.836,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 11,
+      "at": "2026-11-04T16:50:39.163Z",
+      "monotonicMs": 4685.148,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 12,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4685.556,
+      "kind": "message_start",
+      "query": 1,
+      "sdkOrder": 3,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "uuid": {
+        "value": "c533e1be-4114-432f-83c8-24d07b22484d"
+      },
+      "messageId": {
+        "value": "msg_011CgiET7UAwZadrPFUTPKen"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2999
+      },
+      "blocks": [],
+      "messageSha256": "c86e5f49c7f8afbc86538545f13207b1aa25ccc535bfe5a0dfc2a98c524cce98"
+    },
+    {
+      "order": 13,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4685.932,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 14,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4686.086,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 15,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4686.155,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 16,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4686.166,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 17,
+      "at": "2026-11-04T16:50:39.164Z",
+      "monotonicMs": 4686.181,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 18,
+      "at": "2026-11-04T16:50:39.253Z",
+      "monotonicMs": 4774.793,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 19,
+      "at": "2026-11-04T16:50:39.253Z",
+      "monotonicMs": 4774.865,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 20,
+      "at": "2026-11-04T16:50:39.305Z",
+      "monotonicMs": 4827.126,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 21,
+      "at": "2026-11-04T16:50:39.305Z",
+      "monotonicMs": 4827.187,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 22,
+      "at": "2026-11-04T16:50:39.355Z",
+      "monotonicMs": 4876.686,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 23,
+      "at": "2026-11-04T16:50:39.355Z",
+      "monotonicMs": 4876.74,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 24,
+      "at": "2026-11-04T16:50:39.405Z",
+      "monotonicMs": 4926.725,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 25,
+      "at": "2026-11-04T16:50:39.405Z",
+      "monotonicMs": 4926.797,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 26,
+      "at": "2026-11-04T16:50:39.458Z",
+      "monotonicMs": 4979.729,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 27,
+      "at": "2026-11-04T16:50:39.458Z",
+      "monotonicMs": 4979.809,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 28,
+      "at": "2026-11-04T16:50:39.505Z",
+      "monotonicMs": 5026.648,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 29,
+      "at": "2026-11-04T16:50:39.505Z",
+      "monotonicMs": 5026.729,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 30,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.225,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 31,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.295,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 32,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.379,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 33,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.4,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 34,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.495,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 35,
+      "at": "2026-11-04T16:50:39.665Z",
+      "monotonicMs": 5186.524,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 36,
+      "at": "2026-11-04T16:50:39.752Z",
+      "monotonicMs": 5273.491,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 37,
+      "at": "2026-11-04T16:50:39.752Z",
+      "monotonicMs": 5273.679,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 38,
+      "at": "2026-11-04T16:50:39.759Z",
+      "monotonicMs": 5280.808,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 39,
+      "at": "2026-11-04T16:50:39.760Z",
+      "monotonicMs": 5281.245,
+      "kind": "native-assistant",
+      "query": 1,
+      "sdkOrder": 16,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "uuid": {
+        "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+      },
+      "messageId": {
+        "value": "msg_011CgiET7UAwZadrPFUTPKen"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2999
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "tool_use",
+          "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+        }
+      ],
+      "messageSha256": "5db908dfa28c92801ae4ae68e697190e9c50a122e175250a36baf8b006e3f113"
+    },
+    {
+      "order": 40,
+      "at": "2026-11-04T16:50:39.761Z",
+      "monotonicMs": 5282.256,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 41,
+      "at": "2026-11-04T16:50:39.767Z",
+      "monotonicMs": 5289.159,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 42,
+      "at": "2026-11-04T16:50:39.768Z",
+      "monotonicMs": 5289.223,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 43,
+      "at": "2026-11-04T16:50:39.769Z",
+      "monotonicMs": 5290.505,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 44,
+      "at": "2026-11-04T16:50:39.769Z",
+      "monotonicMs": 5290.875,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 45,
+      "at": "2026-11-04T16:50:39.769Z",
+      "monotonicMs": 5291.075,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 46,
+      "at": "2026-11-04T16:50:39.770Z",
+      "monotonicMs": 5291.219,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 47,
+      "at": "2026-11-04T16:50:39.771Z",
+      "monotonicMs": 5292.386,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 48,
+      "at": "2026-11-04T16:50:39.771Z",
+      "monotonicMs": 5292.625,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 49,
+      "at": "2026-11-04T16:50:39.783Z",
+      "monotonicMs": 5305.015,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 50,
+      "at": "2026-11-04T16:50:39.784Z",
+      "monotonicMs": 5305.467,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 51,
+      "at": "2026-11-04T16:50:39.785Z",
+      "monotonicMs": 5306.274,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 52,
+      "at": "2026-11-04T16:50:39.785Z",
+      "monotonicMs": 5306.321,
+      "kind": "result",
+      "query": 1,
+      "sdkOrder": 22,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "uuid": {
+        "value": "e8242a0f-91b3-4fcb-989f-7abdce4d37e8"
+      },
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 118,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2999
+      },
+      "isError": true,
+      "toolBoundaryCandidate": true,
+      "subtype": "error_max_turns",
+      "subtypeSha256": "2ed5527ba2ba049eda01b45c59df0608018d0d688c8a3a85037cda6be9cb114a"
+    },
+    {
+      "order": 53,
+      "at": "2026-11-04T16:50:39.785Z",
+      "monotonicMs": 5307.068,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 54,
+      "at": "2026-11-04T16:50:41.354Z",
+      "monotonicMs": 6876.011,
+      "kind": "iterator-rejection",
+      "query": 1,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "order": 55,
+      "at": "2026-11-04T16:50:41.355Z",
+      "monotonicMs": 6876.875,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 56,
+      "at": "2026-11-04T16:50:41.356Z",
+      "monotonicMs": 6877.821,
+      "kind": "iterator-method",
+      "query": 1,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 57,
+      "at": "2026-11-04T16:50:41.356Z",
+      "monotonicMs": 6877.916,
+      "kind": "query-iterator-end",
+      "query": 1,
+      "method": "return"
+    },
+    {
+      "order": 58,
+      "at": "2026-11-04T16:50:42.914Z",
+      "monotonicMs": 8435.844,
+      "kind": "supported-history",
+      "history": 1,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "rows": 3
+    },
+    {
+      "order": 59,
+      "at": "2026-11-04T16:50:42.952Z",
+      "monotonicMs": 8473.548,
+      "kind": "query-start",
+      "query": 2
+    },
+    {
+      "order": 60,
+      "at": "2026-11-04T16:50:42.953Z",
+      "monotonicMs": 8475.19,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "start"
+    },
+    {
+      "order": 61,
+      "at": "2026-11-04T16:50:42.954Z",
+      "monotonicMs": 8475.215,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "selected",
+      "distinct": true
+    },
+    {
+      "order": 62,
+      "at": "2026-11-04T16:50:42.954Z",
+      "monotonicMs": 8475.294,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 63,
+      "at": "2026-11-04T16:50:42.954Z",
+      "monotonicMs": 8475.421,
+      "kind": "prompt",
+      "query": 2,
+      "item": 1,
+      "sha256": "aa2753032917174d175e6225265551ba7020a66228750d5df4917c71ed03277d"
+    },
+    {
+      "order": 64,
+      "at": "2026-11-04T16:50:42.954Z",
+      "monotonicMs": 8475.517,
+      "kind": "prompt-end",
+      "query": 2,
+      "method": "next"
+    },
+    {
+      "order": 65,
+      "at": "2026-11-04T16:50:43.370Z",
+      "monotonicMs": 8891.874,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 66,
+      "at": "2026-11-04T16:50:43.370Z",
+      "monotonicMs": 8891.918,
+      "kind": "session-init",
+      "query": 2,
+      "sdkOrder": 23,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "uuid": {
+        "value": "73812086-fc53-4b8f-a6a2-07a727d5e52d"
+      }
+    },
+    {
+      "order": 67,
+      "at": "2026-11-04T16:50:43.370Z",
+      "monotonicMs": 8892.057,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 68,
+      "at": "2026-11-04T16:50:43.374Z",
+      "monotonicMs": 8896.195,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 69,
+      "at": "2026-11-04T16:50:43.375Z",
+      "monotonicMs": 8896.308,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 70,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10763.432,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 71,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10763.595,
+      "kind": "message_start",
+      "query": 2,
+      "sdkOrder": 25,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "uuid": {
+        "value": "b8247db3-c06d-4596-ab51-83585c91fdc1"
+      },
+      "messageId": {
+        "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 2999,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [],
+      "messageSha256": "58b0c57902452aad17793851c33eddd1e047f807005882253038c574eb59e9d7"
+    },
+    {
+      "order": 72,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10763.769,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 73,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10763.951,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 74,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10763.996,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 75,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10764.007,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 76,
+      "at": "2026-11-04T16:50:45.242Z",
+      "monotonicMs": 10764.025,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 77,
+      "at": "2026-11-04T16:50:45.342Z",
+      "monotonicMs": 10863.51,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 78,
+      "at": "2026-11-04T16:50:45.342Z",
+      "monotonicMs": 10863.603,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 79,
+      "at": "2026-11-04T16:50:45.390Z",
+      "monotonicMs": 10911.559,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 80,
+      "at": "2026-11-04T16:50:45.390Z",
+      "monotonicMs": 10911.614,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 81,
+      "at": "2026-11-04T16:50:45.439Z",
+      "monotonicMs": 10960.494,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 82,
+      "at": "2026-11-04T16:50:45.439Z",
+      "monotonicMs": 10960.557,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 83,
+      "at": "2026-11-04T16:50:45.487Z",
+      "monotonicMs": 11008.876,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 84,
+      "at": "2026-11-04T16:50:45.487Z",
+      "monotonicMs": 11008.965,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 85,
+      "at": "2026-11-04T16:50:45.538Z",
+      "monotonicMs": 11060.132,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 86,
+      "at": "2026-11-04T16:50:45.539Z",
+      "monotonicMs": 11060.232,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 87,
+      "at": "2026-11-04T16:50:45.589Z",
+      "monotonicMs": 11110.734,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 88,
+      "at": "2026-11-04T16:50:45.589Z",
+      "monotonicMs": 11110.844,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 89,
+      "at": "2026-11-04T16:50:45.636Z",
+      "monotonicMs": 11158.019,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 90,
+      "at": "2026-11-04T16:50:45.636Z",
+      "monotonicMs": 11158.115,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 91,
+      "at": "2026-11-04T16:50:45.690Z",
+      "monotonicMs": 11211.718,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 92,
+      "at": "2026-11-04T16:50:45.690Z",
+      "monotonicMs": 11211.856,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 93,
+      "at": "2026-11-04T16:50:45.736Z",
+      "monotonicMs": 11257.87,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 94,
+      "at": "2026-11-04T16:50:45.736Z",
+      "monotonicMs": 11257.977,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 95,
+      "at": "2026-11-04T16:50:45.873Z",
+      "monotonicMs": 11394.578,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 96,
+      "at": "2026-11-04T16:50:45.873Z",
+      "monotonicMs": 11394.651,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 97,
+      "at": "2026-11-04T16:50:45.876Z",
+      "monotonicMs": 11397.581,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 98,
+      "at": "2026-11-04T16:50:45.876Z",
+      "monotonicMs": 11397.768,
+      "kind": "native-assistant",
+      "query": 2,
+      "sdkOrder": 38,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "uuid": {
+        "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+      },
+      "messageId": {
+        "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 2999,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "tool_use",
+          "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+        }
+      ],
+      "messageSha256": "69a562f9790bd642c20b20d8d5594f17c7bdcc6948caf635e74262b870dd6116"
+    },
+    {
+      "order": 99,
+      "at": "2026-11-04T16:50:45.877Z",
+      "monotonicMs": 11398.882,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 100,
+      "at": "2026-11-04T16:50:45.881Z",
+      "monotonicMs": 11402.258,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 101,
+      "at": "2026-11-04T16:50:45.881Z",
+      "monotonicMs": 11402.343,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 102,
+      "at": "2026-11-04T16:50:45.882Z",
+      "monotonicMs": 11403.659,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 103,
+      "at": "2026-11-04T16:50:45.882Z",
+      "monotonicMs": 11403.826,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 104,
+      "at": "2026-11-04T16:50:45.882Z",
+      "monotonicMs": 11403.97,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 105,
+      "at": "2026-11-04T16:50:45.882Z",
+      "monotonicMs": 11404.021,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 106,
+      "at": "2026-11-04T16:50:45.883Z",
+      "monotonicMs": 11404.72,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 107,
+      "at": "2026-11-04T16:50:45.883Z",
+      "monotonicMs": 11404.776,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 108,
+      "at": "2026-11-04T16:50:45.888Z",
+      "monotonicMs": 11409.559,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 109,
+      "at": "2026-11-04T16:50:45.888Z",
+      "monotonicMs": 11409.739,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 110,
+      "at": "2026-11-04T16:50:45.890Z",
+      "monotonicMs": 11412.081,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 111,
+      "at": "2026-11-04T16:50:45.890Z",
+      "monotonicMs": 11412.128,
+      "kind": "result",
+      "query": 2,
+      "sdkOrder": 44,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "uuid": {
+        "value": "bb889ef4-a5cc-4cd4-a08a-f933b4db1f86"
+      },
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 118,
+        "cache_read_input_tokens": 2999,
+        "cache_creation_input_tokens": 136
+      },
+      "isError": true,
+      "toolBoundaryCandidate": true,
+      "subtype": "error_max_turns",
+      "subtypeSha256": "2ed5527ba2ba049eda01b45c59df0608018d0d688c8a3a85037cda6be9cb114a"
+    },
+    {
+      "order": 112,
+      "at": "2026-11-04T16:50:45.891Z",
+      "monotonicMs": 11413.004,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 113,
+      "at": "2026-11-04T16:50:45.905Z",
+      "monotonicMs": 11426.535,
+      "kind": "iterator-rejection",
+      "query": 2,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "order": 114,
+      "at": "2026-11-04T16:50:45.906Z",
+      "monotonicMs": 11427.3,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 115,
+      "at": "2026-11-04T16:50:45.906Z",
+      "monotonicMs": 11427.377,
+      "kind": "iterator-method",
+      "query": 2,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 116,
+      "at": "2026-11-04T16:50:45.906Z",
+      "monotonicMs": 11427.382,
+      "kind": "query-iterator-end",
+      "query": 2,
+      "method": "return"
+    },
+    {
+      "order": 117,
+      "at": "2026-11-04T16:50:47.428Z",
+      "monotonicMs": 12950.122,
+      "kind": "supported-history",
+      "history": 2,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "rows": 5
+    },
+    {
+      "order": 118,
+      "at": "2026-11-04T16:50:47.474Z",
+      "monotonicMs": 12995.416,
+      "kind": "query-start",
+      "query": 3
+    },
+    {
+      "order": 119,
+      "at": "2026-11-04T16:50:47.475Z",
+      "monotonicMs": 12996.546,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "start"
+    },
+    {
+      "order": 120,
+      "at": "2026-11-04T16:50:47.475Z",
+      "monotonicMs": 12996.555,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "selected",
+      "distinct": true
+    },
+    {
+      "order": 121,
+      "at": "2026-11-04T16:50:47.475Z",
+      "monotonicMs": 12996.58,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 122,
+      "at": "2026-11-04T16:50:47.475Z",
+      "monotonicMs": 12996.644,
+      "kind": "prompt",
+      "query": 3,
+      "item": 2,
+      "sha256": "c652aac78d748629f154617ce8c589bf94835f2c26c7d3d85257a4aabcefbdc1"
+    },
+    {
+      "order": 123,
+      "at": "2026-11-04T16:50:47.475Z",
+      "monotonicMs": 12996.673,
+      "kind": "prompt-end",
+      "query": 3,
+      "method": "next"
+    },
+    {
+      "order": 124,
+      "at": "2026-11-04T16:50:47.864Z",
+      "monotonicMs": 13385.945,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 125,
+      "at": "2026-11-04T16:50:47.864Z",
+      "monotonicMs": 13385.969,
+      "kind": "session-init",
+      "query": 3,
+      "sdkOrder": 45,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "uuid": {
+        "value": "cd8d4a00-2fa1-411d-b733-2dd7a1173409"
+      }
+    },
+    {
+      "order": 126,
+      "at": "2026-11-04T16:50:47.864Z",
+      "monotonicMs": 13386.034,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 127,
+      "at": "2026-11-04T16:50:47.873Z",
+      "monotonicMs": 13394.767,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 128,
+      "at": "2026-11-04T16:50:47.873Z",
+      "monotonicMs": 13394.842,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 129,
+      "at": "2026-11-04T16:50:49.531Z",
+      "monotonicMs": 15053.149,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 130,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.316,
+      "kind": "message_start",
+      "query": 3,
+      "sdkOrder": 47,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "uuid": {
+        "value": "619a3045-668a-41b6-bd5a-e9aca7418876"
+      },
+      "messageId": {
+        "value": "msg_011CgiETtbYt7grLHvocPKWi"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 3135,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [],
+      "messageSha256": "587c4d5c691b9a1832294d0caa5cb5d1e3197716a935c4f0d849d2f324cb82cf"
+    },
+    {
+      "order": 131,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.499,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 132,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.616,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 133,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.659,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 134,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.667,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 135,
+      "at": "2026-11-04T16:50:49.532Z",
+      "monotonicMs": 15053.695,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 136,
+      "at": "2026-11-04T16:50:49.629Z",
+      "monotonicMs": 15150.513,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 137,
+      "at": "2026-11-04T16:50:49.629Z",
+      "monotonicMs": 15150.605,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 138,
+      "at": "2026-11-04T16:50:49.677Z",
+      "monotonicMs": 15198.398,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 139,
+      "at": "2026-11-04T16:50:49.677Z",
+      "monotonicMs": 15198.478,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 140,
+      "at": "2026-11-04T16:50:49.738Z",
+      "monotonicMs": 15259.407,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 141,
+      "at": "2026-11-04T16:50:49.738Z",
+      "monotonicMs": 15259.482,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 142,
+      "at": "2026-11-04T16:50:49.777Z",
+      "monotonicMs": 15299.084,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 143,
+      "at": "2026-11-04T16:50:49.777Z",
+      "monotonicMs": 15299.154,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 144,
+      "at": "2026-11-04T16:50:49.828Z",
+      "monotonicMs": 15349.285,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 145,
+      "at": "2026-11-04T16:50:49.828Z",
+      "monotonicMs": 15349.358,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 146,
+      "at": "2026-11-04T16:50:49.877Z",
+      "monotonicMs": 15398.99,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 147,
+      "at": "2026-11-04T16:50:49.877Z",
+      "monotonicMs": 15399.061,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 148,
+      "at": "2026-11-04T16:50:49.927Z",
+      "monotonicMs": 15448.903,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 149,
+      "at": "2026-11-04T16:50:49.927Z",
+      "monotonicMs": 15448.976,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 150,
+      "at": "2026-11-04T16:50:49.980Z",
+      "monotonicMs": 15501.337,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 151,
+      "at": "2026-11-04T16:50:49.980Z",
+      "monotonicMs": 15501.404,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 152,
+      "at": "2026-11-04T16:50:50.028Z",
+      "monotonicMs": 15549.725,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 153,
+      "at": "2026-11-04T16:50:50.028Z",
+      "monotonicMs": 15549.794,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 154,
+      "at": "2026-11-04T16:50:50.126Z",
+      "monotonicMs": 15647.977,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 155,
+      "at": "2026-11-04T16:50:50.126Z",
+      "monotonicMs": 15648.054,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 156,
+      "at": "2026-11-04T16:50:50.130Z",
+      "monotonicMs": 15651.324,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 157,
+      "at": "2026-11-04T16:50:50.130Z",
+      "monotonicMs": 15651.528,
+      "kind": "native-assistant",
+      "query": 3,
+      "sdkOrder": 60,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "uuid": {
+        "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+      },
+      "messageId": {
+        "value": "msg_011CgiETtbYt7grLHvocPKWi"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 24,
+        "cache_read_input_tokens": 3135,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "tool_use",
+          "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+        }
+      ],
+      "messageSha256": "c0efc4e0c83bc8969d5a818831705b689b1821d3745ddef2999f2d9056330367"
+    },
+    {
+      "order": 158,
+      "at": "2026-11-04T16:50:50.131Z",
+      "monotonicMs": 15653.078,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 159,
+      "at": "2026-11-04T16:50:50.134Z",
+      "monotonicMs": 15655.662,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 18,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 160,
+      "at": "2026-11-04T16:50:50.134Z",
+      "monotonicMs": 15655.725,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 161,
+      "at": "2026-11-04T16:50:50.135Z",
+      "monotonicMs": 15657.102,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 19,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 162,
+      "at": "2026-11-04T16:50:50.136Z",
+      "monotonicMs": 15657.215,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 163,
+      "at": "2026-11-04T16:50:50.136Z",
+      "monotonicMs": 15657.377,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 20,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 164,
+      "at": "2026-11-04T16:50:50.136Z",
+      "monotonicMs": 15657.397,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 165,
+      "at": "2026-11-04T16:50:50.137Z",
+      "monotonicMs": 15658.245,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 21,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 166,
+      "at": "2026-11-04T16:50:50.137Z",
+      "monotonicMs": 15658.304,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 167,
+      "at": "2026-11-04T16:50:50.143Z",
+      "monotonicMs": 15664.245,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 22,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 168,
+      "at": "2026-11-04T16:50:50.143Z",
+      "monotonicMs": 15664.404,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 169,
+      "at": "2026-11-04T16:50:50.146Z",
+      "monotonicMs": 15667.46,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 23,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 170,
+      "at": "2026-11-04T16:50:50.146Z",
+      "monotonicMs": 15667.517,
+      "kind": "result",
+      "query": 3,
+      "sdkOrder": 66,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "uuid": {
+        "value": "7a6077e3-2267-42dd-8d18-3e115c2bc65f"
+      },
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 118,
+        "cache_read_input_tokens": 3135,
+        "cache_creation_input_tokens": 136
+      },
+      "isError": true,
+      "toolBoundaryCandidate": true,
+      "subtype": "error_max_turns",
+      "subtypeSha256": "2ed5527ba2ba049eda01b45c59df0608018d0d688c8a3a85037cda6be9cb114a"
+    },
+    {
+      "order": 171,
+      "at": "2026-11-04T16:50:50.147Z",
+      "monotonicMs": 15668.638,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 172,
+      "at": "2026-11-04T16:50:50.172Z",
+      "monotonicMs": 15694.112,
+      "kind": "iterator-rejection",
+      "query": 3,
+      "iterator": 2,
+      "call": 24,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "phase": "underlying-method",
+      "error": {
+        "name": "Error",
+        "nameDigest": {
+          "sha256": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
+          "chars": 5,
+          "truncated": false
+        },
+        "message": {
+          "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+          "chars": 73,
+          "truncated": false
+        },
+        "stack": {
+          "sha256": "b453a2d3aa1d9760c5ad728ffc78a3f5252c2a4529811a76e437470f22ef5078",
+          "chars": 256,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "order": 173,
+      "at": "2026-11-04T16:50:50.173Z",
+      "monotonicMs": 15694.951,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 174,
+      "at": "2026-11-04T16:50:50.173Z",
+      "monotonicMs": 15695.008,
+      "kind": "iterator-method",
+      "query": 3,
+      "iterator": 2,
+      "call": 25,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 175,
+      "at": "2026-11-04T16:50:50.173Z",
+      "monotonicMs": 15695.012,
+      "kind": "query-iterator-end",
+      "query": 3,
+      "method": "return"
+    },
+    {
+      "order": 176,
+      "at": "2026-11-04T16:50:51.697Z",
+      "monotonicMs": 17218.352,
+      "kind": "supported-history",
+      "history": 3,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "rows": 7
+    },
+    {
+      "order": 177,
+      "at": "2026-11-04T16:50:52.065Z",
+      "monotonicMs": 17586.616,
+      "kind": "query-start",
+      "query": 4
+    },
+    {
+      "order": 178,
+      "at": "2026-11-04T16:50:52.066Z",
+      "monotonicMs": 17587.835,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "start"
+    },
+    {
+      "order": 179,
+      "at": "2026-11-04T16:50:52.066Z",
+      "monotonicMs": 17587.843,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "selected",
+      "distinct": true
+    },
+    {
+      "order": 180,
+      "at": "2026-11-04T16:50:52.066Z",
+      "monotonicMs": 17587.849,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 181,
+      "at": "2026-11-04T16:50:52.066Z",
+      "monotonicMs": 17587.935,
+      "kind": "prompt",
+      "query": 4,
+      "item": 3,
+      "sha256": "5d642cb650aea902b1efff5e2e08a0ebea86adbed6102bbd9b5bfcbcdb1252c6"
+    },
+    {
+      "order": 182,
+      "at": "2026-11-04T16:50:52.066Z",
+      "monotonicMs": 17587.97,
+      "kind": "prompt-end",
+      "query": 4,
+      "method": "next"
+    },
+    {
+      "order": 183,
+      "at": "2026-11-04T16:50:52.491Z",
+      "monotonicMs": 18012.681,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 184,
+      "at": "2026-11-04T16:50:52.491Z",
+      "monotonicMs": 18012.7,
+      "kind": "session-init",
+      "query": 4,
+      "sdkOrder": 67,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "uuid": {
+        "value": "6945807d-095f-4e2c-ae62-2ee75b813cda"
+      }
+    },
+    {
+      "order": 185,
+      "at": "2026-11-04T16:50:52.491Z",
+      "monotonicMs": 18012.752,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 186,
+      "at": "2026-11-04T16:50:52.495Z",
+      "monotonicMs": 18016.908,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 187,
+      "at": "2026-11-04T16:50:52.495Z",
+      "monotonicMs": 18016.986,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 188,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19320.487,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 189,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19320.643,
+      "kind": "message_start",
+      "query": 4,
+      "sdkOrder": 69,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "uuid": {
+        "value": "2ea6e450-f022-4faa-802b-426c1763bfa7"
+      },
+      "messageId": {
+        "value": "msg_011CgiEUEX7dctcDS2NrJSEj"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 41,
+        "cache_read_input_tokens": 3271,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [],
+      "messageSha256": "1ccdf9719452065a7d803a5638463ba7a1d44539168d5424d794eabd208a8079"
+    },
+    {
+      "order": 190,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19320.813,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 191,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19320.995,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 192,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.037,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 193,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.077,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 194,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.092,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 195,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.097,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 196,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.123,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 197,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.166,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 198,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.191,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 199,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.194,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 200,
+      "at": "2026-11-04T16:50:53.799Z",
+      "monotonicMs": 19321.201,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 201,
+      "at": "2026-11-04T16:50:53.800Z",
+      "monotonicMs": 19321.332,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 202,
+      "at": "2026-11-04T16:50:53.800Z",
+      "monotonicMs": 19321.369,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 203,
+      "at": "2026-11-04T16:50:53.803Z",
+      "monotonicMs": 19324.309,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 204,
+      "at": "2026-11-04T16:50:53.803Z",
+      "monotonicMs": 19324.494,
+      "kind": "native-assistant",
+      "query": 4,
+      "sdkOrder": 76,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "uuid": {
+        "value": "c3120948-608b-4b38-8bc0-d359006db1f3"
+      },
+      "messageId": {
+        "value": "msg_011CgiEUEX7dctcDS2NrJSEj"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 41,
+        "cache_read_input_tokens": 3271,
+        "cache_creation_input_tokens": 136
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "text",
+          "sha256": "2c9c0d27dfea4ca264621bd2f66f9c73bd757712c86287eb65285a0776dbcd4a"
+        }
+      ],
+      "messageSha256": "e2955adf6281e2027d571e10412a2dfbfda7be34363a9e62429451c39430c5fd"
+    },
+    {
+      "order": 205,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19325.362,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 206,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19325.469,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 207,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19325.519,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 208,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19326.045,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 209,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19326.092,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 210,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19326.131,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 14,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 211,
+      "at": "2026-11-04T16:50:53.804Z",
+      "monotonicMs": 19326.14,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 212,
+      "at": "2026-11-04T16:50:53.805Z",
+      "monotonicMs": 19326.99,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 15,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 213,
+      "at": "2026-11-04T16:50:53.805Z",
+      "monotonicMs": 19327.039,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 214,
+      "at": "2026-11-04T16:50:53.811Z",
+      "monotonicMs": 19332.545,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 16,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 215,
+      "at": "2026-11-04T16:50:53.811Z",
+      "monotonicMs": 19332.592,
+      "kind": "result",
+      "query": 4,
+      "sdkOrder": 81,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "uuid": {
+        "value": "f8843bd9-08d2-4b7f-b39d-e2d02e92ab5b"
+      },
+      "usage": {
+        "input_tokens": 2,
+        "output_tokens": 41,
+        "cache_read_input_tokens": 3271,
+        "cache_creation_input_tokens": 136
+      },
+      "isError": false,
+      "toolBoundaryCandidate": false,
+      "subtype": "success",
+      "subtypeSha256": "cb39c7f8117ce797f9af4e80a7a76ccdcd1509d89cc6682353c6e801bf7bd29d"
+    },
+    {
+      "order": 216,
+      "at": "2026-11-04T16:50:53.812Z",
+      "monotonicMs": 19333.811,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 217,
+      "at": "2026-11-04T16:50:53.827Z",
+      "monotonicMs": 19348.665,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 17,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 218,
+      "at": "2026-11-04T16:50:53.827Z",
+      "monotonicMs": 19348.675,
+      "kind": "query-iterator-end",
+      "query": 4,
+      "method": "next"
+    },
+    {
+      "order": 219,
+      "at": "2026-11-04T16:50:53.828Z",
+      "monotonicMs": 19349.43,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 18,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 220,
+      "at": "2026-11-04T16:50:53.828Z",
+      "monotonicMs": 19349.449,
+      "kind": "iterator-method",
+      "query": 4,
+      "iterator": 2,
+      "call": 18,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 221,
+      "at": "2026-11-04T16:50:53.828Z",
+      "monotonicMs": 19349.452,
+      "kind": "query-iterator-end",
+      "query": 4,
+      "method": "return"
+    },
+    {
+      "order": 222,
+      "at": "2026-11-04T16:50:55.347Z",
+      "monotonicMs": 20868.834,
+      "kind": "supported-history",
+      "history": 4,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "rows": 8
+    },
+    {
+      "order": 223,
+      "at": "2026-11-04T16:50:55.376Z",
+      "monotonicMs": 20897.298,
+      "kind": "query-start",
+      "query": 5
+    },
+    {
+      "order": 224,
+      "at": "2026-11-04T16:50:55.376Z",
+      "monotonicMs": 20897.327,
+      "kind": "prompt",
+      "query": 5,
+      "item": 0,
+      "sha256": "ce4bd44ff3bf17e622fc7afa85b73c6ff7ffb62a76f41436d0d96f6ea5875289"
+    },
+    {
+      "order": 225,
+      "at": "2026-11-04T16:50:55.377Z",
+      "monotonicMs": 20898.9,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "start"
+    },
+    {
+      "order": 226,
+      "at": "2026-11-04T16:50:55.377Z",
+      "monotonicMs": 20898.913,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 1,
+      "call": 1,
+      "method": "Symbol.asyncIterator",
+      "targetKind": "query",
+      "stage": "selected",
+      "distinct": true
+    },
+    {
+      "order": 227,
+      "at": "2026-11-04T16:50:55.377Z",
+      "monotonicMs": 20898.946,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 228,
+      "at": "2026-11-04T16:50:55.811Z",
+      "monotonicMs": 21332.644,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 2,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 229,
+      "at": "2026-11-04T16:50:55.811Z",
+      "monotonicMs": 21332.665,
+      "kind": "session-init",
+      "query": 5,
+      "sdkOrder": 82,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "uuid": {
+        "value": "db945a14-3931-47c2-881d-033d42beb2b5"
+      }
+    },
+    {
+      "order": 230,
+      "at": "2026-11-04T16:50:55.811Z",
+      "monotonicMs": 21332.715,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 231,
+      "at": "2026-11-04T16:50:55.814Z",
+      "monotonicMs": 21336.173,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 3,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 232,
+      "at": "2026-11-04T16:50:55.815Z",
+      "monotonicMs": 21336.227,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 233,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22833.779,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 4,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 234,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22833.931,
+      "kind": "message_start",
+      "query": 5,
+      "sdkOrder": 84,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "uuid": {
+        "value": "21f77fcb-4e11-4c61-8e97-aa6151542d25"
+      },
+      "messageId": {
+        "value": "msg_011CgiEUUfAgBTtHKfzCzadk"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 4,
+        "output_tokens": 4,
+        "cache_read_input_tokens": 3407,
+        "cache_creation_input_tokens": 53
+      },
+      "blocks": [],
+      "messageSha256": "56b26c94ee19f373fd9bc8fc0600982892dd47f607028c89d87177bfc697a5a9"
+    },
+    {
+      "order": 235,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22834.051,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 236,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22834.167,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 5,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 237,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22834.189,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 238,
+      "at": "2026-11-04T16:50:57.312Z",
+      "monotonicMs": 22834.195,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 6,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 239,
+      "at": "2026-11-04T16:50:57.313Z",
+      "monotonicMs": 22834.212,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 240,
+      "at": "2026-11-04T16:50:57.314Z",
+      "monotonicMs": 22836.151,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 7,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 241,
+      "at": "2026-11-04T16:50:57.315Z",
+      "monotonicMs": 22836.319,
+      "kind": "native-assistant",
+      "query": 5,
+      "sdkOrder": 87,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "uuid": {
+        "value": "4e8497eb-de2a-45bb-9c51-0932ec144fb2"
+      },
+      "messageId": {
+        "value": "msg_011CgiEUUfAgBTtHKfzCzadk"
+      },
+      "model": "claude-opus-5-5",
+      "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+      "usage": {
+        "input_tokens": 4,
+        "output_tokens": 4,
+        "cache_read_input_tokens": 3407,
+        "cache_creation_input_tokens": 53
+      },
+      "blocks": [
+        {
+          "index": 0,
+          "type": "text",
+          "sha256": "52fbc8eae036c972b5d92674c5476e4f97b438670e3c421ae853dfe0342e020e"
+        }
+      ],
+      "messageSha256": "3787606dd4fdef033ec3da4c23573e8ddd87f6ea5fda9ceb0bcb4c36613f38b4"
+    },
+    {
+      "order": 242,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22837.861,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 243,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22837.994,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 8,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 244,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22838.031,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 245,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22838.038,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 9,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 246,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22838.046,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 247,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22838.067,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 10,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 248,
+      "at": "2026-11-04T16:50:57.316Z",
+      "monotonicMs": 22838.077,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 249,
+      "at": "2026-11-04T16:50:57.317Z",
+      "monotonicMs": 22838.612,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 11,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 250,
+      "at": "2026-11-04T16:50:57.317Z",
+      "monotonicMs": 22838.676,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 251,
+      "at": "2026-11-04T16:50:57.321Z",
+      "monotonicMs": 22843.107,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 12,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": false
+    },
+    {
+      "order": 252,
+      "at": "2026-11-04T16:50:57.321Z",
+      "monotonicMs": 22843.165,
+      "kind": "result",
+      "query": 5,
+      "sdkOrder": 92,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "uuid": {
+        "value": "ed8e9f66-46a7-4318-9704-3fa498a5a33d"
+      },
+      "usage": {
+        "input_tokens": 4,
+        "output_tokens": 4,
+        "cache_read_input_tokens": 3407,
+        "cache_creation_input_tokens": 53
+      },
+      "isError": false,
+      "toolBoundaryCandidate": false,
+      "subtype": "success",
+      "subtypeSha256": "cb39c7f8117ce797f9af4e80a7a76ccdcd1509d89cc6682353c6e801bf7bd29d"
+    },
+    {
+      "order": 253,
+      "at": "2026-11-04T16:50:57.323Z",
+      "monotonicMs": 22844.334,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 254,
+      "at": "2026-11-04T16:50:57.337Z",
+      "monotonicMs": 22859.013,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 13,
+      "method": "next",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 255,
+      "at": "2026-11-04T16:50:57.337Z",
+      "monotonicMs": 22859.022,
+      "kind": "query-iterator-end",
+      "query": 5,
+      "method": "next"
+    },
+    {
+      "order": 256,
+      "at": "2026-11-04T16:50:57.338Z",
+      "monotonicMs": 22860.025,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 14,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "start"
+    },
+    {
+      "order": 257,
+      "at": "2026-11-04T16:50:57.338Z",
+      "monotonicMs": 22860.045,
+      "kind": "iterator-method",
+      "query": 5,
+      "iterator": 2,
+      "call": 14,
+      "method": "return",
+      "targetKind": "query-returned-iterator",
+      "stage": "settled",
+      "done": true
+    },
+    {
+      "order": 258,
+      "at": "2026-11-04T16:50:57.338Z",
+      "monotonicMs": 22860.049,
+      "kind": "query-iterator-end",
+      "query": 5,
+      "method": "return"
+    },
+    {
+      "order": 259,
+      "at": "2026-11-04T16:50:58.866Z",
+      "monotonicMs": 24387.301,
+      "kind": "supported-history",
+      "history": 5,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "rows": 10
+    },
+    {
+      "order": 260,
+      "at": "2026-11-04T16:50:58.868Z",
+      "monotonicMs": 24389.712,
+      "kind": "supported-history",
+      "history": 6,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "rows": 3
+    },
+    {
+      "order": 261,
+      "at": "2026-11-04T16:50:58.870Z",
+      "monotonicMs": 24391.608,
+      "kind": "supported-history",
+      "history": 7,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "rows": 5
+    },
+    {
+      "order": 262,
+      "at": "2026-11-04T16:50:58.875Z",
+      "monotonicMs": 24396.529,
+      "kind": "supported-history",
+      "history": 8,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "rows": 7
+    },
+    {
+      "order": 263,
+      "at": "2026-11-04T16:50:58.877Z",
+      "monotonicMs": 24398.75,
+      "kind": "supported-history",
+      "history": 9,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "rows": 8
+    }
+  ],
+  "histories": [
+    {
+      "order": 1,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "startedAt": "2026-11-04T16:50:42.912Z",
+      "completedAt": "2026-11-04T16:50:42.914Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "user",
+          "rowSha256": "5e6df9b147d34aab73db0ee6564eb6b069b9335e54a5a8955287e31ca6956d7a",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "assistant",
+          "rowSha256": "d5714dd7be0838728e46d7f82f820ad628dd831d60d7c42725179e161ef49a2e",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "702c0e1d-d791-4de1-8bf2-061824ca4174"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "user",
+          "rowSha256": "b4b40b23d8ec8fbdab6ffffdd481bce0947ea49e2dde20a6f450d6139935dea2",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "aee95056ded5dd5cfd7003146880bc212b414728fe90b11b0704c6b48531f48c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "startedAt": "2026-11-04T16:50:47.427Z",
+      "completedAt": "2026-11-04T16:50:47.428Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "1677e661524acf3deeb5b23446d74641b74e42b6e6b3b6c7c8950f8fa4aa9c09",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "assistant",
+          "rowSha256": "4a2f235e2a7da9eae0f1b0dd16a70fb88bac71db4237b3668e8dd6dbd9f88e08",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "5ba10b789a560e23ccaabcf6c96c1e847b2a6d81512b03588858cea54bccee4f",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "assistant",
+          "rowSha256": "b4fb550b5b7cd71cd73816bc7adc167ba05b49eaf860d85598426d3d42f2ff8a",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "585445de-e7be-438a-9cb6-be0efa4d6840"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "2d39c43701ea5c1e311af101f2559722a3ec190df213c3ae233c4e31f60e0813",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "54f1f1b83e3d1926309aa4573e79814e701fb23e5fe9c6952154c103762071e7"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "startedAt": "2026-11-04T16:50:51.695Z",
+      "completedAt": "2026-11-04T16:50:51.696Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "2e3145eeda57f17f2bd2e1e058819966468feb699dc67f5224e11047f520073c",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "ccb39e5ea9f9b91549700837a2fc32e1d3a63159e713c70788c1f1c937b9e56d",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "ea6873c43b6a588d8adf181ded5eec58923f5d4587f510ad5b21924fc28cf67e",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "e1b661cf146876a2ad56b7782210de13719b4f306b19fda6c730b9a00b84faff",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "dcdc6e6d-3691-4ed2-afa7-b0bc883ff3b2"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "a881038055591011ce71688384c86891995c64271f9743a7f283632828c05a92",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "2a8a7944fe02fd31610926ee9cebe352cd769f7fbc9e502e632f0050ed8dee2b"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "uuid": {
+            "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "cb74f8ab9c155a7c1e5bcf4ab9c7749c0d07b4debb23b81380161d71ae43a9d0",
+          "messageId": {
+            "value": "msg_011CgiETtbYt7grLHvocPKWi"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 3135,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "uuid": {
+            "value": "2417647d-86e9-46ed-9ac4-bce4155390ac"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "52532482f19edcce7028f917008176b378846ff532602572320cf17f8bfad029",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "414617394afffb544128f883c07b2ad4f00da76b6c024194c1c7a99b41e9da14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 4,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "startedAt": "2026-11-04T16:50:55.346Z",
+      "completedAt": "2026-11-04T16:50:55.347Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "aed0b3aecd2c4d2dd0f5e5ea566fc45a4e03958636549203a4587c9025029c07",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "18016bf18b6ea7b7886c2012f6a8f42a2617f68f92b7b3de30f9dfd5fb22d355",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "efcb0c13dc42a662cdaf708dae9e9249aad511a3906e6c36598b15f4993f7957",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "30842a5c604393eb2b8a5c464f9e365f0ba22712850358211ff7c2f58d348c1e",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "dcdc6e6d-3691-4ed2-afa7-b0bc883ff3b2"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "2bc926c4700aee10c394f6a41ef2af04d55a8fe76e242fdff7812d0e11bb60ee",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "2a8a7944fe02fd31610926ee9cebe352cd769f7fbc9e502e632f0050ed8dee2b"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "uuid": {
+            "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "ce027f20db2140a0d023fb3d125f405744b2bfe06a7e23e262d43db42b0c5867",
+          "messageId": {
+            "value": "msg_011CgiETtbYt7grLHvocPKWi"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 3135,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "uuid": {
+            "value": "3d9850ca-7aa0-4fad-99e7-2d8a41273d59"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "322167c96fd6e6adf5b3a806b196de6952ba288fb2634c624e5990366321bdd0",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "099f974a42eb412ff0979ef3dc00fa73d06d57c0152ed68f3b420ef3bd76416a"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "uuid": {
+            "value": "c3120948-608b-4b38-8bc0-d359006db1f3"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "dfd63cb6dad1bd2d5946fba55ec21008693e37604784ad74ad1ae78a44186099",
+          "messageId": {
+            "value": "msg_011CgiEUEX7dctcDS2NrJSEj"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 41,
+            "cache_read_input_tokens": 3271,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "2c9c0d27dfea4ca264621bd2f66f9c73bd757712c86287eb65285a0776dbcd4a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "session": {
+        "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+      },
+      "startedAt": "2026-11-04T16:50:58.864Z",
+      "completedAt": "2026-11-04T16:50:58.865Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "user",
+          "rowSha256": "d09d3ae8f28e9f040a5a5a86731925d6e0a3b000896d781c492c19b0474418cd",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "assistant",
+          "rowSha256": "4b73be9487a17299c7e3f60be7989a4ab44345dcc9c652b00f54bb08eadf76a9",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "user",
+          "rowSha256": "dffe8a22327d0f1365ef347d527b2a0e2699931eb9e44e2881cfaf3cd549ced8",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "assistant",
+          "rowSha256": "e18bf5509dae5ca69a139e202becd07030391076d5f60da8b319c50fbb668f39",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "dcdc6e6d-3691-4ed2-afa7-b0bc883ff3b2"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "user",
+          "rowSha256": "147ccb759e9d9a5d0cc14fbd0237494501bffb07377bde8b746660f741d67540",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "2a8a7944fe02fd31610926ee9cebe352cd769f7fbc9e502e632f0050ed8dee2b"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "uuid": {
+            "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "assistant",
+          "rowSha256": "0f5cb51f01f9b3520998fe7585712a46b07be03c164d49f5a49cec58bb6a5513",
+          "messageId": {
+            "value": "msg_011CgiETtbYt7grLHvocPKWi"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 3135,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "uuid": {
+            "value": "3d9850ca-7aa0-4fad-99e7-2d8a41273d59"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "user",
+          "rowSha256": "7064ed9a6cd12ac3c345c44120d06abfce5bac51b974dfeeadc7043302f95c32",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "099f974a42eb412ff0979ef3dc00fa73d06d57c0152ed68f3b420ef3bd76416a"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "uuid": {
+            "value": "c3120948-608b-4b38-8bc0-d359006db1f3"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "assistant",
+          "rowSha256": "42782e83d1ea6ba5d9b4053015932eb27dc8aff6c6dfea41fa50c957c73a08a0",
+          "messageId": {
+            "value": "msg_011CgiEUEX7dctcDS2NrJSEj"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 41,
+            "cache_read_input_tokens": 3271,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "2c9c0d27dfea4ca264621bd2f66f9c73bd757712c86287eb65285a0776dbcd4a"
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "uuid": {
+            "value": "cbbd74ae-05d1-41f8-8d0b-202c94d3d091"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "user",
+          "rowSha256": "f08e60789ed6432decbffbd61aff693f83484998f69727aacecdba35a17e26e7",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "fcc063118cdc1e29c727533ec944dd2c532f458c1cf0fa491a4390d16b561dc8"
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "uuid": {
+            "value": "4e8497eb-de2a-45bb-9c51-0932ec144fb2"
+          },
+          "session": {
+            "value": "0356fa60-afb5-40b3-9c31-bbdafe3e8e67"
+          },
+          "type": "assistant",
+          "rowSha256": "df0b0158bd6656ff2ed4f842a74c7c9c2cc68ed5c36d567330c4ac6f64c123b7",
+          "messageId": {
+            "value": "msg_011CgiEUUfAgBTtHKfzCzadk"
+          },
+          "usage": {
+            "input_tokens": 4,
+            "output_tokens": 4,
+            "cache_read_input_tokens": 3407,
+            "cache_creation_input_tokens": 53
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "52fbc8eae036c972b5d92674c5476e4f97b438670e3c421ae853dfe0342e020e"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "session": {
+        "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+      },
+      "startedAt": "2026-11-04T16:50:58.867Z",
+      "completedAt": "2026-11-04T16:50:58.868Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "user",
+          "rowSha256": "5e6df9b147d34aab73db0ee6564eb6b069b9335e54a5a8955287e31ca6956d7a",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "assistant",
+          "rowSha256": "d5714dd7be0838728e46d7f82f820ad628dd831d60d7c42725179e161ef49a2e",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "702c0e1d-d791-4de1-8bf2-061824ca4174"
+          },
+          "session": {
+            "value": "ece783b7-bd83-4196-8ef1-0ba15cc4d9e6"
+          },
+          "type": "user",
+          "rowSha256": "b4b40b23d8ec8fbdab6ffffdd481bce0947ea49e2dde20a6f450d6139935dea2",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "aee95056ded5dd5cfd7003146880bc212b414728fe90b11b0704c6b48531f48c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "session": {
+        "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+      },
+      "startedAt": "2026-11-04T16:50:58.869Z",
+      "completedAt": "2026-11-04T16:50:58.870Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "1677e661524acf3deeb5b23446d74641b74e42b6e6b3b6c7c8950f8fa4aa9c09",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "assistant",
+          "rowSha256": "4a2f235e2a7da9eae0f1b0dd16a70fb88bac71db4237b3668e8dd6dbd9f88e08",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "5ba10b789a560e23ccaabcf6c96c1e847b2a6d81512b03588858cea54bccee4f",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "assistant",
+          "rowSha256": "b4fb550b5b7cd71cd73816bc7adc167ba05b49eaf860d85598426d3d42f2ff8a",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "585445de-e7be-438a-9cb6-be0efa4d6840"
+          },
+          "session": {
+            "value": "5411f67d-2551-46f6-bdf6-3cd581bf5c60"
+          },
+          "type": "user",
+          "rowSha256": "2d39c43701ea5c1e311af101f2559722a3ec190df213c3ae233c4e31f60e0813",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "54f1f1b83e3d1926309aa4573e79814e701fb23e5fe9c6952154c103762071e7"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 8,
+      "session": {
+        "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+      },
+      "startedAt": "2026-11-04T16:50:58.874Z",
+      "completedAt": "2026-11-04T16:50:58.874Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "2e3145eeda57f17f2bd2e1e058819966468feb699dc67f5224e11047f520073c",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "ccb39e5ea9f9b91549700837a2fc32e1d3a63159e713c70788c1f1c937b9e56d",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "ea6873c43b6a588d8adf181ded5eec58923f5d4587f510ad5b21924fc28cf67e",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "e1b661cf146876a2ad56b7782210de13719b4f306b19fda6c730b9a00b84faff",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "dcdc6e6d-3691-4ed2-afa7-b0bc883ff3b2"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "a881038055591011ce71688384c86891995c64271f9743a7f283632828c05a92",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "2a8a7944fe02fd31610926ee9cebe352cd769f7fbc9e502e632f0050ed8dee2b"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "uuid": {
+            "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "assistant",
+          "rowSha256": "cb74f8ab9c155a7c1e5bcf4ab9c7749c0d07b4debb23b81380161d71ae43a9d0",
+          "messageId": {
+            "value": "msg_011CgiETtbYt7grLHvocPKWi"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 3135,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "uuid": {
+            "value": "2417647d-86e9-46ed-9ac4-bce4155390ac"
+          },
+          "session": {
+            "value": "4e746283-4dda-4f9f-a8e3-7925b800b869"
+          },
+          "type": "user",
+          "rowSha256": "52532482f19edcce7028f917008176b378846ff532602572320cf17f8bfad029",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "414617394afffb544128f883c07b2ad4f00da76b6c024194c1c7a99b41e9da14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "session": {
+        "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+      },
+      "startedAt": "2026-11-04T16:50:58.876Z",
+      "completedAt": "2026-11-04T16:50:58.877Z",
+      "configRelative": "meridian-config/profiles/owned-1220",
+      "rows": [
+        {
+          "index": 0,
+          "uuid": {
+            "value": "2b14b637-d408-413d-9078-f6fcc8ca00c9"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "aed0b3aecd2c4d2dd0f5e5ea566fc45a4e03958636549203a4587c9025029c07",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "c973ae17a4ff5b68b4d2981316bdf6408ab09ce2fa5db3e2d1a2d04cc853e054"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "uuid": {
+            "value": "dea9adbb-59be-4b66-9db0-50305bbff2fc"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "18016bf18b6ea7b7886c2012f6a8f42a2617f68f92b7b3de30f9dfd5fb22d355",
+          "messageId": {
+            "value": "msg_011CgiET7UAwZadrPFUTPKen"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2999
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "a8c9dfe1e2281985b4537218a82693a34f7c8871faff73b8b3707ca03289209d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "uuid": {
+            "value": "e69e1514-b5a0-43e8-b68e-00d031bd0ad6"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "efcb0c13dc42a662cdaf708dae9e9249aad511a3906e6c36598b15f4993f7957",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "5fb75d3e5d14821cdc4109f1a4eafa745c9199deb32512ca5762934dc5dd10dd"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "uuid": {
+            "value": "1535bc91-920c-48e7-ad5a-f2ddc7e78196"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "30842a5c604393eb2b8a5c464f9e365f0ba22712850358211ff7c2f58d348c1e",
+          "messageId": {
+            "value": "msg_011CgiETZUMjJsGepsPEYXa6"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 2999,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "d125f4edbfe7f1d6267c5e38a29c57bb819c562e12e52267c690baddbedd7006"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "uuid": {
+            "value": "dcdc6e6d-3691-4ed2-afa7-b0bc883ff3b2"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "2bc926c4700aee10c394f6a41ef2af04d55a8fe76e242fdff7812d0e11bb60ee",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "2a8a7944fe02fd31610926ee9cebe352cd769f7fbc9e502e632f0050ed8dee2b"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "uuid": {
+            "value": "81a41cab-8435-4f9b-a038-8eba15070752"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "ce027f20db2140a0d023fb3d125f405744b2bfe06a7e23e262d43db42b0c5867",
+          "messageId": {
+            "value": "msg_011CgiETtbYt7grLHvocPKWi"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 118,
+            "cache_read_input_tokens": 3135,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_use",
+              "sha256": "138c1b1bc55b1d058a10effdb325c673db1753f26ad47dc8af2289e07f6a05af"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "uuid": {
+            "value": "3d9850ca-7aa0-4fad-99e7-2d8a41273d59"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "user",
+          "rowSha256": "322167c96fd6e6adf5b3a806b196de6952ba288fb2634c624e5990366321bdd0",
+          "modelSha256": "e6acb579b531d6b9cc2bb4537e960e42955f1c059857b511852c0b44dfd212c0",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "tool_result",
+              "sha256": "099f974a42eb412ff0979ef3dc00fa73d06d57c0152ed68f3b420ef3bd76416a"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "uuid": {
+            "value": "c3120948-608b-4b38-8bc0-d359006db1f3"
+          },
+          "session": {
+            "value": "5762c1f3-c6b9-4709-8a7c-ba5c8f546d60"
+          },
+          "type": "assistant",
+          "rowSha256": "dfd63cb6dad1bd2d5946fba55ec21008693e37604784ad74ad1ae78a44186099",
+          "messageId": {
+            "value": "msg_011CgiEUEX7dctcDS2NrJSEj"
+          },
+          "usage": {
+            "input_tokens": 2,
+            "output_tokens": 41,
+            "cache_read_input_tokens": 3271,
+            "cache_creation_input_tokens": 136
+          },
+          "model": "claude-opus-5-5",
+          "modelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+          "blocks": [
+            {
+              "index": 0,
+              "type": "text",
+              "sha256": "2c9c0d27dfea4ca264621bd2f66f9c73bd757712c86287eb65285a0776dbcd4a"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stopped": false,
+  "sdkMessages": 92,
+  "promptItems": 3,
+  "source": {
+    "fixtureSha256": "9306af7e3e47c5ed55cb693d12a51a692d0350ae4614f162e8881861fd9fe3bf",
+    "fidelitySha256": "487765c355f1ef507a636d6b4e112368529b3d56c0228184c05ec63f0270f757",
+    "observerSource": "1cb9e53cb4ded92b8589177265cb736eb0978011:scripts/e2e-session-store-turns.mjs"
+  },
+  "requestedModel": "claude-opus-5-5",
+  "requestedModelSha256": "71dbfaf9f1430a3c7be99e1f8c0545c1e6330fae950c4acbff69de3e7c27f8fb",
+  "stream": false,
+  "parallel": false,
+  "fixtureRoot": "/Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-tZz2mw",
+  "fixture": {
+    "result": "PASS",
+    "joined": true,
+    "parallel": false,
+    "sourceHistoryOk": true,
+    "modelOk": true,
+    "followUpOk": true,
+    "forkShapeOk": true,
+    "toolShapeOk": true,
+    "delivered": 3,
+    "toolCallBatchSizes": [
+      1,
+      1,
+      1
+    ],
+    "cacheMisses": [],
+    "clientPlugin": {
+      "packageNameSha256": "e50a2e24ddc0a6e45fe0344082c28442dfc37077790e05b629e8ede1d13822bd",
+      "packageVersionSha256": "11f37e6bde3945843e96370da7faf17c9ba2625c71aca25daa87063564b3723d",
+      "packageName": "@rynfar/meridian",
+      "packageVersion": "1.88.0",
+      "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+      "pathSha256": "5c54a782236521c4d3e3428d87a9eeaced1aef964ba80760002beb9b056807fa",
+      "invocations": 5,
+      "errors": 0,
+      "preflight": true
+    },
+    "scrubPreflight": {
+      "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+      "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+      "packageVersion": "0.3.0",
+      "runtimeVersion": "0.3.0",
+      "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+      "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+      "invocations": 0,
+      "errors": 0
+    },
+    "scrubFinal": {
+      "packageNameSha256": "45434da8ee07ff09e11dccac684e1c188cbda25f05e3314d71e596897b2f81b1",
+      "packageVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "runtimeVersionSha256": "895d438442d1edc1c1b12b944d4748aff559cb030e679c4f9cdf9e13a92cbf03",
+      "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+      "packageVersion": "0.3.0",
+      "runtimeVersion": "0.3.0",
+      "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+      "pathSha256": "f615217929378afe364986a7fd118c18180cca43b8e492b81455f71131059619",
+      "invocations": 5,
+      "errors": 0
+    }
+  },
+  "finishedAt": "2026-11-04T16:50:58.901Z"
+}

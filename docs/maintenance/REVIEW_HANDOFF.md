@@ -1,5 +1,14 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 16:56 UTC: final-source E41 red; model lane stopped
+
+#1505merged16c21494; #1220unmergedba0f9f5c, norelease. FinalCI41868161833PASS8894/28skip/0fail; independenttypecheck/certifiedbuild/installedstorage/runtimeandactualOpenCodecurrentgrantPASS. Localnpm remains **8293/65skip/1fail**, Antigravityfirstsend50320.01sreasonunobserved, remaining27groupsnotrun.
+
+Final-sourceE41baselinechainJSONPASS, candidatechainJSONPASS, then **candidatechainSSEFAILnative-refusalquery2**. Exact5.5model, observervalid, originalchildren/pipesjoined, supervisorclosed/code1/notimeout; nocachemissrecorded, noauthormodelswitchclaim. **ParallelJSON/SSEnotrun**, stoppedperpredeclaredcontract. No furthermodelattempt/promptchange/rerun. Offlineauditwillchecknative95%accounting+concretesourcefaultonly. CurrentE41redandlocalnpmredbothremainmergegates; historical3332→3132/.284scope/initializer/fingerprintcausesremainseparateholds,notsuperseded.
+
+LocalAntigravitystaticreviewfoundnoprovenfixture/productionmismatch. Oneboundedpassivediagnosticdesigninprogressforresponsebody/spawn/closewitnesses; notexecutedyet, noassertion/deadline/sourcechanges. Diagnosticgreenalonewouldnotfixhistoricalred. [Allcurrentoutcomes](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 16:55 UTC: finalclientPASS on distinctcurrentgrant; E41firstarmrunning
 
 #1505merged16c21494, #1220unmergedba0f9f5c. RequiredCI41868161833 **8894/28skip/0failPASS**, standalone typecheck+certifiedbuild and independentlyinstalledNode22storage/runtimePASS. Currentlocalnpm **8293/65skip/1fail**, 27latergroupsnotreached; Antigravityfirstsend50320.01sreasonnotretained, nofixclaimed. Staticreviewfindsnomismatch, alltimeoutsunchanged; noproductioncorrectionjustifiedyet.
