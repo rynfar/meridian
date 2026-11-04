@@ -6,7 +6,7 @@
   "fullLocal": "RUNNING",
   "requiredCiRun": 41794707547,
   "requiredCiUrl": "https://github.com/rynfar/meridian/actions/runs/41794707547",
-  "requiredCi": "RUNNING",
+  "requiredCi": "PASS",
   "certifiedBuild": "PASS environment-qualified fresh validation.noindex clean detached tree; originalfailure unresolved",
   "certifiedPackage": "PASS",
   "historicalScope": "all original failed gates and causes retained; no retrospective fix or waiver",
