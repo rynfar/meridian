@@ -7,7 +7,11 @@
   "conflict": "only sessionStore occupancyhelper appliedtosynchronousmaintenance; asyncacquire/release/queue byteidenticalpriorcandidate",
   "focused": "19pass0fail202assertions+typecheck",
   "independentIntegrationReview": "no material finding",
-  "fullLocal": "RUNNING",
+  "fullLocal": {
+    "npmTest": "PASS8855/65skip/0fail28groups",
+    "typecheck": "PASS",
+    "certifiedBuild": "FAILpostgatesfingerprint2s"
+  },
   "requiredCi": {
     "run": 41800656709,
     "status": "PASS",
@@ -20,5 +24,7 @@
   "modelPin1505": "not merged/copied",
   "live": "BLOCKED_AUTH_REVOKED_OWNER_SIGNIN_REQUESTED",
   "historicalHolds": "UNRESOLVED_RETAINED",
-  "mergeRelease": "NOT_DONE"
+  "mergeRelease": "NOT_DONE",
+  "activeRuntimeJobs": [],
+  "nextAction": "Owner normal signin restores live prerequisite. Build certification failure retained; no justified fingerprint source correction from prior allocation comparison, no automatic retry."
 }

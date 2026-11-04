@@ -1,5 +1,18 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 08:56 UTC: contributor CI/tests green; certification and revoked-auth gates open
+
+**#1506 merged2297d61e. #1505/#1220 unmerged, no release.** #1505corrected19bf2128 local8829/65skip/0fail+typecheck+certifiedbuild andCI41798125923npm8866/28skip/0failPASS; installedactualOpenCode fails because officialnative reportsOAuth tokenrevoked aftermatchingV1plugin/route/scrub/pin+flagevidence, allchildrenjoined. OwneraskednormalClaude signin sameaccountExtraUsageoff; no pastedtoken,refresh/credentialwrite/alternateaccount/paidfallbackorretry.
+
+#1220 additiveaccepted-mainmerge`9b35b229ebe9422e85fcf7437c77a4bf894ec022` preservesauthorcommits. Independentconflictreview noissue; focused19/0+typecheck. RequiredCI41800656709npm8892/28skip/0fail28groupsPASS. Full local **8855pass/65skip/0fail28groups**, typecheckPASS, **build certification FAIL** postgateshashFileInto.consume2s in freshvalidation.noindexcheckout. Overalllocalexit1, notcertified. No raisedbudget/sourcefiltering/greenretry. Rejectedallocationcomparisonnotpersuasiveandnotlanded. Earliernoindexcertificationpassesdo notprovea fix.
+
+**No runtime/model jobs active.** Two current blockers: validsameaccountisolatedgrantforliveacceptance; justifiedresolutionoflocalbuildcertification. Historical3332→3132/nativefloor95%, originalnative2.1.284 vsprospective2.1.296 scope, initializer/fingerprintcausalholdsremainexplicitandnotautomaticallysuperseded. No mergeorreleaseuntilcurrentgatespass andanynamedhistoricalriskdispositionisexplicit.
+
+[Contributor final receipts and exact build red](evidence/1220-review-20261103/contributor-final-20261104/README.md); [modelcodegreen and authfailure proof](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 08:32 UTC: finalmodelcodegreen; actualclientblockedrevokedOAuthgrant
 
 #1505corrected`19bf2128916c6aefc9e7128011bc9c201de27a07` local28groups8829pass/65skip/0fail+typecheck+certifiedbuildPASS; requiredCI41798125923npm8866pass/28skip/0fail+probes/buildPASS. InstalledcertifiedactualOpenCode1.18.34/SDK0.2.141/native2.1.296/5.5 **FAIL_AUTHENTICATION**: officialnative“Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.” PluginV1matching/config/route/session+agentheadersandactivescrub0.3.0verifiedbeforediagnosis; bothnativegates5.5pin/flag1,observererrors0,allchildren/pipesjoined. No completion/history/continuationacceptance; no retry,refresh,credentialwrite,paidfallback oralternateaccount. OwneraskednormalClaude signin sameaccountExtraUsageoff,no tokenpasted. #1505notmerged.
