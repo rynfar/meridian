@@ -1,0 +1,25 @@
+{
+  "head": "02554a0a748f695b79982da071145f83c402415c",
+  "exit": 0,
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "npmTest": {
+    "pass": 8827,
+    "skip": 65,
+    "fail": 0,
+    "processes": 28
+  },
+  "durationSeconds": 1013.7049961253069,
+  "logs": {
+    "full-npm-test.log": "f13264fbd3294a67f0e5073c2ed05fd9e7e3f7a64883b3b686c6559f0e269563",
+    "typecheck-final.log": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199",
+    "build-final.log": "f23036b1b5751abff9f4759c347b04d76e9ac126a40e7eb0be7fcdd812c645d0"
+  },
+  "originalFailedGatesRetained": true,
+  "causeOfHistoricalTimeout": "UNRESOLVED",
+  "packageGate": "RUNNING",
+  "buildCertification": "UNCERTIFIED (normal build exit0; separate certification gate still open)"
+}

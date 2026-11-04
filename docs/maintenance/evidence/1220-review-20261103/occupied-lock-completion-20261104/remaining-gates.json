@@ -1,0 +1,17 @@
+{
+  "head": "02554a0a748f695b79982da071145f83c402415c",
+  "npmTest": {
+    "pass": 8827,
+    "skip": 65,
+    "fail": 0,
+    "processes": 28
+  },
+  "typecheck": "PASS",
+  "normalBuild": "PASS_UNCERTIFIED_ARCHIVE",
+  "certification": "OPEN",
+  "directSnapshot": "FAIL_INVALID_FINGERPRINT_BUDGET",
+  "deadlinesChanged": false,
+  "packagedAttempt1": "FAIL_NEW_FIXTURE_EXPECTATION",
+  "packagedAttempt2": "RUNNING",
+  "historicalCauses": "UNRESOLVED"
+}

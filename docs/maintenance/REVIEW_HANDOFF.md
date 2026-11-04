@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 07:43 UTC: required CI/local tests pass; certification remains open
+
+#1506 corrected02554a0a requiredCI **8864pass/28skip/0fail**, local28groups **8827pass/65skip/0fail**, typecheck pass. Normal build exits0 but reports an **uncertified archive**; direct snapshot hits unchanged2s fingerprint consume bound, so certified-build gate remainsOPEN. Minimalresourcecost correction is being evaluated; no budget/cap increase.
+
+Installed Node22 tarball PREPARED SIGKILL/resume reachesREADY. New fixture export-equality first fails because raw{} export correctly adds metadata; seed nowcanonical/fulloriginal equality retained and independentlyreviewed. Correctedfixture againstsameproducttarball **fullpackage/HTTP/restart/barrier/bootstrap PASS**, children/pipesjoined, but tarballuncertified andfinalnewheadgatesstillrequired. Oldredlogsretained, no historicalcauseclaimed. No merge/release/livecalls yet.
+
+[All receipts, red/green package evidence and remaining gates](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 07:23 UTC: completion resumed; corrected #1506 final gates running
 
 User asks to finish #1220 and the authorized release. Diagnostic completion is not task completion. No second lock diagnostic or waiver. PR #1506 now has independently reviewed occupied-path durable staging correction, signed head `02554a0a748f695b79982da071145f83c402415c`. Focused old1pass/7expectedfail → fixed8pass/0fail; native EEXIST race passes both. Adjacent locking7/0, exact PREPARED1/0, typecheck pass. No production limit/identity/age/SQLite/cache/dependency/interface changes; historical hosted timeout cause unresolved.
