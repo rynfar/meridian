@@ -14,7 +14,11 @@
   "scope": "landcontributorPR only; releaseafterwardsnotdelay",
   "acceptanceDispositionNeededIfNoProductBug": "providerrefusal/currentmatrixcannotbesilentlycalledPASS",
   "acceptedMainFullSuiteDiagnostic": "PASS8829/65skip/0fail28groups; originalAG503notreproduced",
-  "candidateCIrunnerLocal": "RUNNING Bun1.4.3 samecandidatehead",
+  "candidateCIrunnerLocal": "PASS Bun1.4.3 npm8857/65skip/0fail 28groups typecheck+certifiedbuild; same sourcehead/tree clean",
   "baselineSSEControl": "notrun read-onlyusage429; no modelarmadmitted",
-  "noProductionChanges": true
+  "noProductionChanges": true,
+  "jobs": "none",
+  "historicalLocalFailure": "retained; causalfixnotclaimed",
+  "merge": "NOT_MERGED; E41 currentred/incomplete and retained historicalholds",
+  "nextPrerequisite": "confirmedincludedcapacity + liveacceptance/disposition; no automaticquota polling or promptchanges"
 }

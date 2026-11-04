@@ -28,6 +28,8 @@ The original contributor failure (HTTP 503 after 20.01 s) was **not reproduced o
 
 ## Unchanged contributor: CI-matched local qualification
 
-One full `npm test`, standalone typecheck and build is running with isolated **Bun 1.4.3**, matching required CI, on Darwin arm64/Node 22 with qualified SQLite 3.53.4. The candidate head is unchanged; ambient Bun 1.3.14 was not upgraded. Earlier local red remains recorded. A new-runner pass would be environment-qualified, not proof that an old failure was fixed. [Plan and binary hash](ci-matching-local-runtime-plan.json).
+One full qualification with isolated **Bun 1.4.3**, matching required CI, on Darwin arm64/Node 22 with qualified SQLite 3.53.4 **PASSED: 8,857 tests /65 skip /0 fail, all 28 groups; standalone typecheck PASS; certified build PASS**. The candidate head/tree and clean worktree were verified after completion. Ambient Bun 1.3.14 was not upgraded. Earlier local red remains recorded. This is environment-qualified, not proof that an old failure was fixed. [Plan and binary hash](ci-matching-local-runtime-plan.json), [result receipt](candidate-bun143-qualification-receipt.json), [build provenance](candidate-bun143-build-provenance.json), [npm log](candidate-bun143-full-npm.log.gz), [typecheck log](candidate-bun143-typecheck.log.gz), [build log](candidate-bun143-build.log.gz).
+
+No local/model jobs are active. Live acceptance and explicit dispositions remain missing. The incomplete E41 contract does not permit merge; no waiver is inferred.
 
 No production constants changed. Existing CI, actual installed-client and chain-JSON evidence remain valid at the same final head. Missing E41 modes and historical cache/native/initializer/fingerprint uncertainties are not waived. Contributor commits and the owner's checkout remain untouched.

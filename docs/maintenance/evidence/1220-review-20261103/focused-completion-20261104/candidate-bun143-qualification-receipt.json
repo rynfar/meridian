@@ -1,0 +1,43 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "tree": "83877acdaa4c8d5a414c0ebc46b7674aa75eb2b9",
+  "sourceChanges": [],
+  "result": "PASS_ENVIRONMENT_QUALIFIED",
+  "exitCode": 0,
+  "durationSeconds": 708.0864098328166,
+  "npm": {
+    "pass": 8857,
+    "skip": 65,
+    "fail": 0
+  },
+  "groups": 28,
+  "typecheck": "PASS",
+  "build": "PASS_CERTIFIED",
+  "platform": "Darwin arm64",
+  "bun": {
+    "version": "1.4.3",
+    "sha256": "28c7dd0a06916aba284d570ef44a2d70e9c538eaf2ba58dfe0910525563b3f79",
+    "scope": "isolatedtooling matchingrequiredCI; ambientBununchanged"
+  },
+  "node": "22.22.3",
+  "sqliteLibrary": "/opt/homebrew/opt/sqlite/lib/libsqlite3.3.53.4.dylib",
+  "sourceProductionConstantsChanged": false,
+  "originalBun1314Failure": "retained 8293/65skip/1fail AG503 after20.01s; causeunknown notfixed",
+  "acceptedMainBodyDiagnosticControl": "8829/65skip/0fail28groups",
+  "currentLiveAcceptance": "candidateSSEFAILprovider[cyber]refusal; parallelmodesNOTRUN; baselineSSEcontrolNOTRUNusage429",
+  "noMergeOrRelease": true,
+  "logs": {
+    "full-npm": {
+      "sha256": "9e9118a8090cda3a6400900b04946ed10cce3bf85d586b57a518c1c351570620",
+      "artifact": "candidate-bun143-full-npm.log.gz"
+    },
+    "typecheck": {
+      "sha256": "2e9f88f0e09751747d0e75007b430974347da5bcdb4af27d7c363c94f5490199",
+      "artifact": "candidate-bun143-typecheck.log.gz"
+    },
+    "build": {
+      "sha256": "18a52550b0285d074b2d45102ddc13b00c849461eb71bfdb2b9ce2c55b390f75",
+      "artifact": "candidate-bun143-build.log.gz"
+    }
+  }
+}
