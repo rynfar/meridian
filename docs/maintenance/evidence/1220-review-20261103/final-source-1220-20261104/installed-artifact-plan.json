@@ -1,0 +1,21 @@
+{
+  "baseline": {
+    "head": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+    "source": "/Users/rynfar/Library/Caches/meridian-validation.noindex/main-after-1505-20261104",
+    "packDestination": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/baseline-package",
+    "installDestination": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/baseline-installed"
+  },
+  "candidate": {
+    "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "source": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-final-after-1505-20261104",
+    "packDestination": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-package",
+    "installDestination": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed"
+  },
+  "pack": "npm pack --ignore-scripts --json after verifiedclean exactheadcertification",
+  "install": "npm install --ignore-scripts --no-audit --no-fund exacttarball and @anthropic-ai/claude-agent-sdk@0.2.141",
+  "defaultNativeDependency": "mayresolveotherthanselected2.1.296; allmodelgatesexplicitlypinactualbinarysha",
+  "modelSDKPin": "0.2.141 selected via installed package resolution and confirmedmanifest",
+  "mandatoryPlugin": "matchinginstalled V1 fromrespective artifact",
+  "grant": "private personal accessonly; never archive",
+  "buildConcurrency": "no overlappinglocalbuild/test withbaselinebuild"
+}

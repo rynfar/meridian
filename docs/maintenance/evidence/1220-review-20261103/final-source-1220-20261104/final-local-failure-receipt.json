@@ -1,0 +1,20 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "exit": 1,
+  "durationSeconds": 599.2989104576409,
+  "npmTest": {
+    "pass": 8293,
+    "skip": 65,
+    "fail": 1,
+    "testProcessGroupsCompleted": 1,
+    "remainingGroups": "not reached"
+  },
+  "failure": "Antigravity idle conversation retention > keeps a finished conversation for idleConversationMs, beyond the tool-result deadline",
+  "elapsedMs": 20010.23,
+  "deadlineMs": 20000,
+  "typecheck": "standalone aftertest not reached; npmpretestpassed",
+  "build": "not reached",
+  "causalStatus": "notdiagnosed",
+  "requiredCI": 41868161833,
+  "noRetryNoLimitChange": true
+}
