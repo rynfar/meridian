@@ -1,0 +1,100 @@
+{
+  "clientPlugin": {
+    "path": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed/node_modules/@rynfar/meridian/dist/meridian/index.js",
+    "packageName": "@rynfar/meridian",
+    "packageVersion": "1.88.0",
+    "sha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+    "invocations": 2,
+    "errors": 0,
+    "preflight": true
+  },
+  "scope": "Real SDK/model E41 with installed client hook and server scrub; protocol host, not OpenCode executable",
+  "model": "claude-opus-5-5",
+  "stream": true,
+  "result": "FAIL",
+  "phase": "model requests",
+  "scrubPreflight": {
+    "path": "/Users/rynfar/.config/meridian/desktop-plugins/opencode-scrub/0.3.0/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.3.0",
+    "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+    "runtimeVersion": "0.3.0",
+    "invocations": 0,
+    "errors": 0
+  },
+  "cacheMisses": [],
+  "observedModels": [
+    "claude-opus-5-5"
+  ],
+  "modelOk": true,
+  "failure": "E41 provider error; stop before another model request",
+  "failureCode": "ERR_ASSERTION",
+  "children": [
+    {
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "spawnFailed": false,
+      "exitCode": 0,
+      "exitSignal": null,
+      "joined": true,
+      "termSent": false,
+      "killSent": false,
+      "signalFailure": null
+    },
+    {
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "spawnFailed": false,
+      "exitCode": 1,
+      "exitSignal": null,
+      "joined": true,
+      "termSent": false,
+      "killSent": false,
+      "signalFailure": null
+    },
+    {
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "spawnFailed": false,
+      "exitCode": 0,
+      "exitSignal": null,
+      "joined": true,
+      "termSent": false,
+      "killSent": false,
+      "signalFailure": null
+    },
+    {
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "spawnFailed": false,
+      "exitCode": 1,
+      "exitSignal": null,
+      "joined": true,
+      "termSent": false,
+      "killSent": false,
+      "signalFailure": null
+    },
+    {
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "spawnFailed": false,
+      "exitCode": 0,
+      "exitSignal": null,
+      "joined": true,
+      "termSent": false,
+      "killSent": false,
+      "signalFailure": null
+    }
+  ],
+  "joined": true
+}

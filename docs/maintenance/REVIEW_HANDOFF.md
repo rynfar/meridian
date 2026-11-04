@@ -1,5 +1,18 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04: current completion checkpoint — npm and E41 remain red
+
+**Merged:** #1504, #1506, #1505. Accepted main is16c214941bf3f05aa4015a70d8b81bd94857a88f. **#1220 remains open atba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a; no release.** The final additive merge preserves the contributor's authored commits. No product/source or constant changes followed that integration.
+
+**Passed:** exact-head CI41868161833 (8894pass/28skip/0fail,28 processes plus probes/build); independent typecheck and clean certified build; independently installed storage/runtime; actual installed OpenCode1.18.34/SDK0.2.141/selected native2.1.296/Opus5.5/Darwinarm64 read/result/same-session continuation, matching MeridianV1 plugin/scrub, native pin/flag, supported history and original joins. Personal Extra Usage is off. Current-source access token differs from earlier failed copied grant; no refresh/owner credential write. All revoked-token failures remain recorded.
+
+**Current local gate failed:** npm8293pass/65skip/1fail; later27 isolated groups not reached. Antigravity idle first request returned503 after20.01s. Response body/probe actor were not captured. Static review found no concrete fixture/production mismatch. No runtime fix or green retry. Passive diagnostic design was rejected before execution: wrong case count, conflicting outer bounds, detached child custody gap, unvalidated observer. Do not run that design as approved.
+
+**Current E41 gate failed/stopped:** baselinechainJSON and candidatechainJSON pass; all eight independently linked native continuation cache reads are100% of the published prefix, above unchanged95%. CandidatechainSSE then hits native5.5 refusal atquery2, valid observer and original joins. ParallelJSON/SSE not run. No further arm, prompt change or failed-arm retry. Offline audit found no concrete replay defect; it cannot reconstruct the full refusal cause from digests.
+
+**No model, test or build jobs active.** These current npm/E41 failures block merge/release. Historical3332→3132, originalnative.284 scope, initializer[0,1] and fingerprint causes remain separate unresolved holds; prospective passes do not erase them, and historical risk disposition cannot waive current red gates. [Final state, receipts, reviews and unchanged plan](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 16:56 UTC: final-source E41 red; model lane stopped
 
 #1505merged16c21494; #1220unmergedba0f9f5c, norelease. FinalCI41868161833PASS8894/28skip/0fail; independenttypecheck/certifiedbuild/installedstorage/runtimeandactualOpenCodecurrentgrantPASS. Localnpm remains **8293/65skip/1fail**, Antigravityfirstsend50320.01sreasonunobserved, remaining27groupsnotrun.

@@ -1,0 +1,43 @@
+{
+  "status": "DESIGN_REVIEW_ONLY_NOT_READY_TO_EXECUTE",
+  "sourceRoot": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-final-after-1505-20261104",
+  "sourceHeadReadFromGitMetadata": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "sourceSha256": {
+    "src/__tests__/antigravity-idle-conversation.test.ts": "0e856c9b393d2e712c7e09d23e78adb00f8a110763ac7655f304b740a2f01fe4",
+    "src/__tests__/fixtures/agy-cli.cjs": "16a72a01dfb315bf454b81a207f400472f1f067dada4dd7349ed7c5fe90ad9df",
+    "src/proxy/backends/antigravityProbe.ts": "cc34f458a529c7cfdb98ef81965222bc5706e79815330ead23d7c3ebf6aa1233",
+    "src/proxy/backends/antigravityRuntime.ts": "9459b719d6b7219619311905a3ac38eb0aab630e162de55b812ee1fd99199db5",
+    "src/proxy/backends/antigravity.ts": "dc245bf18012c4fffff84acf1910f78c60fedaedc20ce5e135d655075d839df1",
+    "package.json": "57c9b41d54a5c4d599ba5525c0af6b6f59b323923244ef19692a1bc550ee3b82"
+  },
+  "originalTest": {
+    "path": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-final-after-1505-20261104/src/__tests__/antigravity-idle-conversation.test.ts",
+    "sha256": "0e856c9b393d2e712c7e09d23e78adb00f8a110763ac7655f304b740a2f01fe4"
+  },
+  "proposedTest": {
+    "kind": "unchanged original; no new test file or source edit",
+    "path": "/Users/rynfar/Library/Caches/meridian-validation.noindex/1220-final-after-1505-20261104/src/__tests__/antigravity-idle-conversation.test.ts",
+    "sha256": "0e856c9b393d2e712c7e09d23e78adb00f8a110763ac7655f304b740a2f01fe4"
+  },
+  "fixtureMode": "0o755",
+  "helper": {
+    "path": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/antigravity-local-diagnostic-design/antigravity-local-preload.mjs",
+    "sha256": "e2efd77a20016f108b6dbdb9f80cfed6a51945303ad72fddcd4b76fa3b2c9306",
+    "frozen": false,
+    "requiresParentHashNamedReadOnlyCopy": true
+  },
+  "runtimeOutputMustNotExistBeforeOneRun": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/antigravity-local-diagnostic-design/run-1.events.jsonl",
+  "unchangedLimitsMs": {
+    "defaultProbe": 20000,
+    "idleTestTurn": 10000,
+    "bunTest": 30000
+  },
+  "proposedParentOnlyOuterCustodyBoundsSeconds": {
+    "naturalCompletion": 180,
+    "TERMGrace": 5,
+    "KILLAndJoinGrace": 10
+  },
+  "executionPerformed": false,
+  "networkModelsCredentialsCommandsTestsBuildsPerformed": false,
+  "childEntryWitness": false
+}
