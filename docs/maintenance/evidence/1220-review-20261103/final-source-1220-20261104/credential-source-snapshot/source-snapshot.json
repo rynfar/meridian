@@ -1,0 +1,27 @@
+{
+  "reason": "Comparecurrentownerauthorizedstoreswithfailedcopiedgrant; no secrets/tokendigestretained",
+  "accounts": [
+    {
+      "account": "personal",
+      "accessTokenPresent": true,
+      "expiresAt": 1793839285136,
+      "currentAccessTokenUnexpired": true,
+      "sameAsFailedPersonalGrant": false,
+      "credentialWrites": 0,
+      "refreshCalls": 0,
+      "networkCalls": 0,
+      "differentAccessOnlyGrantCopied": true
+    },
+    {
+      "account": "kraken",
+      "accessTokenPresent": true,
+      "expiresAt": 1793839285196,
+      "currentAccessTokenUnexpired": true,
+      "sameAsFailedPersonalGrant": false,
+      "credentialWrites": 0,
+      "refreshCalls": 0,
+      "networkCalls": 0,
+      "differentAccessOnlyGrantCopied": true
+    }
+  ]
+}

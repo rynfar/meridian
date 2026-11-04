@@ -1,0 +1,34 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "result": "PASS",
+  "exit": 0,
+  "node": "22.22.3",
+  "platform": "darwin/arm64",
+  "artifact": {
+    "root": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed/node_modules/@rynfar/meridian",
+    "build": {
+      "source": "local",
+      "kind": "artifact",
+      "version": "1.88.0",
+      "releaseVersion": "1.88.0",
+      "sha": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "dirty": false,
+      "sourceHash": "ca4081915dbfb30d44aebf01c786a5fff455fbafeb04dac86a8097aeee52e66d",
+      "commitUrl": "https://github.com/rynfar/meridian/commit/ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "counter": 1,
+      "counterScope": "d5a682f8-9887-45bd-9e99-7c62c6923390",
+      "attemptId": "b2e8bedb-a6a4-4d24-b34c-f0013b90e956",
+      "builtAt": "2026-11-04T16:43:05.705Z",
+      "displayVersion": "v1.88.0-1-detached-ba0f9f5c",
+      "certification": "verified"
+    },
+    "sdk": "0.2.141",
+    "tarballSha256": "cdf50a3c88880f780b83c0d1d0c5e611f5a088c59aad7b74029a012f4f16aba2",
+    "tarballIntegrity": "sha512-Rn+iFuwK/rpGUNy4UzxeA92zHd7eU0U0FSnVcR2/zihC5pO2VO+iomKYj+2/ZX3d3cgneg1UGQE303+lTnc8gA==",
+    "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e"
+  },
+  "scope": "independentlyinstalledactualstorage/runtime PREPAREDSIGKILL/resume/export/twoHTTP/restart/baseline/barrier/bootstrap, no model",
+  "allOriginalChildrenPipesJoined": true,
+  "localNpmRed": "retained, notwaived",
+  "liveE41": "notrunyet"
+}

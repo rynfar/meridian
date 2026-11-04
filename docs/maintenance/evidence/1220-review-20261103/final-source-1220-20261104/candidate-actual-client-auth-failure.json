@@ -1,0 +1,149 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "artifact": {
+    "root": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed/node_modules/@rynfar/meridian",
+    "build": {
+      "source": "local",
+      "kind": "artifact",
+      "version": "1.88.0",
+      "releaseVersion": "1.88.0",
+      "sha": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "dirty": false,
+      "sourceHash": "ca4081915dbfb30d44aebf01c786a5fff455fbafeb04dac86a8097aeee52e66d",
+      "commitUrl": "https://github.com/rynfar/meridian/commit/ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "counter": 1,
+      "counterScope": "d5a682f8-9887-45bd-9e99-7c62c6923390",
+      "attemptId": "b2e8bedb-a6a4-4d24-b34c-f0013b90e956",
+      "builtAt": "2026-11-04T16:43:05.705Z",
+      "displayVersion": "v1.88.0-1-detached-ba0f9f5c",
+      "certification": "verified"
+    },
+    "sdk": "0.2.141",
+    "tarballSha256": "cdf50a3c88880f780b83c0d1d0c5e611f5a088c59aad7b74029a012f4f16aba2",
+    "tarballIntegrity": "sha512-Rn+iFuwK/rpGUNy4UzxeA92zHd7eU0U0FSnVcR2/zihC5pO2VO+iomKYj+2/ZX3d3cgneg1UGQE303+lTnc8gA==",
+    "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e"
+  },
+  "result": "FAIL_AUTHENTICATION",
+  "exit": 1,
+  "durationSeconds": 14.13369758380577,
+  "providerDiagnostic": [
+    "Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator."
+  ],
+  "providerErrorType": "api_error",
+  "httpStatuses": [
+    200,
+    200
+  ],
+  "requests": [
+    {
+      "session": "ses_e588b915affeNZ5AgMb3UUtKb0",
+      "agent": "title",
+      "toolChars": 0,
+      "toolDeltas": 0,
+      "maxGapMs": 0,
+      "toolDurationMs": 0,
+      "model": "claude-opus-5-5",
+      "hasToolResult": false,
+      "hasReceipt": false,
+      "error": "api_error",
+      "status": 200
+    },
+    {
+      "session": "ses_e588b915affeNZ5AgMb3UUtKb0",
+      "agent": "build",
+      "toolChars": 0,
+      "toolDeltas": 0,
+      "maxGapMs": 0,
+      "toolDurationMs": 0,
+      "model": "claude-opus-5-5",
+      "hasToolResult": false,
+      "hasReceipt": false,
+      "error": "api_error",
+      "status": 200
+    }
+  ],
+  "plugin": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed/node_modules/@rynfar/meridian/dist/meridian",
+  "scrubPreflight": {
+    "path": "/Users/rynfar/.config/meridian/desktop-plugins/opencode-scrub/0.3.0/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.3.0",
+    "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+    "runtimeVersion": "0.3.0",
+    "invocations": 0,
+    "errors": 0
+  },
+  "scrubRequest": {
+    "path": "/Users/rynfar/.config/meridian/desktop-plugins/opencode-scrub/0.3.0/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.3.0",
+    "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+    "runtimeVersion": "0.3.0",
+    "invocations": 2,
+    "errors": 0
+  },
+  "nativeEnvWitness": [
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    },
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    }
+  ],
+  "observerErrors": [],
+  "actors": [
+    {
+      "command": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+      "pid": 22812,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/Users/rynfar/.hermes/node/bin/node",
+      "pid": 23167,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+      "pid": 23347,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": null,
+      "signal": "SIGTERM"
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 25717,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 25895,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 1,
+      "signal": null
+    }
+  ],
+  "joined": true,
+  "completionHistoryContinuation": "NOT_QUALIFIED",
+  "noModelRetry": true,
+  "credentialPolicy": "no refresh/ownercredentialwrites; failedgrantretained",
+  "earlierPersonal1505Pass": "retained; same grant file copied at personaladmission, laterrevokedauthnotexplained",
+  "e41": "PAUSED_beforefirstarm",
+  "localNpmFailure": "retainedseparatemergehold"
+}

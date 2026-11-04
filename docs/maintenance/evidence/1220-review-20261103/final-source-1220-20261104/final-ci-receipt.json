@@ -1,0 +1,14 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "run": 41868161833,
+  "result": "PASS",
+  "npm": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0
+  },
+  "processes": 28,
+  "allAdditionalProbesAndBuild": "PASS",
+  "localGate": "FAIL8293/65skip/1fail retained; CIcannotwaive",
+  "oldCI41800656709": "notcountedforfinalhead"
+}

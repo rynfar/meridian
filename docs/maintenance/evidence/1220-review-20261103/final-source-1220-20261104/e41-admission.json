@@ -1,0 +1,38 @@
+{
+  "heads": {
+    "baseline": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+    "candidate": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a"
+  },
+  "artifactIdentityReceipt": "installed-artifact-identities.json",
+  "envKeys": [
+    "HOME",
+    "TMPDIR",
+    "PATH",
+    "LANG",
+    "E2E_ALLOW_LIVE_MODEL",
+    "E2E_LIVE_PROFILE_FILE",
+    "E2E_CLIENT_VERSION",
+    "E2E_PLUGIN_PATH",
+    "E2E_SCRUB_VERSION",
+    "PROBE_MODEL",
+    "MERIDIAN_CLAUDE_PATH",
+    "MERIDIAN_OPUS_MODEL",
+    "MERIDIAN_CREDENTIALS_READONLY",
+    "MERIDIAN_NO_UPDATE_CHECK",
+    "E2E_INSTRUMENTED_TIMEOUT_SECONDS"
+  ],
+  "noExternalNoSwitchFlag": true,
+  "selectedNative": {
+    "path": "/Volumes/DevSSD/meridian/review-1220-20261103/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "sha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937"
+  },
+  "sdk": "0.2.141",
+  "sourceBothFixtureHashesVerified": true,
+  "sequence": "baselinechainJSON first; candidatechainJSON onlyifbaselinePASS; rest onlyifpairPASS",
+  "localRed": "retained as mergehold; independent livequalification permitted, no source/templatechanges",
+  "frozenHelper": {
+    "path": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-3dee35021282.mjs",
+    "sha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff",
+    "mode": "0444"
+  }
+}

@@ -1,5 +1,14 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04 16:55 UTC: finalclientPASS on distinctcurrentgrant; E41firstarmrunning
+
+#1505merged16c21494, #1220unmergedba0f9f5c. RequiredCI41868161833 **8894/28skip/0failPASS**, standalone typecheck+certifiedbuild and independentlyinstalledNode22storage/runtimePASS. Currentlocalnpm **8293/65skip/1fail**, 27latergroupsnotreached; Antigravityfirstsend50320.01sreasonnotretained, nofixclaimed. Staticreviewfindsnomismatch, alltimeoutsunchanged; noproductioncorrectionjustifiedyet.
+
+FinalcandidateclientfirstattemptFAIL_AUTHENTICATIONOAuthrevokedoldcopiedpersonalgrant; allmatchingV1plugin/route/scrub/pinflagchecksandjoinsverified. Read-onlystoredtokencomparisonfindscurrentpersonal**different**fromfailedgrant, freshusageHTTP200ExtraUsageOFF/weekly67%, no testrefresh/ownercredentialwrites. Onefreshcurrent-source-grantattempt **PASS**, actualOpenCode1.18.34/SDK.141/selectednative.296/5.5/Darwinarm64, matchinginstalledV1/scrub, four200read/result/continuation, historyonly5.5, fournativemodelpin/flagwitnesses, eightoriginalactors/pipesjoined. Earlierauthredretained, noinvokedrotationcause.
+
+FirstfinalsourceE41armbaselinechainJSONnowrunning; frozenunchangedfixture/v2/300s/95%, serialsingleattempts, pairPASSrequiredbeforeothercandidate3modes. No retriesorpartialmatrixacceptance. Currentlocalredandallhistoricalcausal/cache/nativeholdsremainmerge/releasegates. [Currentdurableevidence](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
 ## 2026-11-04 16:45 UTC: final npm red retained; independent artifacts certified
 
 #1505merged16c21494; #1220unmergedba0f9f5c. Final localnpm **8293pass/65skip/1fail**, remaining27isolatedgroupsnotreached; AntigravityidleconversationfirstHTTPsend503at20010.23msexpected200, noresponsebody/probeidentitycaptured. Actualfixture `/usr/bin/env node`; nolongerclaimwrongBunruntimeorfixedcause. No retry/deadline/sourcechange. Staticreviewinvestigatescrediblecorrection, notgreenchase. RequiredCI41868161833running, notsubstituteforlocalred.
