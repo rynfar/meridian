@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-04: personal admitted; #1505 exact installed-client live PASS
+
+Owner disabled personal Extra Usage; one read-only preflight HTTP200 confirms **ExtraUsageOFF**, weekly67%. Private access-only grant copied from personal, no refresh or owner credential write. Prior ExtraUsageON, kraken429 and old isolated-grant revoked-token failures remain archived.
+
+Exact #1505head19bf2128 certified independently installed package / OpenCode1.18.34 / SDK0.2.141 / native2.1.296 / Opus5.5 / Darwinarm64 **actual-client PASS**: fourHTTP200, actual read/result and same-session continuation, matching installed MeridianV1plugin via setup/config/runtimeheaders, scrub0.3.0 fourcalls/zeroerrors, four nativepin5.5/flag1 witnesses, supported history only5.5, eight actors originalchildren/pipesjoined; observererrors0. Product code supplies flag, not injected by test. No #1220E41/history-cause credit.
+
+#1505 local8829/65skip/0fail+typecheck+certifiedbuild and requiredCI41798125923PASS retained. Independent final review finishing; refresh exacthead/base/checks/rules before normal matched-head squash merge. Then acceptedmain additively into contributorbranch preservingeveryauthorcommit, finalgates+matchedE41/client. #1220 historicalcache/native/initializer/fingerprintcausesstillopen; no releaseyet.
+
+[Personal admission and exact live receipts](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/personal-extra-off/README.md). Earlier checkpoints remain historical.
+
+
 ## 2026-11-04: owner authorizes personal or kraken; billing preflight holds live test
 
 **Current account authorization supersedes older same-account-only notes.** Owner explicitly made personal and kraken available. Read-only checks of both: **personalHTTP200, Extra Usage enabled**; **krakenHTTP429, Extra Usage/available included usage unknown**. No inference, refresh, owner credential write, billing change or new isolated grant. Do not ask for another personal login on this evidence; owner asked to disable Extra Usage. No automatic quota polling. Previous revoked-token actual-client failure is retained for its old grant, not attributed to these accounts.
