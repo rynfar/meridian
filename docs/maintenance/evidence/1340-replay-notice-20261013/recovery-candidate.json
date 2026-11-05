@@ -1,0 +1,54 @@
+{
+  "model": "gemini-3.8-flash-low",
+  "cli": "1.2.7",
+  "client": "pi",
+  "clientVersion": "1.1.0",
+  "platform": "darwin",
+  "node": "v22.23.2",
+  "passed": [
+    "backend restart between client tool execution and result delivery; no repeated completed tool",
+    "actual pi read/edit/bash/write coding loop",
+    "missing-file tool-error recovery",
+    "exact source edit",
+    "Unicode paths and exact Unicode output with trailing newline",
+    "streaming correlated tool results",
+    "saved client session continuation with completed tool history",
+    "client session fork retains completed tool context",
+    "actual pi ls/find/grep tools",
+    "actual Pi steering during a tool call: same process, changed instruction, no stale write",
+    "actual Pi manual compaction and tool-free recall of the retained context",
+    "actual Pi abort releases active process and next prompt succeeds"
+  ],
+  "restartedBeforeRequest": 3,
+  "recoveredToolIds": [
+    "toolu_agy_7abd06a7ec394ab4b8446aed9668516e"
+  ],
+  "requests": 7,
+  "tools": [
+    {
+      "name": "read",
+      "isError": true
+    },
+    {
+      "name": "read",
+      "isError": false
+    },
+    {
+      "name": "edit",
+      "isError": false
+    },
+    {
+      "name": "bash",
+      "isError": false
+    },
+    {
+      "name": "write",
+      "isError": false
+    },
+    {
+      "name": "bash",
+      "isError": false
+    }
+  ],
+  "totalRequests": 22
+}
