@@ -1,0 +1,21 @@
+{
+  "candidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "base": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "previousTag": "meridian-v1.88.0",
+  "originalFullRangeDiffSha256": "25b3c7856ef354ca10e1a25530f2213f7db87a1dcb011570a441342189c0728e",
+  "versionOnlyDiffSha256": "772a31859698fafb65060186a05c1610496530e8bf97636e6c5528fc3b3ea445",
+  "finalNotesSha256": "4a55e192dae814ef797e17cd53f105f615e86d8a0a10a93a893fcc9148b5e0a2",
+  "independentReviewSha256": "1db9d8d656d5bc0b40171aa6f90491719628384999ab5d54e16fc9f91e8fe852",
+  "finding": "no new material runtime code defect; missing#1220notescreditcorrected",
+  "namedReleaseCoverageLimits": [
+    "previousE41failedSSE/unrunparallel+historicalnativecacheholds acceptednotpassed",
+    "E79realmodelstopsnotnewlyqualified; allfixturesplanned",
+    "concurrentpublicationbothmodes/predecessorcollectornotnewlyqualified",
+    "E71/E72realclassifier/subagentstopcontrolsnotnewlyqualified",
+    "awaitedclear/E42liveextendednotnewlyqualified",
+    "existingpriorityroutedstops/ClaudeCodeCodexstopshapeslimitsretained"
+  ],
+  "noNewSupportOrResolvedClaims": true,
+  "releaseAuthorization": "userexplicitcutrelease; carrydisclosedrisk notnewlygreen",
+  "runtimeIdentity": "sourceonlyversion/notes/manifest/package-lock-root changed fromacceptedmain41d7b3e3"
+}

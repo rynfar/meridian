@@ -1,0 +1,11 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "localGate": "running",
+  "CI": "running42073931849",
+  "rangeReview": "PASSnoNewMaterialRuntimeDefect",
+  "notes": "fixed#1220Nowakeromission",
+  "releaseModels": "notyetrun",
+  "publication": "NOTSTARTED",
+  "queue": "14newnondraftPRs1newissueinventory only, next1503afterstable",
+  "noFurtherWorkerRunning": true
+}
