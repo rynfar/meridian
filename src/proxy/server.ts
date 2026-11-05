@@ -166,6 +166,7 @@ import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { authKeepaliveTargets, resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
 import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
 import { organizationNames, organizationNeedsRefresh, organizationRecordCurrent, organizationLookupEnabled, refreshOrganizationNameSoon, refreshOrganizationNow, type OrganizationRecord } from "./organizationName"
@@ -12422,6 +12423,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     // Armed here, not before serve(), because the self-follow guard needs the
     // port actually bound — the configured one may be 0.
     startFollowPolling({ host: finalConfig.host, port })
+    startFollowUsagePolling()
     logFollowBanner(getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")))
     if (!finalConfig.silent) {
       console.log(`Meridian running at http://${finalConfig.host}:${port}`)
@@ -12571,6 +12573,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         beginDrain?.()
         const chatGptRenewalStopped = chatGptRenewal?.stop()
         stopFollowPolling()
+        stopFollowUsagePolling()
         stopBackgroundRefresh()
         stopUpdateCheck()
 
