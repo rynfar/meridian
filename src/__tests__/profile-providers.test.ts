@@ -585,6 +585,19 @@ describe("the profiles page draws the same groups", () => {
     expect(page.run<boolean>("meridianProviders.isHidden('chatgpt')")).toBe(false)
     expect(storage.getItem(HIDDEN_PROVIDERS_KEY)).toBe("[]")
   })
+
+  test("every card can be removed, each through its own provider's route", () => {
+    const { page, html } = rendered(new MemoryStorage(), mixed())
+    const removeButtons = [...html.matchAll(/title="(Remove [a-z]+)" onclick="startRemove\(&quot;([^&]+)&quot;\)"/g)].map(m => [m[2], m[1]])
+    expect(removeButtons).toEqual([["c1", "Remove profile"], ["c2", "Remove profile"], ["g1", "Remove seat"], ["g2", "Remove seat"]])
+
+    page.run("var removeRoutes = []; fetch = function (url, init) { removeRoutes.push([url, init.body]); return new Promise(function () {}); }")
+    page.run("commitRemove('c2'); commitRemove('g1')")
+    expect(page.run<string[][]>("removeRoutes")).toEqual([
+      ["/profiles/claude/remove", '{"profile":"c2"}'],
+      ["/profiles/chatgpt/remove", '{"profile":"g1"}'],
+    ])
+  })
 })
 
 // ---------------------------------------------------------------------------
