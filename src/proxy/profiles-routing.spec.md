@@ -53,7 +53,37 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   request; an exhausted pool surfaces the last-tried account's error; only new
   conversations drain back to a recovered preferred account
   (`priorityFailback: next-user-turn` additionally allows an attested human turn
-  to fail back).
+  to fail back, and `fresh-replay` moves a conversation whose cache is lost
+  anyway).
+- **`priorityFailback: fresh-replay` releases only what a fresh replay already
+  lost.** It applies to process-local assignments only; a durable (attested)
+  route keeps its own rules. A fresh replay writes the whole history again and
+  shares only the system prefix with any cache, on every account, so affinity
+  protects nothing for it. The assigned account's attempt therefore decides the
+  lineage it would serve, after every reclassification (undo-gap, moved on
+  elsewhere, concurrent race, lost race while waiting), and before anything goes
+  upstream. When the result is a fresh replay and a new conversation would be
+  placed on another account, that attempt hands the request back and the
+  dispatcher places it like a new conversation. The serving account becomes the
+  assignment. A probe of its own, run before dispatch, could disagree with the
+  lineage the attempt then serves (a race can commit in between), so the
+  decision runs inside the attempt. Continuations, compaction resumes (in-place
+  edits) and undo rollbacks never move. A side call sharing the conversation's
+  key (Pi's title generation, the loser of a concurrent race) moves it too: it
+  replaces the conversation's session on whichever account serves it, so the
+  next turn fresh-replays there either way. One exception keeps a fresh replay
+  where it is: an exact replay of a prompt this account served fresh in the
+  last 60 minutes, such as a retry after a failed attempt, reads that whole
+  prompt from this account's cache. A per-key LRU record of the last fresh
+  replay (account, prompt digest, time) tracks this. The digest covers the
+  lineage hash plus the model, system prompt, tool list and thinking setting,
+  because the lineage hash ignores those and a change to any of them misses
+  the cache. The record is written only when the attempt exposed model output
+  (a `message_start`, assistant content, a tool call or structured output),
+  since only that proves the upstream processed the prompt; a refused,
+  cancelled or error-only answer (an overload frame or body) keeps the
+  assignment but cannot claim a cache it never wrote. Subagents keyed apart
+  from their root neither move it nor write its record.
 - **`active+priority`** puts the manually active profile first and the priority
   order behind it, and the active profile **outranks** an existing session
   assignment: here the head moves only because a human or supervisor moved it,

@@ -402,6 +402,7 @@ type PostMessagesOptions = {
   readonly stream: boolean
   readonly signal?: AbortSignal
   readonly tools?: readonly Record<string, unknown>[]
+  readonly system?: string
 }
 
 async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
@@ -416,6 +417,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise
       stream: options.stream,
       messages,
       ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.system ? { system: options.system } : {}),
     }),
     ...(options.signal ? { signal: options.signal } : {}),
   }))
@@ -772,6 +774,174 @@ describe("priority routing", () => {
     // Then
     expect(body).toContain("prof-work")
     expect(capturedEnvs[0]).toContain("prof-work")
+  })
+
+  describe("fresh-replay failback", () => {
+    const piHeaders = (sessionId: string) => ({ "x-meridian-agent": "pi", "x-session-affinity": sessionId })
+    const SUMMARY_COMPACTED: readonly TestMessage[] = [
+      { role: "user", content: "summary of the conversation so far" },
+      { role: "assistant", content: [{ type: "text", text: "noted" }] },
+      { role: "user", content: "carry on from the summary" },
+    ]
+
+    async function assignPiToPersonal(app: TestApp, sessionId: string): Promise<void> {
+      process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+      const response = await post(app, piHeaders(sessionId), OPENING_MESSAGE)
+      expect(await response.text()).toContain("prof-personal")
+      process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+      capturedSdkCalls = []
+    }
+
+    it("keeps a continuation on its account and moves a fresh replay to the head", async () => {
+      // Given
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+      const app = createTestApp()
+      await assignPiToPersonal(app, "fresh-replay-moves")
+
+      // When
+      const continued = await post(app, piHeaders("fresh-replay-moves"), CONTINUED_AFTER_PERSONAL)
+      const continuedBody = await continued.text()
+      const continuationCalls = capturedSdkCalls
+      capturedSdkCalls = []
+      telemetryStore.clear()
+      const compacted = await post(app, piHeaders("fresh-replay-moves"), SUMMARY_COMPACTED)
+      const compactedBody = await compacted.text()
+      const replayCalls = capturedSdkCalls
+      capturedSdkCalls = []
+      const replayRows = await (await app.fetch(new Request("http://localhost/telemetry/requests"))).json() as TelemetryRow[]
+      const replayHops = await (await app.fetch(new Request("http://localhost/telemetry/requests?hops=1"))).json() as TelemetryRow[]
+      const next = await post(app, piHeaders("fresh-replay-moves"), [
+        ...SUMMARY_COMPACTED,
+        { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-work" }] },
+        { role: "user", content: "and the next step" },
+      ])
+      const nextBody = await next.text()
+
+      // Then
+      expect(continuedBody).toContain("prof-personal")
+      expect(continuationCalls).toHaveLength(1)
+      expect(continuationCalls[0]!.resume).toEqual(expect.any(String))
+      expect(compactedBody).toContain("prof-work")
+      // The assigned account handed the conversation back before any SDK work.
+      expect(replayCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+      expect(replayRows.map(row => [row.profileId, row.routeKind, row.status])).toEqual([["work", "priority", 200]])
+      expect(replayHops.map(row => [row.profileId, row.routeKind])).toEqual([["work", "priority-hop"]])
+      // The assignment followed the serving account.
+      expect(nextBody).toContain("prof-work")
+      expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+      expect(capturedSdkCalls[0]!.resume).toEqual(expect.any(String))
+    })
+
+    it("keeps an identical retry of a fresh replay on the account that served it", async () => {
+      // Given
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+      const app = createTestApp()
+      await assignPiToPersonal(app, "fresh-replay-retry")
+
+      // When
+      const retried = await post(app, piHeaders("fresh-replay-retry"), OPENING_MESSAGE)
+      const retriedBody = await retried.text()
+
+      // Then
+      expect(retriedBody).toContain("prof-personal")
+      expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-personal"])
+    })
+
+    it("keeps a fresh replay on its account without the policy", async () => {
+      // Given
+      const app = createTestApp()
+      await assignPiToPersonal(app, "fresh-replay-off")
+
+      // When
+      const compacted = await post(app, piHeaders("fresh-replay-off"), SUMMARY_COMPACTED)
+      const compactedBody = await compacted.text()
+
+      // Then
+      expect(compactedBody).toContain("prof-personal")
+      expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-personal"])
+    })
+
+    it("moves a streamed fresh replay to the head", async () => {
+      // Given
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+      const app = createTestApp()
+      await assignPiToPersonal(app, "fresh-replay-stream")
+
+      // When
+      const compacted = await postStream(app, { headers: piHeaders("fresh-replay-stream"), content: SUMMARY_COMPACTED })
+      const compactedBody = await compacted.text()
+
+      // Then
+      expect(compactedBody).toContain("prof-work")
+      expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+    })
+
+    for (const stream of [false, true]) {
+      it(`does not remember a fresh replay answered only by an error (${stream ? "SSE" : "JSON"})`, async () => {
+        // Given
+        process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+        process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+        const sessionId = `fresh-replay-unserved-${stream ? "sse" : "json"}`
+        const app = createTestApp()
+        await (await post(app, piHeaders(sessionId), OPENING_MESSAGE)).text()
+        failureMessage = UPSTREAM_HICCUP
+        failingDirs.add("prof-personal")
+        const failed = await postMessages(app, { headers: piHeaders(sessionId), content: SUMMARY_COMPACTED, stream })
+        const failedBody = await failed.text()
+        failingDirs.clear()
+        failureMessage = DEFAULT_FAILURE
+        process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+        capturedSdkCalls = []
+
+        // When
+        const retried = await post(app, piHeaders(sessionId), SUMMARY_COMPACTED)
+        const retriedBody = await retried.text()
+
+        // Then
+        // The overload relays as the account's answer (an SSE error frame
+        // after a 200, or a non-200 body) without any model output.
+        if (stream) expect(failedBody).toContain("overloaded_error")
+        else expect(failed.status).not.toBe(200)
+        expect(failedBody).not.toContain("ok from")
+        expect(retriedBody).toContain("prof-work")
+        expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+      })
+    }
+
+    it("moves a retry of a fresh replay whose system prompt changed", async () => {
+      // Given
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+      process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+      const app = createTestApp()
+      const headers = piHeaders("fresh-replay-system")
+      await (await postMessages(app, { headers, content: OPENING_MESSAGE, stream: false, system: "first prompt" })).text()
+      process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+      capturedSdkCalls = []
+
+      // When
+      const retried = await postMessages(app, { headers, content: OPENING_MESSAGE, stream: false, system: "second prompt" })
+      const retriedBody = await retried.text()
+
+      // Then
+      expect(retriedBody).toContain("prof-work")
+      expect(capturedSdkCalls.map(call => call.dir)).toEqual(["/tmp/meridian-test-prof-work"])
+    })
+
+    it("leaves a durable attested route on its account", async () => {
+      // Given
+      process.env.MERIDIAN_PRIORITY_FAILBACK = "fresh-replay"
+      const app = createTestApp()
+      await assignToFallback(app, "fresh-replay-durable")
+
+      // When
+      const compacted = await post(app, trustedOpenCodeTurnHeaders("fresh-replay-durable", "request-2"), SUMMARY_COMPACTED)
+      const compactedBody = await compacted.text()
+
+      // Then
+      expect(compactedBody).toContain("prof-personal")
+      expect(capturedSdkCalls.every(call => call.dir.includes("prof-personal"))).toBe(true)
+      expect(durableRoute("fresh-replay-durable").profileId).toBe("personal")
+    })
   })
 
   it("uses persisted priorityFailback when the environment is unset", async () => {
