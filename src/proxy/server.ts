@@ -1686,7 +1686,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    *  safe direction; over-suppressing a healthy profile is the bug this
    *  gate exists to prevent.
    *
-   *  `force: true` bypasses `fetchOAuthUsage`'s 30s cache: exhaustion is
+   *  `force: true` bypasses `fetchOAuthUsage`'s usage cache: exhaustion is
    *  rare (off the hot path) and `/v1/usage/quota/all` polling routinely
    *  keeps that cache warm with a snapshot recorded just before the failure,
    *  which would otherwise show "just under 1" and starve this refinement
