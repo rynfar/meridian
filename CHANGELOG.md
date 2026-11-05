@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.89.0](https://github.com/rynfar/meridian/compare/meridian-v1.88.0...meridian-v1.89.0) (2026-11-05)
+
+
+### Features
+
+* keep a stopped turn's session when the client discarded its output ([#1480](https://github.com/rynfar/meridian/issues/1480)) ([3a700e3](https://github.com/rynfar/meridian/commit/3a700e365fef08b4549642746a9ccbf59c64d95e))
+
+
+### Bug Fixes
+
+* avoid occupied store-lock writes and isolate native test fixtures ([#1506](https://github.com/rynfar/meridian/issues/1506)) ([2297d61](https://github.com/rynfar/meridian/commit/2297d61e4f157ad6448dc787c64849f565f4377f))
+* keep explicit models on refusal fallback ([#1505](https://github.com/rynfar/meridian/issues/1505)) ([16c2149](https://github.com/rynfar/meridian/commit/16c214941bf3f05aa4015a70d8b81bd94857a88f))
+* **session:** invalidate evicted JSON cache after durable commit ([67d02f5](https://github.com/rynfar/meridian/commit/67d02f56ba69b7e738aea67119ba5b1376ef0db0))
+
 ## [1.88.0](https://github.com/rynfar/meridian/compare/meridian-v1.87.0...meridian-v1.88.0) (2026-11-02)
 
 
