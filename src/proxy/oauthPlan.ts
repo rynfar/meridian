@@ -44,9 +44,10 @@ export interface OAuthPlanFields {
    * byte-identical to what a personal Max 5x reports — and a Standard seat
    * reports `default_raven`, a codename naming no published allotment. So the
    * rate-limit tier can size neither kind of Team seat: one because it lies
-   * and one because it says nothing. Null on every personal account.
+   * and one because it says nothing. Null on every personal account; a
+   * reading keeps that null so a seat the account no longer holds is cleared.
    */
-  seatTier?: string
+  seatTier?: string | null
 }
 
 /**
@@ -79,7 +80,7 @@ export function extractPlanFields(profile: OAuthProfileResponse | null | undefin
   return {
     ...(subscriptionType ? { subscriptionType } : {}),
     ...(rateLimitTier ? { rateLimitTier } : {}),
-    ...(seatTier ? { seatTier } : {}),
+    ...(seatTier || seatTier === null ? { seatTier } : {}),
   }
 }
 

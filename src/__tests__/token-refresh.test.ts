@@ -27,6 +27,7 @@ const MOCK_CREDENTIALS = {
     scopes: ["openid", "profile"],
     subscriptionType: "max",
     rateLimitTier: "standard",
+    planCheckedAt: Date.now(),
   },
   extraField: "keep-me",
 }
@@ -42,6 +43,27 @@ function makeSuccessResponse(body: object) {
     status: 200,
     headers: { "Content-Type": "application/json" },
   })
+}
+
+const TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
+
+/**
+ * Answer every endpoint, but COUNT only the token endpoint.
+ *
+ * A refresh also asks the profile endpoint whether the plan has changed, so a
+ * counter ticking on every fetch measures two things and reports two where the
+ * assertion means one. Everything in this file is about the refresh itself —
+ * how often the plan is read is token-refresh-plan-backfill.test.ts's subject.
+ */
+function countTokenRefreshes(
+  response: () => Response = () => makeSuccessResponse(MOCK_TOKEN_RESPONSE),
+): () => number {
+  let calls = 0
+  mockFetch(mock(async (url: unknown) => {
+    if (String(url) === TOKEN_URL) calls++
+    return response()
+  }))
+  return () => calls
 }
 
 // ---------------------------------------------------------------------------
@@ -210,11 +232,7 @@ describe("refreshOAuthToken", () => {
 
   it("concurrent calls share one in-flight request", async () => {
     const { store } = makeStore()
-    let fetchCount = 0
-    mockFetch(mock(async () => {
-      fetchCount++
-      return makeSuccessResponse(MOCK_TOKEN_RESPONSE)
-    }))
+    const tokenCalls = countTokenRefreshes()
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
 
     const [r1, r2, r3] = await Promise.all([
@@ -226,7 +244,7 @@ describe("refreshOAuthToken", () => {
     expect(r1).toBe(true)
     expect(r2).toBe(true)
     expect(r3).toBe(true)
-    expect(fetchCount).toBe(1)
+    expect(tokenCalls()).toBe(1)
   })
 
   it("deduplicates distinct store instances with the same refreshKey", async () => {
@@ -234,11 +252,7 @@ describe("refreshOAuthToken", () => {
     const second = makeStore().store
     first.refreshKey = "file:/tmp/same-profile/.credentials.json"
     second.refreshKey = "file:/tmp/same-profile/.credentials.json"
-    let fetchCount = 0
-    mockFetch(mock(async () => {
-      fetchCount++
-      return makeSuccessResponse(MOCK_TOKEN_RESPONSE)
-    }))
+    const tokenCalls = countTokenRefreshes()
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
 
     const [r1, r2] = await Promise.all([
@@ -248,7 +262,7 @@ describe("refreshOAuthToken", () => {
 
     expect(r1).toBe(true)
     expect(r2).toBe(true)
-    expect(fetchCount).toBe(1)
+    expect(tokenCalls()).toBe(1)
   })
 
   it("does not share in-flight refreshes across different refreshKeys", async () => {
@@ -256,11 +270,7 @@ describe("refreshOAuthToken", () => {
     const second = makeStore().store
     first.refreshKey = "file:/tmp/personal/.credentials.json"
     second.refreshKey = "file:/tmp/work/.credentials.json"
-    let fetchCount = 0
-    mockFetch(mock(async () => {
-      fetchCount++
-      return makeSuccessResponse(MOCK_TOKEN_RESPONSE)
-    }))
+    const tokenCalls = countTokenRefreshes()
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
 
     const [r1, r2] = await Promise.all([
@@ -270,22 +280,18 @@ describe("refreshOAuthToken", () => {
 
     expect(r1).toBe(true)
     expect(r2).toBe(true)
-    expect(fetchCount).toBe(2)
+    expect(tokenCalls()).toBe(2)
   })
 
   it("allows a second refresh after the first completes", async () => {
     const { store } = makeStore()
-    let fetchCount = 0
-    mockFetch(mock(async () => {
-      fetchCount++
-      return makeSuccessResponse(MOCK_TOKEN_RESPONSE)
-    }))
+    const tokenCalls = countTokenRefreshes()
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
 
     await refreshOAuthToken(store)
     await refreshOAuthToken(store)
 
-    expect(fetchCount).toBe(2)
+    expect(tokenCalls()).toBe(2)
   })
 })
 
@@ -310,7 +316,14 @@ describe("ensureFreshToken", () => {
     const { ensureFreshToken } = await import("../proxy/tokenRefresh")
     const fetchSpy = mock(() => Promise.reject(new Error("fetch should not be called")))
     mockFetch(fetchSpy)
-    const { store, writes } = makeStoreWithExpiry(Date.now() + 60 * 60 * 1000) // +1h, well outside default 5min buffer
+    const { store, writes } = makeStore({
+      ...MOCK_CREDENTIALS,
+      claudeAiOauth: {
+        ...MOCK_CREDENTIALS.claudeAiOauth,
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        planCheckedAt: Date.now(),
+      },
+    })
 
     const ok = await ensureFreshToken(store)
     expect(ok).toBe(true)
@@ -320,25 +333,23 @@ describe("ensureFreshToken", () => {
 
   it("refreshes when token is inside the buffer (near-expiry)", async () => {
     const { ensureFreshToken } = await import("../proxy/tokenRefresh")
-    const fetchSpy = mock(() => Promise.resolve(makeSuccessResponse(MOCK_TOKEN_RESPONSE)))
-    mockFetch(fetchSpy)
+    const tokenCalls = countTokenRefreshes()
     const { store, getStored } = makeStoreWithExpiry(Date.now() + 60 * 1000) // +1min, well inside default 5min buffer
 
     const ok = await ensureFreshToken(store)
     expect(ok).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(tokenCalls()).toBe(1)
     expect(getStored()?.claudeAiOauth.accessToken).toBe("new-access-token")
   })
 
   it("refreshes when token is already expired", async () => {
     const { ensureFreshToken } = await import("../proxy/tokenRefresh")
-    const fetchSpy = mock(() => Promise.resolve(makeSuccessResponse(MOCK_TOKEN_RESPONSE)))
-    mockFetch(fetchSpy)
+    const tokenCalls = countTokenRefreshes()
     const { store, getStored } = makeStoreWithExpiry(Date.now() - 60 * 60 * 1000) // -1h
 
     const ok = await ensureFreshToken(store)
     expect(ok).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(tokenCalls()).toBe(1)
     expect(getStored()?.claudeAiOauth.accessToken).toBe("new-access-token")
   })
 
@@ -373,14 +384,13 @@ describe("ensureFreshToken", () => {
 
   it("respects custom bufferMs", async () => {
     const { ensureFreshToken } = await import("../proxy/tokenRefresh")
-    const fetchSpy = mock(() => Promise.resolve(makeSuccessResponse(MOCK_TOKEN_RESPONSE)))
-    mockFetch(fetchSpy)
+    const tokenCalls = countTokenRefreshes()
     // Token expires in 2h. Default 5-min buffer → no refresh; 3-h buffer → refresh.
     const { store } = makeStoreWithExpiry(Date.now() + 2 * 60 * 60 * 1000)
     expect(await ensureFreshToken(store, 60 * 1000)).toBe(true)            // 1-min buffer: skip
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(tokenCalls()).toBe(0)
     expect(await ensureFreshToken(store, 3 * 60 * 60 * 1000)).toBe(true)   // 3-h buffer: refresh
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(tokenCalls()).toBe(1)
   })
 })
 
@@ -404,11 +414,7 @@ describe("startBackgroundRefresh", () => {
 
   it("immediately refreshes when token is already expired", async () => {
     const { startBackgroundRefresh, isBackgroundRefreshActive } = await import("../proxy/tokenRefresh")
-    let fetchCalls = 0
-    mockFetch(() => {
-      fetchCalls++
-      return Promise.resolve(makeSuccessResponse(MOCK_TOKEN_RESPONSE))
-    })
+    const tokenCalls = countTokenRefreshes()
     const { store, getStored } = makeStore({
       ...MOCK_CREDENTIALS,
       claudeAiOauth: { ...MOCK_CREDENTIALS.claudeAiOauth, expiresAt: Date.now() - 60_000 },
@@ -418,7 +424,7 @@ describe("startBackgroundRefresh", () => {
     expect(isBackgroundRefreshActive()).toBe(true)
     await tick(50)
 
-    expect(fetchCalls).toBe(1)
+    expect(tokenCalls()).toBe(1)
     expect(getStored()?.claudeAiOauth.accessToken).toBe("new-access-token")
   })
 
@@ -509,11 +515,7 @@ describe("startBackgroundRefresh", () => {
 
   it("is idempotent — second start() while running is a no-op", async () => {
     const { startBackgroundRefresh, isBackgroundRefreshActive } = await import("../proxy/tokenRefresh")
-    let fetchCalls = 0
-    mockFetch(() => {
-      fetchCalls++
-      return Promise.resolve(makeSuccessResponse(MOCK_TOKEN_RESPONSE))
-    })
+    const tokenCalls = countTokenRefreshes()
     const { store } = makeStore({
       ...MOCK_CREDENTIALS,
       claudeAiOauth: { ...MOCK_CREDENTIALS.claudeAiOauth, expiresAt: Date.now() - 1000 },
@@ -524,7 +526,7 @@ describe("startBackgroundRefresh", () => {
     expect(isBackgroundRefreshActive()).toBe(true)
     await tick(50)
 
-    expect(fetchCalls).toBe(1) // only one refresh, not two
+    expect(tokenCalls()).toBe(1) // only one refresh, not two
   })
 
   it("stop() prevents the next scheduled refresh from firing", async () => {
