@@ -1,0 +1,464 @@
+{
+  "recordedAt": "2026-09-18",
+  "scope": "Official CLI, existing Google account authentication; synthetic HTTP client; no production Meridian integration",
+  "runs": [
+    {
+      "case": "basic",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T16:58:05.580Z",
+      "observations": [
+        {
+          "name": "new-process-resume",
+          "passed": true
+        },
+        {
+          "name": "persistent-stdin",
+          "passed": true,
+          "firstUsage": {
+            "input_tokens": 14292,
+            "output_tokens": 1,
+            "thinking_tokens": 0,
+            "cache_read_tokens": 0,
+            "total_tokens": 14293
+          },
+          "secondUsage": {
+            "input_tokens": 28667,
+            "output_tokens": 37,
+            "thinking_tokens": 0,
+            "cache_read_tokens": 0,
+            "total_tokens": 28704
+          }
+        },
+        {
+          "name": "concurrent-independent-conversations",
+          "passed": true
+        }
+      ],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "passed": true,
+      "label": "basic",
+      "artifactsSha256": {
+        "first.ndjson": "70b9c351c7ee3650146edd659add837b9b4efd0d8b45bf73a1c132657145f2e3",
+        "first.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "left.ndjson": "17fdff514c1fd1a8abb5b551f80e353f5d19400a8fc6feab93173212835d7753",
+        "left.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "persistent.ndjson": "edd48f73841ce63f9b1f3a2e08be59a1e49a2c7f82efbabd617e132ca5a752b7",
+        "persistent.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "resume.ndjson": "4889cc178ba38c816e029f4387c761d24199289821f70c5f7ecde93e187e98dc",
+        "resume.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "right.ndjson": "8f99f3ca69993823f2a208d2a85f9613c52fa12d63b5ba7e0efa03355ad76473",
+        "right.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "case": "input",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:04:41.740Z",
+      "observations": [
+        {
+          "name": "native-tool-result-input",
+          "exit": {
+            "code": 1,
+            "signal": null
+          },
+          "results": [
+            {
+              "status": "ERROR",
+              "response": "",
+              "error": "stream input content block type \"tool_result\" is not supported (only \"text\")",
+              "duration_seconds": 0,
+              "num_turns": 0,
+              "usage": {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "thinking_tokens": 0,
+                "cache_read_tokens": 0,
+                "total_tokens": 0
+              }
+            }
+          ]
+        }
+      ],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "paidOverageCredits": false,
+      "cli": "1.2.6",
+      "cliAtEnd": "1.2.6",
+      "passed": true,
+      "label": "native-input-rejection",
+      "artifactsSha256": {
+        "native-tool-result.ndjson": "1fd1aa6332558fb5207d9bda32072ecc606c4c09ed80c2e29686d29c8d8ef41e",
+        "native-tool-result.stderr": "23aa3b704e1f1880d8ed3c08b92a2f5b5937ad99b706d457fb523ac5fbc210f3"
+      }
+    },
+    {
+      "case": "cancel",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:03:08.672Z",
+      "observations": [
+        {
+          "name": "process-group-cancellation",
+          "exit": {
+            "code": 1,
+            "signal": null
+          },
+          "elapsedMs": 432,
+          "results": [
+            {
+              "status": "ERROR",
+              "response": "",
+              "error": "interrupted",
+              "duration_seconds": 4.614721,
+              "num_turns": 1,
+              "usage": {
+                "input_tokens": 14268,
+                "output_tokens": 13,
+                "thinking_tokens": 0,
+                "cache_read_tokens": 0,
+                "total_tokens": 14281
+              }
+            }
+          ]
+        }
+      ],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "passed": true,
+      "label": "cancel-after-text",
+      "artifactsSha256": {
+        "cancel.ndjson": "94c4f93b21d3141e036b3a55d0d6db850e1a0be6d870c952925aa220155b975b",
+        "cancel.stderr": "c29031c66b0ecb71b7999cf5fa567c12f2abeb1c7f25157e0c105f1bc0cecfa3"
+      }
+    },
+    {
+      "case": "tools",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T16:58:04.414Z",
+      "observations": [],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "passed": false,
+      "error": "Error: Timeout after 65000ms",
+      "label": "default-project-mcp-missing",
+      "artifactsSha256": {
+        "mcp.ndjson": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "tool-bridge.ndjson": "aeec07e86447af10fee6986619f0ce92bcf6ca9f4867cea5b4ce13af1d6f6e5a",
+        "tool-bridge.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "nativeResults": [
+        {
+          "status": "SUCCESS",
+          "response": "The `meridian_research` MCP tool (`lookup_receipt`) is not available in my toolset, so I cannot call it.\n",
+          "duration_seconds": 2.066025,
+          "num_turns": 1,
+          "usage": {
+            "input_tokens": 14282,
+            "output_tokens": 438,
+            "thinking_tokens": 410,
+            "cache_read_tokens": 0,
+            "total_tokens": 14720
+          }
+        }
+      ],
+      "toolStates": [],
+      "mcpMethods": []
+    },
+    {
+      "case": "tools",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:00:24.777Z",
+      "observations": [],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: {\"error\":\"agy exited before requesting the MCP tool; inspect tool-bridge.ndjson\"}\n\n500 !== 200\n",
+      "label": "project-mcp-permission-denied",
+      "artifactsSha256": {
+        "hooks.ndjson": "200df163da86318cdb0059df6ab1a093c4b2865631745b3d5887ba10add8c701",
+        "mcp.ndjson": "9bc0cb47bf74387b63252c2b776d6b317e18c7566c96ef1dad8c11bad822e818",
+        "tool-bridge.ndjson": "648555c6a245c8b1f272844de4826c57c676647437f3c299c45986d42d822c50",
+        "tool-bridge.stderr": "7eabeea41cc4947fc34115fa2e00843246cea07b284d3ef359db4f1432cb567c"
+      },
+      "nativeResults": [
+        {
+          "status": "SUCCESS",
+          "response": "",
+          "duration_seconds": 4.223687,
+          "num_turns": 1,
+          "usage": {
+            "input_tokens": 15280,
+            "output_tokens": 314,
+            "thinking_tokens": 254,
+            "cache_read_tokens": 0,
+            "total_tokens": 15594
+          },
+          "denied_actions": [
+            {
+              "action": "mcp",
+              "display_name": "CallMcpTool"
+            }
+          ]
+        }
+      ],
+      "toolStates": [
+        {
+          "name": "call_mcp_tool",
+          "state": "ACTIVE",
+          "error": null
+        },
+        {
+          "name": "call_mcp_tool",
+          "state": "ERROR",
+          "error": {
+            "type": "TOOL_ERROR",
+            "message": "permission check failed for mcp \"meridian_research/lookup_receipt\": user denied permission for mcp(meridian_research/lookup_receipt)\nDo not attempt to circumvent this denial by rephrasing the command, using alternative tools/scripts (e.g. python, sh, curl), or accessing the same target resource. Proceed without performing this action."
+          }
+        }
+      ],
+      "mcpMethods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list"
+      ]
+    },
+    {
+      "case": "tools",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:01:21.043Z",
+      "observations": [],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: {\"error\":\"agy exited before requesting the MCP tool; inspect tool-bridge.ndjson\"}\n\n500 !== 200\n",
+      "label": "hook-permission-overrides-denied",
+      "artifactsSha256": {
+        "hooks.ndjson": "6f997672a43e013dbed3d033c4573eb937cb1e05c7b256b42527bbb68cc379e4",
+        "mcp.ndjson": "9bc0cb47bf74387b63252c2b776d6b317e18c7566c96ef1dad8c11bad822e818",
+        "tool-bridge.ndjson": "9fd5bbf675b3d50f80370cb4173c832e763c7badf80216f89302e946b9eeaefe",
+        "tool-bridge.stderr": "7eabeea41cc4947fc34115fa2e00843246cea07b284d3ef359db4f1432cb567c"
+      },
+      "nativeResults": [
+        {
+          "status": "SUCCESS",
+          "response": "",
+          "duration_seconds": 3.100718,
+          "num_turns": 1,
+          "usage": {
+            "input_tokens": 15282,
+            "output_tokens": 236,
+            "thinking_tokens": 179,
+            "cache_read_tokens": 0,
+            "total_tokens": 15518
+          },
+          "denied_actions": [
+            {
+              "action": "mcp",
+              "display_name": "CallMcpTool"
+            }
+          ]
+        }
+      ],
+      "toolStates": [
+        {
+          "name": "call_mcp_tool",
+          "state": "ACTIVE",
+          "error": null
+        },
+        {
+          "name": "call_mcp_tool",
+          "state": "ERROR",
+          "error": {
+            "type": "TOOL_ERROR",
+            "message": "permission check failed for mcp \"meridian_research/lookup_receipt\": user denied permission for mcp(meridian_research/lookup_receipt)\nDo not attempt to circumvent this denial by rephrasing the command, using alternative tools/scripts (e.g. python, sh, curl), or accessing the same target resource. Proceed without performing this action."
+          }
+        }
+      ],
+      "mcpMethods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list"
+      ]
+    },
+    {
+      "case": "tools",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:01:55.051Z",
+      "observations": [],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "cli": "1.2.6",
+      "autoApprove": true,
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Created At: 2026-09-18T11:02:02-06:00\\n' +\n+   'Completed At: 2026-09-18T11:02:04-06:00\\n' +\n+   'EXTERNAL_f5369546-544c-4643-8028-c9a99c2811e4'\n- 'EXTERNAL_f5369546-544c-4643-8028-c9a99c2811e4'\n",
+      "label": "exact-formatting-failure",
+      "artifactsSha256": {
+        "hooks.ndjson": "74a948bf09c45043acfb631b73795660cfe7f5e91e19995d092efab4e05c80ac",
+        "mcp.ndjson": "61095933a69d1d2b30408910337af4c858fb114ad35d6030f8974f64b9bd8d21",
+        "tool-bridge.ndjson": "3a0fd9bedf59aa0b5673c5d942c915019951ad90c6c0673ccd55b434669244ed",
+        "tool-bridge.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "nativeResults": [
+        {
+          "status": "SUCCESS",
+          "response": "Created At: 2026-09-18T11:02:02-06:00\nCompleted At: 2026-09-18T11:02:04-06:00\nEXTERNAL_f5369546-544c-4643-8028-c9a99c2811e4\n",
+          "duration_seconds": 9.843088,
+          "num_turns": 1,
+          "usage": {
+            "input_tokens": 30739,
+            "output_tokens": 155,
+            "thinking_tokens": 0,
+            "cache_read_tokens": 0,
+            "total_tokens": 30894
+          }
+        }
+      ],
+      "toolStates": [
+        {
+          "name": "call_mcp_tool",
+          "state": "ACTIVE",
+          "error": null
+        },
+        {
+          "name": "call_mcp_tool",
+          "state": "DONE",
+          "error": null
+        }
+      ],
+      "mcpMethods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ]
+    },
+    {
+      "case": "tools",
+      "model": "gemini-3.8-flash-low",
+      "platform": "darwin-arm64",
+      "date": "2026-09-18T17:04:40.580Z",
+      "observations": [
+        {
+          "name": "external-client-tool-roundtrip",
+          "passed": true,
+          "callCount": 1,
+          "heldMs": 1500,
+          "receipt": "EXTERNAL_b9d9fb2b-d97c-48c6-a726-4d3fe87819f7",
+          "exactFormatting": false,
+          "first": {
+            "id": "research_tool",
+            "type": "message",
+            "role": "assistant",
+            "model": "gemini-3.8-flash-low",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_26e29256-48fd-4c96-b432-66b906a199e2",
+                "name": "lookup_receipt",
+                "input": {
+                  "key": "probe"
+                }
+              }
+            ],
+            "stop_reason": "tool_use"
+          },
+          "second": {
+            "id": "research_answer",
+            "type": "message",
+            "role": "assistant",
+            "model": "gemini-3.8-flash-low",
+            "content": [
+              {
+                "type": "text",
+                "text": "Created At: 2026-09-18T11:04:45-06:00\nCompleted At: 2026-09-18T11:04:47-06:00\nEXTERNAL_b9d9fb2b-d97c-48c6-a726-4d3fe87819f7\n"
+              }
+            ],
+            "stop_reason": "end_turn"
+          },
+          "usage": {
+            "input_tokens": 30865,
+            "output_tokens": 413,
+            "thinking_tokens": 260,
+            "cache_read_tokens": 0,
+            "total_tokens": 31278
+          }
+        },
+        {
+          "name": "completed-tool-history-resume",
+          "passed": true
+        },
+        {
+          "name": "builtin-denied-with-auto-approve",
+          "passed": true
+        }
+      ],
+      "auth": "default CLI account provider; no API/provider overrides",
+      "paidOverageCredits": false,
+      "cli": "1.2.6",
+      "autoApprove": true,
+      "cliAtEnd": "1.2.6",
+      "passed": true,
+      "label": "final-tool-roundtrip-and-guard",
+      "artifactsSha256": {
+        "guard.ndjson": "f38e942a3577da7ed97efe1ad33a916c035eae15b341b4a7d0877014e5bbfbf5",
+        "guard.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "hooks.ndjson": "e18fcb5f763ff86fa0883b05ddc092772f0261f342575316510d5fa4ff2c68b4",
+        "mcp.ndjson": "cde9b6c6e44d4c8f1a3516c16f1a8aebe9b491c27aba6f5c51802ae4741757e7",
+        "tool-bridge.ndjson": "00cb2d6a6f4a231622a79ce830bc9d4ce2b0db0627a22bdbfe24d357176d5146",
+        "tool-bridge.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tool-resume.ndjson": "f052406b2de27a6785e6def457a4225c7f3639c591e802638d403be9090d964c",
+        "tool-resume.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "nativeResults": [
+        {
+          "status": "SUCCESS",
+          "response": "Created At: 2026-09-18T11:04:45-06:00\nCompleted At: 2026-09-18T11:04:47-06:00\nEXTERNAL_b9d9fb2b-d97c-48c6-a726-4d3fe87819f7\n",
+          "duration_seconds": 5.25001,
+          "num_turns": 1,
+          "usage": {
+            "input_tokens": 30865,
+            "output_tokens": 413,
+            "thinking_tokens": 260,
+            "cache_read_tokens": 0,
+            "total_tokens": 31278
+          }
+        }
+      ],
+      "toolStates": [
+        {
+          "name": "call_mcp_tool",
+          "state": "ACTIVE",
+          "error": null
+        },
+        {
+          "name": "call_mcp_tool",
+          "state": "DONE",
+          "error": null
+        }
+      ],
+      "mcpMethods": [
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call",
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "server/discover",
+        "initialize",
+        "notifications/initialized",
+        "tools/list"
+      ]
+    }
+  ]
+}
