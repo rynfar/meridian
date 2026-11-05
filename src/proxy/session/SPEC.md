@@ -42,6 +42,15 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   `recoveryClaim`).
 - JSON bookkeeping is the default; `MERIDIAN_BOOKKEEPING=sqlite` is explicit and
   a SQLite directory never falls back to JSON.
+- JSON durable mutations serialize per store path in invocation order and return
+  promises. Callers await completion before reading their result or releasing
+  publication ownership. Inputs are owned before the first yield, and the
+  publication guard is checked immediately before rename. SQLite mutations and
+  their commit continuations stay synchronous inside an admitted transaction;
+  `storeMutationResult.ts` preserves that distinction. Cache clear resets memory
+  immediately and again at the ordered durable commit, before the next writer.
+  Successful eviction also invalidates its local cache after commit, so a read
+  during a JSON write cannot repopulate a fallback entry that outlives eviction.
 - A prompt-cache keepalive beat (see `proxy-core` → Decisions) only **reads**
   a published mapping: it resumes the mapping's current transcript as a
   non-persisted fork, takes no writer or publication lease, and never

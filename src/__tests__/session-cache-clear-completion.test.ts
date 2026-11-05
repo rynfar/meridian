@@ -160,15 +160,16 @@ for (const key of ["key", undefined]) {
   }
 }
 
-it("JSON keeps its immediate reset and returns the same approved completion type", async () => {
+it("JSON returns the approved completion type and clears the durable mapping when awaited", async () => {
   setSessionStoreBackendForTest(null)
   setSessionStoreDir(join(directory, "json-control"))
   try {
-    storeSession("json", messages, "json-sdk", cwd)
+    await storeSession("json", messages, "json-sdk", cwd)
+    expect(lookupSharedSessionResult("json").status).toBe("found")
     const completion: Promise<void> = clearSessionCache()
     expect(completion).toBeInstanceOf(Promise)
-    expect(lookupSharedSessionResult("json").status).toBe("missing")
     await completion
+    expect(lookupSharedSessionResult("json").status).toBe("missing")
   } finally {
     setSessionStoreDir(directory)
     setSessionStoreBackendForTest(sqliteSessionStoreBackend)

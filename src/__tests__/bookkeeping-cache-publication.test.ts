@@ -51,12 +51,12 @@ function cachedId(key: string | undefined): string | undefined {
     return result.type === "continuation" ? result.session.claudeSessionId : undefined
   } finally { setSessionStoreBackendForTest(sqliteSessionStoreBackend) }
 }
-function publication(): PrioritySessionPublication {
+async function publication(): Promise<PrioritySessionPublication> {
   const routeKey = "route"
   const lookup = lookupPriorityAssignmentResult(routeKey)
   if (lookup.status === "error") throw lookup.error
-  const claim = claimPriorityAttempt({ routeKey, expectedAssignmentGeneration: lookup.generation,
-    turn: { turnId: "a".repeat(43), issuedAt: 1000 } })
+  const claim = (await claimPriorityAttempt({ routeKey, expectedAssignmentGeneration: lookup.generation,
+    turn: { turnId: "a".repeat(43), issuedAt: 1000 } }))
   if (!claim) throw new Error("claim failed")
   const claimed = lookupPriorityAssignmentResult(routeKey)
   if (claimed.status === "error") throw claimed.error
@@ -66,21 +66,25 @@ function publication(): PrioritySessionPublication {
 function publish(priority: PrioritySessionPublication) {
   const lookup = lookupSharedSessionResult("key")
   if (lookup.status === "error") throw lookup.error
-  return storeSession("key", messages, "new", directoryHint, undefined, undefined, undefined, undefined,
+  const stored = storeSession("key", messages, "new", directoryHint, undefined, undefined, undefined, undefined,
     undefined, undefined, lookup.generation, priority)
+  if (stored instanceof Promise) throw new Error("SQL publication fixture yielded inside its transaction")
+  return stored
 }
 function clearSharedMapping(key: string | undefined): void {
-  expect(evictSharedSession(key ?? getConversationFingerprint(messages, directoryHint))).toBe(true)
+  const evicted = evictSharedSession(key ?? getConversationFingerprint(messages, directoryHint))
+  expect(evicted).not.toBeInstanceOf(Promise)
+  expect(evicted).toBe(true)
 }
 
 describe("cache effects follow durable SQLite COMMIT", () => {
   for (const key of ["key", undefined]) {
-    it(`${key ?? "fingerprint"}: a foreign initialized transaction rejects before cache fallback or touch`, () => {
+    it(`${key ?? "fingerprint"}: a foreign initialized transaction rejects before cache fallback or touch`, async () => {
       const otherDirectory = realpathSync(mkdtempSync(join(tmpdir(), "cache-foreign-")))
       const otherHandle = initializeSessionBookkeeping(otherDirectory)
       const originalNow = Date.now
       try {
-        storeSession(key, messages, "cached-B", directoryHint)
+        await storeSession(key, messages, "cached-B", directoryHint)
         setSessionStoreBackendForTest({ ...sqliteSessionStoreBackend,
           lookupSharedSessionResult: () => ({ status: "error", error: new Error("read unavailable") }) })
         const cached = lookupSession(key, incoming, directoryHint)
@@ -105,8 +109,8 @@ describe("cache effects follow durable SQLite COMMIT", () => {
         rmSync(otherDirectory, { recursive: true, force: true })
       }
     })
-    it(`${key ?? "fingerprint"}: transaction read errors never fall back to LRU`, () => {
-      storeSession(key, messages, "old", directoryHint)
+    it(`${key ?? "fingerprint"}: transaction read errors never fall back to LRU`, async () => {
+      await storeSession(key, messages, "old", directoryHint)
       setSessionStoreBackendForTest({ ...sqliteSessionStoreBackend,
         lookupSharedSessionResult: () => ({ status: "error", error: new Error("read unavailable") }) })
       expect(withBookkeepingWrite(directory, { scope: "publication" }, () =>
@@ -116,8 +120,8 @@ describe("cache effects follow durable SQLite COMMIT", () => {
       setSessionStoreBackendForTest(sqliteSessionStoreBackend)
       expect(cachedId(key)).toBe("old")
     })
-    it(`${key ?? "fingerprint"}: success publishes only after COMMIT and reads its own writes`, () => {
-      storeSession(key, messages, "old", directoryHint)
+    it(`${key ?? "fingerprint"}: success publishes only after COMMIT and reads its own writes`, async () => {
+      await storeSession(key, messages, "old", directoryHint)
       const start = transactionStatements.length
       withBookkeepingWrite(directory, { scope: "publication" }, () => {
         expect(storeSession(key, messages, "new", directoryHint)).not.toBe(false)
@@ -131,15 +135,15 @@ describe("cache effects follow durable SQLite COMMIT", () => {
       expect(transactionStatements.slice(start)).toEqual(["BEGIN IMMEDIATE", "COMMIT"])
       expect(cachedId(key)).toBe("new")
     })
-    it(`${key ?? "fingerprint"}: a standalone cache lookup opens only the store's one read transaction`, () => {
-      storeSession(key, messages, "old", directoryHint)
+    it(`${key ?? "fingerprint"}: a standalone cache lookup opens only the store's one read transaction`, async () => {
+      await storeSession(key, messages, "old", directoryHint)
       const start = transactionStatements.length
       expect(lookupSession(key, incoming, directoryHint).type).toBe("continuation")
       expect(transactionStatements.slice(start)).toEqual(["BEGIN", "COMMIT"])
     })
     for (const outcome of ["throw", "false", "busy-before", "ioerr-before", "ioerr-after"] as const) {
-      it(`${key ?? "fingerprint"}: ${outcome} discards writes and lookup cache effects`, () => {
-        storeSession(key, messages, "old", directoryHint)
+      it(`${key ?? "fingerprint"}: ${outcome} discards writes and lookup cache effects`, async () => {
+        await storeSession(key, messages, "old", directoryHint)
         const operation = () => withBookkeepingWrite(directory, { scope: "publication" }, () => {
           expect(storeSession(key, messages, "new", directoryHint)).not.toBe(false)
           lookupSession(key, incoming, directoryHint)
@@ -161,7 +165,7 @@ describe("cache effects follow durable SQLite COMMIT", () => {
     }
     for (const root of ["evict", "clear", "missing-lookup", "missing-claude-id"] as const) {
       it(`${key ?? "fingerprint"}: ${root} durable invalidation rolls back`, async () => {
-        storeSession(key, messages, "old", directoryHint)
+        await storeSession(key, messages, "old", directoryHint)
         let completion: Promise<void> | undefined
         expect(withBookkeepingWrite(directory, { scope: "publication" }, () => {
           if (root === "clear") completion = clearSessionCache()
@@ -182,7 +186,7 @@ describe("cache effects follow durable SQLite COMMIT", () => {
     for (const root of ["evict", "clear"] as const) {
       for (const fault of [undefined, "busy-before", "ioerr-before", "ioerr-after"] as const) {
         it(`${key ?? "fingerprint"}: ${root} × ${fault ?? "COMMIT"} preserves durable outcome`, async () => {
-          storeSession(key, messages, "old", directoryHint)
+          await storeSession(key, messages, "old", directoryHint)
           let completion: Promise<void> | undefined
           const operation = () => withBookkeepingWrite(directory, { scope: "publication" }, () => {
             if (root === "clear") completion = clearSessionCache()
@@ -202,9 +206,9 @@ describe("cache effects follow durable SQLite COMMIT", () => {
     }
   }
   for (const outcome of ["success", "throw", "false", "busy-before", "ioerr-before", "ioerr-after"] as const) {
-    it(`priority publication: ${outcome} updates authority only after COMMIT`, () => {
-      storeSession("key", messages, "old", directoryHint)
-      const priority = publication(), before = structuredClone(priority)
+    it(`priority publication: ${outcome} updates authority only after COMMIT`, async () => {
+      await storeSession("key", messages, "old", directoryHint)
+      const priority = (await publication()), before = structuredClone(priority)
       const operation = () => withBookkeepingWrite(directory, { scope: "publication" }, () => {
         expect(publish(priority)).not.toBe(false)
         expect(priority).toEqual(before)
@@ -224,10 +228,10 @@ describe("cache effects follow durable SQLite COMMIT", () => {
     })
   }
   for (const root of ["finalize", "rollback"] as const) for (const commit of [true, false]) {
-    it(`priority ${root}: authority changes only on ${commit ? "COMMIT" : "rollback"}`, () => {
-      storeSession("key", messages, "old", directoryHint)
-      const priority = publication()
-      expect(publish(priority)).not.toBe(false)
+    it(`priority ${root}: authority changes only on ${commit ? "COMMIT" : "rollback"}`, async () => {
+      await storeSession("key", messages, "old", directoryHint)
+      const priority = (await publication())
+      expect((await publish(priority))).not.toBe(false)
       const before = structuredClone(priority)
       expect(withBookkeepingWrite(directory, { scope: "publication" }, () => {
         const result = root === "finalize" ? finalizePrioritySessionPublication(priority)
@@ -243,10 +247,10 @@ describe("cache effects follow durable SQLite COMMIT", () => {
   }
   for (const root of ["finalize", "rollback"] as const) {
     for (const fault of ["busy-before", "ioerr-before", "ioerr-after"] as const) {
-      it(`priority ${root}: ${fault} does not revoke in-memory authority`, () => {
-        storeSession("key", messages, "old", directoryHint)
-        const priority = publication()
-        expect(publish(priority)).not.toBe(false)
+      it(`priority ${root}: ${fault} does not revoke in-memory authority`, async () => {
+        await storeSession("key", messages, "old", directoryHint)
+        const priority = (await publication())
+        expect((await publish(priority))).not.toBe(false)
         const before = structuredClone(priority)
         injection.arm(fault)
         expect(() => withBookkeepingWrite(directory, { scope: "publication" }, () =>

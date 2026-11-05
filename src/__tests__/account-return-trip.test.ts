@@ -185,7 +185,7 @@ describe("a conversation that moves to another account and comes back", () => {
     await turn(app, "rt-control", history)
     history.push({ role: "assistant", content: "BACKUP-ANSWER-2" }, { role: "user", content: "THIRD-QUESTION" })
     await turn(app, "rt-control", history)
-    expect(evictSharedSession("backup:rt-control")).toBe(true)
+    expect(await evictSharedSession("backup:rt-control")).toBe(true)
     await setActive(app, "work")
     history.push({ role: "assistant", content: "BACKUP-ANSWER-3" }, { role: "user", content: "FOURTH-QUESTION" })
     await turn(app, "rt-control", history)

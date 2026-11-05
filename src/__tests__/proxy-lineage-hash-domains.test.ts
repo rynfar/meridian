@@ -55,7 +55,7 @@ describe("lineage hash integrity through HTTP", () => {
     for (const item of cases) {
       it(`replays ${item.name} (stream=${stream})`, async () => {
         const key = crypto.randomUUID()
-        expect(storeSession(key, item.stored, "mock-source")).not.toBe(false)
+        expect(await storeSession(key, item.stored, "mock-source")).not.toBe(false)
         const { app } = createProxyServer({ silent: true })
         await post(app, key, [...item.incoming, { role: "assistant", content: "prior reply" }, { role: "user", content: "Explain the revised history." }])
         expect(captured).toHaveLength(1)
@@ -73,7 +73,7 @@ describe("lineage hash integrity through HTTP", () => {
       ]
       const digest = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 32)
       const messageStrings = history.map(message => `${message.role}:${normalizeContent(message.content)}`)
-      expect(storeSharedSession(key, "legacy-source", history.length, digest(messageStrings.join("\n")),
+      expect(await storeSharedSession(key, "legacy-source", history.length, digest(messageStrings.join("\n")),
         messageStrings.map(digest), undefined, undefined,
         history.map(message => (Array.isArray(message.content) ? message.content : [message.content])
           .map(block => digest(normalizeContent([block])))))).not.toBe(false)

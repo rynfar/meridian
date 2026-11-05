@@ -42,7 +42,7 @@ export function evictSharedSession(directory: string, key: string, expectedGener
   })
 }
 
-export function clearSharedSessions(directory: string): void {
+export function clearSharedSessions(directory: string, afterCommit?: () => void): void {
   withStoreWrite(directory, (tx) => {
     for (const row of tx.all("SELECT key FROM mappings")) advanceStoreSlot(tx, String(row.key))
     tx.run("DELETE FROM mappings")
@@ -52,5 +52,6 @@ export function clearSharedSessions(directory: string): void {
     for (const row of tx.all("SELECT route_key FROM priority_attempts"))
       advanceStoreSlot(tx, `priority-attempt:${row.route_key}`)
     tx.run("DELETE FROM priority_attempts")
+    if (afterCommit) tx.afterCommit(afterCommit)
   })
 }

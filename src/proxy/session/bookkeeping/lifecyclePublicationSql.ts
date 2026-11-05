@@ -9,19 +9,19 @@ import { assertLocator, assertResourceCapacity, directoryFor, normalizeInput, no
 import type { TranscriptLocator } from "./types"
 
 export function publishPinnedTranscript<T extends boolean | string>(
-  locator: TranscriptLocator, publish: () => T, options: SessionLifecycleOptions = {},
+  locator: TranscriptLocator, publish: () => T | Promise<T>, options: SessionLifecycleOptions = {},
 ): Promise<T> {
   return updatePinnedTranscript(locator, publish, options, false)
 }
 
 export function attachPinnedTranscript<T extends boolean | string>(
-  locator: TranscriptLocator, publish: () => T, options: SessionLifecycleOptions = {},
+  locator: TranscriptLocator, publish: () => T | Promise<T>, options: SessionLifecycleOptions = {},
 ): Promise<T> {
   return updatePinnedTranscript(locator, publish, options, true)
 }
 
 async function updatePinnedTranscript<T extends boolean | string>(
-  locator: TranscriptLocator, publish: () => T, options: SessionLifecycleOptions, allowMissing: boolean,
+  locator: TranscriptLocator, publish: () => T | Promise<T>, options: SessionLifecycleOptions, allowMissing: boolean,
 ): Promise<T> {
   const normalized = normalizeInput(locator, options)
   const originalLocator = { ...locator }

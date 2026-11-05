@@ -35,7 +35,7 @@ export interface SessionStoreBackend {
   evictSharedSession(directory: string, key: string, generation?: StoredSessionGeneration): boolean
   lookupSessionRecovery(directory: string, key: string): SessionRecoveryInfo | undefined
   listStoredSessions(directory: string): Array<SessionRecoveryInfo & { key: string }>
-  clearSharedSessions(directory: string): void
+  clearSharedSessions(directory: string, afterCommit?: () => void): void
   listSupersededProfileConversations(directory: string, options: ProfileCopyPruneOptions): string[]
   pruneSupersededProfileCopies(directory: string, options: ProfileCopyPruneOptions): number
 }

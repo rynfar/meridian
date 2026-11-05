@@ -55,17 +55,17 @@ function turn(): InterruptedTurn {
 }
 
 /** Publish the session after turn 1, then mark it as a stopped turn 2 would. */
-function publishAndMark(): string {
-  const published = storeSession(KEY, PREFIX, SOURCE.claudeSessionId)
+async function publishAndMark(): Promise<string> {
+  const published = await storeSession(KEY, PREFIX, SOURCE.claudeSessionId)
   if (!published) throw new Error("publication failed")
-  const generation = markSessionInterrupted(KEY, undefined, STOPPED, published, SOURCE, turn())
+  const generation = await markSessionInterrupted(KEY, undefined, STOPPED, published, SOURCE, turn())
   if (!generation) throw new Error("marking failed")
   return generation
 }
 
 describe("markSessionInterrupted", () => {
-  it("keeps the session and its hashes but withholds the resume proof durably", () => {
-    publishAndMark()
+  it("keeps the session and its hashes but withholds the resume proof durably", async () => {
+    await publishAndMark()
     const { session } = found()
     expect(session.claudeSessionId).toBe("sess-1")
     expect(session.messageCount).toBe(1)
@@ -74,34 +74,34 @@ describe("markSessionInterrupted", () => {
     expect(session.messageHashes?.length).toBe(1)
   })
 
-  it("drops the in-memory copy that still carries the proof", () => {
-    publishAndMark()
+  it("drops the in-memory copy that still carries the proof", async () => {
+    await publishAndMark()
     // A store read failure falls back to memory; that copy must not resume.
     writeFileSync(join(directory, "sessions.json"), "{ not json")
     const lineage = lookupSession(KEY, NEXT)
     expect(lineage.type).toBe("diverged")
   })
 
-  it("refuses a mapping that changed since the turn read it", () => {
-    const published = storeSession(KEY, PREFIX, SOURCE.claudeSessionId)
+  it("refuses a mapping that changed since the turn read it", async () => {
+    const published = await storeSession(KEY, PREFIX, SOURCE.claudeSessionId)
     if (!published) throw new Error("publication failed")
-    expect(storeSession(KEY, PREFIX, SOURCE.claudeSessionId)).toBeTruthy()
-    expect(markSessionInterrupted(KEY, undefined, STOPPED, published, SOURCE, turn())).toBe(false)
+    expect(await storeSession(KEY, PREFIX, SOURCE.claudeSessionId)).toBeTruthy()
+    expect(await markSessionInterrupted(KEY, undefined, STOPPED, published, SOURCE, turn())).toBe(false)
     expect(found().session.lineageHash).toBe(PROOF)
   })
 
-  it("marks again a mapping an earlier stopped turn already marked", () => {
-    const first = publishAndMark()
+  it("marks again a mapping an earlier stopped turn already marked", async () => {
+    const first = await publishAndMark()
     expect(takeInterruptedTurn(KEY, first, found().session)).toBeDefined()
-    const second = markSessionInterrupted(KEY, undefined, STOPPED, first, SOURCE, turn())
+    const second = await markSessionInterrupted(KEY, undefined, STOPPED, first, SOURCE, turn())
     expect(second).toBeTruthy()
     expect(takeInterruptedTurn(KEY, second || undefined, found().session)).toBeDefined()
   })
 })
 
 describe("takeInterruptedTurn", () => {
-  it("hands the record to one request, with the proof restored", () => {
-    const generation = publishAndMark()
+  it("hands the record to one request, with the proof restored", async () => {
+    const generation = await publishAndMark()
     const claim = takeInterruptedTurn(KEY, generation, found().session)
     expect(claim?.restored.lineageHash).toBe(PROOF)
     expect(claim?.restored.claudeSessionId).toBe("sess-1")
@@ -109,10 +109,10 @@ describe("takeInterruptedTurn", () => {
     expect(takeInterruptedTurn(KEY, generation, found().session)).toBeUndefined()
   })
 
-  it("refuses a mapping any later write replaced, even one that still withholds the proof", () => {
-    publishAndMark()
+  it("refuses a mapping any later write replaced, even one that still withholds the proof", async () => {
+    await publishAndMark()
     const before = found()
-    const rewritten = storeSharedSession(KEY, "sess-1", 1, "", undefined, undefined, undefined, undefined,
+    const rewritten = await storeSharedSession(KEY, "sess-1", 1, "", undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, before.generation, PROOF, undefined)
     expect(rewritten).toBeTruthy()
     const after = found()
@@ -120,8 +120,8 @@ describe("takeInterruptedTurn", () => {
     expect(takeInterruptedTurn(KEY, after.generation, after.session)).toBeUndefined()
   })
 
-  it("finds nothing after a restart", () => {
-    const generation = publishAndMark()
+  it("finds nothing after a restart", async () => {
+    const generation = await publishAndMark()
     forgetInterruptedTurnsForTests()
     expect(takeInterruptedTurn(KEY, generation, found().session)).toBeUndefined()
   })

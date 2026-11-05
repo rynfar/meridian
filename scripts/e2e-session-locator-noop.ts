@@ -34,7 +34,7 @@ try {
   for (const count of [100, 900]) {
     const dir = join(root, `fixture-${count}`)
     setSessionStoreDir(dir)
-    storeSharedSession("bootstrap", "bootstrap-sdk")
+    await storeSharedSession("bootstrap", "bootstrap-sdk")
     const path = join(dir, "sessions.json")
     const fixture: Record<string, StoredSession> = {}
     const hashes = Array.from({ length: 128 }, (_, n) => n.toString(16).padStart(64, "0"))
@@ -57,7 +57,7 @@ try {
     let replacementBytes = 0
     for (let i = 0; i < 20; i++) {
       const before = statSync(path)
-      assert.notEqual(storeSharedSession("session-0", "sdk-0"), false)
+      assert.notEqual(await storeSharedSession("session-0", "sdk-0"), false)
       const after = statSync(path)
       if (after.ino !== before.ino) {
         replacements++
@@ -70,7 +70,7 @@ try {
       configDir: join(dir, "synthetic-sdk-config"),
       projectDir: dir,
     }
-    const firstGeneration = attachSharedTranscriptLocator("session-0", "sdk-0", locator)
+    const firstGeneration = await attachSharedTranscriptLocator("session-0", "sdk-0", locator)
     assert.notEqual(firstGeneration, false)
     if (firstGeneration === false) throw new Error("fixture attachment failed")
     const identicalContents = readFileSync(path)
@@ -79,7 +79,7 @@ try {
     let identicalReplacementBytes = 0
     for (let i = 0; i < 5; i++) {
       const before = statSync(path)
-      assert.equal(attachSharedTranscriptLocator("session-0", "sdk-0", { ...locator }, firstGeneration), firstGeneration)
+      assert.equal(await attachSharedTranscriptLocator("session-0", "sdk-0", { ...locator }, firstGeneration), firstGeneration)
       assert.deepEqual(readFileSync(path), identicalContents)
       const after = statSync(path)
       if (after.ino !== before.ino) {

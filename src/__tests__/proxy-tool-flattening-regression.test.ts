@@ -129,7 +129,7 @@ beforeEach(async () => {
   capturedParams = null
   queuedSessionIds = []
   await clearSessionCache()
-  clearSharedSessions()
+  await clearSharedSessions()
 })
 
 describe("Issue #386 — tool_use blocks must not leak into SDK prompt as text", () => {
@@ -253,7 +253,7 @@ describe("tool-result attribution on full-history replay (#552)", () => {
 
   beforeEach(async () => {
     await clearSessionCache()
-    clearSharedSessions()
+    await clearSharedSessions()
     capturedParams = null
     mockMessages = [assistantMessage([{ type: "text", text: "You created tmp/test2.txt" }])]
   })

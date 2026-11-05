@@ -32,7 +32,7 @@ afterEach(async () => {
 let queryCalls: any[] = []
 let scripted: any[][] = []
 let mockBaseSessionId = "test-session"
-let queryMutation: ((params: any) => void) | undefined
+let queryMutation: ((params: any) => void | Promise<void>) | undefined
 const initialManagedSessionId = () => queryCalls[0]?.options?.sessionId ?? mockBaseSessionId
 
 import { resolveMockSdkSessionId } from "./helpers"
@@ -40,9 +40,10 @@ import { resolveMockSdkSessionId } from "./helpers"
 installSdkMock(() => ({
   query: (params: any) => {
     queryCalls.push(params)
-    queryMutation?.(params)
+    const mutation = queryMutation?.(params)
     const messages = scripted.shift() ?? []
     return (async function* () {
+      await mutation
       const returnedSessionId = resolveMockSdkSessionId(params.options, mockBaseSessionId)
       const preHook = params.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       const hookPromises: Promise<unknown>[] = []
@@ -346,14 +347,14 @@ describe("silent-turn recovery", () => {
       [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } }),
        ...forkTextBlock(0, "must stay unpublished"), ...forkMsgEnd()],
     ]
-    queryMutation = () => {
+    queryMutation = async () => {
       if (queryCalls.length !== 2) return
       queryMutation = undefined
       const current = lookupSharedSession(sessionKey)
       if (!current) throw new Error("missing mapping before recovery CAS race")
       // Another writer advances the exact durable generation after recovery
       // attached its source, but before the fork can publish.
-      storeSharedSession(sessionKey, current.claudeSessionId)
+      await storeSharedSession(sessionKey, current.claudeSessionId)
     }
 
     const body = await read(await post(app, REQUEST, sessionKey))
@@ -464,7 +465,7 @@ describe("silent-turn recovery", () => {
     it("delivers an auxiliary request's silent turn as is, without forking the working session", async () => {
       const sessionId = `silent-aux-${crypto.randomUUID()}`
       const workingKey = `${sessionId}:agent:silent-agent`
-      storeSharedSession(workingKey, "working-sdk-session", 1)
+      await storeSharedSession(workingKey, "working-sdk-session", 1)
       const working = lookupSharedSession(workingKey)
       scripted = [
         [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
@@ -483,7 +484,7 @@ describe("silent-turn recovery", () => {
       const since = Date.now()
       const sessionId = `silent-aux-abort-${crypto.randomUUID()}`
       const workingKey = `${sessionId}:agent:silent-agent`
-      storeSharedSession(workingKey, "working-sdk-session", 1)
+      await storeSharedSession(workingKey, "working-sdk-session", 1)
       const working = lookupSharedSession(workingKey)
       scripted = [[...thinkingOpen(), { __untilAbort: true }], [msgStart(), ...textBlock(0, "must not be requested"), ...msgEnd()]]
       const abort = new AbortController()

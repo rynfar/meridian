@@ -30,10 +30,10 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-it("keeps JSON as the default and returns copied locators from the additive pin API", () => {
+it("keeps JSON as the default and returns copied locators from the additive pin API", async () => {
   setSessionStoreDir(directory)
   expect(activeStoreBackend()).toBeUndefined()
-  storeSharedSession("key", "session", 0, undefined, undefined, undefined, undefined, undefined,
+  await storeSharedSession("key", "session", 0, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, { configDir: directory, sessionId: "session" })
   const pins = readSessionTranscriptPins()
   expect(pins).toEqual([{ configDir: directory, sessionId: "session" }])
@@ -152,14 +152,14 @@ it("returns typed overload without sleeping when a real child holds BEGIN IMMEDI
   }
 }, 20000)
 
-it("preserves the portable JSON store API, fenced CAS and replacement lineage", () => {
+it("preserves the portable JSON store API, fenced CAS and replacement lineage", async () => {
   setSessionStoreDir(directory)
   const missing: facade.SharedSessionLookupResult = facade.lookupSharedSessionResult("contract")
   expect(missing.status).toBe("missing")
   const locator: facade.TranscriptLocator = { configDir: directory, sessionId: "first" }
-  const first: facade.StoredSessionGeneration | false = facade.storeSharedSession("contract", "first", 2,
+  const first: facade.StoredSessionGeneration | false = (await facade.storeSharedSession("contract", "first", 2,
     "lineage", ["human", "assistant"], [null, "assistant-uuid"], undefined, [["block"]], null, null,
-    locator, undefined, null)
+    locator, undefined, null))
   expect(typeof first).toBe("string")
   const found: facade.SharedSessionLookupResult = facade.lookupSharedSessionResult("contract")
   expect(found.status).toBe("found")
@@ -168,11 +168,11 @@ it("preserves the portable JSON store API, fenced CAS and replacement lineage", 
   expect(found.session.sdkMessageUuids).toEqual([null, "assistant-uuid"])
   expect(found.session.currentTranscript).toEqual(locator)
   const before = readFileSync(join(directory, "sessions.json"), "utf8")
-  expect(facade.storeSharedSession("contract", "rejected", 0, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, undefined, null)).toBe(false)
+  expect((await facade.storeSharedSession("contract", "rejected", 0, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, null))).toBe(false)
   expect(readFileSync(join(directory, "sessions.json"), "utf8")).toBe(before)
-  const second = facade.storeSharedSession("contract", "second", 3, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, { configDir: directory, sessionId: "second" }, locator, first)
+  const second = (await facade.storeSharedSession("contract", "second", 3, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, { configDir: directory, sessionId: "second" }, locator, first))
   expect(typeof second).toBe("string")
   expect(second).not.toBe(first)
   const snapshot: Record<string, facade.StoredSession> = facade.readSessionStoreSnapshot()
@@ -180,9 +180,9 @@ it("preserves the portable JSON store API, fenced CAS and replacement lineage", 
   expect(snapshot.contract?.previousTranscript).toEqual(locator)
   expect(facade.lookupSharedSessionByClaudeId("second")?.claudeSessionId).toBe("second")
   expect(facade.readSessionTranscriptPins()).toHaveLength(2)
-  expect(facade.evictSharedSession("contract", first)).toBe(false)
+  expect((await facade.evictSharedSession("contract", first))).toBe(false)
   if (typeof second !== "string") throw new Error("expected replacement")
-  expect(facade.evictSharedSession("contract", second)).toBe(true)
+  expect((await facade.evictSharedSession("contract", second))).toBe(true)
   expect(facade.lookupSharedSession("contract")).toBeUndefined()
   expect(facade.lookupSharedSessionResult("contract").status).toBe("missing")
   expect(facade.readSessionStoreSnapshot()).toEqual({})

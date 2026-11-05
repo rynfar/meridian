@@ -57,7 +57,7 @@ describe("Windows-safe durable session storage", () => {
     expect(existsSync(lockPath)).toBe(false)
   }, 30_000)
 
-  it("recovers the synchronous store lock before publishing a mapping", () => {
+  it("recovers the synchronous store lock before publishing a mapping", async () => {
     const root = makeRoot("store")
     setSessionStoreDir(root, { skipLocking: false })
     const lockPath = join(root, "sessions.json.lock")
@@ -69,7 +69,7 @@ describe("Windows-safe durable session storage", () => {
     }), { mode: 0o600 })
     makeStale(lockPath)
 
-    storeSharedSession("platform-store-key", "platform-store-session")
+    await storeSharedSession("platform-store-key", "platform-store-session")
 
     expect(lookupSharedSession("platform-store-key")?.claudeSessionId)
       .toBe("platform-store-session")

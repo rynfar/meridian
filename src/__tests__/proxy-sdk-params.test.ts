@@ -719,7 +719,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
   it("returns 404 when session exists but has no usage data", async () => {
     // Sessions from before usage tracking was added won't have contextUsage
     const { storeSession } = await import("../proxy/session/cache")
-    storeSession("agent-no-usage", [{ role: "user", content: "hi" }], "sess_no_usage_001", "/tmp")
+    await storeSession("agent-no-usage", [{ role: "user", content: "hi" }], "sess_no_usage_001", "/tmp")
 
     const app = createTestApp()
     const res = await app.fetch(
