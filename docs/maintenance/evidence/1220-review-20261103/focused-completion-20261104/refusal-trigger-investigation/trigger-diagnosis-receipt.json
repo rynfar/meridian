@@ -1,0 +1,35 @@
+{
+  "sourceHead": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "sourceBase": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "selectedNative": "2.1.296",
+  "selectedNativeSha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937",
+  "immediateTrigger": {
+    "nativeBranch": "Lwt returnsunlessreceivedstop_reason===refusal; categorydirectfrom API message_delta.stop_details",
+    "supportedHistory": {
+      "uuid": "d9784a56-f5b1-4d07-90df-a93c1cbef5ac",
+      "type": "assistant",
+      "model": "<synthetic>",
+      "stop_reason": "refusal",
+      "stop_details": {
+        "type": "refusal",
+        "category": "cyber",
+        "explanation": "This request triggered restrictions on violative cyber content and was blocked under Anthropic's Usage Policy. To learn more, see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback."
+      }
+    },
+    "providerRequestID": "req_011CgiEbrKMNczsLEAvajW27",
+    "providerMessageID": "msg_011CgiEbraDzwxFScjJPjgAJ"
+  },
+  "rootCause": "Providerclassifiertriggeringspan/privatepolicyreasonNOTdisclosedbygenericexplanation; no Meridianinputdefectfound",
+  "notFixed": true,
+  "noProductSourceOrConstantsChanged": true,
+  "noSafetyBypassPromptRewordOrModelSwitch": true,
+  "newReadOnlyAdmission": {
+    "personal": "HTTP429",
+    "modelCalls": 0,
+    "refreshCalls": 0,
+    "ownerCredentialWrites": 0
+  },
+  "disposition": "retain failedSSE/incompleteE41, provide minimal provider report; no speculativecodepatch",
+  "providerReport": "provider-report-draft.md; NOTSENT, needsownerexternalmessageauthorization",
+  "officialDocumentation": "official-refusal-documentation.json"
+}

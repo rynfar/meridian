@@ -1,5 +1,13 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-05: refusal trigger traced to received API metadata
+
+Owner requests identification and repair of the refusal. Native 2.1.296 inspection plus supported SDK history now prove the immediate trigger: **Anthropic API `stop_reason: refusal`, `stop_details.category: cyber`**. The saved explanation is generic and does not name the offending field. The native formatter consumes that metadata directly; the “this session” wording is canned copy, not evidence of a sticky guard. [Exact branch, supported metadata and input audit](evidence/1220-review-20261103/focused-completion-20261104/refusal-trigger-investigation/README.md).
+
+Independent full system/tool/config source audit found no concrete input defect or justified product patch. OpenCode defaults to the Claude Code preset plus Meridian's constant provenance/cwd/scratchpad notes; the native expanded preset was not retained. Real Q2 result and native conversation remain correct. Both JSON arms and actual client passed with the same private fixture ancestor, so relocating/rewriting it cannot be claimed as a refusal fix. No credentials were found in visible input, no private SDK files were inspected, and no safeguard bypass or speculative source change was made.
+
+One new-request read-only personal preflight returned **HTTP429**; zero model calls, refreshes or owner credential writes. All workers are stopped; no runtime jobs are active. Exact candidate/main remain ba0f9f5c/16c21494, final local8857/65skip/0fail+typecheck+certifiedbuild and CI remain green, but failed SSE/incomplete E41 and historical holds remain. **#1220 open, no release, no fix claimed.** An exact request/message-ID [provider report](evidence/1220-review-20261103/focused-completion-20261104/refusal-trigger-investigation/provider-report-draft.md) is drafted but not sent; external contact requires owner approval. Provider investigation is the bounded next action to identify its private classifier trigger.
+
 ## 2026-11-04: focused completion — native refusal identified; CI-matched local qualification passed
 
 **#1220 remains open at `ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`; no release.** Fresh GitHub/origin refresh confirms accepted main `16c214941bf3f05aa4015a70d8b81bd94857a88f`, unchanged head/base, CLEAN/MERGEABLE and every required check green. Contributor commits remain intact. No production source or constants changed during this investigation.
