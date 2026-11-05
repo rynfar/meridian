@@ -1,15 +1,24 @@
-# 1.89.0 release — publication paused
+# Meridian 1.89.0 — publication paused
 
-Owner authorized release after #1220 merged, then new PR/issue backlog. Current final candidate **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`** / main**`cafdcf780f1b40c8f0dee17481132f47b4cbb353`** aftermerged#1507. Originalcandidate`e6c5604309fb9aa870e1200321cde4e1072aa3c8`runtimeunchangedexcepttestscript; [newfreeze](after1507-final-head-freeze.json). Nowaker credit and synchronous-boundary notes corrected. No publication yet.
+Final Release Please #1486 head **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, base **`cafdcf780f1b40c8f0dee17481132f47b4cbb353`**. Nowaker/#1220 credit is intact. No product runtime, dependency or constant change.
 
-## Current gates
-- Final-head CI42073931849 and relevant Windows/Docker/desktop/Nixchecks PASS. [Receipt](finalhead-ci-receipt.json).
-- Full localnpm **8293pass/65skip/1fail**, live lifecycle candidate at reservedNULmigration. Later27groups not reached. [Redreceipt](final-local-failure-receipt.json), original[log](final-local-failed-npm-test.log.gz). Independenttypecheck/certifiedbuildpass is notfullsuitepass.
-- Independent review proves a mutable-test-directory GC drift mechanism, not originalcaller attribution. [Review](lock-residue-independent-review.md). [Heldforeigncandidatecontrol](contract-isolation-control-receipt.json): sameprocessmigrationrefuses, isolatedunchangedcontract6/0whileheld, parentmigrationREADYafterGCjoined. Narrowtestprocessisolation **#1507MERGED`cafdcf780f1b40c8f0dee17481132f47b4cbb353`**. Finalhead local8857/65skip/0fail/29groups+standalonetypecheck/certifiedbuildPASS, CI8894/28skip/0fail/29groupsPASS. [Signedlandedtreeproof](contract-isolation-postmerge-verification.json). No runtime/dependency/assertion/deadline/constantchange. [Plan](test-isolation-correction-plan.json), [implementation](contract-isolation-implementation.md).
-- Independenttarball703artifactSHA+integrityPASS; [packagedNode22runtime](candidate-packaged-runtime-receipt.json)PASS migration/twoHTTP/restart/export/SIGKILL/bootstrap. [E79all6fixturecases](candidate-e79-receipt.json)PASS actualPi1.4/OpenCode2.2+matchingintegrations. Scriptedupstream, notlive-modelstopproof.
-- CandidateactualOpenCodeV1/SDK.141/native.296/Opus5.5read/result/continuation **NOTRUN**: freshreadonlyusageHTTP429beforeinference. [Receipt](candidate-actualclient-blocked-receipt.json). No refresh/ownercredentialwrites/modelcalls. InitialpreflighthelperreuseEEXISTpreserved; freshwriteonceoutputreceiptHTTP429.
+## Passed on the final head
 
-## Retained scope
-[Full-range source review](full-range-final-review.md) foundno newmaterialruntimebug. [Namedcoveragegaps](range-review-receipt.json)remainvisible, notnewpasses. Previousowneraccepted#1220risks preserved. No providercontact. [Nextqueue](../next-backlog-20261105/README.md)helduntilreleaseisstable.
+- [Local suite](after1507-final-local-receipt.json): **8,857 passed / 65 skipped / 0 failed**, 29 process groups; standalone typecheck and certified build pass.
+- [CI 42080848312](after1507-final-ci-receipt.json): **8,894 passed / 28 skipped / 0 failed**, 29 groups; relevant Windows, Docker, desktop and Nix checks pass.
+- [Independent final delta review](after1507-final-delta-review.md): no material finding; [full tag-range review](full-range-final-review.md) retained.
+- [Independent package](after1507-final-installed-verification.json): all 703 artifact hashes and integrity match; SDK 0.2.141 confirmed.
+- [Packaged Node runtime](after1507-final-packaged-runtime-receipt.json): migration, two HTTP processes, restart, export, legacy reader, SIGKILL recovery and bootstrap pass.
+- [All six E79 fixtures](after1507-final-e79-receipt.json) pass, including actual Pi1.4.0 and OpenCode2.2.0 with matching Meridian integrations. [Configuration and runtime witnesses](after1507-final-e79-witnesses/). Scripted upstream, not a live-model stop pass.
 
-Currentexactheadlocal8857/65skip/0fail/29groups+typecheck/certifiedbuild PASS; CI420808483128894/28skip/0fail/29groups PASS. [Local](after1507-final-local-receipt.json), [CI](after1507-final-ci-receipt.json), [deltareview](after1507-final-delta-review.md). Exacthead703artifact/integrity/SDK.141independentinstallPASS; [Node22packagedruntime](after1507-final-packaged-runtime-receipt.json)PASS. E79allrunning. Actualclient evidence remainsopen. NormalReleasePleasepublicationonlyaftergates; thenregistryintegrity/provenance/freshinstall/client,Dockerarchitectures/tags anddesktopverification. No manualversion/tag/npmpublication.
+## Still open
+
+The release-artifact actual OpenCode V1 / scrub0.3.0 / SDK.141 / native.296 / Opus5.5 read/result/continuation check **did not run**: fresh read-only usage admission returned HTTP429 before inference. No model call, refresh, owner credential write or provider contact. [Blocked receipt](candidate-actualclient-blocked-receipt.json). Earlier owner-accepted #1220 risks and [named additional coverage gaps](range-review-receipt.json) remain disclosed, not passing tests.
+
+**[Owner release decision needed](final-release-decision.md): wait for fresh live admission or explicitly authorize publication with this missing artifact check.** Publication has not started. Fresh registry real-model verification may remain blocked too. No blind retry is queued.
+
+## Retained correction evidence
+
+The [original local failure](final-local-failure-receipt.json) remains archived. [#1507 landed proof](contract-isolation-postmerge-verification.json), [held-candidate control](contract-isolation-control-receipt.json), [independent review](contract-isolation-adversarial-review.md): unchanged six contract tests isolated, no weakened assertions/deadlines. The original sweep caller remains unproven.
+
+After any authorized normal Release Please merge, verify tag/npm version/latest/integrity/provenance, fresh registry-installed runtime and affected-client flow, Docker tags/both architectures and desktop assets/status before claiming completion. [Next authorized queue](../next-backlog-20261105/README.md) stays held until release stability.

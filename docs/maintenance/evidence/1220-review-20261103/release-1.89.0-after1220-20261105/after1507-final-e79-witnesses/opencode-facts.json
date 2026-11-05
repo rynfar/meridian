@@ -1,0 +1,40 @@
+{
+  "client": "opencode v2.2.0",
+  "integrationLoaded": true,
+  "stopped": true,
+  "health": {
+    "version": "1.89.0",
+    "claudeExecutable": "env",
+    "build": {
+      "source": "npm"
+    }
+  },
+  "turn2Line": "adapter=opencode profile=fixture model=sonnet stream=true tools=12 lineage=continuation session=447ad230",
+  "turn3Line": "adapter=opencode profile=fixture model=sonnet stream=true tools=12 lineage=new session=new diverged=interrupted-turn-kept:kept-assistant",
+  "resolvedResume": "false",
+  "turn3RequestShape": [
+    "user[text]",
+    "assistant[text]",
+    "user[text]",
+    "assistant[text]",
+    "user[text]"
+  ],
+  "turn3Headers": {
+    "user-agent": "opencode/latest/2.2.0/cli",
+    "x-meridian-opencode-turn": "<signed>",
+    "x-opencode-agent-mode": "primary",
+    "x-opencode-agent-name": "build",
+    "x-opencode-client": "cli",
+    "x-opencode-project": "5445ff0dd9e82840162a484b0257517cf11bf6c2",
+    "x-opencode-session": "ses_e530f84cdffehL9RmUi6GuXrGn",
+    "x-opencode-session-id": "ses_e530f84cdffehL9RmUi6GuXrGn",
+    "x-session-affinity": "ses_e530f84cdffehL9RmUi6GuXrGn"
+  },
+  "assistantAfterStoppedQuestion": true,
+  "upstreamNextTurn": {
+    "holdsTurn1": true,
+    "holdsStoppedQuestion": true,
+    "holdsNewQuestion": true,
+    "holdsPartial": true
+  }
+}

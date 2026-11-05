@@ -1,0 +1,44 @@
+{
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "version": "1.89.0",
+  "artifactIntegrity": "sha512-uND7ojL4IjKHPV8ibFhWW3D/mG9fTrLmCN2TzwaLs7QzY80X/vWGmF6+9EDZTR5WyCaK3yr0SwshMPU/bCuV8Q==",
+  "manifestArtifacts": 703,
+  "cases": {
+    "discard": {
+      "checks": 8,
+      "failed": []
+    },
+    "keep": {
+      "checks": 7,
+      "failed": []
+    },
+    "strict-discard": {
+      "checks": 9,
+      "failed": []
+    },
+    "strict-keep": {
+      "checks": 8,
+      "failed": []
+    },
+    "pi": {
+      "checks": 6,
+      "failed": []
+    },
+    "opencode": {
+      "checks": 5,
+      "failed": []
+    }
+  },
+  "exit": 0,
+  "mode": "scripted upstream model-free; actual SDK/native/client paths",
+  "SDK": "0.2.141",
+  "selectedNative": "2.1.296 explicitMERIDIAN_CLAUDE_PATH",
+  "clients": {
+    "Pi": "1.4.0 @earendil-works/pi-coding-agent; matchinginstalledMeridianextension, actualRPCabort",
+    "OpenCode": "2.2.0; matchinginstalledMeridianV2 plugin configuredonce/active/headerwitness; actualinterrupt"
+  },
+  "noRealModelStopClaim": true,
+  "actualModelReadContinuation": "NOTRUN HTTP429read-onlypreflight; no inference",
+  "constantsChanged": []
+}

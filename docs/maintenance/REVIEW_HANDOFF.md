@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-05: final 1.89.0 checks complete; publication awaits live-gap decision
+
+Release Please #1486 final head **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, tree`6addd303a448894714a97675bfc87a9f307d53fd`, base`cafdcf780f1b40c8f0dee17481132f47b4cbb353`. Exact-head local **8857 passed / 65 skipped / 0 failed / 29 groups**, standalone typecheck/certified build PASS. CI **42080848312: 8894 passed / 28 skipped / 0 failed / 29 groups**; relevant Windows/Docker/desktop/Nix checks pass. Independent final delta review found no concrete material defect. Nowaker/#1220 notes and authorship remain intact; no runtime/dependency change.
+
+Exact-head independently installed tarball: all **703 artifact hashes and SHA512 integrity PASS**, SDK.141 confirmed. Node22 packaged runtime/recovery PASS. **All six E79 model-free fixtures PASS**, including actual Pi1.4.0 extension and OpenCode2.2.0 matching V2 config/runtime headers. These do not establish live-model stop behavior.
+
+**Only planned pre-publication gate still open: release-artifact actual-model read/result/continuation NOT RUN**, fresh read-only usage admission HTTP429 before inference. No model call, refresh, owner credential write or provider contact. No blind retry queued. Earlier owner-accepted #1220 risks and named additional unqualified release flows remain disclosed, not new passes. Prior risk acceptance is not silently extended to this missing release check.
+
+**Publication NOT STARTED. Owner decision needed:** wait for fresh live admission, or explicitly authorize publication with this release-artifact live gap (which may also leave fresh-registry real-model verification blocked). Normal Release Please only; post-publication tag/npm/provenance/fresh-install/Docker/desktop gates remain. New queue work stays held until release stability. [Final decision and evidence index](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/final-release-decision.md).
+
+
 ## 2026-11-05: final 1.89.0 candidate refreshed after landed #1507
 
 ReleasePlease regeneratedcandidate8114babb on main`cafdcf780f1b40c8f0dee17481132f47b4cbb353` after#1507normalmerge. Restoredidentical#1220Nowakeraccuratenotes on signed finalhead **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, tree`6addd303a448894714a97675bfc87a9f307d53fd`. Onlypackage.testprocessisolationdiffersfromoldrelease`e6c5604309fb9aa870e1200321cde4e1072aa3c8`; no runtime/dependencychange. Notesidentical. Versusmainonlyversion/changelog/manifest/package-lockroot. [Freeze](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-head-freeze.json).
