@@ -1,5 +1,14 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-05: final 1.89.0 candidate refreshed after landed #1507
+
+ReleasePlease regeneratedcandidate8114babb on main`cafdcf780f1b40c8f0dee17481132f47b4cbb353` after#1507normalmerge. Restoredidentical#1220Nowakeraccuratenotes on signed finalhead **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, tree`6addd303a448894714a97675bfc87a9f307d53fd`. Onlypackage.testprocessisolationdiffersfromoldrelease`e6c5604309fb9aa870e1200321cde4e1072aa3c8`; no runtime/dependencychange. Notesidentical. Versusmainonlyversion/changelog/manifest/package-lockroot. [Freeze](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-head-freeze.json).
+
+**Exactnewhead fullnpm→typecheck→build running**, isolatedBun1.4.3/Node22.22.3/SQLite3.53.4; hostedCI **42080848312** running. Independentdeltareviewpending. #1507finalgates local8857/65skip/0fail/29groups andCI8894/28skip/0fail/29groups+type/build alreadyPASS, signedlandedtreeverified; originalreleasefullred remains archived, originalcandidatecallerunproven. Newhead isnotyetdeclaredfullyqualified.
+
+Previousinstalledcandidate703artifact/integrity+Node22packagedruntime/recovery+all6E79fixturesPASS, notnewhead/freshregistryclaim. Newexactheadpack/installawaitscertifiedbuild. Liveactualclient **NOTRUN/blockedfreshreadonlyusageHTTP429beforeinference**; nomodel/refresh/ownercredentialwrite. No queuedblindadmissionretry. ReleasepublicationNOTSTARTED. Actualclientgatestillopen. Owneracceptedprior#1220gaps retained; no silentnewwaiver. Nextauthorizedbackloginventoryhelduntilreleasestable.
+
+
 ## 2026-11-05: release local qualification blocked; test-only #1507 validating
 
 Release#1486head`e6c5604309fb9aa870e1200321cde4e1072aa3c8` passed hostedCI42073931849 includingtest,Windows,Docker,desktop,Nix. Full localBun1.4.3 failed **8293pass/65skip/1fail**: bookkeeping-store-contract reservedNULmigration saw live lifecyclelockcandidate; 27latergroups not reached. Standalone typecheck/certifiedbuild passed independently, notfullsuite. [Failure receipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/final-local-failure-receipt.json).

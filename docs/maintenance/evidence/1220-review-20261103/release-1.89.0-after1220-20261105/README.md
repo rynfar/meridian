@@ -1,6 +1,6 @@
 # 1.89.0 release — publication paused
 
-Owner authorized release after #1220 merged, then new PR/issue backlog. Candidate `e6c5604309fb9aa870e1200321cde4e1072aa3c8` / mergedmain`41d7b3e3a2ead7e95e2790cc473b469bd3e9b567`. Nowaker credit and synchronous-boundary notes corrected. No publication yet.
+Owner authorized release after #1220 merged, then new PR/issue backlog. Current final candidate **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`** / main**`cafdcf780f1b40c8f0dee17481132f47b4cbb353`** aftermerged#1507. Originalcandidate`e6c5604309fb9aa870e1200321cde4e1072aa3c8`runtimeunchangedexcepttestscript; [newfreeze](after1507-final-head-freeze.json). Nowaker credit and synchronous-boundary notes corrected. No publication yet.
 
 ## Current gates
 - Final-head CI42073931849 and relevant Windows/Docker/desktop/Nixchecks PASS. [Receipt](finalhead-ci-receipt.json).
@@ -12,4 +12,4 @@ Owner authorized release after #1220 merged, then new PR/issue backlog. Candidat
 ## Retained scope
 [Full-range source review](full-range-final-review.md) foundno newmaterialruntimebug. [Namedcoveragegaps](range-review-receipt.json)remainvisible, notnewpasses. Previousowneraccepted#1220risks preserved. No providercontact. [Nextqueue](../next-backlog-20261105/README.md)helduntilreleaseisstable.
 
-Next: normalReleasePlease42080493605isrefreshingaftermerged#1507; preserve#1220creditnotes, freezeandvalidatenewhead; actualclient evidence remainsopen. NormalReleasePleasepublicationonlyaftergates; thenregistryintegrity/provenance/freshinstall/client,Dockerarchitectures/tags anddesktopverification. No manualversion/tag/npmpublication.
+Next: newexactheadfullnpm/typecheck/build andCI42080848312running; independentdeltareviewpending. CreditnotesrestoredidenticallyafterRPregeneration. Newheadpack/installawaitcertifiedbuild; actualclient evidence remainsopen. NormalReleasePleasepublicationonlyaftergates; thenregistryintegrity/provenance/freshinstall/client,Dockerarchitectures/tags anddesktopverification. No manualversion/tag/npmpublication.

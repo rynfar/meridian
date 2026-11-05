@@ -1,28 +1,16 @@
 {
-  "releaseCandidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
-  "releaseVersion": "1.89.0",
+  "releaseFinalHead": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "releaseTree": "6addd303a448894714a97675bfc87a9f307d53fd",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "oldReleaseHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
   "testCorrectionPR": 1507,
-  "testCorrectionHead": "d0904187c89631a459fa60a112332632b7fd75c4",
-  "testCorrectionMerged": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
-  "testCorrectionLocal": {
-    "pass": 8857,
-    "skip": 65,
-    "fail": 0,
-    "groups": 29
-  },
-  "testCorrectionTypecheckBuild": "PASS",
-  "testCorrectionCI": {
-    "pass": 8894,
-    "skip": 28,
-    "fail": 0,
-    "groups": 29
-  },
+  "testCorrectionMerged": true,
+  "newFinalLocal": "running67067",
+  "newFinalCI": 42080848312,
+  "oldIndependentPackageE79": "PASS703/all6fixtures qualifiedoldhead",
+  "newHeadInstalled": "notyetpackagedawaitbuild",
+  "actualClient": "NOTRUNreadonlyusage429",
   "publication": "NOTSTARTED",
-  "normalRPRefresh": 42080493605,
-  "originalLocalRed": "archived8293/65skip/1fail; not erased",
-  "installedCandidateRuntimeAndE79": "PASS703manifest/all6fixtures",
-  "candidateActualClient": "NOTRUN_readonlyusage429beforeinference",
-  "next": "RPnewheadnotescreditpreserve/finalheadgates; freshliveproofstillblocked; no blindretry",
-  "runtimeUnchangedBy1507": true,
-  "nextQueueHeld": true
+  "nextQueue": "helduntilstable",
+  "constantsChanged": []
 }
