@@ -1,11 +1,14 @@
 {
-  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
-  "localGate": "running",
-  "CI": "running42073931849",
-  "rangeReview": "PASSnoNewMaterialRuntimeDefect",
-  "notes": "fixed#1220Nowakeromission",
-  "releaseModels": "notyetrun",
-  "publication": "NOTSTARTED",
-  "queue": "14newnondraftPRs1newissueinventory only, next1503afterstable",
-  "noFurtherWorkerRunning": true
+  "releaseCandidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "testCorrectionPR": 1507,
+  "testCorrectionHead": "d0904187c89631a459fa60a112332632b7fd75c4",
+  "publication": "PAUSED",
+  "originalFullLocal": "8293/65skip/1fail archived",
+  "correctionFullLocal": "running pid74212",
+  "correctionCI": 42078024708,
+  "packagedRuntime": "PASS",
+  "E79FixturesAll": "PASS",
+  "candidateActualClient": "NOTRUN_readonlypreflightHTTP429",
+  "testCorrectionIsRuntimeUnchanged": true,
+  "nextQueueHeld": true
 }

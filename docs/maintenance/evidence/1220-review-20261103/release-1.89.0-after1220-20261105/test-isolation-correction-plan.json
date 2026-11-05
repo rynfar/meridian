@@ -1,0 +1,11 @@
+{
+  "observedFailure": "original final suite live session-gc candidate in migration,8293/65/1 archived",
+  "provenMechanism": "omittedstoreDir GC resolves mutable test-directory betweenawaits; independent2caseactualsourcewitness",
+  "originatingOriginalSweep": "unproven; shortprelude29/0doesnotclearoriginal",
+  "correctionLayer": "testprocessisolation existingnpmtestpattern; contract changes process-globalbackend/directory and offlineattestation",
+  "noRuntimePatch": "mutable setSessionStoreDir is test seam, owner-running directory production fixed; no premature-write-releasefound",
+  "negativeControl": "sameprocess paused foreignfixture GC candidate blocks migration; samecontract childprocess unaffected while foreigncandidate alive",
+  "fix": "exclude bookkeeping-store-contract frombulk andinvoke unchangedfile inseparatebunprocess; add meaningfulheldsweep regression if concise",
+  "gates": "focused+negativecontrol,fullnpmtypebuild,requiredCI,releaseheadrefresh/build/installflows",
+  "constantsChanged": []
+}

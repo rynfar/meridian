@@ -1,0 +1,31 @@
+{
+  "candidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "status": "BLOCKED_BEFORE_MODEL",
+  "readOnlyAdmission": {
+    "authorization": "Owner authorized personal and kraken live testing",
+    "credentialPolicy": "No refresh, no owner credential writes; private access-only grant copies only",
+    "accounts": [
+      {
+        "account": "personal",
+        "scope": "read-only auth/quota; no inference",
+        "credentialWrites": 0,
+        "refreshCalls": 0,
+        "modelCalls": 0,
+        "result": "BLOCKED",
+        "accessTokenPresent": true,
+        "expiresAt": 1793925408951,
+        "subscriptionType": "max",
+        "status": 429,
+        "extraUsageEnabled": null,
+        "windows": {},
+        "reason": "usage_endpoint_rejected"
+      }
+    ]
+  },
+  "modelCalls": 0,
+  "noCredentialsDiagnosis": true,
+  "reason": "usage_endpointHTTP429 preventsfreshincludedcapacity/ExtraUsageOFFconfirmation; no credentialrefresh orliveattempt",
+  "previousAdmission": "earlierHTTP200ExtraUsageOFFweekly83retained; notfreshpass",
+  "writeOnceHelperReuseFailure": "initialreadonlyreprobe EEXIST output/grant, no overwrittenfiles; frozenhelpernewoutput preflightHTTP429",
+  "next": "continuetest-only1507validation andevidence; donotblindlyretryadmission/model"
+}

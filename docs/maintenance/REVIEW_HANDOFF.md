@@ -1,5 +1,16 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-05: release local qualification blocked; test-only #1507 validating
+
+Release#1486head`e6c5604309fb9aa870e1200321cde4e1072aa3c8` passed hostedCI42073931849 includingtest,Windows,Docker,desktop,Nix. Full localBun1.4.3 failed **8293pass/65skip/1fail**: bookkeeping-store-contract reservedNULmigration saw live lifecyclelockcandidate; 27latergroups not reached. Standalone typecheck/certifiedbuild passed independently, notfullsuite. [Failure receipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/final-local-failure-receipt.json).
+
+Awaitedstorewrite owns sessionslockonly; lifecyclecandidatecleanup isawaited. Independentactualsourcewitness proves omittedstoreDirGCcan drift acrossmutabletestglobal. Originalcaller unproven; unchangedcontrols6/0,10/0,29/0donotclearoriginalred. DeterministicheldforeignGCcandidatecontrol: sameprocessmigration refuses, isolatedunchangedcontract6/0whileheld, sameprocessmigrationREADYafterjoin. Fixattest/testownership, notlive-residuegate.
+
+**#1507**`d0904187c89631a459fa60a112332632b7fd75c4` onlyadds contractbulkexclusion+explicitunchanged6testprocess usingexistingnpmtestpattern. No runtime/dependency/version/assertion/deadline/constantchange. Fullnpm→typecheck→build and requiredCI42078024708running; independentreviewpending. Publicationpaused; aftermerge refreshReleasePlease finalhead/revalidate.
+
+Independentinstalled1.89.0candidate703artifactSHA+tarballintegrity pass; realNode22packagedmigration/twoHTTP/restart/export/SIGKILL/bootstrap gatepass. **E79all6fixturecasesPASS**: discard/keep/strictboth +actualPi1.4.0extension +OpenCode2.2.0matchingV2activeconfig+headers. Scriptedupstreamnotlive-modelstopqualification. CandidateactualOpenCode1.18.34/SDK.141/native.296/Opus5.5read/result/continuation **NOTRUN**: freshreadonlyusagepreflightHTTP429 preventsnewincludedcapacity/ExtraUsageOFFconfirmation; nomodelattempt/refresh/ownercredentialwrite. EarlierHTTP200notfreshproof. [Block receipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/candidate-actualclient-blocked-receipt.json). Freshregistry/publicationnotstarted. Knownreleasecoveragegaps unchanged andnamedinrange-review-receipt. Providercontactstilldeclined. Nextqueuehelduntilstable.
+
+
 ## 2026-11-05: 1.89.0 release authorized, final candidate validating
 
 Owner explicitly requests a release for the newly merged #1220, then work through new PRs/issues. Release Please #1486 now includes main41d7b3e3. Final candidate **`e6c5604309fb9aa870e1200321cde4e1072aa3c8`**, tree2ecd01440dc2f8f81830ae44a29e15c1d4ef7018, version1.89.0. Release delta versus main is only manifest/package-root versions and changelog; runtime source unchanged. Corrected bot omission of asyncJSONwriter entry: #1220/Nowaker credit and accurate synchronous-read/parse/serialize boundary; cache-clear follow-up grouped with eviction fix. No author history rewritten or dependency changed.

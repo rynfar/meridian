@@ -1,0 +1,17 @@
+{
+  "baselineHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "helperSha256": "3ef55d99979c6102e4eccb4249e464af3eae07e4f29117e81a3edc91e6de4994",
+  "helper": "contract-isolation-control-3ef55d99979c.test.ts",
+  "command": "cd /Users/rynfar/Library/Caches/meridian-validation.noindex/release-1.89.0-after1220-20261105 && [qualifiedenv] bun test --timeout 30000 /Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/contract-isolation-control-3ef55d99979c.test.ts",
+  "exit": 0,
+  "counts": {
+    "pass": 1,
+    "fail": 0,
+    "assertions": 5
+  },
+  "sameProcessControl": "migration refuses liveforeigncandidate while runGc paused beforelink",
+  "isolatedProcessControl": "unchangedcontract6/0 whileforeigncandidateheld",
+  "afterReleaseControl": "sameparent migrationREADY afteractualGCjoined",
+  "causalConclusion": "isolatedprocessremovesdemonstratedcrossfixtureinterference; nohistoricalcallerclaim",
+  "constantsChanged": []
+}

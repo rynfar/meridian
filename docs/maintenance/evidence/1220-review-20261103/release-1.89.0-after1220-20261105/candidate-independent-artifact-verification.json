@@ -1,0 +1,27 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "version": "1.89.0",
+  "sdk": "0.2.141",
+  "build": {
+    "source": "local",
+    "kind": "artifact",
+    "version": "1.89.0",
+    "sha": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+    "branch": "review/release-1486-20261105",
+    "dirty": false,
+    "sourceHash": "2528ee9fb196066993f64f6667e813efde3427b30f5d15ad9e89f5087a2d58cb",
+    "branchUrl": "https://github.com/rynfar/meridian/tree/review%2Frelease-1486-20261105",
+    "commitUrl": "https://github.com/rynfar/meridian/commit/e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+    "counter": 1,
+    "counterScope": "d34eea10-1a63-4cef-9df8-1996431a6a1d",
+    "attemptId": "8e98dca1-dcee-42a9-a746-49ff715458e6",
+    "builtAt": "2026-11-05T17:40:22.233Z",
+    "displayVersion": "package-1.89.0-1-review/release-1486-20261105-e6c56043",
+    "certification": "verified"
+  },
+  "artifactCount": 703,
+  "mismatches": [],
+  "integrityMatch": true,
+  "packIntegrity": "sha512-kSIT+GSMaw9RqlRdZlbwdgmjDr7hJr+5pNarP0I5+vjHJtirNtxOfulT7wWp29FY15tGFUYAddlf5Z8cmGa+9A==",
+  "allManifestArtifactsMatchIndependentInstall": true
+}

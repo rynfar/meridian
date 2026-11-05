@@ -1,0 +1,8 @@
+{
+  "report": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/lock-residue-independent-review.md",
+  "reportSha256": "4087b26c668eff86d0d0b6626ec6c85593e3781d1b2fd27bdf8aa422856854a7",
+  "priorFrozenReport": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/lock-residue-independent-review-132774bd787f.md",
+  "priorReportSha256": "132774bd787f6ac307da5961bd7d6684f1d04bf82a7178204e258643f03e9e5d",
+  "followupScope": "file reads and evidence report only; no commands/tests/models/network/credentials/source edits",
+  "finding": "awaited store mutation and failing migration cannot be origin of session-gc candidate; another live acquisition or cleanup residue remains unattributed"
+}
