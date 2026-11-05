@@ -1,5 +1,13 @@
 # Meridian review checkpoint — 2026-11-03 UTC
 
+## 2026-11-05: owner approves disclosed residual risk; exact-head merge preparation
+
+Owner explicitly approved proceeding after the current E41 refusal/incomplete matrix and separate historical cache/runtime uncertainties were disclosed. The approval accepts those named verification risks; it does not call them fixed or green, authorize a release, or authorize provider contact (which the owner expressly declined). [Exact approval and boundaries](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/owner-risk-approval.json).
+
+Final contributor head ba0f9f5c, tree83877acd, base16c21494 are unchanged. Fresh GitHub checks, including test, are green; CLEAN/MERGEABLE. Full diff hash exactly matches independent final review. All22 introduced objects agree between paginated GitHub/local ancestry; all signatures valid; previous21 author objects and Author/AuthorDate unchanged. Local8857/65skip/0fail+typecheck+certifiedbuild and actual installed-client/chainJSON passes remain. Current/historical red evidence retained. Final independent residual-risk review and immediate head/base check precede the authorized commit-preserving merge. No admin/protection/check bypass, source change, model call or release.
+
+No merge yet at this checkpoint. Signed landed parents/tree and all source author objects must be checked after merging the contributor's own #1220. Earlier "no waiver inferred" status below predates this explicit approval and remains historical.
+
 ## 2026-11-05: refusal trigger traced to received API metadata
 
 Owner requests identification and repair of the refusal. Native 2.1.296 inspection plus supported SDK history now prove the immediate trigger: **Anthropic API `stop_reason: refusal`, `stop_details.category: cyber`**. The saved explanation is generic and does not name the offending field. The native formatter consumes that metadata directly; the “this session” wording is canned copy, not evidence of a sticky guard. [Exact branch, supported metadata and input audit](evidence/1220-review-20261103/focused-completion-20261104/refusal-trigger-investigation/README.md).

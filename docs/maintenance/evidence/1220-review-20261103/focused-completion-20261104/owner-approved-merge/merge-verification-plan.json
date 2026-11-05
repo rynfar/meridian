@@ -1,0 +1,26 @@
+{
+  "strategy": "existingcontributorPRcommitpreservingmerge",
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "base": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "tree": "83877acdaa4c8d5a414c0ebc46b7674aa75eb2b9",
+  "mergeCommand": "gh pr merge 1220 --merge --match-head-commit <exacthead> --subject \"Merge pull request #1220 from Nowaker/fix/async-durable-store-writes\" --body-file <neutralbody>",
+  "noAdmin": true,
+  "noBranchDelete": true,
+  "requiredImmediatelyBefore": [
+    "PRsamehead/baseOPENCLEAN",
+    "allrequiredCIgreen",
+    "independentreviewnomaterialfinding",
+    "ownerapprovalescrowed"
+  ],
+  "requiredAfter": [
+    "samePRMERGED",
+    "signedmergeparents exactbase+head",
+    "landedtreeequalsreviewedtree",
+    "all22authorcommitsreachableunchangedAuthor/AuthorDate",
+    "newauthorshipauditzeroadditionalmaintainerreland",
+    "durablehandoffandPRcurrent",
+    "norelease/providercontact"
+  ],
+  "originalReds": "preserved as owneraccepteduncertainties neverPASS",
+  "noModelCalls": true
+}
