@@ -8,6 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs"
 import { dirname } from "node:path"
 import { configDir, configPath } from "../configDir"
+import { VALID_EFFORTS } from "./effort"
 
 export interface AdapterFeatures {
   /** Use the Claude Code system prompt preset (tool instructions, safety rules) */
@@ -49,6 +50,14 @@ export interface AdapterFeatures {
   sdkDebug: boolean
   /** Comma-separated extra directories Claude can access (beyond CWD) */
   additionalDirectories: string
+  /**
+   * Reasoning effort applied when the request carries none. Empty = no
+   * default, the model's own depth. Zed's `openai_compatible` provider drops
+   * the model entry's `reasoning_effort` from the request, so this is the
+   * only way its turns get a chosen effort. One of "" | low | medium | high |
+   * xhigh | max.
+   */
+  defaultEffort: string
 }
 
 export type FeatureConfig = Record<string, Partial<AdapterFeatures>>
@@ -73,6 +82,7 @@ const DEFAULT_FEATURES: AdapterFeatures = {
   fallbackModel: "",
   sdkDebug: false,
   additionalDirectories: "",
+  defaultEffort: "",
 }
 
 /**
@@ -136,6 +146,21 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   // (same rationale as openai). Passthrough is forced in the adapter itself.
   codex: {
     codeSystemPrompt: false,
+  },
+  // Zed's agent panel (/v1/chat/completions). Zed ships its own system
+  // prompt, with the user's AGENTS.md and the open project's rules, so the
+  // Claude Code preset stays OFF and no host CLAUDE.md is loaded (the SDK
+  // subprocess runs in a neutral directory anyway — see adapters/zed.ts).
+  // Thinking is on by default and forwarded as reasoning_content, which the
+  // panel renders. Zed's openai_compatible provider does not forward the
+  // `reasoning_effort` set on the model entry in its settings, so the effort
+  // defaults to high here; a request that does carry one keeps it.
+  zed: {
+    codeSystemPrompt: false,
+    claudeMd: "off" as const,
+    thinking: "adaptive" as const,
+    thinkingPassthrough: true,
+    defaultEffort: "high",
   },
   // Polytoken is a native Anthropic Messages client that owns its prompt and
   // its tool loop end to end. Layering the ~28KB Claude Code preset (or any
@@ -253,6 +278,7 @@ export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
 
 const VALID_CLAUDE_MD_VALUES = new Set(["off", "project", "full"])
 const VALID_THINKING_VALUES = new Set(["adaptive", "enabled", "disabled"])
+const VALID_DEFAULT_EFFORT_VALUES = new Set<string>(["", ...VALID_EFFORTS])
 
 /**
  * Validate and sanitise a partial feature update.
@@ -276,6 +302,11 @@ export function validateFeatureUpdate(raw: unknown): Partial<AdapterFeatures> {
     } else if (key === "thinking") {
       if (typeof value !== "string" || !VALID_THINKING_VALUES.has(value)) {
         throw new Error(`thinking must be one of: ${[...VALID_THINKING_VALUES].join(", ")}`)
+      }
+      result[key] = value
+    } else if (key === "defaultEffort") {
+      if (typeof value !== "string" || !VALID_DEFAULT_EFFORT_VALUES.has(value)) {
+        throw new Error(`defaultEffort must be one of: ${[...VALID_DEFAULT_EFFORT_VALUES].map(v => v || '""').join(", ")}`)
       }
       result[key] = value
     } else if (expected === "boolean") {
