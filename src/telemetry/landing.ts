@@ -17,6 +17,7 @@ import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "./profileSort"
 import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "./profileSpent"
 import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
+import { textSelectionJs } from "./textSelection"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -365,6 +366,7 @@ ${reorderClientJs}
 ${profileProvidersJs}
 ${domPatchJs}
 ${profileCardStatusJs}
+${textSelectionJs}
 
 var providersPresent=[];
 
@@ -731,6 +733,9 @@ document.getElementById('content').addEventListener('click',function(e){
     if(chip==='*'){var first=document.querySelector('.provider-chip');if(first)first.focus()}
     return;
   }
+  // Releasing a drag-select over a card dispatches a click on it too; that
+  // click finished a copy, so it is not a request to switch account.
+  if(meridianSelection.live())return;
   if(onHandle(e))return;
   // The card is itself the switch button, so the icon inside one has to opt
   // out of it or reading an account would move all traffic to that account.
