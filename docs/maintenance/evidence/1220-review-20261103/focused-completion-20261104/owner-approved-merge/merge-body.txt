@@ -1,0 +1,3 @@
+Merge the contributor's reviewed session-store change and additive corrections while preserving every existing authored commit.
+
+The owner accepted the disclosed residual live-verification and historical diagnostic uncertainty. Retained failures remain documented in the review evidence; they are not relabelled as passing. Required final-head CI and local checks passed. No release publication is included.

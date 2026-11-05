@@ -1,0 +1,68 @@
+{
+  "pr": 1220,
+  "merged": true,
+  "mergeCommit": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "sourceAuthors": [
+    [
+      "Nowaker",
+      "spam@nowaker.net"
+    ],
+    [
+      "Trevor Walker",
+      "rynfar@gmail.com"
+    ]
+  ],
+  "perCommit": {
+    "count": 22,
+    "allReachableOnMain": true,
+    "sameOriginalSHA": true,
+    "sameAuthorAndAuthorDate": true,
+    "signedAllObjects": true,
+    "nowakerAuthoredObjects": [
+      "63f541972475bfd9337bd7b983bd77e9eadcf6a9",
+      "a21bf609fa1b2a492dae2b7a227306a9b8296d24",
+      "826ff5ce7e1d376fd43eb3ee6e63819388a18823",
+      "bb2e18a3f8362d1a2b3a3529cd50007361bc070b"
+    ]
+  },
+  "fullLedgerBefore": {
+    "exitCode": 124,
+    "result": "INCONCLUSIVE_TIMEOUT; no beforeaftercountsclaim",
+    "limitation": "sharedisolatedauditmainadvancedwhilepreauditstillrunning; no baselineoutput admitted"
+  },
+  "fullLedgerAfter": {
+    "exitCode": 0,
+    "main": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+    "summary": {
+      "repo": "rynfar/meridian",
+      "main": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+      "generatedAt": "2026-11-05T16:41:10.803Z",
+      "outsidePullRequests": 369,
+      "merged": 108,
+      "open": 21,
+      "relandedUnderMaintainer": 137,
+      "relandedWithoutTrailer": 0,
+      "closedForMaintainerPr": 19,
+      "closedForMaintainerPrWithoutTrailer": 18,
+      "landedAsAuthorPrClosed": 44,
+      "mergedButMaintainerAuthor": 0,
+      "closedNotLanded": 40,
+      "closedNotLandedByOwnerWithoutComment": 4,
+      "authorshipStatements": 51,
+      "unmappedForeignCommits": 1
+    },
+    "pr1220": {
+      "number": 1220,
+      "author": "Nowaker",
+      "title": "fix(session): stop session store writes from freezing the proxy",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    "limitation": "unmodifiedscriptmixedauthoraggregateisnotpercommitproof; use22objectmanifest"
+  },
+  "aggregateAttributionNotSourceProof": "mixedauthors accountedbyactualpercommitmanifest; maintainermergeAuthornotusedforcredit",
+  "noNewMaintainerRelandIn1220": "provenbyallsourceobjectsreachabilitynotgloballedgercount"
+}

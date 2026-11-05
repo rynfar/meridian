@@ -1,6 +1,6 @@
-# Focused completion investigation — 2026-11-04
+# Focused completion investigation — #1220 merged 2026-11-05
 
-#1220 remains open at `ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`, against accepted main `16c214941bf3f05aa4015a70d8b81bd94857a88f`. Fresh GitHub checks are green; head/base are unchanged and CLEAN/MERGEABLE. The owner requests completion and landing for the waiting contributor. No merge or release is inferred from partial evidence. [Prior final-source checkpoint](../final-source-1220-20261104/README.md).
+**[#1220 is MERGED](https://github.com/rynfar/meridian/pull/1220)** at `41d7b3e3a2ead7e95e2790cc473b469bd3e9b567`, after explicit owner acceptance of the disclosed remaining verification risks. Signed landed parents/tree match the exact reviewed `ba0f9f5c` candidate and `16c21494` base. All22 introduced authored objects remain unchanged and reachable on main. [Merge and credit proof](owner-approved-merge/README.md). No provider contact or release. The investigation below preserves failures and missing evidence; those results are not relabelled PASS. [Prior final-source checkpoint](../final-source-1220-20261104/README.md).
 
 ## Native SSE refusal and input integrity
 
@@ -30,6 +30,6 @@ The original contributor failure (HTTP 503 after 20.01 s) was **not reproduced o
 
 One full qualification with isolated **Bun 1.4.3**, matching required CI, on Darwin arm64/Node 22 with qualified SQLite 3.53.4 **PASSED: 8,857 tests /65 skip /0 fail, all 28 groups; standalone typecheck PASS; certified build PASS**. The candidate head/tree and clean worktree were verified after completion. Ambient Bun 1.3.14 was not upgraded. Earlier local red remains recorded. This is environment-qualified, not proof that an old failure was fixed. [Plan and binary hash](ci-matching-local-runtime-plan.json), [result receipt](candidate-bun143-qualification-receipt.json), [build provenance](candidate-bun143-build-provenance.json), [npm log](candidate-bun143-full-npm.log.gz), [typecheck log](candidate-bun143-typecheck.log.gz), [build log](candidate-bun143-build.log.gz).
 
-No local/model jobs are active. Live acceptance and explicit dispositions remain missing. The incomplete E41 contract does not permit merge; no waiver is inferred.
+No local/model jobs are active. Live acceptance and explicit dispositions remain missing. This statement originally blocked merge. It is superseded only by the owner's explicit disclosed-risk approval in [the merge record](owner-approved-merge/owner-risk-approval.json), not by additional live acceptance.
 
-No production constants changed. Existing CI, actual installed-client and chain-JSON evidence remain valid at the same final head. Missing E41 modes and historical cache/native/initializer/fingerprint uncertainties are not waived. Contributor commits and the owner's checkout remain untouched.
+No production constants changed. Existing CI, actual installed-client and chain-JSON evidence remain valid at the same final head. Missing E41 modes and historical cache/native/initializer/fingerprint uncertainties remain unresolved; the owner accepted their disclosed residual risk for this merge. Contributor commits and the owner's checkout remain untouched.
