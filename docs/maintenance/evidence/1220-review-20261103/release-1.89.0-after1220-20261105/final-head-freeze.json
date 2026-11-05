@@ -1,0 +1,12 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "base": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "originalBotHead": "7902c2faeadff82534cf4177fe5b28b2dead7d7f",
+  "version": "1.89.0",
+  "runtimeDelta": "onlyversion/manifest/package-lockroot/changelog vsacceptedmain",
+  "changelogSha256": "4a55e192dae814ef797e17cd53f105f615e86d8a0a10a93a893fcc9148b5e0a2",
+  "allModelRuntimeSourceUnchanged": true,
+  "authoredContributorObjects": "preservedonmain; notesexplicitNowaker#1220",
+  "sourceBuildValidation": "finalheadgates nowstarting",
+  "notesWorkerFrozen": true
+}

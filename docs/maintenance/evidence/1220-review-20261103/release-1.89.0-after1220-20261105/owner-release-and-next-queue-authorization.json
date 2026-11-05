@@ -1,0 +1,9 @@
+{
+  "userText": "ok lets cut a release for him",
+  "scope": "Meridian1.89.0 viaexistingRP#1486 includes#1220; verifyartifacts/installedflow, normalautomation",
+  "laterUserText": "I have new pull requests and issues that need to be worked through next.",
+  "order": "complete releaseverification, thenauthorizedbacklog",
+  "retainedMergeRisk": "ownerpreviousacceptednamed#1220uncertainties, remainsnotPASS",
+  "noProviderContact": true,
+  "noManualPublishVersionTags": true
+}

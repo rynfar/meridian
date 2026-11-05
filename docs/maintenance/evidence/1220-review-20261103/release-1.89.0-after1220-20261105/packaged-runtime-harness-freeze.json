@@ -1,0 +1,18 @@
+[
+  {
+    "path": "e2e-session-bookkeeping-packaged.mjs",
+    "sha256": "616b61c0f36945cad3d87a3db4b84fe291fe468016e7437314d3a2cd112d1b4b"
+  },
+  {
+    "path": "fixtures/bookkeeping-package-server.mjs",
+    "sha256": "662777de6614be9b7545addc356d5028d503db53ced4ab9a911d46a5f1a8c371"
+  },
+  {
+    "path": "fixtures/bookkeeping-package-legacy-writer.mjs",
+    "sha256": "4da5a012eff3efc567ea0eec14b32abec2e615b46fd447812af8035aa3d622f3"
+  },
+  {
+    "path": "lib/e2eProcessCustody.mjs",
+    "sha256": "89b4c276fba3d3b3a5b473ace061fc3ae2107d3ca80d8611696bfd5ee284b361"
+  }
+]

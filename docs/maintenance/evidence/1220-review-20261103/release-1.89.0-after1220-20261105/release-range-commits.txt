@@ -1,0 +1,30 @@
+41d7b3e3 Merge pull request #1220 from Nowaker/fix/async-durable-store-writes
+ba0f9f5c Merge main into fix/async-durable-store-writes
+16c21494 fix: keep explicit models on refusal fallback (#1505)
+9b35b229 Merge main into fix/async-durable-store-writes
+2297d61e fix: avoid occupied store-lock writes and isolate native test fixtures (#1506)
+1e24a969 test: stabilize native subprocess fixtures (#1504)
+67d02f56 fix(session): invalidate evicted JSON cache after durable commit
+bb2e18a3 test: close the advisor tests' proxies so their session GC cannot outlive them
+826ff5ce test: await the keepalive runner fixture's session mapping
+a21bf609 Merge main into fix/async-durable-store-writes
+697f9482 docs: record the remaining 2026-11-01 contributor PRs and their merges (#1487)
+3a700e36 feat: keep a stopped turn's session when the client discarded its output (#1480)
+8f0b86b8 test: escrow the Claude Code tool-search harness (#1478) (#1483)
+bf91d7ad docs: record the 1.88.0 release and #1484 (#1485)
+92222508 test: scope lifecycle capture assertions to their invocation
+eaee8d82 test: retain initializer failures and join original pipes
+3ea2bf7a test: require cancellation fixture cleanup capability
+8d90e79f test: join cancellation fixture backends before teardown
+82ff117d test: await JSON publication and clear completion
+949fe89f test: scope async durability tracing to its session store
+a83c427b Merge main into fix/async-durable-store-writes
+f7aead13 test: verify asynchronous JSON durability with native SQL guards
+5721c3db fix: clear repopulated cache entries at the store commit boundary
+27d830a0 test: preserve synchronous native store callbacks
+70b77be5 fix: capture rollback identity before asynchronous JSON writes
+0961dacb chore: merge current main into asynchronous JSON writer
+b1fffe4a test: await async cache resets in newer request fixtures
+7506dd4c fix(session): own queued inputs and fence revoked async publications
+f3279411 Merge main into async store safety review
+63f54197 fix(session): stop session store writes from freezing the event loop

@@ -1,0 +1,5 @@
+# 1.89.0 release — final qualification in progress
+
+Owner explicitly authorized release, then new PR/issue backlog. Candidate `e6c5604309fb9aa870e1200321cde4e1072aa3c8` against merged #1220 main`41d7b3e3a2ead7e95e2790cc473b469bd3e9b567`. Previous tag`meridian-v1.88.0`. Runtime source unchanged; only version metadata/changelog differ. Notes include Nowaker's #1220 asyncJSONwriter and accurate limitations. No publication yet.
+
+Exacthead fullnpm/typecheck/build, CI and finalrange review running. [Plan](release-plan.json), [frozen finalhead](final-head-freeze.json), [notes review](release-notes-review.md). Independentlyinstalledcandidate/freshregistrypackage gates, actualclient live and publication verification remain required. [Actualclient plan](artifact-live-verification-plan.json), [admission](read-only-live-admission.json), [live contract](live-prelaunch-plan.json), [E79fixture plan](e79-finalhead-plan.json). Earlier accepted#1220verificationrisks remain disclosed, not assertedfixed or passed. No providercontact or manualpublishing.

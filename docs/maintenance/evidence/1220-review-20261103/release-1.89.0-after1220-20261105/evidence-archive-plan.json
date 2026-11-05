@@ -1,0 +1,21 @@
+{
+  "root": "/Volumes/DevSSD/meridian/review-1220-evidence-20261103/docs/maintenance/evidence/1220-review-20261103/release-1.89.0-after1220-20261105",
+  "preserve": [
+    "currentversionnotesdiff andrangehash",
+    "fullnpm/typecheck/buildlogs+provenance",
+    "sourceheadCI",
+    "candidatepackmanifests/integrity/installedruntime+E79",
+    "candidateactualclientjoin+witnessreceipt",
+    "workflow/publication+registry+Docker receipts",
+    "freshregistryinstalledflow",
+    "retainedfailedattempts"
+  ],
+  "omit": [
+    "credentials/grantfiles",
+    "rawprivateSDKtranscripts",
+    "customerlogs",
+    "unsanitizedenv",
+    "cachetokencontents"
+  ],
+  "compression": "logs gzip scanned forsecrets"
+}
