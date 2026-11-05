@@ -103,6 +103,7 @@ export const profileProvidersCss = PROFILE_PROVIDERS.map(p =>
   .provider-show-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
   @media (max-width: 720px) {
     .provider-chip { min-height: 40px; padding: 0 14px; }
+    .provider-show-all { display: inline-flex; align-items: center; min-height: 40px; }
   }
 `
 
