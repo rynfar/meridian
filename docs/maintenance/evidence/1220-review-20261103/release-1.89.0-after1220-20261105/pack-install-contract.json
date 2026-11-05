@@ -1,0 +1,12 @@
+{
+  "candidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "version": "1.89.0",
+  "pack": "npm pack --ignore-scripts --json aftercertification",
+  "install": "exactcandidate tarball +SDK0.2.141 independently npm --ignore-scripts; noambientpackagechange",
+  "registrypost": "fresh @rynfar/meridian@1.89.0 plusSDK0.2.141 preserveoriginalpublishedtarballintegrity/provenance",
+  "native": "explicitunchanged2.1.296 hash; resolvednewerdefaultNOTcredited",
+  "artifacts": "allmanifestfiles SHA256 verify tarballandinstall; packagecontents no tests/privatefiles",
+  "baselineArtifact": "previousregistry1.78.0 onlylegacyexportreader inpackagedgate, notmaincomparison",
+  "publicLifecycle": "importinstalledexport clearSessionCache await, closeBackend completion mockedSDKalreadycoveredbyfullsuite",
+  "noLiveArmsUntil": "candidateversion/sourcehealth/manifest/pluginidentity PASS"
+}

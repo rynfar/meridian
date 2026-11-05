@@ -1,0 +1,95 @@
+[
+  {
+    "session": "97974d4d-c1b2-452c-b49a-2e17a5748262",
+    "rows": [
+      {
+        "type": "user",
+        "uuid": "13a454b5-c8f4-46f5-b7e9-b3b54fd51d54",
+        "content": [
+          {
+            "type": "text",
+            "text": "Use the read tool to read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/a.txt. Only after its content has been returned to you, read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/b.txt. Only after that content has been returned, read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/c.txt. Make exactly one read call per step, never in parallel, and once you have all three reply with the three contents on one line and nothing else."
+          }
+        ]
+      },
+      {
+        "type": "assistant",
+        "uuid": "6cd07af9-7855-4cf0-89b7-cd8f937ceffe",
+        "model": "claude-opus-5-5",
+        "stopReason": "tool_use",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01C5MNbUzs3RN7NbJGVAZyX3",
+            "name": "mcp__oc__read",
+            "fileName": "a.txt"
+          }
+        ]
+      },
+      {
+        "type": "user",
+        "uuid": "9613fac0-c89a-4aba-ae44-b534fe4c5fd9",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01C5MNbUzs3RN7NbJGVAZyX3",
+            "is_error": true,
+            "content": "PreToolUse:mcp__oc__read hook error: This tool call has been forwarded to the client for execution. The result will be delivered in a future turn. Do not retry, do not call additional tools, and do not generate further text — end your turn now."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "session": "a5f77845-4d9c-4c0b-a2d9-245d2fc22547",
+    "rows": [
+      {
+        "type": "user",
+        "uuid": "13a454b5-c8f4-46f5-b7e9-b3b54fd51d54",
+        "content": [
+          {
+            "type": "text",
+            "text": "Use the read tool to read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/a.txt. Only after its content has been returned to you, read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/b.txt. Only after that content has been returned, read /Volumes/DevSSD/meridian/private-live-accounts-20261104-0910/personal-extra-off/tmp/meridian-probe-proxy-xpyacg/c.txt. Make exactly one read call per step, never in parallel, and once you have all three reply with the three contents on one line and nothing else."
+          }
+        ]
+      },
+      {
+        "type": "assistant",
+        "uuid": "6cd07af9-7855-4cf0-89b7-cd8f937ceffe",
+        "model": "claude-opus-5-5",
+        "stopReason": "tool_use",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01C5MNbUzs3RN7NbJGVAZyX3",
+            "name": "mcp__oc__read",
+            "fileName": "a.txt"
+          }
+        ]
+      },
+      {
+        "type": "user",
+        "uuid": "d603fe78-43b7-425f-9fa3-a1fcfba6c98d",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01C5MNbUzs3RN7NbJGVAZyX3",
+            "content": "REALOUTPUT[alpha]"
+          }
+        ]
+      },
+      {
+        "type": "assistant",
+        "uuid": "d9784a56-f5b1-4d07-90df-a93c1cbef5ac",
+        "model": "<synthetic>",
+        "stopReason": "refusal",
+        "content": [
+          {
+            "type": "text",
+            "text": "API Error: Opus 5.5's safeguards flagged this session (https://www.anthropic.com/legal/aup). You may be seeing this for the first time: Opus 5.5 is more capable and has stronger safeguards as a result, which can sometimes flag non-cybersecurity work. We're improving these safeguards to reduce the amount of incorrectly flagged messages. Claude Code can't respond to your last message with Opus 5.5.\n\nTry rephrasing the request in a new session or change your model.\n\nLearn more: https://support.claude.com/en/articles/8106465\n\nDetails: `[cyber]`\n\nRequest ID: req_011CgiEbrKMNczsLEAvajW27\n\nMessage ID: msg_011CgiEbraDzwxFScjJPjgAJ"
+          }
+        ]
+      }
+    ]
+  }
+]

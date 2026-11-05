@@ -1,0 +1,25 @@
+{
+  "validated_at_utc": "2026-11-05T17:26:27.041393+00:00",
+  "checks": {
+    "six_managed_queues": true,
+    "unique_account_repos": true,
+    "all_orgs_covered": true,
+    "account_pagination_exhausted": true,
+    "org_pagination_exhausted": true,
+    "queue_totals": true,
+    "new_order": true,
+    "draft_holds": true,
+    "older_holds": true,
+    "only_new_issue_1488": true,
+    "all_checks_sourced_heads_match_final_lists": true,
+    "no_known_coverage_gaps": true,
+    "all_read_commands_completed": true,
+    "all_prs_have_available_source_sha": true,
+    "issue_pr_separation": true,
+    "raw_issue_count_match_paged_comments": true,
+    "all_json_parse": true
+  },
+  "json_parse_errors": [],
+  "result": "PASS",
+  "limits": "Content/source/queue-discovery validation only. No application tests, build, code review or live model verification."
+}

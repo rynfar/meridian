@@ -1,0 +1,10 @@
+{
+  "scriptSha256": "6104e5fadcd788a8ffaf2dcce3cbf4dc9be7d7d8c30e47a48377762164a696b9",
+  "supportSha256": "0b38832d88a3a6909a55b83c249790fa8205237f8e6279a67bfcb78270ca522a",
+  "custodySha256": "89b4c276fba3d3b3a5b473ace061fc3ae2107d3ca80d8611696bfd5ee284b361",
+  "pi": "1.4.0",
+  "opencode": "2.2.0",
+  "mandatoryMeridianPlugin": "V2 generationmatchinginstalledsetup active+headers via committedharness",
+  "fixture": "all six cases, no model call",
+  "nativeSelected": "2.1.296 viaE2E_SERVER_ENV MERIDIAN_CLAUDE_PATH; sourceharnessunchanged"
+}

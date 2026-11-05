@@ -1,0 +1,34 @@
+{
+  "head": "9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+  "base": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "exit": 1,
+  "durationSeconds": 960.6364739998244,
+  "npmTest": {
+    "pass": 8855,
+    "skip": 65,
+    "fail": 0,
+    "processes": 28
+  },
+  "typecheck": "PASS",
+  "build": "FAIL_CERTIFICATION_POST_GATES_SNAPSHOT",
+  "failure": {
+    "module": "buildFingerprint.hashFileInto -> budget.consume -> snapshotSource -> certifyBuild post-gates",
+    "reason": "invalid",
+    "deadlineMs": 2000,
+    "budgetChanged": false,
+    "artifactCertified": false
+  },
+  "requiredCi": {
+    "run": 41800656709,
+    "result": "PASS",
+    "npmTest": {
+      "pass": 8892,
+      "skip": 28,
+      "fail": 0
+    }
+  },
+  "liveGate": "BLOCKED isolated OAuth token revoked, matching plugin/route verified; no retries",
+  "oldHistoricalCauses": "UNRESOLVED_RETAINED",
+  "mergeRelease": "NOT_DONE",
+  "noGreenBuildRetry": true
+}

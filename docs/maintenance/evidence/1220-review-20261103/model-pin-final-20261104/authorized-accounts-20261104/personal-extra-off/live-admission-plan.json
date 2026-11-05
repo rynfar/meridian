@@ -1,0 +1,38 @@
+{
+  "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "artifact": "independently installed certified package",
+  "account": "personal",
+  "extraUsageEnabled": false,
+  "weeklyUtilizationBefore": 67,
+  "client": "OpenCode1.18.34",
+  "model": "claude-opus-5-5",
+  "sdk": "0.2.141",
+  "native": "2.1.296",
+  "platform": "darwin/arm64",
+  "attempts": 1,
+  "modelDeadlineMs": 90000,
+  "outerTimeoutSeconds": 600,
+  "noDeadlineChanges": true,
+  "helperFreeze": [
+    {
+      "path": "actual-model-pin-ffcf54ca7091.mjs",
+      "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7",
+      "mode": "0o444"
+    },
+    {
+      "path": "gate-observer-75af2733bc17.mjs",
+      "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a",
+      "mode": "0o444"
+    },
+    {
+      "path": "lib-opencode-scrub-preflight.mjs",
+      "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514",
+      "mode": "0o444"
+    }
+  ],
+  "history": "SDK supported history actual assistant model exact5.5 after read and continuation",
+  "plugin": "matching installed MeridianV1 via setup--v1 config plus runtime headers; scrub0.3.0",
+  "credentialPolicy": "private access-only grant; no refresh/no ownercredentialwrites",
+  "priorAuthFailure": "retained old revoked isolated grant, not erased by new authorized grant",
+  "scope": "#1505 actual-client qualification only; not E41 or historical cache/native-scope disposition"
+}

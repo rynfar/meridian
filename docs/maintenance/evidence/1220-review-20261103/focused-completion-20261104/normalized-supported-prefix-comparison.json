@@ -1,0 +1,85 @@
+{
+  "scope": "supportedhistory visibleblockprojection only; notsystemprompt/privatewire equality",
+  "normalization": [
+    "ownedfixturepathroot",
+    "rowUUIDomitted",
+    "pairedtoolIDsconsistentlyrenamed"
+  ],
+  "same": true,
+  "candidateJSONQ2Prefix": [
+    {
+      "type": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Use the read tool to read <owned>/a.txt. Only after its content has been returned to you, read <owned>/b.txt. Only after that content has been returned, read <owned>/c.txt. Make exactly one read call per step, never in parallel, and once you have all three reply with the three contents on one line and nothing else."
+        }
+      ]
+    },
+    {
+      "type": "assistant",
+      "model": "claude-opus-5-5",
+      "stopReason": "tool_use",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "<same-call>",
+          "name": "mcp__oc__read",
+          "fileName": "a.txt"
+        }
+      ]
+    },
+    {
+      "type": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "<same-call>",
+          "content": "REALOUTPUT[alpha]"
+        }
+      ]
+    }
+  ],
+  "candidateSSEQ2Prefix": [
+    {
+      "type": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Use the read tool to read <owned>/a.txt. Only after its content has been returned to you, read <owned>/b.txt. Only after that content has been returned, read <owned>/c.txt. Make exactly one read call per step, never in parallel, and once you have all three reply with the three contents on one line and nothing else."
+        }
+      ]
+    },
+    {
+      "type": "assistant",
+      "model": "claude-opus-5-5",
+      "stopReason": "tool_use",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "<same-call>",
+          "name": "mcp__oc__read",
+          "fileName": "a.txt"
+        }
+      ]
+    },
+    {
+      "type": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "<same-call>",
+          "content": "REALOUTPUT[alpha]"
+        }
+      ]
+    }
+  ],
+  "sseFailure": {
+    "model": "<synthetic>",
+    "stop_reason": "refusal",
+    "providerDiagnostic": "Opus5.5safeguards flaggedsession, canincorrectlyflagnoncyberwork, Details[cyber]"
+  },
+  "noDenialInFork": true,
+  "modelCalls": 0,
+  "sdkSupportedHistoryReadOnly": true
+}

@@ -1,0 +1,26 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "runtimeBase": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "command": "npm test (pretest typechecks); standalone typecheck/build not reached due &&",
+  "runtime": {
+    "bun": "1.4.3",
+    "node": "22.22.3",
+    "platform": "Darwin arm64",
+    "sqlite": "3.53.4"
+  },
+  "exit": 1,
+  "counts": {
+    "pass": 8293,
+    "skip": 65,
+    "fail": 1,
+    "files": 485,
+    "expect": 45682,
+    "durationSeconds": 815.02
+  },
+  "failedTest": "migrates the real reserved NUL metadata key without treating it as a mapping",
+  "error": "live residue: session-gc.json.lock.candidate-92039-b7d48221-25ff-4db8-bdb7-562c04dbeb09",
+  "other27Groups": "not reached",
+  "CI": "exactheadPASS42073931849",
+  "disposition": "publicationpaused; concretecauseinvestigation; do not infer historicalAG503cause or pass",
+  "sourceNotChanged": true
+}

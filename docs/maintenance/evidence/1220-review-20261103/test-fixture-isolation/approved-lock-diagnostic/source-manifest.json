@@ -1,0 +1,26 @@
+{
+  "src/__tests__/bookkeeping-crash-process.test.ts": {
+    "sha256": "ca067aef12ccc7b267cdfb195234b7baa55b5d921206a4e883cf9824c2c4b22d",
+    "bytes": 13999
+  },
+  "src/__tests__/fixtures/store-lock-diagnostic.ts": {
+    "sha256": "a18956f68bba3efeea1c2c2267cdab4917b7b80097f75bf087f5d5047a375f31",
+    "bytes": 12433
+  },
+  "scripts/fixtures/store-lock-diagnostic-controls.test.ts": {
+    "sha256": "78c33754c03ed6ce3f3dc2dd15910dd112a13a7108ea6f648a9730656f7c42f1",
+    "bytes": 2962
+  },
+  "scripts/fixtures/store-lock-diagnostic-hashes.json": {
+    "sha256": "6b50738d657890bcef2281abe80b2a5b797d917df2e4909cef91acbd716108fd",
+    "bytes": 760
+  },
+  "scripts/diagnose-1506-lock.mjs": {
+    "sha256": "b6564116c19e34b5b535daf7187432ec21d2b03d937698beecd49f9595b61bac",
+    "bytes": 5650
+  },
+  ".github/workflows/diagnose-1506-lock.yml": {
+    "sha256": "9220cb75ba0a096c580f1e90d52897e5a8d670374fa87a72c1d2d7ee572e856d",
+    "bytes": 982
+  }
+}

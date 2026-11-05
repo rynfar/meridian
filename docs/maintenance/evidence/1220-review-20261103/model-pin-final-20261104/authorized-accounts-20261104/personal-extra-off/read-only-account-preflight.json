@@ -1,0 +1,29 @@
+{
+  "authorization": "Owner authorized personal and kraken live testing",
+  "credentialPolicy": "No refresh, no owner credential writes; private access-only grant copies only",
+  "accounts": [
+    {
+      "account": "personal",
+      "scope": "read-only auth/quota; no inference",
+      "credentialWrites": 0,
+      "refreshCalls": 0,
+      "modelCalls": 0,
+      "result": "PASS",
+      "accessTokenPresent": true,
+      "expiresAt": 1793821311811,
+      "subscriptionType": "max",
+      "status": 200,
+      "extraUsageEnabled": false,
+      "windows": {
+        "five_hour": null,
+        "seven_day": {
+          "utilization": 67,
+          "resetsAt": "2026-11-08T17:00:00.329679+00:00"
+        },
+        "seven_day_opus": null
+      },
+      "reason": null,
+      "accessOnlyGrantCreated": true
+    }
+  ]
+}

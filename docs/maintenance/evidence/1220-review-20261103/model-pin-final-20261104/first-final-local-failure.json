@@ -1,0 +1,18 @@
+{
+  "head": "5708dfd19062e4aff35d284e7971661fd11d8bf6",
+  "exit": 1,
+  "group0": {
+    "pass": 8270,
+    "skip": 65,
+    "fail": 1
+  },
+  "failedTest": "Antigravity expanded boundaries > executes hook paths containing spaces through the platform shell",
+  "observedCommand": "/bin/sh -c <quoted Bun executable> <quoted cjs fixture>",
+  "observedTimeoutMs": 5000,
+  "stdoutBytes": 0,
+  "stderrBytes": 0,
+  "durationSeconds": 575.2324619581923,
+  "laterGroupsTypecheckBuild": "not run",
+  "historicalCause": "native launch stalls not causally established from this result alone",
+  "nextAction": "native Node fixture correction with direct interpreter witness; unchanged quoting and timeout"
+}

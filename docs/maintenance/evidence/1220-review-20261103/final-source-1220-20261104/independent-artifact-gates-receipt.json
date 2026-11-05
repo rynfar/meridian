@@ -1,0 +1,26 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "scope": "independent gates after npm fail; no npmPASS claim",
+  "typecheck": "PASS",
+  "build": "PASS_CERTIFIED",
+  "manifest": {
+    "source": "local",
+    "kind": "artifact",
+    "version": "1.88.0",
+    "releaseVersion": "1.88.0",
+    "sha": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "dirty": false,
+    "sourceHash": "ca4081915dbfb30d44aebf01c786a5fff455fbafeb04dac86a8097aeee52e66d",
+    "commitUrl": "https://github.com/rynfar/meridian/commit/ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "counter": 1,
+    "counterScope": "d5a682f8-9887-45bd-9e99-7c62c6923390",
+    "attemptId": "b2e8bedb-a6a4-4d24-b34c-f0013b90e956",
+    "builtAt": "2026-11-04T16:43:05.705Z",
+    "displayVersion": "v1.88.0-1-detached-ba0f9f5c",
+    "certification": "verified"
+  },
+  "npm": "FAIL8293/65skip/1fail; latergroupsnotreached",
+  "noSourceChangesNoRerun": true,
+  "baselineHead": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "baselineBuild": "PASS_CERTIFIED"
+}

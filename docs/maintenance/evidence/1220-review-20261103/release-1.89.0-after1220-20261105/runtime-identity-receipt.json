@@ -1,0 +1,17 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "tree": "2ecd01440dc2f8f81830ae44a29e15c1d4ef7018",
+  "base": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "mainToFinalChangedPaths": [
+    ".release-please-manifest.json",
+    "CHANGELOG.md",
+    "package-lock.json",
+    "package.json"
+  ],
+  "onlyRuntimeRelevantChange": "1.88.0to1.89.0packageversion",
+  "dependenciesChanged": false,
+  "sourceUnchanged": true,
+  "sourceAuthorCommitsKept": true,
+  "localNodeModules": "same qualifiedSDK.141 dependencies; Pi1.4fixture installedoutside source",
+  "noOwnerCheckoutChange": true
+}

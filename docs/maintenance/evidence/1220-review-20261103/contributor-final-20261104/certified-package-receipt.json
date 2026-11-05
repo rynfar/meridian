@@ -1,0 +1,18 @@
+{
+  "head": "9b35b229ebe9422e85fcf7437c77a4bf894ec022",
+  "result": "PASS",
+  "exit": 0,
+  "artifact": "independently installed certified tarball",
+  "tarballSha256": "2aa6d2e965fbfa3c41fd0944db1657c08ff8d3c8b4b9ca7d723688574bb246b6",
+  "tarballIntegrity": "sha512-QU9ReD4vq6GlY/TjckNbJV0ZLKuY215Fu1AA5jWb9oIhhM3yq3F6HMsphfPCkTqbk57h4YpA8YjqDLToWGT/pQ==",
+  "buildManifestSha256": "4034a4f3462adb13677b01339cb0c73172477e55074496dc180c38327914b1e2",
+  "node": "22.22.3",
+  "platform": "darwin/arm64",
+  "cases": "PREPARED SIGKILL/journal/PID/resumeREADY/exactexport/lockremoved and original runtime/twoHTTP/restart/export/baseline/barrier/bootstrap",
+  "allOriginalChildrenPipesJoined": true,
+  "liveSdk": false,
+  "externalDiskCertificationFailure": "retained, not explained",
+  "actualLiveClient": "BLOCKED revokedOAuth",
+  "merged": false,
+  "release": false
+}

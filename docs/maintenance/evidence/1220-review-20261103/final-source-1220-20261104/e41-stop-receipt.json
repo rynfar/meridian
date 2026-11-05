@@ -1,0 +1,23 @@
+{
+  "baselinechainJSON": "PASS5queries/1+1+1/3results/history/forks/followup/model/cache/joins",
+  "candidatechainJSON": "PASS5queries/1+1+1/3results/history/forks/followup/model/cache/joins",
+  "candidatechainSSE": "FAIL native-refusalquery2 afterfirstreadresult, exact5.5 model, validobserver, originalchild/pipesjoined",
+  "candidateparallelJSON": "NOTRUN_STOPRULE",
+  "candidateparallelSSE": "NOTRUN_STOPRULE",
+  "cacheMissesRecorded": [],
+  "nativeRefusalNotAuth": true,
+  "nativeSwitchNotObserved": true,
+  "refusalSameModelRetry": "two5.5message_startsquery2, output0; notreclassifiedasmodelsuccess",
+  "workerExit": 1,
+  "supervisorExit": 1,
+  "supervisorClosed": true,
+  "supervisorTimedOut": false,
+  "helperFrozenSha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff",
+  "fixtureUnchanged": true,
+  "threshold95Unchanged": true,
+  "modelNativeTupleUnchanged": true,
+  "matrix": "INCOMPLETE_RED",
+  "noPromptChangeOrRerun": true,
+  "next": "offlineevidenceaudit + localfixturediagnosticonly; noadditionalmodelarm",
+  "mergeRelease": "BLOCKED_currentE41andlocalnpmred; historicalholdsremain"
+}

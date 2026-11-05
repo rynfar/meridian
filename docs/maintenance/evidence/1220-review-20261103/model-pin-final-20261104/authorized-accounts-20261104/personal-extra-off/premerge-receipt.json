@@ -1,0 +1,19 @@
+{
+  "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "base": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "expectedTree": "aa1659cd72574f5a7806e91b95ca243a49067b51",
+  "local": "PASS8829/65skip/0fail +typecheck+certifiedbuild",
+  "requiredCI": {
+    "conclusion": "success",
+    "event": "pull_request",
+    "headSha": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+    "name": "CI"
+  },
+  "latestChecks": "allrequired/supersedingchecksPASS; oneolderduplicateNixCANCELLED retained",
+  "mergeState": "UNSTABLE olderduplicatecancelled, MERGEABLE; no bypass requested",
+  "signature": "GitHub verified and localsshverifyPASS",
+  "independentReview": "no material issue, installedtuple native2.1.296 only; defaultdep2.1.318notqualified",
+  "live": "PASS exactinstalled read/result/continuation/model/plugin/scrub/nativeenv/originaljoins",
+  "method": "normal squash --match-head-commit, noadmin",
+  "scope": "supporting1505 only, doesnotwaive1220historicalholds"
+}

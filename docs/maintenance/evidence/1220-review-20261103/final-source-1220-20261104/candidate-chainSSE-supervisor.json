@@ -1,0 +1,15 @@
+{
+  "result": "FAIL",
+  "deadlineMs": 300000,
+  "stdoutBytes": 449,
+  "stderrBytes": 647,
+  "timedOut": false,
+  "exceededOutputBound": false,
+  "closed": true,
+  "code": 1,
+  "signal": null,
+  "stdoutSha256": "9d0b751e47e8c895db3a276a0b44b959c1bdf25e4b179f44adfb2189b371dfe3",
+  "stderrSha256": "aabe501d6405cf1bcde8948757b7873c778b7c4d74d461681a59b1ca7b3277f3",
+  "report": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-1793811146757-7474.json",
+  "normalFixtureCustody": false
+}

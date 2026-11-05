@@ -1,0 +1,61 @@
+{
+  "scope": "Offline source/owned safe metadata reconstruction; no SDK/model calls or commands. fingerprint compatible with frozen observer for JSON values; exact observed hash equality validates serialization used here.",
+  "q1": [
+    {
+      "arm": "instrumented-e41-v2-1793811034470-91683.json",
+      "promptMatch": true,
+      "promptSha256": "e7c640b2fc8cc185fecc9ff82e826304937268bbfc57cdd9a3c8ae65bcffe9ec",
+      "historyTextBlockMatch": true,
+      "rootNormalizedPromptSha256": "8221f981e24fac1f3699cc90d1a2e620dd528fdb137712b417fa22ecff62572d"
+    },
+    {
+      "arm": "instrumented-e41-v2-1793811146757-7474.json",
+      "promptMatch": true,
+      "promptSha256": "7cd46d2a22307e2e613edee9088ac1d16366a81f148a70f555ea985eaa95c2a3",
+      "historyTextBlockMatch": true,
+      "rootNormalizedPromptSha256": "8221f981e24fac1f3699cc90d1a2e620dd528fdb137712b417fa22ecff62572d"
+    },
+    {
+      "arm": "instrumented-e41-v2-1793811092486-2577.json",
+      "promptMatch": true,
+      "promptSha256": "69fb65149ce4e3015cb4aa8eb5192d98efd1a81bf2b305f310316c690f7aed12",
+      "historyTextBlockMatch": true,
+      "rootNormalizedPromptSha256": "8221f981e24fac1f3699cc90d1a2e620dd528fdb137712b417fa22ecff62572d"
+    }
+  ],
+  "q2": [
+    {
+      "arm": "candidate-chainJSON",
+      "itemSha256": "0318f80e0e63898f3baecfe600bb3ea56ab54a11ede35c88cb10b0d334ecf744",
+      "observedItemSha256": "0318f80e0e63898f3baecfe600bb3ea56ab54a11ede35c88cb10b0d334ecf744",
+      "promptSha256": "61508585babf40046f47dceb2ea14a94c1783e21893154404d557221a22c6f44",
+      "observedPromptSha256": "61508585babf40046f47dceb2ea14a94c1783e21893154404d557221a22c6f44",
+      "exactPromptReconstructionMatches": true,
+      "normalizedItemSha256": "0edfa7a6d0bc0aabf06e4edafe0531f083aee0db4fc16ab7a400cdaf2827e975"
+    },
+    {
+      "arm": "candidate-chainSSE",
+      "itemSha256": "c940bce94920c7ab5fb721247b7aaac938de0c5593fefd62b1622f2d567b72f6",
+      "observedItemSha256": "c940bce94920c7ab5fb721247b7aaac938de0c5593fefd62b1622f2d567b72f6",
+      "promptSha256": "a5e84ad2cfcc62529e919ae5a4cc7584b9c27cd5d48de02575c899fa15f42917",
+      "observedPromptSha256": "a5e84ad2cfcc62529e919ae5a4cc7584b9c27cd5d48de02575c899fa15f42917",
+      "exactPromptReconstructionMatches": true,
+      "normalizedItemSha256": "0edfa7a6d0bc0aabf06e4edafe0531f083aee0db4fc16ab7a400cdaf2827e975"
+    }
+  ],
+  "q2NormalizedObject": {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "<same-call>",
+          "content": "REALOUTPUT[alpha]"
+        }
+      ]
+    },
+    "parent_tool_use_id": null
+  },
+  "optionsLimit": "Whole-option hashes cannot establish field parity because env is excluded; IDs/cwd and opaque MCP/runtime objects differ. Shared source builder and matched call-site arguments reviewed, not a retained per-field runtime dump."
+}

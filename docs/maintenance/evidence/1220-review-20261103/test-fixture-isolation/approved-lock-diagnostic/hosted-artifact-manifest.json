@@ -1,0 +1,25 @@
+{
+  "files": {
+    "npm-test.log": {
+      "sha256": "3ceacc99f9ac328b515cd14f247a96304e7267483c730e76d0a36b8237bc4db3",
+      "bytes": 1678936
+    },
+    "store-lock-diagnostic.json": {
+      "sha256": "4ed43478337fac1bdc4a55d7f4d17b78a0742331fb5299a93246cf1101086aad",
+      "bytes": 30045
+    },
+    "runner-receipt.json": {
+      "sha256": "4e637a02d4108b8322fdc8f590c19e59a1a41459dae23b59f586c574c7817094",
+      "bytes": 1441
+    }
+  },
+  "frozenSourceHashMatches": {
+    "package.json": true,
+    "bun.lock": true,
+    "src/__tests__/bookkeeping-crash-process.test.ts": true,
+    "src/__tests__/fixtures/store-lock-diagnostic.ts": true,
+    "scripts/diagnose-1506-lock.mjs": true,
+    ".github/workflows/diagnose-1506-lock.yml": true
+  },
+  "archiveSha256": "c232499bef65c810a901c6132b368fa171167b005052c532764cd0e91de12caa"
+}

@@ -1,0 +1,6 @@
+{
+  "package.json": "66021fc0fcde62ab4d57a3a168cbf7c1901176434cd69f7c570ffbe984ba2d74",
+  "src/__tests__/integration.test.ts": "d4ea1775427c3e9826a915a8e98afa2579e2197240d7053ec279bb601e36805a",
+  "src/__tests__/integration-concurrent.test.ts": "5eb9fcc414add8a8ff7d2fd16c4161a491f4205d712e1383c0d4c43fbc87e817",
+  "src/__tests__/bookkeeping-cli.test.ts": "0af9403b81b6aaafd2dc91c9e3e7fefd0203bf72076c7237be27882512888277"
+}

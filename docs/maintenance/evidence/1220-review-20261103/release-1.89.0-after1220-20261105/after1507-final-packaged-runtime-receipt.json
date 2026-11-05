@@ -1,0 +1,22 @@
+{
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "tarballIntegrity": "sha512-uND7ojL4IjKHPV8ibFhWW3D/mG9fTrLmCN2TzwaLs7QzY80X/vWGmF6+9EDZTR5WyCaK3yr0SwshMPU/bCuV8Q==",
+  "exit": 0,
+  "node": "22.22.3",
+  "platform": "Darwinarm64",
+  "coverage": [
+    "independenttarballinstall",
+    "migration",
+    "twoHTTPprocesses",
+    "restart",
+    "legacyexportreader",
+    "SIGKILLresumerecovery",
+    "bootstrapidentity",
+    "exportbarriers"
+  ],
+  "liveSdk": false,
+  "sourceArtifactVerified": 703,
+  "harnessFreeze": "packaged-runtime-harness-freeze.json",
+  "originalLocalRedRetained": true
+}

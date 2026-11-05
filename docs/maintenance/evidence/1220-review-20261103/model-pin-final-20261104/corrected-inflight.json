@@ -1,0 +1,14 @@
+{
+  "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "base": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "previousHead": "5708dfd19062e4aff35d284e7971661fd11d8bf6",
+  "previousFinalLocal": "FAIL8270pass65skip1fail shellhookBuntimeout5s",
+  "correction": "test-only Node interpreter resolution+marker/node/bun-null witness; unchanged5s shelltimeout",
+  "productHashesUnchanged": true,
+  "local": "RUNNING",
+  "certifiedBuild": "PENDING",
+  "actualInstalledClient": "PENDING",
+  "oldHistoricalCauses": "UNRESOLVED/retained",
+  "ciRun": 41798125923,
+  "ci": "RUNNING"
+}

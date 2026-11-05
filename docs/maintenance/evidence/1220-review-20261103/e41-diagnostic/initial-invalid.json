@@ -1,0 +1,19 @@
+{
+  "result": "INVALID/FAIL",
+  "modelCallsObserved": 0,
+  "phase": "server scrub preflight",
+  "failure": "Missing plugin inventory",
+  "rootCause": "MERIDIAN_API_KEY=dummy imposed auth while original fixture GET /plugins/list sends no key; no inference/query started",
+  "initialHelperSha256": "26810ae0cf412d6a4465d03c989d310dc1e7704fef18c374a0fdcef2d59da72f",
+  "changedHelperSha256": "8514c16b9dd4d93fe3c4425d24eb1eeffe4b60bbfee67b525af4749ef970899c",
+  "custody": "Child changed helper after initial READY and HOLD crossed launch; helper was not frozen. First arm cannot be accepted. File digest did not affect preflight failure. Next attempt owns readonly hash-named copy.",
+  "nextAttemptChanges": [
+    "Removed unrelated process environment; explicit allowlist only",
+    "Removed test-only MERIDIAN_API_KEY (localhost owned fixture expects no auth)",
+    "Frozen helper handles documented native one-turn passthrough cap; positive/negative offline controls retained"
+  ],
+  "productChanges": 0,
+  "cacheFloor": 0.95,
+  "thresholdChanged": false,
+  "historicalResidualExplained": false
+}

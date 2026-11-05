@@ -1,0 +1,16 @@
+{
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "tarball": "rynfar-meridian-1.89.0.tgz",
+  "sha256": "35e4d666c966e219630e812e922b61064816911768fe387d17f47076073b6ebe",
+  "integrity": "sha512-uND7ojL4IjKHPV8ibFhWW3D/mG9fTrLmCN2TzwaLs7QzY80X/vWGmF6+9EDZTR5WyCaK3yr0SwshMPU/bCuV8Q==",
+  "tarballBytes": 1824645,
+  "buildAttemptId": "47e0b07e-7e82-44e7-9f0e-d1032a281874",
+  "artifactFiles": 703,
+  "buildSourceHash": "53de0513ac3349fc96f6cf4e66ba00ea0c8405b0142177571e427555fde0467f",
+  "installedRootLocalOnly": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/after1507-final-installed/node_modules/@rynfar/meridian",
+  "durableManifest": "after1507-final-build-provenance.json",
+  "published": false,
+  "SDKVersion": "0.2.141",
+  "nativeExplicit": "2.1.296 selectedexternally; defaultdependency2.1.318notcredited",
+  "packIgnoredScripts": true
+}

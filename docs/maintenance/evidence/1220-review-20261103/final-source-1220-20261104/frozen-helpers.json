@@ -1,0 +1,25 @@
+{
+  "e41": {
+    "path": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/e41-frozen/instrumented-e41-v2-3dee35021282.mjs",
+    "sha256": "3dee3502128271672a68cb074205f9cc06d2b45572a955511008c1490100f4ff",
+    "mode": "0444"
+  },
+  "actualClient": [
+    {
+      "path": "actual-model-pin-ffcf54ca7091.mjs",
+      "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7",
+      "mode": "0o444"
+    },
+    {
+      "path": "gate-observer-75af2733bc17.mjs",
+      "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a",
+      "mode": "0o444"
+    },
+    {
+      "path": "lib-opencode-scrub-preflight.mjs",
+      "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514",
+      "mode": "0o444"
+    }
+  ],
+  "noHelperModification": true
+}

@@ -1,0 +1,13 @@
+{
+  "originalManifestSha256": "dbe21fd2be4cd870f234920bd20d2679cf00e9c5d09ad8918dac49a2e5c5bb56",
+  "archiveSha256": "f497a3ebfa17f735e974920a54cecf2e1400ecc25c6cf1a83117bf7242b55045",
+  "portableFiles": {
+    "probe.cjs": "bcd3ca7fcf660c6c6b863387eba9c2f178ee0d7096bd5ccd6ec1f170f5e24c79",
+    "probe-exec-forms.ts": "073f18d09a8b755eecc85f1c79a2db85357edccbd00d4016eb914586a8dff738"
+  },
+  "portableChanges": [
+    "fixture lookup relative to helper via file URL",
+    "optional PROBE_NODE/PROBE_MINIMAL_PATH defaults identical to original"
+  ],
+  "testedPortableCopy": "content/diff validated only; original bounded control already executed, no further test rerun"
+}

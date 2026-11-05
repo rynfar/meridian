@@ -1,0 +1,21 @@
+{
+  "authorization": "user explicit letscutareleaseforhim; userapproveddisclosed#1220risk onmerge, retainednotpassed",
+  "target": "#1486 1.89.0 includes#1220 landing41d7b3e3",
+  "head": "7902c2faeadff82534cf4177fe5b28b2dead7d7f",
+  "base": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "previousTag": "meridian-v1.88.0",
+  "workflow": "ReleasePleaseonly no npmversion/manualtag/npm publish",
+  "pendingNotesCorrection": "restore#1220visibleasyncwriterbenefit+credit currentlyomitted bybot",
+  "local": "exactfinalheadfullnpm/typecheck/build + installedpackagedruntime+E79model-freeaffectedflow",
+  "ci": "allrequiredonfinalhead after notespush includingtest",
+  "live": "previousexactruntimesourcereadresultcontinuation validruntime; finalreleasemodelattemptrequiresread-onlybillingadmission plugins witnesses; no inferrednewPASS",
+  "postpublish": [
+    "release/tagSHA",
+    "npmversion/latest/integrity/provenance",
+    "freshregistryinstall storage/runtime+affectedflow",
+    "Dockersemver/minor amd64/arm64 digests",
+    "desktopstatusassets"
+  ],
+  "refusalAndHistoricalGaps": "retainedasapprovedrisks notcausefixed",
+  "nextWork": "userauthorizednewqueue afterrelease; discoveryonlyparallel"
+}

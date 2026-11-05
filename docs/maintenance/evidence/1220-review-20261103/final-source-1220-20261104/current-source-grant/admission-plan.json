@@ -1,0 +1,15 @@
+{
+  "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "priorAuthFailure": "candidate-actual-client-auth-failure.json retained",
+  "change": "readonlycurrentpersonalstoredaccessToken differs fromfailedcopiedgrant; newexpiresAt1793839285136; usageHTTP200 ExtraUsageOFF",
+  "notClaimed": "causeofrotation/revocation, credentialrefreshperformedbytest or productfix",
+  "attempts": 1,
+  "artifactAndHelperUnchanged": true,
+  "selectedNativeSha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937",
+  "model": "claude-opus-5-5",
+  "sdk": "0.2.141",
+  "actualClient": "1.18.34",
+  "deadlineAndAssertionsUnchanged": true,
+  "noOwnerCredentialWritesOrRefresh": true,
+  "stopOnProviderErrorOrMissingCompletion": true
+}

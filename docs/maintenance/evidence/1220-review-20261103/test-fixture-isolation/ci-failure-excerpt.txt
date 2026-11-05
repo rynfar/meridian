@@ -1,0 +1,30 @@
+test	Run npm test	2026-11-03T21:07:37.2810430Z (pass) SIGKILL export 1/3 released:sessions.json [667.35ms]
+test	Run npm test	2026-11-03T21:07:37.4330809Z (pass) SIGKILL export 1/3 barrier:intent:session-gc.json [152.02ms]
+test	Run npm test	2026-11-03T21:07:37.6466415Z (pass) SIGKILL export 1/3 barrier:intent:sessions.json [213.53ms]
+test	Run npm test	2026-11-03T21:07:37.8674191Z (pass) SIGKILL export 1/3 barrier:captured:session-gc.json [220.80ms]
+test	Run npm test	2026-11-03T21:07:38.0115770Z (pass) SIGKILL export 1/3 barrier:captured:sessions.json [144.11ms]
+test	Run npm test	2026-11-03T21:07:38.2653292Z (pass) SIGKILL export 1/3 barrier:releasing:session-gc.json [253.75ms]
+test	Run npm test	2026-11-03T21:07:38.5288238Z (pass) SIGKILL export 1/3 barrier:releasing:sessions.json [263.49ms]
+test	Run npm test	2026-11-03T21:07:38.7411679Z 507 |     } catch (error) {
+test	Run npm test	2026-11-03T21:07:38.7412946Z 508 |       throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
+test	Run npm test	2026-11-03T21:07:38.7413534Z 509 |     }
+test	Run npm test	2026-11-03T21:07:38.7413763Z 510 |
+test	Run npm test	2026-11-03T21:07:38.7414129Z 511 |     if (deadline - performance.now() <= 0) {
+test	Run npm test	2026-11-03T21:07:38.7414876Z 512 |       throw new SessionStoreLockTimeoutError(`[sessionStore] timed out waiting for lock ${lockPath}`)
+test	Run npm test	2026-11-03T21:07:38.7415709Z                   ^
+test	Run npm test	2026-11-03T21:07:38.7416836Z error: [sessionStore] timed out waiting for lock /tmp/meridian-test-tmp-2252/bookkeeping-crash-migrate-ufAOKR/sessions.json.lock
+test	Run npm test	2026-11-03T21:07:38.7418082Z       at acquireLock (/home/runner/work/meridian/meridian/src/proxy/sessionStore.ts:512:13)
+test	Run npm test	2026-11-03T21:07:38.7418973Z       at withLegacyStoreMaintenanceLock (/home/runner/work/meridian/meridian/src/proxy/sessionStore.ts:540:16)
+test	Run npm test	2026-11-03T21:07:38.7419965Z       at <anonymous> (/home/runner/work/meridian/meridian/src/proxy/session/bookkeeping/migration.ts:206:76)
+test	Run npm test	2026-11-03T21:07:38.7420780Z       at <anonymous> (/home/runner/work/meridian/meridian/src/proxy/sessionLifecycle.ts:1454:20)
+test	Run npm test	2026-11-03T21:07:38.7421211Z
+test	Run npm test	2026-11-03T21:07:38.7445187Z ##[error]
+test	Run npm test	      at acquireLock (/home/runner/work/meridian/meridian/src/proxy/sessionStore.ts:512:13)
+test	Run npm test	      at withLegacyStoreMaintenanceLock (/home/runner/work/meridian/meridian/src/proxy/sessionStore.ts:540:16)
+test	Run npm test	      at <anonymous> (/home/runner/work/meridian/meridian/src/proxy/session/bookkeeping/migration.ts:206:76)
+test	Run npm test	      at <anonymous> (/home/runner/work/meridian/meridian/src/proxy/sessionLifecycle.ts:1454:20)
+test	Run npm test	2026-11-03T21:07:38.7452419Z (fail) SIGKILL migration 2/1 PREPARED [212.37ms]
+test	Run npm test	2026-11-03T21:07:38.9770196Z (pass) SIGKILL migration 2/1 barrier:session-gc.json [235.81ms]
+test	Run npm test	2026-11-03T21:07:39.2269761Z (pass) SIGKILL migration 2/1 barrier:sessions.json [249.93ms]
+test	Run npm test	2026-11-03T21:07:39.3733086Z (pass) SIGKILL migration 2/1 BARRIERS [146.34ms]
+test	Run npm test	2026-11-03T21:07:39.5212259Z (pass) SIGKILL migration 2/1 database-prepared [147.87ms]

@@ -1,0 +1,68 @@
+{
+  "timestampUtc": "2026-11-04T17:01:39.189475+00:00",
+  "acceptedMain": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "supportingMerged": [
+    "1504",
+    "1506",
+    "1505"
+  ],
+  "contributorPr": 1220,
+  "contributorHead": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "contributorState": "OPEN_UNMERGED",
+  "local": {
+    "npm": "FAIL8293pass/65skip/1fail; mainprocess; remaining27groupsnotreached",
+    "failure": "Antigravityidleconversation firstsendHTTP503 after20010ms; body/probeidentitymissing",
+    "typecheck": "independentPASS",
+    "build": "independentcleanexactheadCERTIFIED_PASS",
+    "fullLocalGate": "FAIL_NOT_WAIVED"
+  },
+  "ci": {
+    "head": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+    "run": 41868161833,
+    "result": "PASS",
+    "npm": {
+      "pass": 8894,
+      "skip": 28,
+      "fail": 0
+    },
+    "processes": 28,
+    "allAdditionalProbesAndBuild": "PASS",
+    "localGate": "FAIL8293/65skip/1fail retained; CIcannotwaive",
+    "oldCI41800656709": "notcountedforfinalhead"
+  },
+  "independentReview": "no material final-source static finding",
+  "package": "independently installed actual storage/runtimePASS Node22 alloriginaljoins",
+  "actualClient": "PASS currentdistinctpersonalaccess-onlygrant OpenCode1.18.34 SDK.141 native.296 Opus5.5 Darwinarm64 matchingV1/scrub/pin/flag/history/read/result/continuation/joins",
+  "authFailure": "oldcopiedpersonalgrantrevoked retained; currentstoredtokenprovablydifferent; no testrefresh or ownercredentialwrite",
+  "billing": "Personal ExtraUsageOFF HTTP200 weekly67; kraken earlier429 settingsunknown",
+  "e41": {
+    "result": "FAIL_STOPPED",
+    "baselinechainJSON": "PASS",
+    "candidatechainJSON": "PASS",
+    "nativeCacheReadFractionsBothJsonArms": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "candidatechainSSE": "FAIL native-refusalquery2 evidenceValid exact5.5 joined",
+    "candidateparallelJSON": "NOTRUN",
+    "candidateparallelSSE": "NOTRUN",
+    "noRerunNoPromptChange": true
+  },
+  "antigravityDiagnostic": "designREJECTEDbeforeexecution:wrongcasecount/conflictingouterbound/undetachedgroupcustody/unvalidatedobserver; nofixproven",
+  "historicalHolds": [
+    "3332→3132below95% cause unresolved",
+    "originalnative.284 vsshipping.296 scope unresolved",
+    "initializer[0,1]cause unresolved",
+    "fingerprintcause unresolved, external2sredretained"
+  ],
+  "currentGatesNotRiskWaivableByHistoricalDisposition": [
+    "finalnpmred",
+    "currentE41red/incompletematrix"
+  ],
+  "constantsChanged": [],
+  "ownerCheckout": "unchangedmain branch plus preexistingreports/research_notes untracked",
+  "modelTestBuildJobsActive": [],
+  "release": "NOT_PUBLISHED"
+}

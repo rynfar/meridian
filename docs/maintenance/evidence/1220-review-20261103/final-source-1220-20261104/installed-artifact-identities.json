@@ -1,0 +1,48 @@
+{
+  "baseline": {
+    "root": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/baseline-installed/node_modules/@rynfar/meridian",
+    "build": {
+      "source": "local",
+      "kind": "artifact",
+      "version": "1.88.0",
+      "releaseVersion": "1.88.0",
+      "sha": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+      "dirty": false,
+      "sourceHash": "133512329750cf33a883d44b4b956ad352fbfeaa0f4a0b755bb521bfd170eab2",
+      "commitUrl": "https://github.com/rynfar/meridian/commit/16c214941bf3f05aa4015a70d8b81bd94857a88f",
+      "counter": 1,
+      "counterScope": "a6c49457-3c0c-4d73-b62c-b584763e8440",
+      "attemptId": "1ca77596-64af-4391-8fed-6d307ade8208",
+      "builtAt": "2026-11-04T16:43:37.956Z",
+      "displayVersion": "v1.88.0-1-detached-16c21494",
+      "certification": "verified"
+    },
+    "sdk": "0.2.141",
+    "tarballSha256": "7bed02c2addfae8a3ffeb469137b75f7c2347b388fbedc23d50d2de0ee982695",
+    "tarballIntegrity": "sha512-ARfCWQQeDXSjy2UFJ2mQnFTGwgz7YewRro9WQbsYMSc3sAjW4KFzarecuSP/zuJgMcNU3TiprHA4369fmngiow==",
+    "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e"
+  },
+  "candidate": {
+    "root": "/Volumes/DevSSD/meridian/evidence/final-source-1220-20261104/candidate-installed/node_modules/@rynfar/meridian",
+    "build": {
+      "source": "local",
+      "kind": "artifact",
+      "version": "1.88.0",
+      "releaseVersion": "1.88.0",
+      "sha": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "dirty": false,
+      "sourceHash": "ca4081915dbfb30d44aebf01c786a5fff455fbafeb04dac86a8097aeee52e66d",
+      "commitUrl": "https://github.com/rynfar/meridian/commit/ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+      "counter": 1,
+      "counterScope": "d5a682f8-9887-45bd-9e99-7c62c6923390",
+      "attemptId": "b2e8bedb-a6a4-4d24-b34c-f0013b90e956",
+      "builtAt": "2026-11-04T16:43:05.705Z",
+      "displayVersion": "v1.88.0-1-detached-ba0f9f5c",
+      "certification": "verified"
+    },
+    "sdk": "0.2.141",
+    "tarballSha256": "cdf50a3c88880f780b83c0d1d0c5e611f5a088c59aad7b74029a012f4f16aba2",
+    "tarballIntegrity": "sha512-Rn+iFuwK/rpGUNy4UzxeA92zHd7eU0U0FSnVcR2/zihC5pO2VO+iomKYj+2/ZX3d3cgneg1UGQE303+lTnc8gA==",
+    "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e"
+  }
+}

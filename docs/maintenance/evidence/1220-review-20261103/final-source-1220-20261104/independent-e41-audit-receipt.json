@@ -1,0 +1,73 @@
+{
+  "result": "FAIL_STOPPED",
+  "independentAudit": {
+    "sha256": "4cc8bcb7ff4a1457eb4dac15b09ee8e1b9946f2b3f6fa668e0acaa7a00112da8",
+    "path": "independent-e41-outcome-audit.md"
+  },
+  "nativeContinuationCache": {
+    "baselinechainJSON": [
+      {
+        "nextQuery": 2,
+        "read": 2999,
+        "priorPublishedCachedPrefix": 2999,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 3,
+        "read": 3135,
+        "priorPublishedCachedPrefix": 3135,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 4,
+        "read": 3271,
+        "priorPublishedCachedPrefix": 3271,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 5,
+        "read": 3407,
+        "priorPublishedCachedPrefix": 3407,
+        "fraction": 1.0
+      }
+    ],
+    "candidatechainJSON": [
+      {
+        "nextQuery": 2,
+        "read": 2999,
+        "priorPublishedCachedPrefix": 2999,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 3,
+        "read": 3135,
+        "priorPublishedCachedPrefix": 3135,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 4,
+        "read": 3271,
+        "priorPublishedCachedPrefix": 3271,
+        "fraction": 1.0
+      },
+      {
+        "nextQuery": 5,
+        "read": 3407,
+        "priorPublishedCachedPrefix": 3407,
+        "fraction": 1.0
+      }
+    ],
+    "floor": 0.95,
+    "dedup": "publishedcheckpointsession/uuid/message link; no repeatedrows/attempts/resultaggregate",
+    "originalHTTPAssertions": "passseparately"
+  },
+  "sseRefusal": "nativefield classifier at91/92, beforeerrorresult99; two distinct actual5.5response starts71/86, output0; aggregate5986notcachecredit",
+  "cleanupOriginalChildrenJoined": {
+    "baselinechainJSON": "11/11",
+    "candidatechainJSON": "11/11",
+    "candidatechainSSE": "5/5"
+  },
+  "concreteSourceReplayDefect": "nonefound",
+  "rawStopReasonRetentionLimit": "v2classificationprovenance, literalstop_reasonnotseparatelyretained",
+  "allHistoricalAndCurrentReds": "retained"
+}

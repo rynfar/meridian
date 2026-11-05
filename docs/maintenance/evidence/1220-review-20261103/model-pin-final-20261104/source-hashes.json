@@ -1,0 +1,10 @@
+{
+  "head": "5708dfd19062e4aff35d284e7971661fd11d8bf6",
+  "base": "2297d61e4f157ad6448dc787c64849f565f4377f",
+  "files": {
+    "src/proxy/models.ts": "d6216e56b0034a3182e6aaf270dc8977ea130ffee58025fa76a39fbace34769f",
+    "src/__tests__/explicit-model-pins.test.ts": "02f7faece3a34083f8b4febf1c41bdb8d7692b68a8a3cdd4e0d9908ba48bb1f4",
+    "src/__tests__/proxy-env-stripping.test.ts": "c3416da794bb3c36d81f6bc281d927036fbad3aac210bb26a47164cca8bd026a",
+    "src/proxy/SPEC.md": "113dea856134c4e9104fe46962f993e0f088fc521b12425982bf4bffd7608725"
+  }
+}

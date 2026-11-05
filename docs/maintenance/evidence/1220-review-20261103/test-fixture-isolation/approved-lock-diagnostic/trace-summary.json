@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "case": "SIGKILL migration 2/1 PREPARED",
+  "valid": true,
+  "invalid": [],
+  "child": {
+    "pid": 9681,
+    "status": null,
+    "signal": "SIGKILL",
+    "joinedWallMs": 1793744897082,
+    "joinedMonotonicMs": 174018.515748
+  },
+  "outcome": "returned",
+  "before": {
+    "wallMs": 1793744897085,
+    "monotonicMs": 174021.839583,
+    "locks": [
+      {
+        "name": "sessions.json.lock",
+        "tokenSha256": "465a065c65f034d560294bcbb7d81e7971a284341e2bdc07b68dcf47a0ff6dc1",
+        "parsed": true,
+        "pid": 9681,
+        "nonceSha256": "a735f392a760c0b564b60eb6a4bdc04a797370fd465e742afb2978b4345e721c",
+        "incarnation": {
+          "version": 1,
+          "pid": 9681,
+          "hostId": "440c38f88e60b7a3c0c506be69dce771f1e7c33ca7de4ef5f5fd822a5e55f6e6",
+          "bootId": "fb7f1de8-5496-443e-ac65-e6d79cbd1820",
+          "startId": "24196",
+          "startIdKind": "linux-proc-start-ticks"
+        },
+        "dev": 2049,
+        "ino": 7602225,
+        "mtimeMs": 1793744897057.5186,
+        "size": 306,
+        "wallMs": 1793744897085,
+        "monotonicMs": 174021.649127,
+        "ageMs": 27.4814453125
+      },
+      {
+        "name": "session-gc.json.lock",
+        "tokenSha256": "62c9272ed994f287242565ec0a628b8222ec5a2405c9124acaacec412adb5420",
+        "parsed": false,
+        "dev": 2049,
+        "ino": 7602224,
+        "mtimeMs": 1793744897056.5186,
+        "size": 321,
+        "wallMs": 1793744897085,
+        "monotonicMs": 174021.798847,
+        "ageMs": 28.4814453125
+      }
+    ],
+    "journalPhase": "PREPARED"
+  },
+  "after": {
+    "wallMs": 1793744897124,
+    "monotonicMs": 174060.518502,
+    "locks": [
+      {
+        "name": "sessions.json.lock",
+        "tokenSha256": "ac6bf35f3f53920499136342565cdad6a9f4a88ef7d33735906410f9d205e020",
+        "parsed": true,
+        "dev": 2049,
+        "ino": 7602227,
+        "mtimeMs": 1793744897097.5188,
+        "size": 226,
+        "wallMs": 1793744897124,
+        "monotonicMs": 174060.463289,
+        "ageMs": 26.481201171875
+      },
+      {
+        "name": "session-gc.json.lock",
+        "tokenSha256": "ac6bf35f3f53920499136342565cdad6a9f4a88ef7d33735906410f9d205e020",
+        "parsed": true,
+        "dev": 2049,
+        "ino": 7602225,
+        "mtimeMs": 1793744897096.5188,
+        "size": 226,
+        "wallMs": 1793744897124,
+        "monotonicMs": 174060.494447,
+        "ageMs": 27.481201171875
+      }
+    ],
+    "journalPhase": "READY"
+  },
+  "counters": {
+    "mkdirSync:other": 2,
+    "readdirSync:other": 12,
+    "lstatSync:other": 2,
+    "openSync:other": 28,
+    "fstatSync:other": 2,
+    "closeSync:other": 28,
+    "lstatSync:owned-other": 28,
+    "openSync:owned-other": 34,
+    "fstatSync:owned-other": 46,
+    "fchmodSync:owned-other": 15,
+    "closeSync:owned-other": 34,
+    "readFileSync:owned-other": 15,
+    "lstatSync:lifecycle-lock": 4,
+    "openSync:lifecycle-lock": 4,
+    "fstatSync:lifecycle-lock": 8,
+    "readFileSync:lifecycle-lock": 4,
+    "closeSync:lifecycle-lock": 4,
+    "readFileSync:child-proc-stat": 4,
+    "deathProbe": 4,
+    "childDeathProbe": 4,
+    "lstatSync:store-lock": 4,
+    "openSync:store-lock": 4,
+    "fstatSync:store-lock": 8,
+    "readFileSync:store-lock": 7,
+    "closeSync:store-lock": 4,
+    "openSync:store-candidate": 2,
+    "fchmodSync:store-candidate": 2,
+    "writeFileSync:store-candidate": 2,
+    "fsyncSync:store-candidate": 2,
+    "closeSync:store-candidate": 2,
+    "linkSync:store-candidate": 2,
+    "unlinkSync:store-candidate": 2,
+    "statSync:store-lock": 2,
+    "mkdirSync:store-recovery": 1,
+    "openSync:store-recovery": 2,
+    "writeFileSync:store-recovery": 1,
+    "fsyncSync:store-recovery": 2,
+    "closeSync:store-recovery": 2,
+    "lstatSync:store-recovery": 2,
+    "renameSync:store-recovery": 1,
+    "fsyncSync:other": 26,
+    "renameSync:store-lock": 1,
+    "readFileSync:store-retired": 1,
+    "unlinkSync:store-retired": 1,
+    "readFileSync:store-recovery": 1,
+    "rmSync:store-recovery": 1,
+    "writeFileSync:owned-other": 10,
+    "fsyncSync:owned-other": 11,
+    "renameSync:owned-other": 9,
+    "unlinkSync:owned-other": 13,
+    "linkSync:owned-other": 3
+  },
+  "startWallMs": 1793744897086,
+  "startMonotonicMs": 174021.97662,
+  "deathProbeHookInstalled": true,
+  "probeObservation": "death-probe-observed",
+  "endWallMs": 1793744897124,
+  "endMonotonicMs": 174060.368401,
+  "cpuStart": {
+    "user": 21259902,
+    "system": 8054567
+  },
+  "cpuEnd": {
+    "user": 21288434,
+    "system": 8059549
+  },
+  "limits": {
+    "maxEvents": 10000,
+    "maxBytes": 4194304,
+    "bytes": 26181,
+    "capped": false
+  },
+  "limitation": "Observer adds clock/hash/serialization overhead; native timing is not transparent. Snapshot follows helper import; joined clocks precede import. False death conflates alive and indeterminate. Zero observed probe calls cannot prove a caller used the spied export binding. No source/proc buffers are retained."
+}

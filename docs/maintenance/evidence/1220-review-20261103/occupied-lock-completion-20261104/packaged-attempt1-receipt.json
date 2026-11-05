@@ -1,0 +1,10 @@
+{
+  "head": "02554a0a748f695b79982da071145f83c402415c",
+  "exit": 1,
+  "scope": "independently installed tarball, Node22.22.3",
+  "failure": "New harness expected empty object after legacy export; canonical store metadata correctly preserved",
+  "postKillResume": "ready reached",
+  "testCorrection": "Seed canonical metadata, assert exact full original preparedStore after export. No product assertion deleted",
+  "sourceConstantsChanged": [],
+  "buildCertification": "open; uncertified archive produced"
+}

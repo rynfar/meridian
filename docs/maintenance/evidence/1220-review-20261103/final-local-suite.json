@@ -1,0 +1,35 @@
+{
+  "head": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "command": "npm test",
+  "exit": 1,
+  "durationSeconds": 986.637,
+  "pretestTypecheck": "PASS",
+  "group0": {
+    "pass": 8287,
+    "skip": 65,
+    "fail": 5,
+    "errors": 1,
+    "files": 485,
+    "tests": 8357,
+    "seconds": 958.63
+  },
+  "laterGroups": "not run due &&",
+  "failedCases": [
+    "(fail) Antigravity read-only subscription probes > retries one timeout only after the stubborn process exits [2289.22ms]",
+    "(fail) Antigravity read-only subscription probes > retries model discovery only after the once process exits [2288.77ms]",
+    "(fail) Antigravity read-only subscription probes > does not retry model discovery exits and bounds repeated timeouts [3023.59ms]",
+    "(fail) Antigravity read-only subscription probes > joins cancelled model discovery without retrying [2338.61ms]",
+    "(fail) Antigravity read-only subscription probes > cools down failed account probes without spawning or treating old authorization as valid [6197.32ms]"
+  ],
+  "findings": "Completed bounded investigation: original candidate red vs baseline green;24-file import closure identical. Built-ins-only same-fixture executable-shebang startup fails before JS from candidate cwd while explicit env/direct Node succeeds; minimal PATH does not fix; native original sample at env dyld_start+0. Exact OS/Bun cause remains unknown, not attributed to async-store diff. Original local full-suite gate still failed. See probe-diagnostic/findings.md.",
+  "thresholdChanges": 0,
+  "ci": {
+    "result": "PASS",
+    "head": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+    "url": "https://github.com/rynfar/meridian/actions/runs/41601464547/job/125800958072",
+    "platform": "linux/x64",
+    "bun": "1.4.3+c6da4a4d3",
+    "node": "22.23.4",
+    "localTuple": "darwin/arm64 Bun1.3.14 Node22.22.3"
+  }
+}

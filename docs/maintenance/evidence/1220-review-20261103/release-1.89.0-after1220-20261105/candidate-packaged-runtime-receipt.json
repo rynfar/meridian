@@ -1,0 +1,16 @@
+{
+  "candidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "tarball": "rynfar-meridian-1.89.0.tgz",
+  "integrity": "sha512-kSIT+GSMaw9RqlRdZlbwdgmjDr7hJr+5pNarP0I5+vjHJtirNtxOfulT7wWp29FY15tGFUYAddlf5Z8cmGa+9A==",
+  "runtimeGate": {
+    "exit": 0,
+    "node": "22.22.3",
+    "platform": "darwin-arm64",
+    "model": false,
+    "coverage": "migration/twoHTTPprocesses/restart/export/legacybaselineSIGKILLrecoverybootstrap"
+  },
+  "SDK": "0.2.141installedactualclienttarget",
+  "native2.1.296": "E79fixture/actualclientexplicitselectionseparate",
+  "sourceBuild": "independentstandalonetypecheckcertifiedbuildPASSfollowingfullsuiteRED",
+  "fullLocalGate": "notpassed; testisolationcorrectionseparatelybeingvalidated"
+}

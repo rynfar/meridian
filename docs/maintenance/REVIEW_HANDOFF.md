@@ -1,4 +1,482 @@
-# Meridian review checkpoint — 2026-11-02 UTC
+# Meridian review checkpoint — 2026-11-03 UTC
+
+## 2026-11-05: final 1.89.0 checks complete; publication awaits live-gap decision
+
+Release Please #1486 final head **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, tree`6addd303a448894714a97675bfc87a9f307d53fd`, base`cafdcf780f1b40c8f0dee17481132f47b4cbb353`. Exact-head local **8857 passed / 65 skipped / 0 failed / 29 groups**, standalone typecheck/certified build PASS. CI **42080848312: 8894 passed / 28 skipped / 0 failed / 29 groups**; relevant Windows/Docker/desktop/Nix checks pass. Independent final delta review found no concrete material defect. Nowaker/#1220 notes and authorship remain intact; no runtime/dependency change.
+
+Exact-head independently installed tarball: all **703 artifact hashes and SHA512 integrity PASS**, SDK.141 confirmed. Node22 packaged runtime/recovery PASS. **All six E79 model-free fixtures PASS**, including actual Pi1.4.0 extension and OpenCode2.2.0 matching V2 config/runtime headers. These do not establish live-model stop behavior.
+
+**Only planned pre-publication gate still open: release-artifact actual-model read/result/continuation NOT RUN**, fresh read-only usage admission HTTP429 before inference. No model call, refresh, owner credential write or provider contact. No blind retry queued. Earlier owner-accepted #1220 risks and named additional unqualified release flows remain disclosed, not new passes. Prior risk acceptance is not silently extended to this missing release check.
+
+**Publication NOT STARTED. Owner decision needed:** wait for fresh live admission, or explicitly authorize publication with this release-artifact live gap (which may also leave fresh-registry real-model verification blocked). Normal Release Please only; post-publication tag/npm/provenance/fresh-install/Docker/desktop gates remain. New queue work stays held until release stability. [Final decision and evidence index](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/final-release-decision.md).
+
+
+## 2026-11-05: final 1.89.0 candidate refreshed after landed #1507
+
+ReleasePlease regeneratedcandidate8114babb on main`cafdcf780f1b40c8f0dee17481132f47b4cbb353` after#1507normalmerge. Restoredidentical#1220Nowakeraccuratenotes on signed finalhead **`f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2`**, tree`6addd303a448894714a97675bfc87a9f307d53fd`. Onlypackage.testprocessisolationdiffersfromoldrelease`e6c5604309fb9aa870e1200321cde4e1072aa3c8`; no runtime/dependencychange. Notesidentical. Versusmainonlyversion/changelog/manifest/package-lockroot. [Freeze](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-head-freeze.json).
+
+**Exactnewhead fullnpmPASS8857/65skip/0fail/29groups; standalonetypecheck/certifiedbuildPASS**, isolatedBun1.4.3/Node22.22.3/SQLite3.53.4. HostedCI **42080848312PASS8894/28skip/0fail/29groups**, allrelevantWindows/Docker/desktop/Nixgreen. [Localreceipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-local-receipt.json), [CIreceipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-ci-receipt.json). Independentdeltareview **no concrete material finding**: oldrelease→newonlypackage.test2insertions, notesbyteidentical; main→newonly4version/notesmetadatafiles, noruntime/dependencydelta. [Frozenreview](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-delta-review.md). #1507finalgates local8857/65skip/0fail/29groups andCI8894/28skip/0fail/29groups+type/build alreadyPASS, signedlandedtreeverified; originalreleasefullred remains archived, originalcandidatecallerunproven. Newhead isnotyetdeclaredfullyqualified.
+
+Previousinstalledcandidate703artifact/integrity+Node22packagedruntime/recovery+all6E79fixturesPASS, notnewhead/freshregistryclaim. Newexactheadcertifiedtarball independentlyinstalled; all703artifacthashes+integrityPASS, SDK.141confirmed. [Artifactcustody](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/after1507-final-artifact-custody.json). NewexactheadrealNodepackagedruntime andall6E79fixtures running; no newpassclaimyet. Liveactualclient **NOTRUN/blockedfreshreadonlyusageHTTP429beforeinference**; nomodel/refresh/ownercredentialwrite. No queuedblindadmissionretry. ReleasepublicationNOTSTARTED. Actualclientgatestillopen. Owneracceptedprior#1220gaps retained; no silentnewwaiver. Nextauthorizedbackloginventoryhelduntilreleasestable.
+
+
+## 2026-11-05: release local qualification blocked; test-only #1507 validating
+
+Release#1486head`e6c5604309fb9aa870e1200321cde4e1072aa3c8` passed hostedCI42073931849 includingtest,Windows,Docker,desktop,Nix. Full localBun1.4.3 failed **8293pass/65skip/1fail**: bookkeeping-store-contract reservedNULmigration saw live lifecyclelockcandidate; 27latergroups not reached. Standalone typecheck/certifiedbuild passed independently, notfullsuite. [Failure receipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/final-local-failure-receipt.json).
+
+Awaitedstorewrite owns sessionslockonly; lifecyclecandidatecleanup isawaited. Independentactualsourcewitness proves omittedstoreDirGCcan drift acrossmutabletestglobal. Originalcaller unproven; unchangedcontrols6/0,10/0,29/0donotclearoriginalred. DeterministicheldforeignGCcandidatecontrol: sameprocessmigration refuses, isolatedunchangedcontract6/0whileheld, sameprocessmigrationREADYafterjoin. Fixattest/testownership, notlive-residuegate.
+
+**#1507**`d0904187c89631a459fa60a112332632b7fd75c4` onlyadds contractbulkexclusion+explicitunchanged6testprocess usingexistingnpmtestpattern. No runtime/dependency/version/assertion/deadline/constantchange. Fullnpm→typecheck→build is running with nofailuremarkers sofar. **RequiredCI42078024708PASS8894/28skip/0fail/29processgroups**, includingseparateunchanged6contracttests; allrelevantWindows/Docker/desktop/Nixchecks green. Independentreviewfoundnomaterialfinding. [CIreceipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/contract-isolation-ci-receipt.json). **#1507MERGED`cafdcf780f1b40c8f0dee17481132f47b4cbb353`** normalexactheadsquash: signed/treeequalreviewedhead; package.jsontestscriptalonechanged. Final local8857/65skip/0fail/29groups+typecheck/certifiedbuildPASS; CI8894/28skip/0fail/29groupsPASS. [Landedproof](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/contract-isolation-postmerge-verification.json). Publicationpaused; normalReleasePlease42080493605refreshingfinalhead. Revalidateafternewnoteshead.
+
+Independentinstalled1.89.0candidate703artifactSHA+tarballintegrity pass; realNode22packagedmigration/twoHTTP/restart/export/SIGKILL/bootstrap gatepass. **E79all6fixturecasesPASS**: discard/keep/strictboth +actualPi1.4.0extension +OpenCode2.2.0matchingV2activeconfig+headers. Scriptedupstreamnotlive-modelstopqualification. CandidateactualOpenCode1.18.34/SDK.141/native.296/Opus5.5read/result/continuation **NOTRUN**: freshreadonlyusagepreflightHTTP429 preventsnewincludedcapacity/ExtraUsageOFFconfirmation; nomodelattempt/refresh/ownercredentialwrite. EarlierHTTP200notfreshproof. [Block receipt](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/candidate-actualclient-blocked-receipt.json). Freshregistry/publicationnotstarted. Knownreleasecoveragegaps unchanged andnamedinrange-review-receipt. Providercontactstilldeclined. Nextqueuehelduntilstable.
+
+
+## 2026-11-05: 1.89.0 release authorized, final candidate validating
+
+Owner explicitly requests a release for the newly merged #1220, then work through new PRs/issues. Release Please #1486 now includes main41d7b3e3. Final candidate **`e6c5604309fb9aa870e1200321cde4e1072aa3c8`**, tree2ecd01440dc2f8f81830ae44a29e15c1d4ef7018, version1.89.0. Release delta versus main is only manifest/package-root versions and changelog; runtime source unchanged. Corrected bot omission of asyncJSONwriter entry: #1220/Nowaker credit and accurate synchronous-read/parse/serialize boundary; cache-clear follow-up grouped with eviction fix. No author history rewritten or dependency changed.
+
+Exact final-head full local npm→typecheck→certifiedbuild and final-head CI42073931849 are running. Independent complete1.88.0→candidate review underway; known #1220 accepted uncertainties are retained, not turned into passes. Model-freeE79all planned with realPi1.4.0/OpenCode2.2.0+generationmatchingplugins, independentlyinstalledcandidate storage/runtime and actualOpenCode1.18.34/SDK.141/selectednative.296/Opus5.5 read/result/continuation planned. New read-onlypersonal preflightHTTP200 confirms ExtraUsageOFF/weekly83; privateaccessonlygrant, no refresh/ownerwrites. No newmodelattempt yet. No manualnpmversion/tag/publish; normalReleasePlease exact-head merge onlyafter finalgates.
+
+[Release plan and frozen identities](evidence/1220-review-20261103/release-1.89.0-after1220-20261105/release-plan.json). Publication has NOT started. Postpublication gates include GitHubtag/commit, npm latest/integrity/provenance, freshregistryinstalledflow, Dockersemver/minoramd64/arm64digests anddesktopstatus. Providercontactremainsdeclined. Read-onlywholequeueinventory is complete:169accessible repos/3orgs fullypaginated, sixmanagedqueues,14newnon-draftPRs and1newissue; scrubqueuesempty. Next#1503onlyafter1.89.0stable. Ten drafts/fiveoldnon-draftholds preserved; #1488/#1493routecontractneeds specificapproval. [Inventory](evidence/1220-review-20261103/next-backlog-20261105/README.md). No source/mergework onthatqueuebefore release.
+
+## 2026-11-05: #1220 MERGED; contributor authorship verified
+
+**[#1220](https://github.com/rynfar/meridian/pull/1220) is MERGED at `41d7b3e3a2ead7e95e2790cc473b469bd3e9b567`, 2026-11-05 16:38:49 UTC.** Normal exact-head commit-preserving merge, no admin, protection change or CI bypass. Signed merge parents are exactly reviewed main `16c214941bf3f05aa4015a70d8b81bd94857a88f` and head `ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`; landed tree `83877acdaa4c8d5a414c0ebc46b7674aa75eb2b9` equals the reviewed candidate. The contributor's own PR shows MERGED. **All22 introduced authored objects are reachable unchanged on origin/main with identical actual Author/AuthorDate**; Nowaker's original source commits and separate maintainer corrections remain separate. The maintainer-authored merge commit is not presented as source-author credit. [Postmerge proof](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/postmerge-verification.json), [author manifest](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/introduced-author-commits.tsv).
+
+Owner explicitly approved proceeding after disclosure of incomplete live E41 and the separate historical cache/runtime uncertainties. This accepts the named verification risks; it does not claim a causal fix or turn failed/unrun tests green. **No release or provider contact is included; provider contact was expressly declined.** [Approval](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/owner-risk-approval.json).
+
+Final local **8857pass/65skip/0fail**, all28groups, standalone typecheck and certified build pass with isolated CI-matching Bun1.4.3; exact-head requiredCI41868161833 passes8894/28skip/0fail plus probes/build. Actual installed OpenCode/V1/scrub read/result/continuation and both source chainJSON arms pass. Final independent adversarial re-review finds **no known unfixed material code bug independently preventing merge**, covering asyncJSON FIFO/CAS, eviction/epoch fencing, ordered clear/rollback, cancellation-tail ownership and nativeSQL sync COMMIT. [Risk review](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/adversarial-merge-risk.md).
+
+Residuals retained: native provider cyber refusal/current incomplete SSE+parallel E41; historical3332→3132below95%; oldnative.284scope; initializer/fingerprint causes; originalBun1.3.14AG503. The change affects the default JSON write path, not only a rare refusal edge case; the realistic residual risk is session mapping/resume/cache regression. No concrete remaining defect or production frequency is established. All old red logs remain preserved. No model calls, source/constants/prompt changes or new diagnostic loop followed approval.
+
+Full postmerge attribution audit passes at landed main: #1220 is classed merged; historical maintainer re-lands remain137 and merged-but-maintainer-author is0. The separate premerge audit hit its180s bound and produced no admitted baseline counts. Mixed-author aggregate rows are not credit proof: the22 per-commit author objects above are authoritative. [Full audit and limits](evidence/1220-review-20261103/focused-completion-20261104/owner-approved-merge/source-credit-verification.json). Owner checkout was never switched/reset/cleaned; contributor branch not deleted. Evidence stays in draft#1500. Earlier unmerged/no-owner-disposition sections below are historical and superseded by this explicit approval and verified merge.
+
+## 2026-11-05: refusal trigger traced to received API metadata
+
+Owner requests identification and repair of the refusal. Native 2.1.296 inspection plus supported SDK history now prove the immediate trigger: **Anthropic API `stop_reason: refusal`, `stop_details.category: cyber`**. The saved explanation is generic and does not name the offending field. The native formatter consumes that metadata directly; the “this session” wording is canned copy, not evidence of a sticky guard. [Exact branch, supported metadata and input audit](evidence/1220-review-20261103/focused-completion-20261104/refusal-trigger-investigation/README.md).
+
+Independent full system/tool/config source audit found no concrete input defect or justified product patch. OpenCode defaults to the Claude Code preset plus Meridian's constant provenance/cwd/scratchpad notes; the native expanded preset was not retained. Real Q2 result and native conversation remain correct. Both JSON arms and actual client passed with the same private fixture ancestor, so relocating/rewriting it cannot be claimed as a refusal fix. No credentials were found in visible input, no private SDK files were inspected, and no safeguard bypass or speculative source change was made.
+
+One new-request read-only personal preflight returned **HTTP429**; zero model calls, refreshes or owner credential writes. All workers are stopped; no runtime jobs are active. Exact candidate/main remain ba0f9f5c/16c21494, final local8857/65skip/0fail+typecheck+certifiedbuild and CI remain green, but failed SSE/incomplete E41 and historical holds remain. **#1220 open, no release, no fix claimed.** An exact request/message-ID [provider report](evidence/1220-review-20261103/focused-completion-20261104/refusal-trigger-investigation/provider-report-draft.md) is drafted but not sent; external contact requires owner approval. Provider investigation is the bounded next action to identify its private classifier trigger.
+
+## 2026-11-04: focused completion — native refusal identified; CI-matched local qualification passed
+
+**#1220 remains open at `ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`; no release.** Fresh GitHub/origin refresh confirms accepted main `16c214941bf3f05aa4015a70d8b81bd94857a88f`, unchanged head/base, CLEAN/MERGEABLE and every required check green. Contributor commits remain intact. No production source or constants changed during this investigation.
+
+**New refusal evidence:** supported SDK history records literal `stop_reason: refusal` with native Opus 5.5 safeguard classification `[cyber]`. The diagnostic notes non-cyber work can be incorrectly flagged. Independent reconstruction of Q1 and Q2 exactly matches the frozen observer hashes. Q2 contains only the correctly paired real `REALOUTPUT[alpha]` tool result: no denial, error flag, assistant echo or extra instruction. Normalized native conversation prefixes match passing JSON. Shared query construction has no transport-specific model-facing option branch for passthrough. The private safeguard trigger remains unknown; no replay correction or prompt change is justified. **The candidate SSE arm is still failed; the two parallel modes remain unrun.**
+
+**New local control:** accepted-main full suite with one assertion-message-only HTTP-body diagnostic passed **8,829 /65 skip /0 fail**, all 28 groups, including all six Antigravity idle cases. The isolated first case also passed. Neither control reproduces or explains the original contributor Antigravity 503 after 20.01 s; no production fix is claimed. The unchanged contributor head completed one full qualification using isolated **Bun 1.4.3**, matching CI, on the same Darwin arm64/Node 22/qualified SQLite 3.53.4 environment: **8,857 pass /65 skip /0 fail**, all **28 groups**, standalone typecheck PASS and **certified build PASS**. Source head/tree and clean worktree were verified after completion; original contributor and correction ancestors remain intact. Earlier Bun 1.3.14 red remains recorded; this new-runner pass is not historical cause proof.
+
+**The single accepted-main SSE causal control did not start:** current read-only personal usage preflight returned HTTP 429, so current billing admission was unavailable. Zero model calls, refreshes or owner credential writes. No automatic quota polling, account switch, failed-candidate rerun or prompt relaxation. Last successful Extra Usage OFF receipt remains historical; no new billing state is inferred.
+
+Existing final-head CI **41868161833** (8,894 /28 skip /0 fail), certified artifacts, installed storage/runtime, actual OpenCode 1.18.34/SDK 0.2.141/selected native 2.1.296/Opus 5.5/V1 plugin/scrub and baseline/candidate chain-JSON passes remain valid. All eight audited continuation cache reads are 100% against the unchanged 95% floor. **No merge is authorized by partial E41 evidence.** Historical cache residual, original native .284 scope, initializer and fingerprint cause holds remain explicit; no owner risk disposition is inferred from the request to finish.
+
+[Focused findings, exact prompt reconstruction and controls](evidence/1220-review-20261103/focused-completion-20261104/README.md). [Prior final-source receipts and failed arms](evidence/1220-review-20261103/final-source-1220-20261104/README.md). **No local or model jobs are active.** Next prerequisite is live acceptance on confirmed included capacity and a disposition of the retained current/native/historical failures; no quota polling, prompt relaxation or another diagnostic framework. #1220 cannot merge under the existing incomplete E41 contract. The owner has not yet approved a change to that contract. Earlier checkpoints below are historical.
+
+## 2026-11-04 16:56 UTC: final-source E41 red; model lane stopped
+
+#1505merged16c21494; #1220unmergedba0f9f5c, norelease. FinalCI41868161833PASS8894/28skip/0fail; independenttypecheck/certifiedbuild/installedstorage/runtimeandactualOpenCodecurrentgrantPASS. Localnpm remains **8293/65skip/1fail**, Antigravityfirstsend50320.01sreasonunobserved, remaining27groupsnotrun.
+
+Final-sourceE41baselinechainJSONPASS, candidatechainJSONPASS, then **candidatechainSSEFAILnative-refusalquery2**. Exact5.5model, observervalid, originalchildren/pipesjoined, supervisorclosed/code1/notimeout; nocachemissrecorded, noauthormodelswitchclaim. **ParallelJSON/SSEnotrun**, stoppedperpredeclaredcontract. No furthermodelattempt/promptchange/rerun. Offlineauditwillchecknative95%accounting+concretesourcefaultonly. CurrentE41redandlocalnpmredbothremainmergegates; historical3332→3132/.284scope/initializer/fingerprintcausesremainseparateholds,notsuperseded.
+
+LocalAntigravitystaticreviewfoundnoprovenfixture/productionmismatch. Oneboundedpassivediagnosticdesigninprogressforresponsebody/spawn/closewitnesses; notexecutedyet, noassertion/deadline/sourcechanges. Diagnosticgreenalonewouldnotfixhistoricalred. [Allcurrentoutcomes](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
+## 2026-11-04 16:55 UTC: finalclientPASS on distinctcurrentgrant; E41firstarmrunning
+
+#1505merged16c21494, #1220unmergedba0f9f5c. RequiredCI41868161833 **8894/28skip/0failPASS**, standalone typecheck+certifiedbuild and independentlyinstalledNode22storage/runtimePASS. Currentlocalnpm **8293/65skip/1fail**, 27latergroupsnotreached; Antigravityfirstsend50320.01sreasonnotretained, nofixclaimed. Staticreviewfindsnomismatch, alltimeoutsunchanged; noproductioncorrectionjustifiedyet.
+
+FinalcandidateclientfirstattemptFAIL_AUTHENTICATIONOAuthrevokedoldcopiedpersonalgrant; allmatchingV1plugin/route/scrub/pinflagchecksandjoinsverified. Read-onlystoredtokencomparisonfindscurrentpersonal**different**fromfailedgrant, freshusageHTTP200ExtraUsageOFF/weekly67%, no testrefresh/ownercredentialwrites. Onefreshcurrent-source-grantattempt **PASS**, actualOpenCode1.18.34/SDK.141/selectednative.296/5.5/Darwinarm64, matchinginstalledV1/scrub, four200read/result/continuation, historyonly5.5, fournativemodelpin/flagwitnesses, eightoriginalactors/pipesjoined. Earlierauthredretained, noinvokedrotationcause.
+
+FirstfinalsourceE41armbaselinechainJSONnowrunning; frozenunchangedfixture/v2/300s/95%, serialsingleattempts, pairPASSrequiredbeforeothercandidate3modes. No retriesorpartialmatrixacceptance. Currentlocalredandallhistoricalcausal/cache/nativeholdsremainmerge/releasegates. [Currentdurableevidence](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
+## 2026-11-04 16:45 UTC: final npm red retained; independent artifacts certified
+
+#1505merged16c21494; #1220unmergedba0f9f5c. Final localnpm **8293pass/65skip/1fail**, remaining27isolatedgroupsnotreached; AntigravityidleconversationfirstHTTPsend503at20010.23msexpected200, noresponsebody/probeidentitycaptured. Actualfixture `/usr/bin/env node`; nolongerclaimwrongBunruntimeorfixedcause. No retry/deadline/sourcechange. Staticreviewinvestigatescrediblecorrection, notgreenchase. RequiredCI41868161833running, notsubstituteforlocalred.
+
+Independenttypecheck+cleanheadcertifiedbuildPASS, baselineacceptedmaincleanbuildPASS, exacttarballinstallsrunning. Independentfinalcontributordeltareviewnomaterialissue; originalauthors/asyncJSONeviction/syncSQLauthority/acceptedlockoptimizationpreserved. Continueindependentinstalledstorage/runtime/actualclient/E41underunchangedfrozenplan; localnpmredremainsmergehold, allhistoricalcausal/cache/nativeholdsretained. [Currentreceipts](evidence/1220-review-20261103/final-source-1220-20261104/README.md). Earlier checkpoints remain historical.
+
+
+## 2026-11-04: #1505 merged; final integrated #1220 gates running
+
+**#1505 MERGED normally at`16c214941bf3f05aa4015a70d8b81bd94857a88f`**, signed squash treeaa1659cd equals reviewed19bf2128. Final independent review no material issue; exact independently installed actual OpenCode personal-account read/result/continuation/history/pin/flag/plugin/scrub andoriginaljoinsPASS. ExtraUsageOFF confirmedHTTP200; no refresh/ownercredentialwrite. Selectednative2.1.296 hashc9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937; installeddefault2.1.318NOTqualified. Oldrevoked/ON/429receiptsretained.
+
+#1220 signed conflict-free additiveacceptedmainintegration **`ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a`** pushedNowakerfork, preservesbb2e18a3/67d02f56. Exactlyaccepted1505fivefileschanged; sessionStoreunchangedfromreviewed9b35b229. Focused47/0+typecheckPASS. FreshinternalAPFSfullnpm/typecheck/certifiedbuildandrequiredCI**41868161833**running; independentfull-deltareviewrunning. No concurrentlocalbaselinebuild; baselineexactacceptedmainartifactbuildfollowslocalgate. ThenpredeclaredserialfinalsourceE41baselinechainJSON/candidatechainJSONandonlyifbothpasscandidatechainSSE/parallelJSON/parallelSSE, unchangedfixture/v2/300s/95%, eachonce; finalinstalledcandidateactualclientstorage/runtimealso required. Noexternalflaginjectionorhistoricalcausalcredit.
+
+[Finalsourceplan and ongoing gates](evidence/1220-review-20261103/final-source-1220-20261104/README.md); [#1505finalpersonalproof](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/personal-extra-off/README.md). #1220unmerged,norelease. Historicalcache3332→3132/native.284vs.296scope/initializer/fingerprintcausesremainexplicitownerdispositionholds. Earlier checkpoints remain historical.
+
+
+## 2026-11-04: personal admitted; #1505 exact installed-client live PASS
+
+Owner disabled personal Extra Usage; one read-only preflight HTTP200 confirms **ExtraUsageOFF**, weekly67%. Private access-only grant copied from personal, no refresh or owner credential write. Prior ExtraUsageON, kraken429 and old isolated-grant revoked-token failures remain archived.
+
+Exact #1505head19bf2128 certified independently installed package / OpenCode1.18.34 / SDK0.2.141 / native2.1.296 / Opus5.5 / Darwinarm64 **actual-client PASS**: fourHTTP200, actual read/result and same-session continuation, matching installed MeridianV1plugin via setup/config/runtimeheaders, scrub0.3.0 fourcalls/zeroerrors, four nativepin5.5/flag1 witnesses, supported history only5.5, eight actors originalchildren/pipesjoined; observererrors0. Product code supplies flag, not injected by test. No #1220E41/history-cause credit.
+
+#1505 local8829/65skip/0fail+typecheck+certifiedbuild and requiredCI41798125923PASS retained. Independent final review finishing; refresh exacthead/base/checks/rules before normal matched-head squash merge. Then acceptedmain additively into contributorbranch preservingeveryauthorcommit, finalgates+matchedE41/client. #1220 historicalcache/native/initializer/fingerprintcausesstillopen; no releaseyet.
+
+[Personal admission and exact live receipts](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/personal-extra-off/README.md). Earlier checkpoints remain historical.
+
+
+## 2026-11-04: owner authorizes personal or kraken; billing preflight holds live test
+
+**Current account authorization supersedes older same-account-only notes.** Owner explicitly made personal and kraken available. Read-only checks of both: **personalHTTP200, Extra Usage enabled**; **krakenHTTP429, Extra Usage/available included usage unknown**. No inference, refresh, owner credential write, billing change or new isolated grant. Do not ask for another personal login on this evidence; owner asked to disable Extra Usage. No automatic quota polling. Previous revoked-token actual-client failure is retained for its old grant, not attributed to these accounts.
+
+Current #1505/#1220 heads remain19bf2128/9b35b229, bothOPEN; origin/main refreshed, required prior checks retained. No merge/release. #1220 local8855/65skip/0fail/typecheck/internalAPFScertification/installedpackagePASS; external2sfingerprintred stillunresolved. Next: verify Extra Usage off and included capacity on an authorized account before running frozen #1505 installed actual OpenCode gate with matching MeridianV1plugin/config/route/headers/scrub witnesses and joined children. Later contributor/final-sourceE41 and historicalholdsremainopen.
+
+[Authorized-account receipt and frozen probe](evidence/1220-review-20261103/model-pin-final-20261104/authorized-accounts-20261104/README.md). Earlier checkpoints remain historical.
+
+
+## 2026-11-04 09:00 UTC: code/package checks complete; live authentication blocked
+
+**Merged: #1506 at2297d61e. Unmerged: #1505/#1220. No release. No jobs running.**
+
+#1220 head`9b35b229ebe9422e85fcf7437c77a4bf894ec022` retainsallcontributorauthorcommits; signedadditivemainintegrationreviewed. RequiredCI41800656709npm8892/28skip/0failPASS; full local8855/65skip/0fail28groups+typecheckPASS. Externalvolume postgatescertificationfailed2s; exactredretained,causeunknown. Onepredeclaredsame-clean-commitinternalAPFSbuild **certifiedPASS**, unchangedcode/limits; independentlyinstalledcertifiedNode22storage/runtimepackage **PASS**, allchildren/pipesjoined. Environment-qualifiedartifactacceptance, notexternal/historicalfixproof.
+
+#1505head19bf2128 code/CI/certifiedbuildPASS; finalactualOpenCode1.18.34/SDK.141/native.296/5.5stoppedwith **OAuth tokenrevoked**. MatchingV1Meridianplugin/config/route/session+agentheaders, scrub0.3.0 andproductpin/flagverifiedfirst; nohistory/continuationcompletion. OwneraskednormalClaude signin sameaccountExtraUsageoff,nopastedtoken. No automaticrefresh/write/retry/paidfallback/alternateaccount.
+
+Next aftersignin: admitfreshisolatedaccess-onlygrantwithsamebilling/read-onlyboundaries, finalinstalled#1505livegate; onlythenmergeaccepted#1505normally, additivelyintegrateacceptedmaininto#1220andrunitsfinalsourcegates+predeclaredE41/clientacceptance. Historicalcache3332→3132below95%, oldnative2.1.284vsprospective2.1.296scopeandinitializer/fingerprintcausalholdsremainexplicitownerdispositionsafterprospectivepasses, notsilentwaivers. Contributorlandingmustpreserveexistingauthors/commitsandverifyonmain. Authorizedreleaseonlyafteracceptedmergeandfullreleaseverification.
+
+[Contributor current receipts](evidence/1220-review-20261103/contributor-final-20261104/README.md); [exact auth failure and model checks](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 08:56 UTC: contributor CI/tests green; certification and revoked-auth gates open
+
+**#1506 merged2297d61e. #1505/#1220 unmerged, no release.** #1505corrected19bf2128 local8829/65skip/0fail+typecheck+certifiedbuild andCI41798125923npm8866/28skip/0failPASS; installedactualOpenCode fails because officialnative reportsOAuth tokenrevoked aftermatchingV1plugin/route/scrub/pin+flagevidence, allchildrenjoined. OwneraskednormalClaude signin sameaccountExtraUsageoff; no pastedtoken,refresh/credentialwrite/alternateaccount/paidfallbackorretry.
+
+#1220 additiveaccepted-mainmerge`9b35b229ebe9422e85fcf7437c77a4bf894ec022` preservesauthorcommits. Independentconflictreview noissue; focused19/0+typecheck. RequiredCI41800656709npm8892/28skip/0fail28groupsPASS. Full local **8855pass/65skip/0fail28groups**, typecheckPASS, **build certification FAIL** postgateshashFileInto.consume2s in freshvalidation.noindexcheckout. Overalllocalexit1, notcertified. No raisedbudget/sourcefiltering/greenretry. Rejectedallocationcomparisonnotpersuasiveandnotlanded. Earliernoindexcertificationpassesdo notprovea fix.
+
+**No runtime/model jobs active.** Two current blockers: validsameaccountisolatedgrantforliveacceptance; justifiedresolutionoflocalbuildcertification. Historical3332→3132/nativefloor95%, originalnative2.1.284 vsprospective2.1.296 scope, initializer/fingerprintcausalholdsremainexplicitandnotautomaticallysuperseded. No mergeorreleaseuntilcurrentgatespass andanynamedhistoricalriskdispositionisexplicit.
+
+[Contributor final receipts and exact build red](evidence/1220-review-20261103/contributor-final-20261104/README.md); [modelcodegreen and authfailure proof](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 08:32 UTC: finalmodelcodegreen; actualclientblockedrevokedOAuthgrant
+
+#1505corrected`19bf2128916c6aefc9e7128011bc9c201de27a07` local28groups8829pass/65skip/0fail+typecheck+certifiedbuildPASS; requiredCI41798125923npm8866pass/28skip/0fail+probes/buildPASS. InstalledcertifiedactualOpenCode1.18.34/SDK0.2.141/native2.1.296/5.5 **FAIL_AUTHENTICATION**: officialnative“Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.” PluginV1matching/config/route/session+agentheadersandactivescrub0.3.0verifiedbeforediagnosis; bothnativegates5.5pin/flag1,observererrors0,allchildren/pipesjoined. No completion/history/continuationacceptance; no retry,refresh,credentialwrite,paidfallback oralternateaccount. OwneraskednormalClaude signin sameaccountExtraUsageoff,no tokenpasted. #1505notmerged.
+
+Independent#1220accepted-main2297d61eintegrationcontinuesoncontributorbranch preservingcommits. Onestoreconflictresolved: asyncacquire/release/queueunchanged; occupancyhintappliedtosynchronouslegacymaintenanceonly. Focusedlocking/typecheck+independentreviewrunningbeforeadditivesignedmerge. Fullfinallocal/CIaftercommit. No livemodelcallswhileauthblocked; #1220/release remainopen. Earliercausal/scopeholdsretainunknowns.
+
+[Finalmodelcodechecks, exactsanitizedauthfailure and frozenproof](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 08:17 UTC: model-pin final local hook fixture red corrected; new gates running
+
+#1506 remainsMERGED2297d61e. #1505 previous5708dfd1fullgatefailed group0:8270pass/65skip/1fail, hookquotedBunCJS subprocess5s/nooutput; latergroups/type/buildskipped. ConcreteNodepackaged-runtimefixturecorrection addsabsoluteBun.whichNode+marker/Nodeversion/noBunwitness, sameplatformshell/spaces/5000ms/percentnegative. Buncontrol5/1, finalNode6/0+typecheck. Runtimechoiceisproved; priorhangcauseUNRESOLVED. Independentreviewnoissue.
+
+Correctedsignedhead`19bf2128916c6aefc9e7128011bc9c201de27a07`: onlyonehooktestdeltaafter5708dfd1, modelproducthashesunchanged. Freshfullsuite/typecheck/certifiedbuildand[requiredCI41798125923](https://github.com/rynfar/meridian/actions/runs/41798125923)running. ActualinstalledOpenCodequalificationfollowsbuild. No newmodelcall, mergeorreleaseyet. Continueoriginalcompletion; #1220/E41/historicalrequirementsremainopen.
+
+[Exact failure, correction/control, independentreview and active gates](evidence/1220-review-20261103/model-pin-final-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 08:04 UTC: supporting PR1506 merged; PR1505 final gates running
+
+#1506 **MERGED** normally at `2297d61e4f157ad6448dc787c64849f565f4377f`, signed and treeidentical toreviewedhead`effa8bf33dfe85bfd4975a90cd276a3bab728bb8`. Final28localgroups8827pass/65skip/0fail+typecheck; requiredCI41794707547npm8864pass/28skip/0fail+additionalprobes/build; certifiedbuild andindependentlyinstalledcertifiedNodepackagePASS. No limitschanged orfingerprintoptimizationlanded. Originalworktreefingerprint/lockcausesremainunknown andredretained; freshnoindexcheckoutcertifiesunchangedcode, nothistoricalfixproof.
+
+#1505 additivemainintegrationhead`5708dfd19062e4aff35d284e7971661fd11d8bf6`; productfourfilediffandhashesunchanged. Freshcleanvalidation.noindex finalfullnpm/type/build+CI41796586620running; installedactualOpenCode/model/pin/flagflowwillfollowbuild. #1220 and release remainopen; no contributorcommitswerecarriedintomaintainerPRs. Continuecompletion, notstopatmilestone.
+
+[Supporting merge and exact final proof](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 07:43 UTC: required CI/local tests pass; certification remains open
+
+#1506 corrected02554a0a requiredCI **8864pass/28skip/0fail**, local28groups **8827pass/65skip/0fail**, typecheck pass. Normal build exits0 but reports an **uncertified archive**; direct snapshot hits unchanged2s fingerprint consume bound, so certified-build gate remainsOPEN. Minimalresourcecost correction is being evaluated; no budget/cap increase.
+
+Installed Node22 tarball PREPARED SIGKILL/resume reachesREADY. New fixture export-equality first fails because raw{} export correctly adds metadata; seed nowcanonical/fulloriginal equality retained and independentlyreviewed. Correctedfixture againstsameproducttarball **fullpackage/HTTP/restart/barrier/bootstrap PASS**, children/pipesjoined, but tarballuncertified andfinalnewheadgatesstillrequired. Oldredlogsretained, no historicalcauseclaimed. No merge/release/livecalls yet.
+
+[All receipts, red/green package evidence and remaining gates](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-04 07:23 UTC: completion resumed; corrected #1506 final gates running
+
+User asks to finish #1220 and the authorized release. Diagnostic completion is not task completion. No second lock diagnostic or waiver. PR #1506 now has independently reviewed occupied-path durable staging correction, signed head `02554a0a748f695b79982da071145f83c402415c`. Focused old1pass/7expectedfail → fixed8pass/0fail; native EEXIST race passes both. Adjacent locking7/0, exact PREPARED1/0, typecheck pass. No production limit/identity/age/SQLite/cache/dependency/interface changes; historical hosted timeout cause unresolved.
+
+Corrected full local npm/typecheck/certified-build and [required CI41791701869](https://github.com/rynfar/meridian/actions/runs/41791701869) are running. Parent's first local launch omitted Bun from explicit PATH and exited127 before tests; retained separately, actual Bun-path invocation now running. Committed installed-package PREPARED SIGKILL/resume/export gate awaits build. No merge/release until final gates and package verification complete. #1505/#1220 remain open. Final-source E41 follows accepted prerequisites; historic causal/scope holds remain explicit, with unchanged95% and model/plugin/history/join rules.
+
+[Correction, frozen proof and independent review](evidence/1220-review-20261103/occupied-lock-completion-20261104/README.md).
+
+Earlier checkpoints remain historical.
+
+
+## 2026-11-03 22:39 UTC: approved one-shot diagnostic passed; cause unresolved
+
+Exactly one [hosted diagnostic41730535471](https://github.com/rynfar/meridian/actions/runs/41730535471) completed on
+isolated signedhead`d26da6f3403dff4c9cca7b295f31c597b2f5f494`. Native fullnpmtest **8856pass/28skip/0fail**,
+27processes,724.71s; allpipes/processgroupjoined; uncapped qualifiedtrace matches
+frozenhelper/sourcehashes. Exact2/1 PREPARED postkillresume returned; observed
+procENOENT/deadtrue fourtimes, storelockage27.48ms, PREPARED→READY. Entire
+resume38.39ms; firstcandidateopenthroughsuccessfullink2.22ms, candidatefsync
+0.282/0.289ms. No slow/false-death branch reproduced.
+
+**Original cause unresolved; no product correction established.** This observed
+pass cannot explain the earlier100ms timeout. Import/snapshot/observer timing and
+runner scheduling differ. One-shot authorization consumed, no second run. Original
+#1506 requiredtest remainsFAILED atunchangedc2adc2b5 and is not replaced by this
+diagnostic job. #1506/#1505/#1220 remainunmerged; release conditional. No models,
+timeout/engine/assertion weakening or acceptancewaiver. Saveindependentartifact
+audit thenstop; proposea decision ratherthanretryingforgreen.
+
+[Exact hosted artifacts, source/limits/control/review and result](evidence/1220-review-20261103/test-fixture-isolation/approved-lock-diagnostic/README.md).
+
+Earlier checkpoints remain historical.
+
+## 2026-11-03 22:25 UTC: one owner-approved hosted diagnostic running
+
+Owner approved one bounded diagnostic after status clarification. Diagnostic-only
+branch`diagnostic/1506-lock-20261103`, signed head`d26da6f3403dff4c9cca7b295f31c597b2f5f494`, no PR1506 source change.
+[Hosted run41730535471](https://github.com/rynfar/meridian/actions/runs/41730535471) is running once, full original npmtest
+context on Ubuntu/Node22/Bun1.4.3. Exact2/1 PREPARED parentresume gains opt-in
+buffered native fs/deathprobe/ownedlock snapshots only. Original100ms/0stale,
+SQLite qualification and all53 original assertionlines/order unchanged. Offline
+recordercontrols4/0/23assertions, typecheck/syntax and independentreviewPASS.
+Read-onlyhashnamedhelper custody and invalidobserver/cap/missingtrace checks applied.
+
+No original failed gate is cleared by this run; green may remain inconclusive.
+No second run or source correction authorized by an unexplained pass. Root owns
+backgroundwatch; download exact artifact/log oncompletion, classify nativeoutcome
+and observation separately, preserve beforecleanup state, then propose bounded
+nextaction. #1506/#1505/#1220 unmerged and release conditional. No model calls.
+
+[Approval, exactsources, review, controls and limitations](evidence/1220-review-20261103/test-fixture-isolation/approved-lock-diagnostic/README.md).
+
+Earlier checkpoints retain their historical states.
+
+## 2026-11-03 21:25 UTC: #1506 local PASS, required hosted test FAIL
+
+Final reviewed/source `c2adc2b5784e9bcd6020193cfcc538883f7695ee` is unchanged. Local27 testprocesses
+**8819pass/65skip/0fail**, typecheck and certified build PASS; combined1015.51s.
+Hosted final-head test **FAIL**: run41718313625/job126204064158, group0
+8305pass/28skip/1fail; `SIGKILL migration 2/1 PREPARED`, parent resume times out
+on `sessions.json.lock`, test212.37ms. Later hostedgroups never ran. Child
+spawnSync kill/status assertions passed; expected snapshot uses a different path,
+so stack localizes the failure to the parent post-kill resume.100ms legacy
+maintenance lock budget,0 stale-age unchanged. Deadline can be consumed by
+publication/fsync before recovery or recovery work, but trace does not prove
+which; no exact cause, permanentleak or unrelated-baseline claim.
+
+No #1506 merge, CI rerun, timeout/qualification weakening or new model call.
+Independent static diagnosis is complete: post-kill resume localized, but no
+causal branch or leaked mock proved and no source correction justified. Diagnosis
+stops; a separately approved bounded native timing/probe/failure-state run is the
+next discriminator, not a green retry. No more speculative fixtures.
+#1505/#1220 stay unmerged and release conditional. Previously red local #1505
+result remains unwaived; #1506 local PASS is not its final-head acceptance.
+
+[All final local/CI logs and receipts](evidence/1220-review-20261103/test-fixture-isolation/README.md).
+
+Earlier checkpoints retain their historical states.
+
+## 2026-11-03 21:06 UTC: fixture PR #1506 final gates running
+
+Maintainer-only #1506 `c2adc2b5784e9bcd6020193cfcc538883f7695ee` contains the reviewed bookkeeping
+private real-Node entrypoint bundle and dedicated concurrent HTTP process/owned
+namespace. No #1220 contributor commits, production changes, dependencies or
+altered timeout/qualification constants. Focused CLI25/0, concurrent2/0,
+originalintegration11/0 and each typecheck pass. Wrongengine22/3 and initial
+canonicalization0/2 attempts remain archived. Independent review finds no material
+source blocker. Final local npm test/typecheck/build and final-head CI run now;
+#1506 cannot merge until those complete green. #1505/#1220 still unmerged.
+
+The one frozen metadata-only fingerprint build on unchanged93b188f6 passed,
+joined pipes/processgroup,2444 source paths and25,086,036 sourcebytes in all
+snapshots, required boundaries intercepted. Preflight1944ms, pre-gates474ms,
+post-gates1975ms. Post-gates readwall1328ms and Git277ms, aggregateCPU471ms;
+no single second-long file/hash observed. This is not a cause/fix conclusion:
+readwall conflates I/O/scheduling, observer changes timing/object identity, and
+its near-limit green run does not erase the original failed fullgate. Full2s
+production bound and inputcaps remain unchanged; no more diagnostic reruns.
+
+[Exact frozen sources, complete focused red/green evidence, review and diagnostic](evidence/1220-review-20261103/test-fixture-isolation/README.md).
+
+Earlier checkpoints remain historical. E41 halted, nativecache95% floor and
+historical initializer/fingerprint holds remain; release conditional.
+
+## 2026-11-03 20:57 UTC: bounded test isolation corrections
+
+The red #1505 local result remains recorded. Its exact-head CI test is green;
+that does not waive the local gate. No new live model calls follow it.
+
+- Static fingerprint review identifies the throw in the post-build full snapshot,
+  after preflight/pre-build snapshots passed. Read/scheduling/earlier hash/Git/input
+  cause is unresolved. Production2s full-fingerprint bound remains unchanged.
+  A single frozen metadata-only build diagnostic is being prepared, not run yet.
+- Bookkeeping behavior tests unnecessarily invoke the entire application build.
+  A separate maintainer test-only change bundles the real Node bookkeeping entry
+  into a fresh private fixture, retaining behavior assertions/timeouts. It does
+  not claim package certification. The independently installed actual packaged
+  Node22 CLI separately passes the original lifecycle across two migration cycles.
+  First focused attempt used unqualified host Bun SQLite3.51 and remains red;
+  one corrected attempt uses the documented patched-library preload. No engine
+  policy change. Typecheck already passes; focused result/review pending.
+- Concurrent publication assertions passed; cleanup joins the shared whole-store
+  sweep, which can spawn real SDK filesystem-deletion children outside query mocks.
+  Host Claude transcript roots appear in the failed locator. Exact delayed claim
+  remains unknown; later backend close joined the same maintenance, so no permanent
+  child leak is proven. A separate test-only extraction runs the original cases
+  in one dedicated test process with owned settings/store/Claude/project paths,
+  unchanged10s/5s/30s bounds and complete close/join before restoring paths.
+- These are real isolation/dependency corrections, not proof of the original
+  failures' exact causes. Tests, independent review, full local/type/build and
+  exact-head CI must pass before any new merge. #1504 alone is already merged.
+  #1505/#1220 remain unmerged; E41 halted and release conditional.
+
+[Reports and independent packaged CLI control](evidence/1220-review-20261103/local-failure-diagnosis/README.md).
+
+Earlier timestamps retain their original state.
+
+## 2026-11-03 20:48 UTC: #1505 local gate failed; no merge
+
+Final local `npm test` on`93b188f68d9664c46df62aa3249b4defffd884af` exits1 after763.39s.
+Group0:8247pass/65skip/2fail,8314tests/485files in753.45s. Groups1–25 and
+post-suite typecheck/build do not run because the command uses`&&`.
+
+- `bookkeeping-cli.test.ts` beforeAll builds the real package; post-build full
+  source fingerprint exceeds unchanged2s budget in`hashFileInto → consume`.
+  This is the previously observed failure class, not a diagnosed model-pin bug.
+- Concurrent headerless together fixture receives all three200responses and
+  passes ownership/publication assertions; its cleanup GC sweep fails to join
+  within unchanged5000ms. Unjoined maintenance remains a failure. Cause is not
+  established; no green rerun or production timeout change is authorized by it.
+- Two independent read-only diagnoses are bounded to these failures. No new
+  model calls, full-suite retry or production edits are running. Prior actual
+  client/package PASS and independent narrow model review remain scoped evidence,
+  not a replacement for this red final-local gate. Final CI status must still be
+  refreshed; even green CI cannot erase the local failure.
+- #1504 remains merged/verified at`1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52`.
+  #1505 remains open/unmerged; #1220 still unmerged, E41 halted, historical holds
+  unresolved and release conditional. No tag/publish or external comment.
+
+[Exact failed gate and sanitized log](evidence/1220-review-20261103/model-pin-fix/failed-final-local-gate.json).
+
+Earlier timestamps below retain their original state.
+
+## 2026-11-03 20:35 UTC: #1504 merged; #1505 final gates running
+
+- **#1504 merged normally**, exact reviewed head`813cac6c` → signed squash
+  `1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52`. Landed tree equals the reviewed tree; parent is
+  `697f9482`. All26local groups8819pass/65skip/0fail, typecheck/build and required
+  final-head CI test pass. No production changes or deadline increases.
+- **#1505 still open**, now`93b188f68d9664c46df62aa3249b4defffd884af` after additive merge of
+  test-only main. Product source/test hashes and spec are unchanged from the
+  independently reviewed and actual-client installed-package validated head.
+  Final local suite/typecheck/build and refreshed CI are running.
+- **#1220 unmerged**, corrected contributor head`67d02f56`. E41 remains halted
+  at the matched unchanged-main5.5 refusal, historical holds not superseded,
+  no release/tag/publication or external comment. Both maintainer fixes carry
+  no contributor commits; owner checkout remains preserved.
+- [Final local, CI and tree/signature merge receipt](evidence/1220-review-20261103/launcher-fix/merge.json).
+
+Earlier timestamps below retain their original state.
+
+## 2026-11-03 20:19 UTC: isolated fixes verified; final suite running
+
+This resumes the deferred #1220 checkpoint below; it does not accept or merge it.
+Fresh main remains`697f9482`, contributor final head remains`67d02f56`.
+
+- **#1504 test-only**, signed head`813cac6c`: explicit Node argv for registered
+  synthetic Antigravity scripts and joined readiness-failure cleanup. Initial
+  focused41/0, typecheck/build and independent review pass; exact-head CI test
+  passed. Initial local full group0:8270pass/65skip/1fail, all Antigravity tests
+  green. The remaining unchanged source-recovery case conflated mandatory
+  startup/sleep overhead with shared deadline accounting. A deterministic
+  isolated-clock/native-child replacement passes10/0/75 assertions; both
+  shadow-source faults fail. Independent review passes. No production deadline,
+  timeout or control was relaxed. **Final combined npm test/typecheck/build is
+  running; fresh exact-head CI is required.** Groups1–25 of the prior red run
+  were skipped. [Both fixes and original red](evidence/1220-review-20261103/recovery-fixture-fix/README.md).
+- **#1505 narrow product fix**, signed head`41df72d6`: recognized explicit
+  versioned model pins disable native refusal alternate-model fallback. Aliases,
+  refusals, same-model retry and separately configured SDK fallbackModel stay
+  unchanged. Focused41/0+models99/0, typecheck/build, spec and independent review
+  pass. Independently installed exact-head tarball passes actual OpenCode1.18.34,
+  SDK0.2.141/native2.1.296/Node22.22.3/Darwinarm64/Opus5.5: four200s, actual
+  read/result/continuation, supported history only5.5, exact native env flag
+  publication and every child/pipe joined. First enhanced observer failed at
+  the harmless wrapper env; it also used unintended Node25. That attempt stays
+  failed, not a product finding. Final observer is independently reviewed,
+  offline-discriminated and hash-frozen. Full local/final-head CI remain gates.
+  [Exact reports, harness and limits](evidence/1220-review-20261103/model-pin-fix/README.md).
+- **E41 matrix HALTED.** Qualified v2 old-native main switches5.5→4.8 in query2.
+  Shipping native2.1.296 main passes, candidate switches5.5→4.8 in query1.
+  No causal candidate/store regression is established; v2 omits fallback notices.
+  A declared test-only no-model-switch lane passes candidate chainJSON with full
+  native cache continuity and all original predicates. Matched main then refuses
+  on5.5 at query4; valid observer, all joined. No next arm or green rerun follows.
+  [All attempts and strict unchanged95% floor](evidence/1220-review-20261103/resume-1953/README.md).
+- Included usage only, Extra Usage disabled, isolated access-only read-only grant;
+  no credential refresh/write or paid/model/account fallback. Both generationV1
+  client plugin and scrub0.3.0 preflight/runtime witnesses are retained. Qualified
+  E41 protocol fixture is not misrepresented as the actual OpenCode executable.
+- Historical3332→3132 residual and fingerprint/initializer causal holds remain;
+  no owner supersession is implied. **No #1220 merge, release merge/tag/publish,
+  contributor-author-on-main claim or external comment.** Maintainer fixes carry
+  no contributor commits. User checkout remains untouched. Final local/CI gates,
+  contributor integration and release validation remain outstanding.
+
+The earlier checkpoint is retained as history.
+
+## 2026-11-03: Nowaker #1220 deferred at gates; release remains conditional
+
+The owner asked to find the PR he had promised to merge. His 2026-11-02 reply and
+Nowaker's conflict-resolution update identify **[#1220](https://github.com/rynfar/meridian/pull/1220)**,
+not the contributor's other new PRs. The owner then authorized a release after
+review and merge. No acceptance gate was waived; no external comment is authorized.
+
+- **Not merged.** Contributor head `bb2e18a3` was reviewed against main `697f9482`.
+  GitHub-verified signed maintainer correction `67d02f56` is additive on
+  Nowaker's original branch. Source authorship has not yet been checked on main.
+- Fixed the async JSON eviction cache-repopulation gap; added keyed/fingerprint
+  regressions and later-writer controls. Current HTTP requests already refuse
+  store-read errors, so the proof is an internal fallback contract regression,
+  not a demonstrated unsafe HTTP resume. Corrected async fixture/harness callers,
+  pending-write tests and the session spec/architecture description.
+- Independent reviews and discriminating tests pass; typecheck/build pass.
+  Original-client installed-tarball E2E passes on OpenCode1.18.34, Opus5.5,
+  SDK0.2.141, explicit native2.1.284, Darwinarm64 with both required plugins.
+  Supported API inspection confirms the actual model. Final-head CI is green,
+  including required test. Frozen local full suite exits1: group0 has8,287pass,
+  65skip,5 Antigravity probe failures and1 unhandled teardown error; groups1–25
+  were skipped. Completed built-ins-only controls isolate pre-JavaScript
+  executable-shebang startup in the candidate cwd; baseline cwd and explicit
+  env/direct-Node argv pass.24-file import closure is identical. Exact OS/Bun
+  mechanism remains unproven; local original gate remains red. The earlier full
+  run hit the unchanged fingerprint2s deadline. No further tests are running.
+- **Historical gate remains open:** published3332 → next read3132 misses95%.
+  Separate aggregation/parser issues do not explain the200-token residual.
+  The missing original transient evidence was not recreated by a green rerun.
+- [Review, exact source heads, scripts, results and limitations](evidence/1220-review-20261103/README.md).
+  Live credentials remain access-only/read-only with Extra Usage disabled.
+- Durable evidence is draft [#1500](https://github.com/rynfar/meridian/pull/1500).
+  Instrumented E41 is not qualified: initial no-query plugin preflight failed,
+  then a frozen helper observed one turn but changed the SDK iterator route and
+  stopped on an unspecified iterator error. Offline discrimination proves the
+  observer custody/error-provenance defects, not that live rejection's cause;
+  neither attempt establishes a product failure or credential problem. A separate
+  immutable iterator-preserving v2 observer passes offline qualification only.
+  No v2 live call was made; no blind retry is planned.
+- Release Please #1486 currently proposes1.89.0; it has not been merged or
+  published by this review. Preliminary exact-head/range review is saved; its
+  candidate currently excludes #1220 and lacks final CI/live-stop proof. Re-read
+  its final head after #1220 acceptance.
+- **Checkpointed at blockers.** No #1220 merge, evidence-PR merge, release-PR
+  merge, tag or publication occurred. No external comment was posted. Runnable
+  offline v2 and probe diagnostics are escrowed in draft #1500; all workers and
+  owned diagnostics are stopped. Resume by refreshing live heads, not by blind
+  reruns or treating this checkpoint as acceptance.
+
+The prior checkpoint below is retained as history.
 
 Last code delivery: `3a700e365fef08b4549642746a9ccbf59c64d95e` (#1480). The 2026-11-02 work is recorded first, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
 

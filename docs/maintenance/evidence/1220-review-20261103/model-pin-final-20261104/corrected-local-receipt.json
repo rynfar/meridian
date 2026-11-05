@@ -1,0 +1,17 @@
+{
+  "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "exit": 0,
+  "npmTest": {
+    "pass": 8829,
+    "skip": 65,
+    "fail": 0,
+    "processes": 28
+  },
+  "durationSeconds": 746.2299271249212,
+  "typecheck": "PASS",
+  "build": "CERTIFIED",
+  "manifestSha256": "4535f7e5c50a9cf42fe001350a324e26ec9cde5520949dabc7b249fb120b85f2",
+  "historicalFailedGates": "retained",
+  "limitsChanged": false,
+  "actualInstalledClient": "RUNNING"
+}

@@ -1,0 +1,11 @@
+{
+  "source": "https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback",
+  "retrievedAt": "2026-11-05T15:54:06.658697+00:00",
+  "httpStatus": 200,
+  "excerpts": [
+    "stop_details.category names the policy area that triggered the classifier.",
+    "stop_details.explanation is a human-readable description. The text is not stable, so display it rather than parse it.",
+    "cyber: The request could enable cyber harm, such as malware or exploit development. Benign cybersecurity work can also trigger this category."
+  ],
+  "doesNotIdentify": "specific request input or classifier rationale for this incident"
+}

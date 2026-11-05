@@ -1,0 +1,308 @@
+{
+  "plan": {
+    "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+    "artifact": "independently installed certified package",
+    "account": "personal",
+    "extraUsageEnabled": false,
+    "weeklyUtilizationBefore": 67,
+    "client": "OpenCode1.18.34",
+    "model": "claude-opus-5-5",
+    "sdk": "0.2.141",
+    "native": "2.1.296",
+    "platform": "darwin/arm64",
+    "attempts": 1,
+    "modelDeadlineMs": 90000,
+    "outerTimeoutSeconds": 600,
+    "noDeadlineChanges": true,
+    "helperFreeze": [
+      {
+        "path": "actual-model-pin-ffcf54ca7091.mjs",
+        "sha256": "ffcf54ca7091abae02cf1f83e9b0c81a98dbd5ecb8f50732a518180adeb746c7",
+        "mode": "0o444"
+      },
+      {
+        "path": "gate-observer-75af2733bc17.mjs",
+        "sha256": "75af2733bc17362a4dd69c895113426b38658ee25dff0fdff1a048bac6f5bc5a",
+        "mode": "0o444"
+      },
+      {
+        "path": "lib-opencode-scrub-preflight.mjs",
+        "sha256": "d981812fc4ba442e24cb2c869ad363993d5c85ac6642bd6803a5f0890da71514",
+        "mode": "0o444"
+      }
+    ],
+    "history": "SDK supported history actual assistant model exact5.5 after read and continuation",
+    "plugin": "matching installed MeridianV1 via setup--v1 config plus runtime headers; scrub0.3.0",
+    "credentialPolicy": "private access-only grant; no refresh/no ownercredentialwrites",
+    "priorAuthFailure": "retained old revoked isolated grant, not erased by new authorized grant",
+    "scope": "#1505 actual-client qualification only; not E41 or historical cache/native-scope disposition"
+  },
+  "exit": 0,
+  "durationSeconds": 34.99327320791781,
+  "result": "PASS",
+  "joined": true,
+  "client": "1.18.34",
+  "plugin": "/Volumes/DevSSD/meridian/evidence/model-pin-final-20261104/installed/node_modules/@rynfar/meridian/dist/meridian",
+  "requests": [
+    {
+      "session": "ses_e589ed30fffeSt4uQyTIPWvwir",
+      "agent": "title",
+      "toolChars": 0,
+      "toolDeltas": 0,
+      "maxGapMs": 0,
+      "toolDurationMs": 0,
+      "model": "claude-opus-5-5",
+      "hasToolResult": false,
+      "hasReceipt": false,
+      "status": 200
+    },
+    {
+      "session": "ses_e589ed30fffeSt4uQyTIPWvwir",
+      "agent": "build",
+      "toolChars": 145,
+      "toolDeltas": 1,
+      "maxGapMs": 833.9728330000034,
+      "toolDurationMs": 834.1198750000003,
+      "model": "claude-opus-5-5",
+      "hasToolResult": false,
+      "hasReceipt": false,
+      "tool": "read",
+      "status": 200
+    },
+    {
+      "session": "ses_e589ed30fffeSt4uQyTIPWvwir",
+      "agent": "build",
+      "toolChars": 0,
+      "toolDeltas": 0,
+      "maxGapMs": 0,
+      "toolDurationMs": 0,
+      "model": "claude-opus-5-5",
+      "hasToolResult": true,
+      "hasReceipt": true,
+      "status": 200
+    },
+    {
+      "session": "ses_e589ed30fffeSt4uQyTIPWvwir",
+      "agent": "build",
+      "toolChars": 0,
+      "toolDeltas": 0,
+      "maxGapMs": 0,
+      "toolDurationMs": 0,
+      "model": "claude-opus-5-5",
+      "hasToolResult": true,
+      "hasReceipt": true,
+      "status": 200
+    }
+  ],
+  "nativeEnvWitness": [
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    },
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    },
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    },
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    }
+  ],
+  "observerErrors": [],
+  "historySnapshots": [
+    [
+      {
+        "session": "e01b9a6b-08ca-47db-9dc3-eebe24519087",
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "rows": [
+          {
+            "type": "user",
+            "sha256": "a7b95d5404bd94459b939fccefac6f95b018c987cfe609ecada00a0b863669a5"
+          },
+          {
+            "type": "assistant",
+            "sha256": "99678deb5b57ac694cab63bee7b9dea5ae6a6c8b624c0e575ce255964265a082"
+          }
+        ]
+      },
+      {
+        "session": "81895cad-5503-42f5-a9ec-8d343ccd4f78",
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "rows": [
+          {
+            "type": "user",
+            "sha256": "50853944305dd14fb3afeca9737f310f80ffb580db4a37a541f16413d5fc8171"
+          },
+          {
+            "type": "assistant",
+            "sha256": "a93c33663440f5c7b0445d53ddd400684fa769fa539822d73d9c1d014f26bc88"
+          },
+          {
+            "type": "user",
+            "sha256": "343f9bf64cb49e9770f9d8379c1a4964c338e018f40f200b8bb5c639b760de3c"
+          },
+          {
+            "type": "assistant",
+            "sha256": "14147d89f86844f26ac620c513400ff8181fddcd3a200924ff742b6a38426a66"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "session": "e01b9a6b-08ca-47db-9dc3-eebe24519087",
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "rows": [
+          {
+            "type": "user",
+            "sha256": "a7b95d5404bd94459b939fccefac6f95b018c987cfe609ecada00a0b863669a5"
+          },
+          {
+            "type": "assistant",
+            "sha256": "99678deb5b57ac694cab63bee7b9dea5ae6a6c8b624c0e575ce255964265a082"
+          }
+        ]
+      },
+      {
+        "session": "4b059759-ad4b-4e7f-b0b5-aaf54df83973",
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "rows": [
+          {
+            "type": "user",
+            "sha256": "5e98b5772a68733f1db98571a890a314308d1b4ab10d8aa864464b9a83cc7d12"
+          },
+          {
+            "type": "assistant",
+            "sha256": "d8d247eb7bed0eb1f88033e9b531cfc40f762a4451e1420de6afeba92e92af92"
+          },
+          {
+            "type": "user",
+            "sha256": "41a29b4d1141189885beb9dc4719c478152deced97b455cba0cd3db812160763"
+          },
+          {
+            "type": "assistant",
+            "sha256": "81045a2e3b429c8de568d76dec25faf9356dcfccf9c4a7fe26c60b13954f3021"
+          },
+          {
+            "type": "user",
+            "sha256": "87c0d2a31b88cdb6c8f38de04bc149e46ec16d77b03503e892d6a73f6c7247c2"
+          },
+          {
+            "type": "assistant",
+            "sha256": "fd7001707459f8e6d5fc9859cb2a580e297abd83261d14b4b12bbdba46872b5f"
+          }
+        ]
+      }
+    ]
+  ],
+  "continued": true,
+  "scrubPreflight": {
+    "path": "/Users/rynfar/.config/meridian/desktop-plugins/opencode-scrub/0.3.0/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.3.0",
+    "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+    "runtimeVersion": "0.3.0",
+    "invocations": 0,
+    "errors": 0
+  },
+  "scrubFinal": {
+    "path": "/Users/rynfar/.config/meridian/desktop-plugins/opencode-scrub/0.3.0/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js",
+    "packageName": "@rynfar/meridian-plugin-opencode-scrub",
+    "packageVersion": "0.3.0",
+    "sha256": "fdd46839d7ee345520f1ffdd7702153e2eef0a07a9b6e83196472f9b75a63ad7",
+    "runtimeVersion": "0.3.0",
+    "invocations": 4,
+    "errors": 0
+  },
+  "actors": [
+    {
+      "command": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+      "pid": 41852,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/Users/rynfar/.hermes/node/bin/node",
+      "pid": 42299,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+      "pid": 42302,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 45847,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 45864,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 1,
+      "signal": null
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 47642,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/Volumes/DevSSD/meridian/evidence/review-1220-20261103/tools/opencode-1.18.34/node_modules/.bin/opencode",
+      "pid": 48799,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "command": "/bin/sh",
+      "pid": 48983,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "priorRevokedFailure": "retained in earlier receipt, separate old grant; no causal cure claim",
+  "credentialOwnerWrites": 0,
+  "refreshCalls": 0,
+  "billing": "extra_usage_off/included",
+  "doesNotEstablish": "#1220 finalsourceE41 or historicalcache/nativecauses"
+}

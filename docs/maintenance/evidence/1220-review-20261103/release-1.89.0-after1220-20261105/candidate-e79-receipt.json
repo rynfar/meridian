@@ -1,0 +1,39 @@
+{
+  "candidateHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "independentlyInstalledVersion": "1.89.0",
+  "manifestFiles": 703,
+  "mode": "model-freefixture with actualselectednative2.1.296 andSDK.141",
+  "cases": {
+    "discard": {
+      "checks": 8,
+      "failed": []
+    },
+    "keep": {
+      "checks": 7,
+      "failed": []
+    },
+    "strict-discard": {
+      "checks": 9,
+      "failed": []
+    },
+    "strict-keep": {
+      "checks": 8,
+      "failed": []
+    },
+    "pi": {
+      "checks": 6,
+      "failed": []
+    },
+    "opencode": {
+      "checks": 5,
+      "failed": []
+    }
+  },
+  "clients": {
+    "pi": "1.4.0 @earendil-works/pi-coding-agent actualRPCabort+matchingMeridianextension",
+    "opencode": "2.2.0 actualinterrupt+generationmatchingV2 configuredonceandactiveheaders"
+  },
+  "exit": 0,
+  "liveModel": false,
+  "noRealModelStopClaim": true
+}

@@ -1,0 +1,477 @@
+{
+  "mode": "fixture",
+  "model": "claude-sonnet-5-5",
+  "node": "/Users/rynfar/.local/bin/node",
+  "cases": {
+    "discard": {
+      "health": {
+        "version": "1.89.0",
+        "claudeExecutable": "env",
+        "build": {
+          "source": "npm"
+        }
+      },
+      "facts": {
+        "turn1": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "line": "lineage=new session=new diverged=not-found"
+        },
+        "turn2": {
+          "partialChars": 42,
+          "stoppedBeforeMessageStop": true
+        },
+        "turn3": {
+          "status": 200,
+          "isResume": true,
+          "lineage": "continuation",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "httpStatus": 200,
+          "msAfterStop": 4063,
+          "line": "lineage=continuation session=fbbb0b21",
+          "sessionWaitMs": 1248
+        },
+        "resumedTurn1Session": true,
+        "sdkHistory": {
+          "roles": "user,assistant,user,assistant",
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": false,
+          "unpairedToolUses": 0
+        },
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": false
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 mid-stream"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 answered"
+        },
+        {
+          "ok": true,
+          "label": "every tool_use in the published history is paired"
+        },
+        {
+          "ok": true,
+          "label": "no usage refusal"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 resumed (continuation, isResume)"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 resumed the turn-1 session"
+        },
+        {
+          "ok": true,
+          "label": "the resumed history holds turn 1, the stopped question and the new one, not the discarded partial"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input holds turn 1, the stopped question and the new one, not the partial"
+        }
+      ]
+    },
+    "keep": {
+      "health": {
+        "version": "1.89.0",
+        "claudeExecutable": "env",
+        "build": {
+          "source": "npm"
+        }
+      },
+      "facts": {
+        "turn1": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "line": "lineage=new session=new diverged=not-found"
+        },
+        "turn2": {
+          "partialChars": 42,
+          "stoppedBeforeMessageStop": true
+        },
+        "turn3": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "httpStatus": 200,
+          "msAfterStop": 3801,
+          "line": "lineage=new session=new diverged=interrupted-turn-kept:kept-assistant",
+          "sessionWaitMs": 1200
+        },
+        "resumedTurn1Session": false,
+        "sdkHistory": {
+          "roles": "user,assistant",
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": true,
+          "unpairedToolUses": 0
+        },
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": true
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 mid-stream"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 answered"
+        },
+        {
+          "ok": true,
+          "label": "every tool_use in the published history is paired"
+        },
+        {
+          "ok": true,
+          "label": "no usage refusal"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 replayed (diverged=interrupted-turn-kept:kept-assistant)"
+        },
+        {
+          "ok": true,
+          "label": "the replayed history carries turn 1 and the kept partial"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input carries the kept partial"
+        }
+      ]
+    },
+    "strict-discard": {
+      "health": {
+        "version": "1.89.0",
+        "claudeExecutable": "env",
+        "build": {
+          "source": "npm"
+        }
+      },
+      "facts": {
+        "turn1": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "line": "lineage=new session=new diverged=not-found"
+        },
+        "turn2": {
+          "partialChars": 42,
+          "stoppedBeforeMessageStop": true
+        },
+        "turn3": {
+          "status": 200,
+          "isResume": true,
+          "lineage": "continuation",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "httpStatus": 200,
+          "msAfterStop": 3425,
+          "line": "lineage=continuation session=be04c99b",
+          "sessionWaitMs": 1248
+        },
+        "resumedTurn1Session": true,
+        "sdkHistory": {
+          "roles": "user,assistant,user,assistant",
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": false,
+          "unpairedToolUses": 0
+        },
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": false
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 mid-stream"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 answered"
+        },
+        {
+          "ok": true,
+          "label": "every tool_use in the published history is paired"
+        },
+        {
+          "ok": true,
+          "label": "no usage refusal"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 waited for the stopped turn's session (1248ms)"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 resumed (continuation, isResume)"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 resumed the turn-1 session"
+        },
+        {
+          "ok": true,
+          "label": "the resumed history holds turn 1, the stopped question and the new one, not the discarded partial"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input holds turn 1, the stopped question and the new one, not the partial"
+        }
+      ]
+    },
+    "strict-keep": {
+      "health": {
+        "version": "1.89.0",
+        "claudeExecutable": "env",
+        "build": {
+          "source": "npm"
+        }
+      },
+      "facts": {
+        "turn1": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "line": "lineage=new session=new diverged=not-found"
+        },
+        "turn2": {
+          "partialChars": 42,
+          "stoppedBeforeMessageStop": true
+        },
+        "turn3": {
+          "status": 200,
+          "isResume": false,
+          "lineage": "new",
+          "cacheRead": 0,
+          "cacheCreate": 0,
+          "model": "sonnet",
+          "httpStatus": 200,
+          "msAfterStop": 3362,
+          "line": "lineage=new session=new diverged=interrupted-turn-kept:kept-assistant",
+          "sessionWaitMs": 1304
+        },
+        "resumedTurn1Session": false,
+        "sdkHistory": {
+          "roles": "user,assistant",
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": true,
+          "unpairedToolUses": 0
+        },
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": true
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 mid-stream"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 answered"
+        },
+        {
+          "ok": true,
+          "label": "every tool_use in the published history is paired"
+        },
+        {
+          "ok": true,
+          "label": "no usage refusal"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 waited for the stopped turn's session (1304ms)"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 replayed (diverged=interrupted-turn-kept:kept-assistant)"
+        },
+        {
+          "ok": true,
+          "label": "the replayed history carries turn 1 and the kept partial"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input carries the kept partial"
+        }
+      ]
+    },
+    "pi": {
+      "facts": {
+        "client": "pi 1.4.0",
+        "piVersion": "1.4.0",
+        "setupPiVersion": "1.4.0",
+        "integrationLoaded": true,
+        "stopped": true,
+        "health": {
+          "version": "1.89.0",
+          "claudeExecutable": "env",
+          "build": {
+            "source": "npm"
+          }
+        },
+        "turn2Line": "adapter=pi profile=fixture model=sonnet stream=true tools=0 lineage=continuation session=490da5e5",
+        "turn3Line": "adapter=pi profile=fixture model=sonnet stream=true tools=0 lineage=continuation session=490da5e5",
+        "resolvedResume": "true",
+        "turn3RequestShape": [
+          "user[text]",
+          "system[]",
+          "assistant[text]",
+          "user[text]",
+          "user[text]",
+          "system[]"
+        ],
+        "turn3Headers": {
+          "user-agent": "pi/1.4.0 (darwin; node/v22.22.3; arm64)",
+          "x-meridian-agent": "pi",
+          "x-meridian-opencode-turn": "<signed>",
+          "x-session-affinity": "01a1acf0-3510-7301-a4da-8987303f2618"
+        },
+        "assistantAfterStoppedQuestion": false,
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": false
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 (RPC abort, agent_settled aborted)"
+        },
+        {
+          "ok": true,
+          "label": "the Meridian extension is installed and keys the requests"
+        },
+        {
+          "ok": true,
+          "label": "setup's version gate checked the Pi under test (1.4.0)"
+        },
+        {
+          "ok": true,
+          "label": "Pi sent no assistant content after the stopped question"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 resumed the session turn 2 resumed (continuation, interrupted resume)"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input holds turn 1, the stopped question and the new one, not the partial"
+        }
+      ]
+    },
+    "opencode": {
+      "facts": {
+        "client": "opencode v2.2.0",
+        "integrationLoaded": true,
+        "stopped": true,
+        "health": {
+          "version": "1.89.0",
+          "claudeExecutable": "env",
+          "build": {
+            "source": "npm"
+          }
+        },
+        "turn2Line": "adapter=opencode profile=fixture model=sonnet stream=true tools=12 lineage=continuation session=447ad230",
+        "turn3Line": "adapter=opencode profile=fixture model=sonnet stream=true tools=12 lineage=new session=new diverged=interrupted-turn-kept:kept-assistant",
+        "resolvedResume": "false",
+        "turn3RequestShape": [
+          "user[text]",
+          "assistant[text]",
+          "user[text]",
+          "assistant[text]",
+          "user[text]"
+        ],
+        "turn3Headers": {
+          "user-agent": "opencode/latest/2.2.0/cli",
+          "x-meridian-opencode-turn": "<signed>",
+          "x-opencode-agent-mode": "primary",
+          "x-opencode-agent-name": "build",
+          "x-opencode-client": "cli",
+          "x-opencode-project": "5445ff0dd9e82840162a484b0257517cf11bf6c2",
+          "x-opencode-session": "ses_e530f84cdffehL9RmUi6GuXrGn",
+          "x-opencode-session-id": "ses_e530f84cdffehL9RmUi6GuXrGn",
+          "x-session-affinity": "ses_e530f84cdffehL9RmUi6GuXrGn"
+        },
+        "assistantAfterStoppedQuestion": true,
+        "upstreamNextTurn": {
+          "holdsTurn1": true,
+          "holdsStoppedQuestion": true,
+          "holdsNewQuestion": true,
+          "holdsPartial": true
+        }
+      },
+      "checks": [
+        {
+          "ok": true,
+          "label": "the client stopped turn 2 (interrupt returned interrupted)"
+        },
+        {
+          "ok": true,
+          "label": "the Meridian V2 plugin is configured once and active"
+        },
+        {
+          "ok": true,
+          "label": "OpenCode sent its partial back as an assistant message"
+        },
+        {
+          "ok": true,
+          "label": "turn 3 replayed (diverged=interrupted-turn-kept:kept-assistant)"
+        },
+        {
+          "ok": true,
+          "label": "the upstream's next-turn input carries the kept partial"
+        }
+      ]
+    }
+  }
+}

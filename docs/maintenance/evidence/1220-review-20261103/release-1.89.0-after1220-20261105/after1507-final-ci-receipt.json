@@ -1,0 +1,78 @@
+{
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "run": 42080848312,
+  "conclusion": "success",
+  "counts": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 29
+  },
+  "url": "https://github.com/rynfar/meridian/actions/runs/42080848312",
+  "checks": [
+    [
+      "build (.#checks.x86_64-linux.home)",
+      "CANCELLED"
+    ],
+    [
+      "authorship",
+      "SUCCESS"
+    ],
+    [
+      "test",
+      "SUCCESS"
+    ],
+    [
+      "check",
+      "SUCCESS"
+    ],
+    [
+      "smoke",
+      "SUCCESS"
+    ],
+    [
+      "build (.#checks.x86_64-linux.home)",
+      "SUCCESS"
+    ],
+    [
+      "verify",
+      "SUCCESS"
+    ],
+    [
+      "desktop-build (ubuntu-latest)",
+      "SUCCESS"
+    ],
+    [
+      "desktop-build (macos-latest)",
+      "SUCCESS"
+    ],
+    [
+      "sync",
+      "SKIPPED"
+    ],
+    [
+      "windows-smoke",
+      "SUCCESS"
+    ],
+    [
+      "build-push",
+      "SUCCESS"
+    ],
+    [
+      "changelog-duplication",
+      "SKIPPED"
+    ],
+    [
+      "build (ubuntu-latest)",
+      "SUCCESS"
+    ],
+    [
+      "build (macos-latest)",
+      "SUCCESS"
+    ]
+  ],
+  "duplicateEarlierNixCancelled": "samehead replacementSUCCESS",
+  "sourceClean": true,
+  "publication": "NOTSTARTED"
+}

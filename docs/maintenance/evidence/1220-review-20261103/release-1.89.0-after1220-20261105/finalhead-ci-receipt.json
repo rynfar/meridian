@@ -1,0 +1,97 @@
+{
+  "head": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "run": 42073931849,
+  "conclusion": "success",
+  "url": "https://github.com/rynfar/meridian/actions/runs/42073931849",
+  "requiredTest": "success",
+  "checks": [
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073931681/job/127409815313",
+      "name": "build-push",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932240/job/127409167072",
+      "name": "build (.#checks.x86_64-linux.home)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073931849/job/127408944732",
+      "name": "windows-smoke",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932417/job/127408946936",
+      "name": "build (macos-latest)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073931849/job/127408945293",
+      "name": "test",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932417/job/127408947159",
+      "name": "build (ubuntu-latest)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073931681/job/127408945206",
+      "name": "smoke",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932316/job/127408948272",
+      "name": "desktop-build (ubuntu-latest)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932316/job/127408947699",
+      "name": "desktop-build (macos-latest)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932417/job/127408947134",
+      "name": "verify",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932148/job/127408945870",
+      "name": "check",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073927075/job/127408931609",
+      "name": "authorship",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073932417/job/127408950106",
+      "name": "sync",
+      "state": "SKIPPED"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073924495/job/127408921032",
+      "name": "build (.#checks.x86_64-linux.home)",
+      "state": "CANCELLED"
+    },
+    {
+      "link": "https://github.com/rynfar/meridian/actions/runs/42073931849/job/127408948632",
+      "name": "changelog-duplication",
+      "state": "SKIPPED"
+    }
+  ],
+  "duplicateCancelledNix": {
+    "run": 42073924495,
+    "note": "samefinalhead duplicate earlierNixworkflow cancelled; current42073932240 installablebuildSUCCESS, no bypass"
+  },
+  "noSourceChangesAfterFinalCI": true,
+  "testCounts": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 28
+  },
+  "countsFrom": "finalhead-ci-test.log downloadedjob127408945293",
+  "originalLocalRedRetained": true
+}

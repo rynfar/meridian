@@ -1,0 +1,14 @@
+{
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "oldReleaseHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
+  "reportSha256": "b3109611f9cf620bc73e281ff3334c195db3115ed7382784e53d2981c01bf4f3",
+  "finding": "no concrete material finding",
+  "deltaFromOldRelease": "only package.json testscript2insertions; notesbyteidentical",
+  "deltaFromMain": "only4version/notesmetadatafiles",
+  "runtimeDependencyDelta": false,
+  "liveActualClient": "NOTRUN_HTTP429_beforeinference",
+  "finalLocalCI": "stillawaitingcompletion",
+  "publication": "NOTSTARTED",
+  "constantsChanged": []
+}

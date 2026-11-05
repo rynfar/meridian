@@ -1,0 +1,18 @@
+{
+  "account": "personal",
+  "scope": "Currentdifferentaccess-onlygrantadmission",
+  "status": 200,
+  "extraUsageEnabled": false,
+  "windows": {
+    "five_hour": null,
+    "seven_day": {
+      "utilization": 67,
+      "resetsAt": "2026-11-08T17:00:00.631587+00:00"
+    },
+    "seven_day_opus": null
+  },
+  "refreshCalls": 0,
+  "ownerCredentialWrites": 0,
+  "modelCalls": 0,
+  "result": "PASS"
+}

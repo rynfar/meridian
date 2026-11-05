@@ -1,0 +1,16 @@
+{
+  "head": "02554a0a748f695b79982da071145f83c402415c",
+  "base": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52",
+  "ciRun": 41791701869,
+  "ciUrl": "https://github.com/rynfar/meridian/actions/runs/41791701869",
+  "localPid": 8683,
+  "localCommands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "sqliteOverride": "BOOKKEEPING_TEST_SQLITE_LIBRARY=/opt/homebrew/opt/sqlite/lib/libsqlite3.3.53.4.dylib",
+  "status": "RUNNING",
+  "historicalTimeoutCause": "UNRESOLVED",
+  "productionConstantsChanged": []
+}

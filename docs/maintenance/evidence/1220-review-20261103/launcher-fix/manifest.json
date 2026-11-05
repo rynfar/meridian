@@ -1,0 +1,78 @@
+{
+  "head": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+  "result": "MERGED normal squash; verified landed tree equals reviewed tree; all26groups8819pass65skip0fail typecheck/build exactheadCI pass",
+  "members": [
+    {
+      "name": "adversarial-review.md",
+      "sha256": "768965673df242bb7ebbf212a9b9c0230148e9c513120e23cf1a749688b9c963",
+      "bytes": 6560
+    },
+    {
+      "name": "antigravity-focused.log.gz",
+      "sha256": "8b15ec7d70b66b7b5fe0c8ed40c1ab12968b27a22168dfc4cc8d5dde45c1177c",
+      "bytes": 1286
+    },
+    {
+      "name": "build.log.gz",
+      "sha256": "56ab67da075b395cc49c0e477ae642801048b33f76a779afcb4d2c1cf575e9ce",
+      "bytes": 993
+    },
+    {
+      "name": "final-build.log.gz",
+      "sha256": "409a4a418b294f085187535f174ed0c4789c8ab1320a9fc382b99b084393d028",
+      "bytes": 993
+    },
+    {
+      "name": "final-full-npm-test.log.gz",
+      "sha256": "6a30ee4f1321db46a5953399333bd5daee336cfeedd2bb9ed041152dd7c15828",
+      "bytes": 324098
+    },
+    {
+      "name": "final-head-ci.json",
+      "sha256": "5a2c679d4b72775af0813a85ac2d840df2c563de30ead8fe0b4d1ac55ca191b0",
+      "bytes": 3888
+    },
+    {
+      "name": "final-typecheck.log.gz",
+      "sha256": "538d2f0f0e00b6ad058592ab6818851370ae3bc30b44c142d02155b232bc54fc",
+      "bytes": 73
+    },
+    {
+      "name": "final-validation.json",
+      "sha256": "af86be0083e202a68c44f45eca2844cf137c921a039b5c1396a71c1ee57b17cc",
+      "bytes": 918
+    },
+    {
+      "name": "implementation-handoff.md",
+      "sha256": "46d1e124c8c1a657a7f73bd87862ed7080f47343fd58c0015e4776fa8685abd7",
+      "bytes": 4178
+    },
+    {
+      "name": "implementation.diff.gz",
+      "sha256": "bb2da11ea7a2785c856f7bcee0fda167a95992ea8828ec72392fb02009bd5ddd",
+      "bytes": 2376
+    },
+    {
+      "name": "merge.json",
+      "sha256": "1732dfb9ae6ce3bcf7c2ed539a68dceb6dd9b5746e04183edc1e93ca3bc9eb2b",
+      "bytes": 1422
+    },
+    {
+      "name": "original-full-npm-test.log.gz",
+      "sha256": "df6ce964a33d03ef998ef4a81aa16a3d05fd07d75d65279d46b3de06cebe0b3e",
+      "bytes": 296632
+    },
+    {
+      "name": "typecheck.log.gz",
+      "sha256": "538d2f0f0e00b6ad058592ab6818851370ae3bc30b44c142d02155b232bc54fc",
+      "bytes": 73
+    },
+    {
+      "name": "validation.json",
+      "sha256": "d57c1c5628a6262a01218ba32b50d6f2080694321e41aca6267f6ca5e0a9b312",
+      "bytes": 1650
+    }
+  ],
+  "finalHead": "813cac6cb48c33cbc3bb5f42d0b7c37067010ba8",
+  "mergeCommit": "1e24a969cc8aba8c62ad3fcea87a4f3da69c6e52"
+}

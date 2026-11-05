@@ -1,0 +1,18 @@
+{
+  "sourceHead": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "scope": "oneoriginalfirstidlecase; onlyfailedHTTPbodydiagnosticadded",
+  "testSha256": "98a54d365ad3af4de83aa4ecac7a9d28c9d0b1b6183943302e0feec728783089",
+  "testMode": "0444",
+  "originalDeadlineMs": {
+    "probe": 20000,
+    "turn": 10000,
+    "bun": 30000
+  },
+  "outerSeconds": 70,
+  "filter": "keeps a finished conversation for idleConversationMs",
+  "attempts": 1,
+  "noProductionOrPromptChange": true,
+  "fixture": "localfakeCLI; noProaccountorcredential",
+  "greenInterpretation": "notcausalfix; diagnosticpassonly",
+  "cleanup": "originaltestafterEachawaitserver.closeBackend; outerboundfailureinvalidatesjoinuntilparentchecksprocesses"
+}

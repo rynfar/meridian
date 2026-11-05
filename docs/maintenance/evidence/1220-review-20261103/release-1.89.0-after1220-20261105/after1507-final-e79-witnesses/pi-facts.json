@@ -1,0 +1,38 @@
+{
+  "client": "pi 1.4.0",
+  "piVersion": "1.4.0",
+  "setupPiVersion": "1.4.0",
+  "integrationLoaded": true,
+  "stopped": true,
+  "health": {
+    "version": "1.89.0",
+    "claudeExecutable": "env",
+    "build": {
+      "source": "npm"
+    }
+  },
+  "turn2Line": "adapter=pi profile=fixture model=sonnet stream=true tools=0 lineage=continuation session=490da5e5",
+  "turn3Line": "adapter=pi profile=fixture model=sonnet stream=true tools=0 lineage=continuation session=490da5e5",
+  "resolvedResume": "true",
+  "turn3RequestShape": [
+    "user[text]",
+    "system[]",
+    "assistant[text]",
+    "user[text]",
+    "user[text]",
+    "system[]"
+  ],
+  "turn3Headers": {
+    "user-agent": "pi/1.4.0 (darwin; node/v22.22.3; arm64)",
+    "x-meridian-agent": "pi",
+    "x-meridian-opencode-turn": "<signed>",
+    "x-session-affinity": "01a1acf0-3510-7301-a4da-8987303f2618"
+  },
+  "assistantAfterStoppedQuestion": false,
+  "upstreamNextTurn": {
+    "holdsTurn1": true,
+    "holdsStoppedQuestion": true,
+    "holdsNewQuestion": true,
+    "holdsPartial": false
+  }
+}

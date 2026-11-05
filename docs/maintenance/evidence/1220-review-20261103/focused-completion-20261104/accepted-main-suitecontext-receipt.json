@@ -1,0 +1,17 @@
+{
+  "base": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "sourceDelta": "onefailedHTTPbodydiagnostic only",
+  "runtime": "Darwinarm64 Bun1.3.14 Node22 SQLite3.53.4",
+  "result": "PASS",
+  "npm": {
+    "pass": 8829,
+    "skip": 65,
+    "fail": 0
+  },
+  "groups": 28,
+  "durationSeconds": 755.218781542033,
+  "AGsixcases": "PASS",
+  "originalFailureReproduced": false,
+  "doesNotClear": "originalcandidate8293/65/1; historicalcauseunknown",
+  "modelCalls": 0
+}

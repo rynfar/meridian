@@ -1,0 +1,141 @@
+diff --git a/src/__tests__/explicit-model-pins.test.ts b/src/__tests__/explicit-model-pins.test.ts
+index ae0fd5f1..4af29c85 100644
+--- a/src/__tests__/explicit-model-pins.test.ts
++++ b/src/__tests__/explicit-model-pins.test.ts
+@@ -20,33 +20,35 @@ const { explicitModelPin, CANONICAL_FABLE_MODEL, CANONICAL_SONNET_MODEL, CANONIC
+ 
+ describe("explicitModelPin (#631)", () => {
+   it("pins fully-versioned sonnet ids", () => {
+-    expect(explicitModelPin("claude-sonnet-5-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5" })
+-    expect(explicitModelPin("claude-sonnet-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5" })
+-    expect(explicitModelPin("claude-sonnet-4-6")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6" })
++    expect(explicitModelPin("claude-sonnet-5-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-sonnet-5")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-sonnet-4-6")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+   })
+ 
+   it("pins fully-versioned opus and date-suffixed haiku ids", () => {
+-    expect(explicitModelPin("claude-opus-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" })
+-    expect(explicitModelPin("claude-opus-5")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5" })
+-    expect(explicitModelPin("claude-opus-4-7")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7" })
+-    expect(explicitModelPin("claude-haiku-4-5-20251001")).toEqual({ ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001" })
++    expect(explicitModelPin("claude-opus-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-opus-5")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-opus-4-7")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-haiku-4-5-20251001")).toEqual({ ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+   })
+ 
+   it("routes mythos ids through the fable tier pin", () => {
+-    expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5" })
+-    expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1" })
+-    expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5" })
++    expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+   })
+ 
+   it("strips the [1m] context suffix before pinning", () => {
+-    expect(explicitModelPin("claude-sonnet-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5" })
+-    expect(explicitModelPin("claude-sonnet-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5" })
++    expect(explicitModelPin("claude-sonnet-5-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
++    expect(explicitModelPin("claude-sonnet-5[1m]")).toEqual({ ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+   })
+ 
+   it("leaves bare aliases and family names on the canonical pins", () => {
+     expect(explicitModelPin("sonnet")).toBeUndefined()
+     expect(explicitModelPin("sonnet[1m]")).toBeUndefined()
+     expect(explicitModelPin("opus")).toBeUndefined()
++    expect(explicitModelPin("opus[1m]")).toBeUndefined()
++    expect(explicitModelPin("claude-opus")).toBeUndefined()
+     expect(explicitModelPin("claude-sonnet")).toBeUndefined()
+     expect(explicitModelPin("gpt-4o")).toBeUndefined()
+     expect(explicitModelPin("")).toBeUndefined()
+diff --git a/src/__tests__/proxy-env-stripping.test.ts b/src/__tests__/proxy-env-stripping.test.ts
+index 955d4a79..737cf66e 100644
+--- a/src/__tests__/proxy-env-stripping.test.ts
++++ b/src/__tests__/proxy-env-stripping.test.ts
+@@ -185,6 +185,7 @@ describe("Environment variable stripping", () => {
+     // Consume the stream to trigger the query
+     await res.text()
+     expect(capturedQueryOptions).toBeDefined()
++    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("1")
+     expect(capturedQueryOptions.env.ANTHROPIC_API_KEY).toBeUndefined()
+     expect(capturedQueryOptions.env.ANTHROPIC_BASE_URL).toBeUndefined()
+   })
+@@ -200,6 +201,7 @@ describe("SDK model pin injection (fixes #419)", () => {
+     "MERIDIAN_DEFAULT_OPUS_MODEL",
+     "MERIDIAN_DEFAULT_SONNET_MODEL",
+     "MERIDIAN_DEFAULT_HAIKU_MODEL",
++    "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK",
+   ]
+   const savedModelEnv: Record<string, string | undefined> = {}
+ 
+@@ -227,6 +229,25 @@ describe("SDK model pin injection (fixes #419)", () => {
+     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5")
+     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5-5")
+     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-5-5")
++    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBeUndefined()
++  })
++
++  it("explicit model requests disable alternate-model refusal fallback over inherited false", async () => {
++    process.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK = "false"
++    const app = createTestApp()
++    const res = await post(app, { ...BASIC_REQUEST, model: "claude-opus-5-5" })
++    expect(res.status).toBe(200)
++    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5")
++    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("1")
++    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_RETRY).toBe(process.env.CLAUDE_CODE_DISABLE_REFUSAL_RETRY)
++  })
++
++  it("bare aliases preserve inherited alternate-model refusal fallback settings", async () => {
++    process.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK = "false"
++    const app = createTestApp()
++    const res = await post(app, { ...BASIC_REQUEST, model: "opus" })
++    expect(res.status).toBe(200)
++    expect(capturedQueryOptions.env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK).toBe("false")
+   })
+ 
+   it("explicit claude-opus-4-6 requests pin the SDK env to 4.6", async () => {
+diff --git a/src/proxy/SPEC.md b/src/proxy/SPEC.md
+index f341ae25..3f184402 100644
+--- a/src/proxy/SPEC.md
++++ b/src/proxy/SPEC.md
+@@ -86,6 +86,12 @@ Contract*, *Cancellation Contract*; public routes and headers are in
+     `[Image attached]` / `[Document attached]`, so unkeyed, only the latest
+     turn's media reaches the model (media nested in a packed tool result is
+     still dropped).
++- **Explicit Claude versions disable refusal model switching.** The existing
++  per-request family pin also sets `CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1`
++  for recognized versioned Claude IDs. Native refusal fallback can otherwise
++  change the model after initial alias resolution. Bare aliases keep their
++  inherited behavior. Refusals and same-model refusal retries are unchanged;
++  an independently configured SDK `fallbackModel` remains outside this switch.
+ - **Per-model 1M override.** `[1m]` stays the default for Opus and Fable;
+   `MERIDIAN_OPUS_MODEL=opus` / `MERIDIAN_FABLE_MODEL=fable` opt a tier out
+   (Mythos follows Fable). Values are normalized; an unrecognized value warns
+diff --git a/src/proxy/models.ts b/src/proxy/models.ts
+index c87255e7..104b8e8a 100644
+--- a/src/proxy/models.ts
++++ b/src/proxy/models.ts
+@@ -99,6 +99,9 @@ export function resolveSdkModelDefaults(
+  * With canonical pins alone, an explicit `claude-sonnet-5` silently resolved
+  * to the canonical sonnet — a proxy must never substitute models, so a
+  * fully-versioned id overrides its tier's pin for that request only.
++ * Also disable native alternate-model refusal fallback, which can otherwise
++ * substitute a different model after the initial pin. Refusals and same-model
++ * refusal retries are unchanged.
+  *
+  * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
+  * undefined and keep the canonical pins. Mythos rides the fable tier
+@@ -110,7 +113,10 @@ export function explicitModelPin(requestedModel: string): Record<string, string>
+   const match = /^claude-(sonnet|opus|haiku|fable|mythos)-\d[\w.-]*$/.exec(base)
+   if (!match) return undefined
+   const tier = match[1] === "mythos" ? "FABLE" : match[1]!.toUpperCase()
+-  return { [`ANTHROPIC_DEFAULT_${tier}_MODEL`]: base }
++  return {
++    [`ANTHROPIC_DEFAULT_${tier}_MODEL`]: base,
++    CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1",
++  }
+ }
+ export interface ClaudeAuthStatus {
+   loggedIn?: boolean

@@ -1,0 +1,26 @@
+{
+  "stage": "actual installed OpenCode1.18.34/SDK0.2.141/native2.1.296/Opus5.5",
+  "head": "19bf2128916c6aefc9e7128011bc9c201de27a07",
+  "result": "FAIL_AUTHENTICATION",
+  "exactProviderDiagnostic": "Failed to authenticate: OAuth token revoked. Please log in again or contact your administrator.",
+  "pluginPreflight": "PASS exactly one matching V1 plugin from installed final artifact",
+  "routeAndHeaders": "PASS title/build requests via Meridian plugin-generated session/agent headers",
+  "scrub": "0.3.0 active2invocations0errors",
+  "nativeGateWitness": [
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    },
+    {
+      "explicitOpusPin": "claude-opus-5-5",
+      "refusalFallbackDisabled": "1"
+    }
+  ],
+  "observerErrors": [],
+  "joined": true,
+  "completion": "MISSING; live gate OPEN",
+  "credentialRefreshOrWrites": false,
+  "fallbackAccountOrPaidUsage": false,
+  "userAction": "Sign in normally to same Claude account; keepExtraUsageoff; no token pasted",
+  "noRetries": true
+}

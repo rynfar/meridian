@@ -1,0 +1,48 @@
+{
+  "PR": 1507,
+  "head": "d0904187c89631a459fa60a112332632b7fd75c4",
+  "command": "npm test && npm run typecheck && npm run build",
+  "exit": 0,
+  "runtime": {
+    "Bun": "1.4.3",
+    "Node": "22.22.3",
+    "platform": "Darwinarm64",
+    "sqlite": "3.53.4"
+  },
+  "counts": {
+    "pass": 8857,
+    "skip": 65,
+    "fail": 0,
+    "groups": 29
+  },
+  "standaloneTypecheck": "PASS",
+  "build": {
+    "source": "local",
+    "kind": "artifact",
+    "version": "1.88.0",
+    "releaseVersion": "1.88.0",
+    "sha": "d0904187c89631a459fa60a112332632b7fd75c4",
+    "branch": "fix/release-contract-test-isolation-20261105",
+    "dirty": false,
+    "sourceHash": "a52807070a29df94505cc089ad235b6bb7853e77d3a5d99391eaa3c11ca4db14",
+    "branchUrl": "https://github.com/rynfar/meridian/tree/fix%2Frelease-contract-test-isolation-20261105",
+    "commitUrl": "https://github.com/rynfar/meridian/commit/d0904187c89631a459fa60a112332632b7fd75c4",
+    "counter": 1,
+    "counterScope": "ab93c4cd-fe23-4a2d-bfd6-7ed60970024f",
+    "attemptId": "8cdcea75-328b-41bc-bdad-a5d08db2f027",
+    "builtAt": "2026-11-05T18:01:40.073Z",
+    "displayVersion": "v1.88.0-1-fix/release-contract-test-isolation-20261105-d0904187",
+    "certification": "verified"
+  },
+  "noRuntimeCodeChanged": true,
+  "originalRedArchived": true,
+  "negativeControl": "heldforeigncandidate refuse/isolatedcontract6pass/postjoinmigrationREADY",
+  "independentReview": "no material finding",
+  "CI": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 29
+  },
+  "constantChanges": []
+}

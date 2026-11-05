@@ -1,0 +1,23 @@
+{
+  "head": "67d02f56ba69b7e738aea67119ba5b1376ef0db0",
+  "helperSha256": "8514c16b9dd4d93fe3c4425d24eb1eeffe4b60bbfee67b525af4749ef970899c",
+  "result": "INVALID diagnostic wrapper / FAIL fixture; product cause unestablished",
+  "sdk": "0.2.141",
+  "native": "2.1.284",
+  "model": "claude-opus-5-5",
+  "clientGeneration": "installed Meridian V1 protocol-host (not OpenCode executable)",
+  "platform": "darwin/arm64",
+  "cacheFloor": 0.95,
+  "cacheFloorChanged": false,
+  "queryCount": 1,
+  "httpResult": "first turn200; followup500",
+  "cacheMisses": [],
+  "wrapperStop": "query-iterator-error without retained original error/method; diagnosis pending",
+  "fixtureJoined": true,
+  "supervisorNormalCustody": false,
+  "causalProductFinding": "Not established. Observer-induced followup refusal suspected, do not attribute to product or credentials.",
+  "historical3332to3132Explained": false,
+  "grant": "private task-owned access-only; not archived; Extra Usage disabled; credential writes/refresh forbidden",
+  "selectedEnvironment": "explicit minimal allowlist; no billing fallback or API key; isolated loopback38192",
+  "sdkShapeFinding": "Wrapper forces Query [Symbol.asyncIterator] to self, but actual SDK returns distinct sdkMessages iterator; cleanup/return routing is changed. Current helper is not fidelity-qualified."
+}

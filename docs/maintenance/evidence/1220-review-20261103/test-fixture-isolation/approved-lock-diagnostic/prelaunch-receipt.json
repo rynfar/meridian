@@ -1,0 +1,48 @@
+{
+  "diagnosticHead": "d26da6f3403dff4c9cca7b295f31c597b2f5f494",
+  "baselineHead": "c2adc2b5784e9bcd6020193cfcc538883f7695ee",
+  "sourceHashes": {
+    "package.json": "66021fc0fcde62ab4d57a3a168cbf7c1901176434cd69f7c570ffbe984ba2d74",
+    "bun.lock": "9f3ccf8982f9e3a46c212d4f73f33a1ff5386cd30cda86e93dd780229aff08b8",
+    "src/__tests__/bookkeeping-crash-process.test.ts": "ca067aef12ccc7b267cdfb195234b7baa55b5d921206a4e883cf9824c2c4b22d",
+    "src/__tests__/fixtures/store-lock-diagnostic.ts": "a18956f68bba3efeea1c2c2267cdab4917b7b80097f75bf087f5d5047a375f31",
+    "scripts/fixtures/store-lock-diagnostic-controls.test.ts": "78c33754c03ed6ce3f3dc2dd15910dd112a13a7108ea6f648a9730656f7c42f1",
+    "scripts/diagnose-1506-lock.mjs": "b6564116c19e34b5b535daf7187432ec21d2b03d937698beecd49f9595b61bac",
+    ".github/workflows/diagnose-1506-lock.yml": "9220cb75ba0a096c580f1e90d52897e5a8d670374fa87a72c1d2d7ee572e856d"
+  },
+  "parentFreeze": {
+    "scripts/diagnose-1506-lock.mjs": {
+      "sha256": "b6564116c19e34b5b535daf7187432ec21d2b03d937698beecd49f9595b61bac",
+      "copy": "/Volumes/DevSSD/meridian/evidence/1506-lock-diagnostic-20261103/diagnose-1506-lock-b6564116c19e34b5b535daf7187432ec21d2b03d937698beecd49f9595b61bac.mjs",
+      "supersedes": "7d7c94ea756c7884fb9c510241a91a580f63f63979b3ffe9c2b0d554a80ac374",
+      "reason": "runtime readonly hash-copy custody and strict trace qualification before first hosted run"
+    },
+    ".github/workflows/diagnose-1506-lock.yml": {
+      "sha256": "9220cb75ba0a096c580f1e90d52897e5a8d670374fa87a72c1d2d7ee572e856d",
+      "copy": "/Volumes/DevSSD/meridian/evidence/1506-lock-diagnostic-20261103/diagnose-1506-lock-9220cb75ba0a096c580f1e90d52897e5a8d670374fa87a72c1d2d7ee572e856d.yml"
+    }
+  },
+  "offline": {
+    "exitCode": 0,
+    "controls": "4pass/0fail/23 assertions",
+    "typecheck": "PASS",
+    "runnerSyntax": "PASS",
+    "runtime": {
+      "bun": "1.3.14",
+      "node": "22.22.3",
+      "platform": "darwin arm64"
+    },
+    "qualification": "observer controls only; no actual timedresume/platform diagnosis",
+    "sourceHashes": {
+      "package.json": "66021fc0fcde62ab4d57a3a168cbf7c1901176434cd69f7c570ffbe984ba2d74",
+      "bun.lock": "9f3ccf8982f9e3a46c212d4f73f33a1ff5386cd30cda86e93dd780229aff08b8",
+      "src/__tests__/bookkeeping-crash-process.test.ts": "ca067aef12ccc7b267cdfb195234b7baa55b5d921206a4e883cf9824c2c4b22d",
+      "src/__tests__/fixtures/store-lock-diagnostic.ts": "a18956f68bba3efeea1c2c2267cdab4917b7b80097f75bf087f5d5047a375f31",
+      "scripts/fixtures/store-lock-diagnostic-controls.test.ts": "78c33754c03ed6ce3f3dc2dd15910dd112a13a7108ea6f648a9730656f7c42f1",
+      "scripts/diagnose-1506-lock.mjs": "b6564116c19e34b5b535daf7187432ec21d2b03d937698beecd49f9595b61bac",
+      ".github/workflows/diagnose-1506-lock.yml": "9220cb75ba0a096c580f1e90d52897e5a8d670374fa87a72c1d2d7ee572e856d"
+    }
+  },
+  "hostedAttemptsStarted": 0,
+  "remainingGate": "Original #1506 required test remains failed; diagnostic is not acceptance"
+}

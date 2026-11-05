@@ -1,0 +1,13 @@
+[
+  {
+    "uuid": "d9784a56-f5b1-4d07-90df-a93c1cbef5ac",
+    "type": "assistant",
+    "model": "<synthetic>",
+    "stop_reason": "refusal",
+    "stop_details": {
+      "type": "refusal",
+      "category": "cyber",
+      "explanation": "This request triggered restrictions on violative cyber content and was blocked under Anthropic's Usage Policy. To learn more, see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback."
+    }
+  }
+]

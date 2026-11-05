@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "result": "diagnostic build PASS, not historical cause/fix proof",
+  "head": "93b188f68d9664c46df62aa3249b4defffd884af",
+  "observerSha256": "48a3b976991fae1da284619b725d2a775377feeff83bf153a7880070619d0bb2",
+  "supervisorSha256": "b1c68b36da8f751d8118215169d75018471fd886a36e3849e014e990329c4b28",
+  "originalExit": 0,
+  "diagnosticStatus": "OBSERVED",
+  "interception": {
+    "validForPostGatesDiagnosis": true,
+    "missing": [],
+    "note": "Early build failure can yield useful partial data, but is not a valid post-gates comparison."
+  },
+  "selfTests": {
+    "passed": true,
+    "assertions": 9,
+    "io": false,
+    "scope": "measurement forwarding/throwing, deltas, labels, byte counts, error redaction; not Bun interception"
+  },
+  "phases": [
+    {
+      "label": "preflight",
+      "wallMs": 1943.661083,
+      "cpuMicros": {
+        "user": 198705,
+        "system": 336676
+      },
+      "outcome": "returned",
+      "error": null,
+      "fileListEntries": 2444,
+      "uniqueFileListEntries": 2444,
+      "inputDelta": null,
+      "hashFileCalls": 2444,
+      "hashFileCompleted": 2444,
+      "hashBytes": 25238410,
+      "observer": {
+        "measuredCalls": 41943,
+        "recordingWallMsEstimate": 29.799553999979935
+      },
+      "readWallMs": 1138.733024999999,
+      "gitWallMs": 407.43870799999985,
+      "hashUpdateWallMs": 59.50127600000815
+    },
+    {
+      "label": "pre-gates",
+      "wallMs": 474.145708,
+      "cpuMicros": {
+        "user": 100517,
+        "system": 119288
+      },
+      "outcome": "returned",
+      "error": null,
+      "fileListEntries": 2444,
+      "uniqueFileListEntries": 2444,
+      "inputDelta": {
+        "added": [],
+        "removed": []
+      },
+      "hashFileCalls": 2444,
+      "hashFileCompleted": 2444,
+      "hashBytes": 25238410,
+      "observer": {
+        "measuredCalls": 41943,
+        "recordingWallMsEstimate": 17.525992000041242
+      },
+      "readWallMs": 30.065445999990516,
+      "gitWallMs": 241.40524900000037,
+      "hashUpdateWallMs": 34.39758699996355
+    },
+    {
+      "label": "post-gates",
+      "wallMs": 1975.2483330000014,
+      "cpuMicros": {
+        "user": 151493,
+        "system": 319864
+      },
+      "outcome": "returned",
+      "error": null,
+      "fileListEntries": 2444,
+      "uniqueFileListEntries": 2444,
+      "inputDelta": {
+        "added": [],
+        "removed": []
+      },
+      "hashFileCalls": 2444,
+      "hashFileCompleted": 2444,
+      "hashBytes": 25238410,
+      "observer": {
+        "measuredCalls": 41943,
+        "recordingWallMsEstimate": 28.558256000347683
+      },
+      "readWallMs": 1327.9907719999592,
+      "gitWallMs": 276.5134999999973,
+      "hashUpdateWallMs": 51.64916099991569
+    },
+    {
+      "label": "artifact-inventory",
+      "wallMs": 58.605875000001106,
+      "cpuMicros": {
+        "user": 20939,
+        "system": 31224
+      },
+      "outcome": "returned",
+      "error": null,
+      "fileListEntries": null,
+      "uniqueFileListEntries": null,
+      "inputDelta": null,
+      "hashFileCalls": 701,
+      "hashFileCompleted": 701,
+      "hashBytes": 6895245,
+      "observer": {
+        "measuredCalls": 9471,
+        "recordingWallMsEstimate": 1.5206480000451847
+      },
+      "readWallMs": 10.016234999946391,
+      "gitWallMs": 0,
+      "hashUpdateWallMs": 3.377308000039193
+    }
+  ],
+  "constantsChanged": false,
+  "limits": "Original 2s full-source budget, input caps and certified-build checks unchanged; observer changes timing/object identity; no repeated run"
+}

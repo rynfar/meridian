@@ -1,0 +1,34 @@
+{
+  "PR": 1507,
+  "state": "MERGED",
+  "head": "d0904187c89631a459fa60a112332632b7fd75c4",
+  "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
+  "tree": "360f5e0b02016e75a8eaf5ff640251403014f492",
+  "treeEqualsReviewedHead": true,
+  "verifiedSignedSquash": true,
+  "author": {
+    "name": "Trevor Walker",
+    "email": "rynfar@gmail.com",
+    "date": "2026-11-05T18:02:54Z"
+  },
+  "introducedPaths": [
+    "package.json"
+  ],
+  "contributorMainStillAncestor": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "noContributorWorkInMaintainerPR": true,
+  "method": "normal--squash--match-head-commit; noadmin/protection/checkbypass",
+  "fullLocal": {
+    "pass": 8857,
+    "skip": 65,
+    "fail": 0,
+    "groups": 29
+  },
+  "CI": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 29
+  },
+  "originalRedRetained": true,
+  "constantChanges": []
+}

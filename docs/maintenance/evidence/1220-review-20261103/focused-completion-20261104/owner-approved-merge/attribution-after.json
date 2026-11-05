@@ -1,0 +1,6592 @@
+{
+  "summary": {
+    "repo": "rynfar/meridian",
+    "main": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+    "generatedAt": "2026-11-05T16:41:10.803Z",
+    "outsidePullRequests": 369,
+    "merged": 108,
+    "open": 21,
+    "relandedUnderMaintainer": 137,
+    "relandedWithoutTrailer": 0,
+    "closedForMaintainerPr": 19,
+    "closedForMaintainerPrWithoutTrailer": 18,
+    "landedAsAuthorPrClosed": 44,
+    "mergedButMaintainerAuthor": 0,
+    "closedNotLanded": 40,
+    "closedNotLandedByOwnerWithoutComment": 4,
+    "authorshipStatements": 51,
+    "unmappedForeignCommits": 1
+  },
+  "entries": [
+    {
+      "number": 9,
+      "author": "adinschmidt",
+      "title": "fix: resolve connection reset issues with configurable maxTurns and permissionMode",
+      "state": "CLOSED",
+      "closedBy": "adinschmidt",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 12,
+      "author": "BP602",
+      "title": "fix: queue concurrent streaming requests to avoid ~60s delay",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 13,
+      "author": "BP602",
+      "title": "fix: prevent empty/failed streaming responses in OpenCode proxy",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 14,
+      "author": "BP602",
+      "title": "fix: run MCP tools in the caller project directory",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 42,
+      "author": "juanferreiramorel",
+      "title": "feat: add multimodal content support (images, documents, files)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        60
+      ],
+      "landed": [
+        "0e6fc7ac6"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 44,
+      "author": "skipships",
+      "title": "docs: adds config via opencode.json option (allows OpenCode Desktop to use proxy)",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 52,
+      "author": "skipships",
+      "title": "docs: improves README",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 59,
+      "author": "ianjwhite99",
+      "title": "fix: include mcpTools.ts in published package files",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 63,
+      "author": "ianjwhite99",
+      "title": "fix: replace ubuntu base image with multi-stage node:22 build to fix Docker build failures",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 66,
+      "author": "ianjwhite99",
+      "title": "feat: add build pipeline for npm publishing, remove runtime Bun dependency",
+      "state": "CLOSED",
+      "closedBy": "ianjwhite99",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 67,
+      "author": "ianjwhite99",
+      "title": "feat: add build pipeline for npm publishing, remove runtime Bun dependency",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 75,
+      "author": "conversun",
+      "title": "fix(proxy): add LRU eviction to bound session cache growth",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 76,
+      "author": "conversun",
+      "title": "fix(session-store): add file locking for concurrent access safety",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 77,
+      "author": "conversun",
+      "title": "fix(proxy): convert blocking execSync calls to async",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 83,
+      "author": "ianjwhite99",
+      "title": "docs: clean up and streamline README",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 87,
+      "author": "pablogtzgileta",
+      "title": "Enable 1M context window for Opus via opus[1m] alias",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 90,
+      "author": "conversun",
+      "title": "fix: remove mock.module leak that breaks session store tests",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 92,
+      "author": "conversun",
+      "title": "fix: prevent cross-project session contamination in fingerprint cache",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 95,
+      "author": "davdroman",
+      "title": "fix: pass systemContext to storeSession for consistent fingerprinting",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 96,
+      "author": "ianjwhite99",
+      "title": "feat!: return ProxyInstance from startProxyServer for graceful shutdown and library usage",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 103,
+      "author": "ianjwhite99",
+      "title": "fix: export TypeScript declaration files from distFix/types export",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 107,
+      "author": "ianjwhite99",
+      "title": "fix: mock Date.now in pruning test to prevent CI failure",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 112,
+      "author": "ianjwhite99",
+      "title": "fix: block CLAUDE_CODE_ONLY_TOOLS in normal (non-passthrough) mode",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 121,
+      "author": "ianjwhite99",
+      "title": "refactor: restructure into modular architecture for maintainability",
+      "state": "CLOSED",
+      "closedBy": "ianjwhite99",
+      "forkGone": true,
+      "ownerComments": 3,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 136,
+      "author": "realsc0t",
+      "title": "feat: admin dashboard, key management, rate limits, and cleanup",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 6,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 139,
+      "author": "jaker-4c",
+      "title": "fix: use subscription type to determine sonnet model variant",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 141,
+      "author": "ianjwhite99",
+      "title": "fix: prevent @hono/node-server from overriding global Response/Request",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 148,
+      "author": "zackslash",
+      "title": "Fix OpenCode repository link in README",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 149,
+      "author": "ianjwhite99",
+      "title": "fix: detect rate-limited accounts and fall back from 1m models",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 161,
+      "author": "davetha",
+      "title": "feat: add profile-based routing foundation",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 162,
+      "author": "davetha",
+      "title": "feat: add config-based request authentication",
+      "state": "CLOSED",
+      "closedBy": "davetha",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 163,
+      "author": "davetha",
+      "title": "docs: add same-port Claude Code profile launcher example",
+      "state": "CLOSED",
+      "closedBy": "davetha",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 164,
+      "author": "davetha",
+      "title": "feat: protect admin routes with optional basic auth",
+      "state": "CLOSED",
+      "closedBy": "davetha",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 165,
+      "author": "davetha",
+      "title": "feat: multi-profile routing with auth and admin protection",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 191,
+      "author": "xpolb01",
+      "title": "fix: reduce token overhead in passthrough mode",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "merged"
+    },
+    {
+      "number": 200,
+      "author": "davdroman",
+      "title": "feat: add env var to disable file change summaries",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        209
+      ],
+      "landed": [
+        "374293fea"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 201,
+      "author": "endre82",
+      "title": "Feat/litellm passthrough #199",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        215
+      ],
+      "landed": [
+        "beb5a5bd0"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 205,
+      "author": "lnilluv",
+      "title": "feat: t3code-style token tracking, subscription detection, and agent mode support",
+      "state": "CLOSED",
+      "closedBy": "lnilluv",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 206,
+      "author": "KentLee86",
+      "title": "fix: passthrough mode tool_use broken for multi-turn and streaming",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        207
+      ],
+      "landed": [
+        "ae2e941d0"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 219,
+      "author": "ianjwhite99",
+      "title": "fix: force executable to node in buildQueryOptions",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "6e33926d6"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 220,
+      "author": "lnilluv",
+      "title": "feat: add agent mode support - skip [1m] models for subagents",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        235
+      ],
+      "landed": [
+        "bfcd7a97c"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 222,
+      "author": "bnema",
+      "title": "feat: passthrough SDK params (effort, thinking, taskBudget, betas) + usage logging",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 224,
+      "author": "endre82",
+      "title": "Feat/token refresh",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 226,
+      "author": "endre82",
+      "title": "feat: add live smoke tests + message validation",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 234,
+      "author": "luis15pt",
+      "title": "feat: OpenAI-compatible /v1/chat/completions and /v1/models endpoints",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "merged"
+    },
+    {
+      "number": 236,
+      "author": "endre82",
+      "title": "fix: prevent false positives in file changes extraction from bash com…",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 238,
+      "author": "braydenbabbitt",
+      "title": "feat: add favicon to telemetry dashboard",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 241,
+      "author": "rafaelsales",
+      "title": "fix: default to non-streaming (JSON) when stream field is omitted",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 253,
+      "author": "endre82",
+      "title": "fix: Fix missing path parameter fallback in OpenCode file change tracking",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        269
+      ],
+      "landed": [
+        "959a84e9c"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 254,
+      "author": "dayjoyx",
+      "title": "fix: respect client stream parameter in passthrough adapter",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        265
+      ],
+      "landed": [
+        "1ec2abbc0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 257,
+      "author": "beshkenadze",
+      "title": "ci: add Docker image build and publish workflow (ghcr.io)",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 261,
+      "author": "beshkenadze",
+      "title": "fix: use envBool() for passthrough env var detection",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        267
+      ],
+      "landed": [
+        "41d37da23"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 293,
+      "author": "xpolb01",
+      "title": "fix: allow-list safe anthropic-beta headers on claude-max profiles",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 317,
+      "author": "rich-jojo",
+      "title": "fix: strip internal transcript wrapper leakage at proxy boundary",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        327
+      ],
+      "landed": [
+        "ab98af138"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 320,
+      "author": "xpolb01",
+      "title": "fix: correct cache hit rate percentage in stderr usage log",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 325,
+      "author": "bussnet",
+      "title": "fix: sanitize agent name before setting x-opencode-agent-name header",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 326,
+      "author": "hellosunghyun",
+      "title": "fix: sanitize agent name header to strip non-ASCII characters",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 331,
+      "author": "lnilluv",
+      "title": "feat: add version field to /health endpoint response",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 332,
+      "author": "beshkenadze",
+      "title": "refactor(telemetry): extract telemetry store interfaces and memory implementations",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "164e70fde",
+        "013d8a130",
+        "89484e5f0",
+        "757174edd",
+        "46da121a4",
+        "77b4ee7c8",
+        "0084712aa"
+      ],
+      "headOnMain": true
+    },
+    {
+      "number": 336,
+      "author": "beshkenadze",
+      "title": "feat(telemetry): add Prometheus metrics renderer and /metrics endpoint",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "a573d58fd",
+        "9d79503d7",
+        "d71b33990",
+        "9c57c3a18",
+        "aae71dc5a"
+      ],
+      "headOnMain": true
+    },
+    {
+      "number": 338,
+      "author": "murrayju",
+      "title": "Correct configuration for Pi",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "d9b30bb19",
+        "90f455038"
+      ],
+      "headOnMain": true
+    },
+    {
+      "number": 339,
+      "author": "beshkenadze",
+      "title": "feat(telemetry): add SQLite-backed telemetry persistence",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "88f02a541",
+        "22c9ea4b2",
+        "fb050d50e",
+        "4671946fa",
+        "06c40c255",
+        "606c6daba"
+      ],
+      "headOnMain": true
+    },
+    {
+      "number": 340,
+      "author": "aaronjo-Telnyx",
+      "title": "fix: block LSP tool during compaction",
+      "state": "CLOSED",
+      "closedBy": "aaronjo-Telnyx",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 348,
+      "author": "limsaehyun",
+      "title": "fix: forward accumulated usage on non-stream responses",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 352,
+      "author": "ArshyaAI",
+      "title": "fix(sanitize): skip tool_use/tool_result in vendor-string scrub",
+      "state": "CLOSED",
+      "closedBy": "ArshyaAI",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 360,
+      "author": "briankeefe",
+      "title": "fix: stop appending file change summaries for opencode",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        363
+      ],
+      "landed": [
+        "921d4f6a5"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 369,
+      "author": "mattsbl",
+      "title": "xd",
+      "state": "CLOSED",
+      "closedBy": "mattsbl",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 377,
+      "author": "Dreaming-Codes",
+      "title": "feat: redirect system prompt to first user message",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 4,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 378,
+      "author": "jhenderiks",
+      "title": "fix: prevent cross-session context leakage via fingerprint cache for headerless OpenCode requests",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        382
+      ],
+      "landed": [
+        "83b4bcc9f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 379,
+      "author": "Dreaming-Codes",
+      "title": "chore: nix flake distribution",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "merged"
+    },
+    {
+      "number": 390,
+      "author": "bardusco",
+      "title": "Fix multimodal image handling for OpenAI chat completions and nested tool_result content",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        392
+      ],
+      "landed": [
+        "39f0f140d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 396,
+      "author": "jhenderiks",
+      "title": "fix: normalize context-usage to last iteration",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 401,
+      "author": "davetha",
+      "title": "feat: Claude Code adapter with split SDK / client working directory",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "a08b541c4"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 402,
+      "author": "cartwmic",
+      "title": "feat: persistent SDK sessions — hold one live query() per logical session",
+      "state": "CLOSED",
+      "closedBy": "cartwmic",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 405,
+      "author": "Dreaming-Codes",
+      "title": "chore: improve nix opencode integration",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 406,
+      "author": "Mewski",
+      "title": "Use Lix-compatible flake input syntax",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 407,
+      "author": "WarGloom",
+      "title": "Preserve advisor semantics and reject unsupported advisor requests",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 4,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        413
+      ],
+      "landed": [
+        "c179753f1"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 418,
+      "author": "Alexander-Ollman",
+      "title": "fix: passthrough agent type normalization and fallback routing",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "41170e469",
+        "3a660e930",
+        "1b92899c5"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 420,
+      "author": "WarGloom",
+      "title": "fix(proxy): allow 4 turns when passthrough has both resume and deferred tools",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "66486039d"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 422,
+      "author": "cartwmic",
+      "title": "fix(persistent-sdk-sessions): gate onTurnAborted on pending.size === 0 (scenario V)",
+      "state": "CLOSED",
+      "closedBy": "cartwmic",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 438,
+      "author": "CrazyCoder",
+      "title": "fix(docker): install claude-code native binary in runtime stage",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "81424ce3d"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 442,
+      "author": "Alexander-Ollman",
+      "title": "fix(build): add postbuild script to fix Bun bundler export artifacts",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "31e31c365"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 443,
+      "author": "kmontag",
+      "title": "fix(tools): block additional Claude Code SDK built-in tools",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 447,
+      "author": "WarGloom",
+      "title": "feat(agentDefs): fall back to input_schema enum for Task subagent extraction",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "ae98e0a01"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 448,
+      "author": "WarGloom",
+      "title": "fix(agentDefs): clone definitions when registering case variants and aliases",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "1b8633c36"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 451,
+      "author": "Lumpiasty",
+      "title": "feat(proxy): Tool call and thinking support for OpenAI proxy",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "b4b099c0b",
+        "a41b4f4f1"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 474,
+      "author": "isac322",
+      "title": "feat: register OAuth token as profile (closes #446)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "d400c5525",
+        "e2c9b8181"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 479,
+      "author": "CrazyCoder",
+      "title": "fix(tokenRefresh): close trigger gap + add traffic-independent refresh",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "59270c21a",
+        "becf7f7ce",
+        "0b82dfca4",
+        "91e1bb396"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 480,
+      "author": "heckradr",
+      "title": "fix(plugins): convert Windows paths to file:// URLs for ESM import",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "554d70cf1"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 497,
+      "author": "briankeefe",
+      "title": "fix(proxy): support explicit opus 4.6 and 4.7 pins",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 500,
+      "author": "isac322",
+      "title": "fix(profiles): refresh selected profile credentials",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 504,
+      "author": "isac322",
+      "title": "feat(profiles): add headless OAuth code flow",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 505,
+      "author": "Alexander-Ollman",
+      "title": "fix(server): install uncaught error handlers for library consumers",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 507,
+      "author": "fredericgermain",
+      "title": "fix(docker): match meridian-v* release tags for image builds",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 510,
+      "author": "BenIsLegit",
+      "title": "fix: Windows build + partial-overlap export dedup",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 511,
+      "author": "davifernan",
+      "title": "feat: forward x-meridian-agent header to internal requests",
+      "state": "CLOSED",
+      "closedBy": "davifernan",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 514,
+      "author": "davifernan",
+      "title": "feat: forward x-meridian-agent header to internal requests",
+      "state": "CLOSED",
+      "closedBy": "davifernan",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 518,
+      "author": "NexohLab",
+      "title": "fix(tokenRefresh): silence scheduled refresh log",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 520,
+      "author": "Blue-B",
+      "title": "Accept standard reasoning_effort / output_config.effort as effort source",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        536
+      ],
+      "landed": [
+        "bf38f2bfd"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 522,
+      "author": "papercupai",
+      "title": "feat: add MERIDIAN_FORCE_TOOL_SEARCH to force deferred tool loading",
+      "state": "CLOSED",
+      "closedBy": "papercupai",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 524,
+      "author": "ai-hustle-bro",
+      "title": "docs: add tools-triggered extra usage FAQ",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 526,
+      "author": "ilie-neacsu",
+      "title": "fix(query): honour clientContext when codeSystemPrompt=false",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 1,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 527,
+      "author": "colto",
+      "title": "feat: add Fable 5 (claude-fable-5) model support",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        561,
+        560
+      ],
+      "landed": [
+        "8d482726f",
+        "16fe76a14"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 530,
+      "author": "StanChmielewski",
+      "title": "feat(models): add Claude Fable 5 to model list and routing",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        561,
+        560
+      ],
+      "landed": [
+        "8d482726f",
+        "16fe76a14"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 531,
+      "author": "d-arken",
+      "title": "docs: add Fable 5 and Opus 4.7/4.8 to example model configs",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        532
+      ],
+      "landed": [
+        "47d6405da"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 540,
+      "author": "connor-grady",
+      "title": "refactor(nix): modernize flake and home-manager module",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 542,
+      "author": "EmrysMyrddin",
+      "title": "Allow to disable 1M context models automatic selection",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 543,
+      "author": "sittitep",
+      "title": "[POC] Claude Design MCP proxy",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        661
+      ],
+      "landed": [
+        "e1547c362"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 544,
+      "author": "joematthews",
+      "title": "fix: implement passthrough for the pi adapter",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 545,
+      "author": "qinwang-ai",
+      "title": "fix: strip Hermes Agent system-prompt boilerplate on the openai adapter",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 548,
+      "author": "mwd102",
+      "title": "fix(thinking): honor explicit \"disabled\" setting over client requests",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        562
+      ],
+      "landed": [
+        "45e08a919"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 554,
+      "author": "shanemmattner",
+      "title": "fix: forward token usage on OpenAI-format streaming responses",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 563,
+      "author": "tom-groves",
+      "title": "fix: forward sonnet/haiku model requests via ANTHROPIC_DEFAULT_*_MODEL overrides",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 565,
+      "author": "davifernan",
+      "title": "feat: md-codebase context optimization with progressive disclosure",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 566,
+      "author": "rarest",
+      "title": "fix: remove MultiEdit from BLOCKED_BUILTIN_TOOLS",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 567,
+      "author": "shanemmattner",
+      "title": "fix: dedupe passthrough tool_use captures by (name, input) signature",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        571
+      ],
+      "landed": [
+        "35b6b927b"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 568,
+      "author": "shanemmattner",
+      "title": "fix: make passthrough mode's turn cap configurable via env var",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        571
+      ],
+      "landed": [
+        "35b6b927b"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 569,
+      "author": "shanemmattner",
+      "title": "fix: recover non-streaming passthrough requests from max_turns/aborted",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        571
+      ],
+      "landed": [
+        "35b6b927b"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 570,
+      "author": "shanemmattner",
+      "title": "fix: interrupt nested SDK session immediately on passthrough tool deny",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        575,
+        574
+      ],
+      "landed": [
+        "b6e9cfe0e",
+        "06c4dcac0"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 593,
+      "author": "Ca134",
+      "title": "fix: resume Claude Code sessions after tool results",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 595,
+      "author": "nickembrey",
+      "title": "feat: add workspace authority control primitive",
+      "state": "CLOSED",
+      "closedBy": "nickembrey",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 596,
+      "author": "davidj4tech",
+      "title": "feat(models): route Claude Mythos 5 (claude-mythos-*) through the fable tier",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 623,
+      "author": "connor-grady",
+      "title": "feat: env-configurable plugin loading and home-manager plugin settings",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "5cb182116",
+        "ea01b7abe",
+        "59743bdf5"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 624,
+      "author": "thalysguimaraes",
+      "title": "fix: expose model-scoped usage limits",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "546d86cb0"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 629,
+      "author": "kilabyte",
+      "title": "feat(telemetry): cost estimation cards with configurable model pricing",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "afd3eda8a"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 635,
+      "author": "connor-grady",
+      "title": "feat(nix): package plugins as a meridianPlugins set",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "4c808a6be",
+        "8cb4cdd80",
+        "e961d3398"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 656,
+      "author": "connor-grady",
+      "title": "refactor(nix): use nixpkgs claude-code instead of vendoring",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "abbd91ce3",
+        "d88eb2ec5"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 657,
+      "author": "alexgleason",
+      "title": "fix(plugin): resolve agent mode for string agents (OpenCode >= 1.17)",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 668,
+      "author": "mAAdhaTTah",
+      "title": "feat: install plugins in Docker via MERIDIAN_PLUGINS",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "dd6e8d397"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 683,
+      "author": "diwakar-s-maurya",
+      "title": "feat: image input and incomplete status for Responses API (/v1/responses)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "92745e0ce"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 684,
+      "author": "robertn702",
+      "title": "feat: add Claude Opus 5 to the model list, make it the canonical opus",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "87cfcdadf"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 688,
+      "author": "fhalim",
+      "title": "fix: make postinstall script Windows-portable",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "379e0c9d1"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 690,
+      "author": "kilabyte",
+      "title": "fix(session): bound modified-continuation resume so stale lineage replays fresh",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": true,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "141eab580"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 691,
+      "author": "diwakar-s-maurya",
+      "title": "fix(responses): treat input items without a type as messages",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "c8a37d014"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 692,
+      "author": "Ca134",
+      "title": "fix: replay stale session histories safely",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        705
+      ],
+      "landed": [
+        "9aa8affb0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 711,
+      "author": "CrazyCoder",
+      "title": "feat(health): report how long the login has left",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "22d0c818c"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 713,
+      "author": "1A7432",
+      "title": "fix(session): reject compaction that resumes past the last message",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "8c3089956"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 735,
+      "author": "wayniacal",
+      "title": "fix: register claude-code transforms so tool calls pass through",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        743
+      ],
+      "landed": [
+        "94ba52fb3"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 741,
+      "author": "devsuitup",
+      "title": "feat: Hermes Agent integration example plugin + docs",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        762
+      ],
+      "landed": [
+        "8b789e4e4"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 748,
+      "author": "wayniacal",
+      "title": "feat: add webFetchPreflight toggle for the WebFetch domain check",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        752
+      ],
+      "landed": [
+        "e2aa19ff7"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 749,
+      "author": "wayniacal",
+      "title": "feat: quiet the subprocess's non-essential outbound traffic",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        757
+      ],
+      "landed": [
+        "63a530151"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 750,
+      "author": "wayniacal",
+      "title": "feat: gate claude.ai connectors behind an opt-in flag",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        759
+      ],
+      "landed": [
+        "370c286cb"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 751,
+      "author": "wayniacal",
+      "title": "fix: don't treat transport metadata as a system instruction",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        758
+      ],
+      "landed": [
+        "59931d0e0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 764,
+      "author": "justprosh",
+      "title": "fix: recognize shorter Claude limit wording",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        788
+      ],
+      "landed": [
+        "697a61881"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 768,
+      "author": "justprosh",
+      "title": "fix(passthrough): never leave a passthrough continuation unanswered",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        793
+      ],
+      "landed": [
+        "285215910"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 771,
+      "author": "Nowaker",
+      "title": "feat(profile): create the profile when `profile login` names an unknown one",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1061
+      ],
+      "landed": [
+        "96a75ac5e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 772,
+      "author": "Nowaker",
+      "title": "feat(dev): MERIDIAN_CREDENTIALS_READONLY, for a second instance on shared credentials",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1064
+      ],
+      "landed": [
+        "b7b820e9d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 773,
+      "author": "Nowaker",
+      "title": "feat(cli): print the dashboard when the port is already serving Meridian",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1065
+      ],
+      "landed": [
+        "a80a15e22"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 774,
+      "author": "Nowaker",
+      "title": "fix(config): make MERIDIAN_CONFIG_DIR relocate the directory, not one file in it",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1066
+      ],
+      "landed": [
+        "c07cefd42"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 775,
+      "author": "Nowaker",
+      "title": "feat(profiles): reorder the profile pool by drag or keyboard, on both pages",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1078
+      ],
+      "landed": [
+        "2268eef05"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 776,
+      "author": "Nowaker",
+      "title": "feat(dashboard): dim spent accounts on the home page",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1077
+      ],
+      "landed": [
+        "f1bb2d5f0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 777,
+      "author": "Nowaker",
+      "title": "feat(dashboard): sort accounts by how spent they are",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1077
+      ],
+      "landed": [
+        "f1bb2d5f0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 778,
+      "author": "Nowaker",
+      "title": "feat(settings): put Routing at the top of the page",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1080
+      ],
+      "landed": [
+        "1ff2c678b"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 779,
+      "author": "Nowaker",
+      "title": "feat(settings): make the per-harness SDK Features sections tabs",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1080
+      ],
+      "landed": [
+        "1ff2c678b"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 780,
+      "author": "Nowaker",
+      "title": "chore(opencode): pre-approve Meridian's own directories, refuse its credentials",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1084
+      ],
+      "landed": [
+        "a93da86cd"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 781,
+      "author": "CrazyCoder",
+      "title": "fix(quota): back off OAuth usage rate limits",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        785
+      ],
+      "landed": [
+        "128d87df0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 782,
+      "author": "Nowaker",
+      "title": "feat(dev): MERIDIAN_FOLLOW_ACTIVE, take the active profile from another instance",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1085
+      ],
+      "landed": [
+        "dacc1b1bb"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 783,
+      "author": "Nowaker",
+      "title": "fix(usage): report why a usage fetch failed instead of calling every failure no_token",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        789
+      ],
+      "landed": [
+        "7c8d2b414"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 787,
+      "author": "WarGloom",
+      "title": "fix: recognize weekly Claude limit wording",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        788
+      ],
+      "landed": [
+        "697a61881"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 792,
+      "author": "Nowaker",
+      "title": "feat(profiles): complete a profile login from the web UI",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1217
+      ],
+      "landed": [
+        "93d6c5c97"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 794,
+      "author": "Nowaker",
+      "title": "feat(profiles): create a profile from the web UI",
+      "state": "CLOSED",
+      "closedBy": "Nowaker",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 795,
+      "author": "Nowaker",
+      "title": "fix(profiles): persist the account plan at headless OAuth login",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1070
+      ],
+      "landed": [
+        "85f87f740"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 796,
+      "author": "justprosh",
+      "title": "fix(routing): fail over when an account's subscription is refused",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        800
+      ],
+      "landed": [
+        "1635f3e74"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 803,
+      "author": "Nowaker",
+      "title": "feat(profiles): say what plan an account is on, and how much usage it buys",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1081
+      ],
+      "landed": [
+        "ce68af8f8"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 804,
+      "author": "Nowaker",
+      "title": "feat(profiles): fill in a missing account plan at the next token refresh",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1070
+      ],
+      "landed": [
+        "85f87f740"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 805,
+      "author": "Nowaker",
+      "title": "feat(auth): log every property Anthropic returns during authentication",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1083
+      ],
+      "landed": [
+        "944e79719"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 806,
+      "author": "Nowaker",
+      "title": "feat(profiles): follow mode adopts the followed instance's profiles, not just its active one",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1085
+      ],
+      "landed": [
+        "dacc1b1bb"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 807,
+      "author": "justprosh",
+      "title": "fix(session): retry a refused resume before abandoning the session",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        811
+      ],
+      "landed": [
+        "cb6fe0c6b"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 810,
+      "author": "justprosh",
+      "title": "fix(concurrency): stop internal dispatch hops from taking a second queue slot",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        813
+      ],
+      "landed": [
+        "32ccab8a3"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 818,
+      "author": "Nowaker",
+      "title": "fix(profiles): an account with no stored token is not logged in",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1069
+      ],
+      "landed": [
+        "1cfd98054"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 819,
+      "author": "Nowaker",
+      "title": "feat(health): /livez and /readyz, because /health answers neither question",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1072
+      ],
+      "landed": [
+        "0d3d30c24"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 821,
+      "author": "debin-ge",
+      "title": "fix: coordinate SDK/session concurrency and add graceful shutdown",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        825
+      ],
+      "landed": [
+        "83b2f5c8f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 822,
+      "author": "Nowaker",
+      "title": "feat(profiles): show the organization an account belongs to, and its details on hover",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1082
+      ],
+      "landed": [
+        "7651b3ea8"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 824,
+      "author": "Nowaker",
+      "title": "feat: keep the last good usage reading when a check fails",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1071
+      ],
+      "landed": [
+        "46c105631"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 826,
+      "author": "Nowaker",
+      "title": "feat(routing): say when an account is refusing, and route around it",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1075
+      ],
+      "landed": [
+        "a5596f250"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 833,
+      "author": "Nowaker",
+      "title": "feat: make a refused account visible, and say where each request went and which accounts refused it",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1076
+      ],
+      "landed": [
+        "cfe13038f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 834,
+      "author": "WarGloom",
+      "title": "feat(proxy): fail back on the next user turn",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        897
+      ],
+      "landed": [
+        "2e51fdb8e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 835,
+      "author": "WarGloom",
+      "title": "fix(errors): classify exhausted usage credits",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        890
+      ],
+      "landed": [
+        "099741dd7"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 841,
+      "author": "Nowaker",
+      "title": "feat: rename a profile from the CLI and the web UI",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1079
+      ],
+      "landed": [
+        "fe9c69d1e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 843,
+      "author": "dmitryrn",
+      "title": "fix(plugin): route hidden opencode agents on a distinct session key",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        848,
+        852
+      ],
+      "landed": [
+        "7ce534591",
+        "58e3b78bd"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 845,
+      "author": "justprosh",
+      "title": "fix(plugin): detach title/summary requests from the session turn lease",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        852,
+        848
+      ],
+      "landed": [
+        "58e3b78bd",
+        "7ce534591"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 846,
+      "author": "justprosh",
+      "title": "feat(plugin): add the OpenCode v2 plugin on session.model.request",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        880
+      ],
+      "landed": [
+        "40a69c7ed"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 849,
+      "author": "Nowaker",
+      "title": "feat: configure telemetry storage from the web UI",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1080
+      ],
+      "landed": [
+        "1ff2c678b"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 850,
+      "author": "chakflying",
+      "title": "fix: stop hidden passthrough turns from invalidating cache",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        853
+      ],
+      "landed": [
+        "e599aafc3"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 855,
+      "author": "mpeter",
+      "title": "fix(server): bound the session tool caches that never released a key",
+      "state": "CLOSED",
+      "closedBy": "mpeter",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 857,
+      "author": "mpeter",
+      "title": "fix(errors): classify an oversized prompt as a 400, not a retryable 500",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        919
+      ],
+      "landed": [
+        "1ea97d012"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 868,
+      "author": "mpeter",
+      "title": "fix(passthrough): cap repeated upstream idle stalls",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        960
+      ],
+      "landed": [
+        "6365ae0ed"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 869,
+      "author": "leonardparisi",
+      "title": "fix: downgrade modified-history turn conflict to fresh replay instead of 409",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        948
+      ],
+      "landed": [
+        "879f2be97"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 871,
+      "author": "justprosh",
+      "title": "fix(passthrough): preserve checkpoint resume continuity",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        879
+      ],
+      "landed": [
+        "2ccc48a5d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 872,
+      "author": "CrazyCoder",
+      "title": "Resume the session when a client only adds or drops content blocks",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        944
+      ],
+      "landed": [
+        "9d2832885"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 873,
+      "author": "CrazyCoder",
+      "title": "fix(opencode): read the client working directory past the workdir override",
+      "state": "CLOSED",
+      "closedBy": "CrazyCoder",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 875,
+      "author": "CrazyCoder",
+      "title": "fix(passthrough): rewrite forwarded denials before each resume so the model never sees them",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        879
+      ],
+      "landed": [
+        "2ccc48a5d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 876,
+      "author": "CrazyCoder",
+      "title": "fix(cwd): disown the CLI's own environment lines, not only the path",
+      "state": "CLOSED",
+      "closedBy": "CrazyCoder",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 882,
+      "author": "justprosh",
+      "title": "fix(models): use configured profile auth for context window",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        914
+      ],
+      "landed": [
+        "a167bc199"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 883,
+      "author": "justprosh",
+      "title": "fix: forward SSE keepalive comments in OpenAI-compat streams",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        914
+      ],
+      "landed": [
+        "a167bc199"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 884,
+      "author": "CrazyCoder",
+      "title": "fix(docker): initialize machine identity in runtime image",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        903
+      ],
+      "landed": [
+        "3f18494db"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 885,
+      "author": "CrazyCoder",
+      "title": "fix(cwd): preserve remote client context across proxy workdirs",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        959
+      ],
+      "landed": [
+        "288cc105c"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 894,
+      "author": "justprosh",
+      "title": "fix: preserve cached input usage in OpenAI responses",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        914
+      ],
+      "landed": [
+        "a167bc199"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 896,
+      "author": "amasover",
+      "title": "fix: run session garbage collection on Windows",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 898,
+      "author": "diwakar-s-maurya",
+      "title": "feat(openai): support structured output via response_format",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        930
+      ],
+      "landed": [
+        "db9546c90"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 899,
+      "author": "StanChmielewski",
+      "title": "fix(docker): generate /etc/machine-id so every request does not 500",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "closed-for-maintainer-pr",
+      "via": [
+        903
+      ],
+      "landed": [
+        "3f18494db"
+      ],
+      "trailer": false
+    },
+    {
+      "number": 900,
+      "author": "StanChmielewski",
+      "title": "fix(errors): classify org spend-limit refusals as rate limits",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        908
+      ],
+      "landed": [
+        "0fc79a733"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 920,
+      "author": "justprosh",
+      "title": "fix(errors): classify the credits-era per-tier limit refusal",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        929
+      ],
+      "landed": [
+        "85d18d9c7"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 921,
+      "author": "emaadshamsi",
+      "title": "feat: add Claude Fable 5.1",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        928
+      ],
+      "landed": [
+        "6c85fcd5d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 922,
+      "author": "materemias",
+      "title": "fix(session): stop refusing the loser of a declared concurrent race (#870)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        945
+      ],
+      "landed": [
+        "04d1c93bf"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 923,
+      "author": "WarGloom",
+      "title": "fix(session): preserve admission during reconciliation",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        955
+      ],
+      "landed": [
+        "235c4ac23"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 924,
+      "author": "martinmiglio",
+      "title": "Support OpenCode beta 18866",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        958
+      ],
+      "landed": [
+        "cc179faf9"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 925,
+      "author": "materemias",
+      "title": "fix(passthrough): repair stringified tool arguments instead of failing the turn",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        956
+      ],
+      "landed": [
+        "4c671447a"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 926,
+      "author": "materemias",
+      "title": "fix(passthrough): close a capped streaming turn as truncated, not as an error",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        957
+      ],
+      "landed": [
+        "9d2232440"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 927,
+      "author": "materemias",
+      "title": "test: isolate the suite from the operator's meridian environment",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        938
+      ],
+      "landed": [
+        "b539f9987"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 947,
+      "author": "justprosh",
+      "title": "fix: resume Claude Code trailing system turns",
+      "state": "CLOSED",
+      "closedBy": "justprosh",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        949,
+        950
+      ],
+      "landed": [
+        "fb8f3a39c",
+        "82164d22a"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 951,
+      "author": "justprosh",
+      "title": "fix: fail closed on blank trailing reminders and scope the gate to the feature",
+      "state": "CLOSED",
+      "closedBy": "justprosh",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 962,
+      "author": "justprosh",
+      "title": "fix(errors): classify the per-tier refusal that ends in prose",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        974
+      ],
+      "landed": [
+        "94e88cf09"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 963,
+      "author": "justprosh",
+      "title": "fix(codex): keep auto-defer off for Codex requests",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        975
+      ],
+      "landed": [
+        "dabd969b9"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 964,
+      "author": "justprosh",
+      "title": "fix(responses): carry Codex namespace and custom tools through to Claude",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        976
+      ],
+      "landed": [
+        "907a00ee8"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 965,
+      "author": "justprosh",
+      "title": "fix(responses): key a Codex turn by its thread, not the parent's cache key",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        977
+      ],
+      "landed": [
+        "03fe57165"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 966,
+      "author": "justprosh",
+      "title": "fix(responses): keep a mid-conversation developer message out of the system prompt",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        978
+      ],
+      "landed": [
+        "4a031b97f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 980,
+      "author": "jakewimmer",
+      "title": "feat: add Polytoken harness adapter",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1010,
+        1022,
+        1025
+      ],
+      "landed": [
+        "3db622fa9",
+        "0fd59403c",
+        "d8516bea3"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1003,
+      "author": "martinmiglio",
+      "title": "feat: discover Meridian models in OpenCode V2",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1004
+      ],
+      "landed": [
+        "7028c6979"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1005,
+      "author": "StanChmielewski",
+      "title": "fix(errors): classify a disabled subscription entitlement as billing",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1012
+      ],
+      "landed": [
+        "c3dc22791"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1023,
+      "author": "Ardumine",
+      "title": "Add new version for Opencode v2",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 3,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1030,
+      "author": "justprosh",
+      "title": "fix(session): take the bookkeeping off the request path",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1036
+      ],
+      "landed": [
+        "596a0d836"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1041,
+      "author": "reForMatt",
+      "title": "fix(session): recognize structured Environment CWD format, strip system-reminder noise from fingerprinting",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1052
+      ],
+      "landed": [
+        "54859ed48"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1042,
+      "author": "reForMatt",
+      "title": "fix(session): strip system-reminder noise from lineage hashing",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1052
+      ],
+      "landed": [
+        "54859ed48"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1048,
+      "author": "justprosh",
+      "title": "fix(openai): resume a session-keyed chat completions conversation instead of packing its history",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "75d0c5072"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1096,
+      "author": "SharkMagnus",
+      "title": "fix: classify the passthrough single-step abort as aborted (illustration for #1095)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "a012b4f78"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1097,
+      "author": "addadi",
+      "title": "feat: systemd socket activation + opt-in idle self-exit",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "d81be56b8"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1099,
+      "author": "SharkMagnus",
+      "title": "fix: forward a turn Claude Code re-sends without streaming (illustration for #1098)",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "7137eb716"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1100,
+      "author": "addadi",
+      "title": "fix: counter the proxy host's environment lines when a may-differ client declares no cwd",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "72dbaab49"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1104,
+      "author": "Nowaker",
+      "title": "fix: make the Profiles page render again",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "7040f8e60"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1105,
+      "author": "chriswilson413",
+      "title": "feat(letta): resolve Letta Code's conversation identity",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1113
+      ],
+      "landed": [
+        "aedb9b250"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1106,
+      "author": "chriswilson413",
+      "title": "fix(openai): resume headerless client-driven tool loops",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "0fcf2137b",
+        "6b4258109",
+        "d4eb54570",
+        "d7bcfaf06",
+        "6446ad015",
+        "01d1de99d",
+        "5b975c0c1",
+        "8a80c0b12",
+        "2ac19c6a4",
+        "1b0892f7b"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1112,
+      "author": "Nowaker",
+      "title": "fix: stop the session GC lock timing out under ordinary load",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "7d8091381"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1114,
+      "author": "Nowaker",
+      "title": "fix: switching profiles no longer fails the turns already running",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "6ecfbaa7a"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1116,
+      "author": "materemias",
+      "title": "Recover CLI-rejected client tool calls at the one-turn cap",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "c6b0bc548",
+        "14a47c34e"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1118,
+      "author": "materemias",
+      "title": "fix(passthrough): resume pi tool checkpoints across a trailing system reminder",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "6f92793eb",
+        "885791ab1"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1119,
+      "author": "Nowaker",
+      "title": "fix: suppress implicit SDK attachments in passthrough",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "5dae08e48"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1126,
+      "author": "materemias",
+      "title": "fix: preserve client tools after rejected-call handoff",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "0a502cc53",
+        "c6b0bc548"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1130,
+      "author": "materemias",
+      "title": "fix: retain recovered client tools in headerless Pi loops",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "af0a73a9c",
+        "b368d97be"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1133,
+      "author": "groundnuty",
+      "title": "fix: advertise passthrough tools' declared schema at every depth",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1136
+      ],
+      "landed": [
+        "2922970e8"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1139,
+      "author": "amasover",
+      "title": "fix: stop session GC sweeps from saturating the lifecycle lock",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1140
+      ],
+      "landed": [
+        "f30b22f9a"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1151,
+      "author": "builder-main",
+      "title": "fix: launch Windows SDK gate with Node",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1153
+      ],
+      "landed": [
+        "c6372b3a1"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1152,
+      "author": "Nowaker",
+      "title": "fix: separate lifecycle admission from external lock deadlines",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1159
+      ],
+      "landed": [
+        "da28f1e81"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1165,
+      "author": "WarGloom",
+      "title": "fix: resume when a settled tool batch precedes an interrupted turn",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1166
+      ],
+      "landed": [
+        "7e157aa24"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1169,
+      "author": "justprosh",
+      "title": "fix: bound fresh replays to the model's context window",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1183
+      ],
+      "landed": [
+        "4e845f29f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1171,
+      "author": "Nowaker",
+      "title": "feat: show certified local build provenance and runtime drift",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1225
+      ],
+      "landed": [
+        "bd00c164d"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1172,
+      "author": "builder-main",
+      "title": "fix(windows): hide console for claude auth status probe",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1181
+      ],
+      "landed": [
+        "2a502b7a7"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1173,
+      "author": "builder-main",
+      "title": "fix(sanitize): keep OpenCode skill_content in user text",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1182
+      ],
+      "landed": [
+        "26c41f9f0"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1174,
+      "author": "Nowaker",
+      "title": "fix(session): defer transcript cleanup instead of refusing a turn",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1179
+      ],
+      "landed": [
+        "074c44b8f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1175,
+      "author": "Nowaker",
+      "title": "feat: show the running version and make the update check opt-in",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1227
+      ],
+      "landed": [
+        "3cb65df0c"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1176,
+      "author": "Nowaker",
+      "title": "feat: value ChatGPT-subscription usage at OpenAI list prices",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1178,
+      "author": "materemias",
+      "title": "fix: render client tool-change blocks in structured replay",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1180
+      ],
+      "landed": [
+        "e8e74434a"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1186,
+      "author": "Nowaker",
+      "title": "fix(session): stop re-parsing the whole session store on every write",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1204
+      ],
+      "landed": [
+        "2404eae1e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1187,
+      "author": "Nowaker",
+      "title": "fix(session): drop cross-profile session copies unused for 24 hours",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1235
+      ],
+      "landed": [
+        "c0af34eaa"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1189,
+      "author": "Nowaker",
+      "title": "feat: opt-in reporting of Meridian's own crashes to GlitchTip/Sentry",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1206
+      ],
+      "landed": [
+        "cc74cd2dd"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1190,
+      "author": "Nowaker",
+      "title": "feat: GET /inflight reports client requests in flight per upstream",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1218
+      ],
+      "landed": [
+        "310dd9569"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1191,
+      "author": "Nowaker",
+      "title": "fix(settings): keep the model pricing table from scrolling the page sideways",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1196
+      ],
+      "landed": [
+        "c04a861ba"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1192,
+      "author": "Nowaker",
+      "title": "fix: recover CLI-rejected client tool calls at the deferred-tools turn budget",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1208
+      ],
+      "landed": [
+        "b4d23428e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1193,
+      "author": "XInTheDark",
+      "title": "feat: optional prompt-cache keepalive for idle sessions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1197,
+      "author": "Nowaker",
+      "title": "fix(health): stop /health waiting on the Claude auth-status check",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1203
+      ],
+      "landed": [
+        "98c48c03f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1198,
+      "author": "Nowaker",
+      "title": "fix(ui): stop the home page scrolling sideways on phones, and serve the favicon",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1205
+      ],
+      "landed": [
+        "dedb55564"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1199,
+      "author": "Nowaker",
+      "title": "fix(ui): stop the profiles page scrolling sideways on phones",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1205
+      ],
+      "landed": [
+        "dedb55564"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1200,
+      "author": "Nowaker",
+      "title": "feat(profiles): link to one account by #name, and search the list",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1207
+      ],
+      "landed": [
+        "4c5e602e2"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1201,
+      "author": "XInTheDark",
+      "title": "fix: resume a tool checkpoint settled as per-call echo/result pairs",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1211,
+      "author": "passabilities",
+      "title": "fix(session): isolate Claude Code auto-mode classifier requests from session resume",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1213,
+      "author": "robertn702",
+      "title": "fix: treat Sonnet 5+ as a native 1M-context model",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1214,
+      "author": "justprosh",
+      "title": "fix: preserve account failover across SSE keepalives",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1350
+      ],
+      "landed": [
+        "736e9fd61"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1219,
+      "author": "justprosh",
+      "title": "feat(session): add opt-in SQLite bookkeeping with offline recovery",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1220,
+      "author": "Nowaker",
+      "title": "fix(session): stop session store writes from freezing the proxy",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1221,
+      "author": "Nowaker",
+      "title": "fix(session): publish the SDK process gate without blocking the event loop",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1236
+      ],
+      "landed": [
+        "e1f8bc473"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1222,
+      "author": "Nowaker",
+      "title": "fix(stream): don't report a stall when the proxy's own loop was frozen",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1241
+      ],
+      "landed": [
+        "d57388724"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1223,
+      "author": "Nowaker",
+      "title": "fix(session): recover turn locks torn by a crash",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1224,
+      "author": "Nowaker",
+      "title": "feat: POST /drain holds new requests so a restart can find nothing in flight",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1228,
+      "author": "rasatpetabit",
+      "title": "fix: opt in to dropping prior SDK thinking on resume",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1230,
+      "author": "passabilities",
+      "title": "fix(query): drop thinking display values the SDK subprocess rejects",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1249
+      ],
+      "landed": [
+        "67a19e50c"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1231,
+      "author": "passabilities",
+      "title": "fix(claude-code): key each Agent-tool subagent apart from its parent session",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1232,
+      "author": "Nowaker",
+      "title": "feat: fail readiness while Anthropic is unreachable from the host",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1233,
+      "author": "Nowaker",
+      "title": "feat: name the machine beside the header's status",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1268
+      ],
+      "landed": [
+        "3afca1f5a"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1240,
+      "author": "robertn702",
+      "title": "test: run replay-budget tests outside the shared mock process",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1247
+      ],
+      "landed": [
+        "802d9398f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1242,
+      "author": "Nowaker",
+      "title": "fix(opencode): keep oh-my-openagent's prefill recovery text out of lineage",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1248
+      ],
+      "landed": [
+        "928bddc42"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1243,
+      "author": "Nowaker",
+      "title": "fix(session): keep the session store in SQLite instead of rewriting it whole on every change",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "landed-as-author-pr-closed",
+      "landed": [
+        "63f541972"
+      ],
+      "headOnMain": false
+    },
+    {
+      "number": 1251,
+      "author": "Nowaker",
+      "title": "feat: add a wide page layout for big monitors",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1255
+      ],
+      "landed": [
+        "240287e80"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1252,
+      "author": "Nowaker",
+      "title": "fix: make the pricing table, header and home page fit a phone",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1255
+      ],
+      "landed": [
+        "240287e80"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1260,
+      "author": "Nowaker",
+      "title": "feat(profiles): track each login's lifetime and say when it needs renewing",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1261,
+      "author": "Nowaker",
+      "title": "fix: delete old Claude Code transcripts again",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1262,
+      "author": "Nowaker",
+      "title": "fix(header): keep the hover underline off the separator dot",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1264
+      ],
+      "landed": [
+        "9d77d8e28"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1263,
+      "author": "Nowaker",
+      "title": "test: remove the preload's per-process temp dirs after each run",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1265
+      ],
+      "landed": [
+        "5bd6b765f"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1283,
+      "author": "Nowaker",
+      "title": "fix(passthrough): give every query its own MCP server",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1349
+      ],
+      "landed": [
+        "3f5f4f81c"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1285,
+      "author": "Nowaker",
+      "title": "fix(auth): let a slow first auth check finish instead of killing it at 5s",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1300
+      ],
+      "landed": [
+        "30c738d77"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1286,
+      "author": "Nowaker",
+      "title": "fix: keep a slow claude on PATH instead of silently switching to the bundled one",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1287
+      ],
+      "landed": [
+        "ca6a5c0a4"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1290,
+      "author": "jaedync",
+      "title": "fix: deliver a captured call from a non-streamed capped turn",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1296
+      ],
+      "landed": [
+        "133bb918e"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1292,
+      "author": "justprosh",
+      "title": "fix(claude-code): keep progress captions and session-state calls out of working sessions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1293,
+      "author": "Nowaker",
+      "title": "feat: choose the Claude Code executable in Settings, switchable at runtime",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1321
+      ],
+      "landed": [
+        "0d86379b4"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1294,
+      "author": "Nowaker",
+      "title": "fix(stream): stop killing healthy turns as upstream stalls",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1344
+      ],
+      "landed": [
+        "8edccd790"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1295,
+      "author": "Nowaker",
+      "title": "fix(session): keep answered turns alive when the lifecycle lock stalls",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1298
+      ],
+      "landed": [
+        "097530c82"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1297,
+      "author": "justprosh",
+      "title": "fix(session): let auxiliary replays reuse their cached prefix",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1301,
+      "author": "justprosh",
+      "title": "fix(opencode): resume the checkpoint when an instruction update trails the tool results",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1354
+      ],
+      "landed": [
+        "fa90c9aaf"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1305,
+      "author": "caniko",
+      "title": "feat: allow opt-in Home Manager service environment isolation",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1320
+      ],
+      "landed": [
+        "aee79ae39"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1314,
+      "author": "Cd1s",
+      "title": "fix: keep the latest user request in focus on long Antigravity histories",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1316,
+      "author": "Nowaker",
+      "title": "fix(profiles): flag accounts that need a login on /profiles as / does",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1318
+      ],
+      "landed": [
+        "74ee5515c"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1323,
+      "author": "Nowaker",
+      "title": "fix(auth): honor explicit logout instead of cached login",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1331
+      ],
+      "landed": [
+        "85db81fee"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1327,
+      "author": "Nowaker",
+      "title": "fix(errors): quote Anthropic's extra-usage refusal instead of blaming the subscription",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1346
+      ],
+      "landed": [
+        "16fac4c6b"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1328,
+      "author": "Nowaker",
+      "title": "fix(telemetry): wait for another writer instead of dropping the request",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1332
+      ],
+      "landed": [
+        "6e510dbcb"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1329,
+      "author": "Nowaker",
+      "title": "fix(profiles): backfill missing Team seat tiers during token refresh",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1330,
+      "author": "Nowaker",
+      "title": "fix(build): report the running commit when the source fingerprint times out",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1333
+      ],
+      "landed": [
+        "109cf9e45"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1339,
+      "author": "teancom",
+      "title": "fix: use Polytoken conversation identity for session coordination",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1343
+      ],
+      "landed": [
+        "a48a84982"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1340,
+      "author": "Cd1s",
+      "title": "fix(antigravity): warn once on a completed replay-tail call",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1341,
+      "author": "Cd1s",
+      "title": "feat: separate the Antigravity idle-conversation window from the tool deadline",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1356
+      ],
+      "landed": [
+        "b68710f05"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1342,
+      "author": "connor-grady",
+      "title": "refactor(nix): replace bun2nix with a fixed-output node_modules derivation",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1357
+      ],
+      "landed": [
+        "e0f9feabf"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1352,
+      "author": "connor-grady",
+      "title": "fix(nix): quote Home Manager service environment for systemd",
+      "state": "CLOSED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "relanded-under-maintainer",
+      "via": [
+        1353
+      ],
+      "landed": [
+        "506a811d3"
+      ],
+      "trailer": true
+    },
+    {
+      "number": 1360,
+      "author": "Nowaker",
+      "title": "fix(plugins): read plugins.json from the config directory",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1361,
+      "author": "jaedync",
+      "title": "fix: recover passthrough tool calls the CLI rejects as unparseable JSON",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1370,
+      "author": "justprosh",
+      "title": "fix(passthrough): stop a lifted turn budget at the forwarded tool batch",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1374,
+      "author": "mradwankhalil",
+      "title": "fix: default thinking display to summarized under Thinking Passthrough",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1376,
+      "author": "TristanSpeakEasy",
+      "title": "fix: route streamed OpenAI tool arguments by content block",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1377,
+      "author": "Nowaker",
+      "title": "feat: serve GPT models from ChatGPT subscriptions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1382,
+      "author": "Cd1s",
+      "title": "fix: keep Antigravity prompts within agy's input step limit instead of losing the newest turn",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1388,
+      "author": "mradwankhalil",
+      "title": "fix: preserve context overflow signals for client compaction",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1389,
+      "author": "jaedync",
+      "title": "fix: renew the OAuth usage token before expiry and after a run of 429s",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1394,
+      "author": "passabilities",
+      "title": "fix(session): probe the SDK process identity without blocking the event loop",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1395,
+      "author": "passabilities",
+      "title": "fix(claude-code): read the client's working directory from the messages",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1396,
+      "author": "passabilities",
+      "title": "fix(claude-code): resume tool rounds after a one-request system reminder",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1397,
+      "author": "passabilities",
+      "title": "fix: stop the model when a client cancels a priority-routed request",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1398,
+      "author": "passabilities",
+      "title": "fix: warn at startup when running under Bun",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1399,
+      "author": "passabilities",
+      "title": "fix(session): let session cleanup keep up with the transcripts turns leave",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1400,
+      "author": "passabilities",
+      "title": "fix(routing): fail over a model whose allowance is spent without benching the whole account",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1401,
+      "author": "passabilities",
+      "title": "fix(session): do not resume an account's stale copy after the conversation moved on",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1402,
+      "author": "Noah-Silvera",
+      "title": "feat(proxy): opt-in auto permission mode for the SDK subprocess (#1390)",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1403,
+      "author": "XInTheDark",
+      "title": "fix: deliver Responses input_file PDFs as document blocks",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1406,
+      "author": "mradwankhalil",
+      "title": "fix: isolate client-owned passthrough from proxy-host settings and MCP discovery",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1407,
+      "author": "TristanSpeakEasy",
+      "title": "fix: forward mid-stream errors on OpenAI chat completions streams",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1408,
+      "author": "nateberkopec",
+      "title": "feat: add the Meridian Pi extension and meridian setup --client pi",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1409,
+      "author": "Nowaker",
+      "title": "test: point the suite's TMPDIR at a per-process directory removed at exit",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1410,
+      "author": "Nowaker",
+      "title": "fix(passthrough): share built tool definitions between sessions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1411,
+      "author": "Nowaker",
+      "title": "feat(profiles): ?provider= links open / and /profiles on given provider chips",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1416,
+      "author": "Suyeo2025",
+      "title": "fix: keep consecutive user messages in the current turn",
+      "state": "CLOSED",
+      "closedBy": "Suyeo2025",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1417,
+      "author": "Suyeo2025",
+      "title": "fix: keep consecutive user messages in the current turn",
+      "state": "CLOSED",
+      "closedBy": "Suyeo2025",
+      "forkGone": true,
+      "ownerComments": 0,
+      "class": "closed-not-landed"
+    },
+    {
+      "number": 1419,
+      "author": "Suyeo2025",
+      "title": "fix: keep consecutive user messages in the current turn",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1426,
+      "author": "alexgleason",
+      "title": "feat: read x-session-id as conversation identity on /v1/chat/completions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1428,
+      "author": "technoch1ef",
+      "title": "fix(opencode): skip the Claude Code preset for one-shot title and summary requests",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1429,
+      "author": "materemias",
+      "title": "feat: list and redeem Claude banked resets",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1440,
+      "author": "Nowaker",
+      "title": "fix(chatgpt): release a turn that fails before reaching the backend",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "merged"
+    },
+    {
+      "number": 1443,
+      "author": "Nowaker",
+      "title": "fix(settings): put each control on its label's line and name the env var that overrides a setting",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1444,
+      "author": "Nowaker",
+      "title": "perf(passthrough): share per-session tool lists between sessions",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 2,
+      "class": "merged"
+    },
+    {
+      "number": 1445,
+      "author": "Nowaker",
+      "title": "feat: check loaded plugins for updates alongside Meridian",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1446,
+      "author": "Nowaker",
+      "title": "feat(profiles): flag profiles signed in to one account, show a card updating after sign-in, refresh pages in place",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1463,
+      "author": "Nowaker",
+      "title": "fix(chatgpt): list a seat as it was while its renewal is out",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1464,
+      "author": "josenicomaia",
+      "title": "feat(adapters): add Zed adapter",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1471,
+      "author": "connor-grady",
+      "title": "fix(profiles): skip the default auth context when no profile uses it",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1475,
+      "author": "connor-grady",
+      "title": "refactor(nix): build packages with the consumer's nixpkgs",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1476,
+      "author": "nateberkopec",
+      "title": "fix: honor Pi's cache-only model refresh phase",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1477,
+      "author": "materemias",
+      "title": "fix: stop polling usage from hidden / and /profiles tabs",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1478,
+      "author": "justprosh",
+      "title": "fix(passthrough): keep Claude Code's own tool search working when it defers tools",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1480,
+      "author": "XInTheDark",
+      "title": "feat: optionally keep the session when a client disconnects mid-stream",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1482,
+      "author": "TristanSpeakEasy",
+      "title": "fix: map Chat Completions file parts to Claude documents",
+      "state": "MERGED",
+      "closedBy": "rynfar",
+      "forkGone": false,
+      "ownerComments": 1,
+      "class": "merged"
+    },
+    {
+      "number": 1489,
+      "author": "Nowaker",
+      "title": "fix(profiles): a renamed profile keeps its place in the pool order",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1490,
+      "author": "Nowaker",
+      "title": "fix(auth): refresh on Anthropic's \"OAuth access token has expired\" wording",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1491,
+      "author": "Nowaker",
+      "title": "fix(ui): let long addresses and executable paths wrap on a phone",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1492,
+      "author": "Nowaker",
+      "title": "fix(profiles): keep password managers out of the page's text fields",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1493,
+      "author": "Nowaker",
+      "title": "feat(profiles): remove a Claude profile from the Profiles page",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1494,
+      "author": "Nowaker",
+      "title": "feat(routing): cool down profiles signed in to the refused account",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1495,
+      "author": "Nowaker",
+      "title": "feat(profiles): filter accounts by login state",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1496,
+      "author": "Nowaker",
+      "title": "fix(landing): finishing a text selection on a card does not switch accounts",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1497,
+      "author": "Nowaker",
+      "title": "fix(landing): size the (i) details popup to its card",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1498,
+      "author": "Nowaker",
+      "title": "fix(profiles): notice a plan that changed, not only one that is missing",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1499,
+      "author": "Nowaker",
+      "title": "feat: take usage figures from the followed instance, not from Anthropic",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1501,
+      "author": "materemias",
+      "title": "feat: release a priority assignment when its account would only fresh-replay",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1502,
+      "author": "materemias",
+      "title": "feat: make the OAuth usage cache TTL configurable",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    },
+    {
+      "number": 1503,
+      "author": "materemias",
+      "title": "feat: fork a rewritten history at its last shared turn instead of replaying it",
+      "state": "OPEN",
+      "closedBy": null,
+      "forkGone": false,
+      "ownerComments": 0,
+      "class": "open"
+    }
+  ],
+  "claims": [
+    {
+      "number": 390,
+      "author": "bardusco",
+      "url": "https://github.com/rynfar/meridian/pull/390#issuecomment-4276091932",
+      "createdAt": "2026-04-19T14:16:41Z",
+      "statement": "I've opened #392 which cherry-picks your three commits (preserving authorship) and adds a small cleanup on top — the `isToolUseOnlyAssistantMessage` guard became redundant once #386 merged (`flattenAssistantContent` already returns `\"\"` for tool-use-only messages, which the `if (assistantText)` guar",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "39f0f140d"
+      ]
+    },
+    {
+      "number": 520,
+      "author": "Blue-B",
+      "url": "https://github.com/rynfar/meridian/pull/520#issuecomment-4714637903",
+      "createdAt": "2026-06-16T03:39:16Z",
+      "statement": "🙏 Your commit is preserved (authorship + co-author credit) at the base of that branch.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "bf38f2bfd"
+      ]
+    },
+    {
+      "number": 527,
+      "author": "colto",
+      "url": "https://github.com/rynfar/meridian/pull/527#issuecomment-4860265189",
+      "createdAt": "2026-07-01T21:41:50Z",
+      "statement": "Superseded by #561, which adopts your `fable[1m]` alias design (you're credited as co-author) rebased on current main, with the CLI dependency bump split into #560 (already merged).",
+      "class": "closed-for-maintainer-pr",
+      "landed": [
+        "8d482726f",
+        "16fe76a14"
+      ]
+    },
+    {
+      "number": 531,
+      "author": "d-arken",
+      "url": "https://github.com/rynfar/meridian/pull/531#issuecomment-4714320766",
+      "createdAt": "2026-06-16T02:36:09Z",
+      "statement": "Superseded by #532, which keeps your Opus 4.7/4.8 additions (authorship preserved on the commit) and validates them with a live headless smoke test.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "47d6405da"
+      ]
+    },
+    {
+      "number": 543,
+      "author": "sittitep",
+      "url": "https://github.com/rynfar/meridian/pull/543#issuecomment-5013872605",
+      "createdAt": "2026-07-19T02:45:25Z",
+      "statement": "Landed via #661 with you as co-author on both commits — thank you for this one, @sittitep.",
+      "class": "closed-for-maintainer-pr",
+      "landed": [
+        "e1547c362"
+      ]
+    },
+    {
+      "number": 548,
+      "author": "mwd102",
+      "url": "https://github.com/rynfar/meridian/pull/548#issuecomment-4860341801",
+      "createdAt": "2026-07-01T21:55:11Z",
+      "statement": "#562 reapplies your exact fix and tests, isolates the new test file, and credits you as co-author.",
+      "class": "closed-for-maintainer-pr",
+      "landed": [
+        "45e08a919"
+      ]
+    },
+    {
+      "number": 692,
+      "author": "Ca134",
+      "url": "https://github.com/rynfar/meridian/pull/692#issuecomment-5098949716",
+      "createdAt": "2026-07-28T01:46:32Z",
+      "statement": "Landed in #705 with your commit cherry-picked, so the fix is authored by you.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "9aa8affb0"
+      ]
+    },
+    {
+      "number": 735,
+      "author": "wayniacal",
+      "url": "https://github.com/rynfar/meridian/pull/735#issuecomment-5160793351",
+      "createdAt": "2026-08-02T23:09:36Z",
+      "statement": "Merged as 94ba52fb (#743), cherry-picked so the commit keeps your authorship.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "94ba52fb3"
+      ]
+    },
+    {
+      "number": 741,
+      "author": "devsuitup",
+      "url": "https://github.com/rynfar/meridian/pull/741#issuecomment-5176676913",
+      "createdAt": "2026-08-04T08:47:26Z",
+      "statement": "Landed in #762 (8b789e4e) with your commits squashed into one that keeps you as `Author`, plus `Co-authored-by: Jean-Baptiste <email>` on the squash.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "8b789e4e4"
+      ]
+    },
+    {
+      "number": 748,
+      "author": "wayniacal",
+      "url": "https://github.com/rynfar/meridian/pull/748#issuecomment-5172394186",
+      "createdAt": "2026-08-03T22:24:57Z",
+      "statement": "Thanks for this — the feature is yours and it's landed in #752 (e2aa19ff), with your commit cherry-picked so you stay as `Author` and the squash carries `Co-authored-by: Wayne <email>`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "e2aa19ff7"
+      ]
+    },
+    {
+      "number": 749,
+      "author": "wayniacal",
+      "url": "https://github.com/rynfar/meridian/pull/749#issuecomment-5175143313",
+      "createdAt": "2026-08-04T05:51:20Z",
+      "statement": "Thanks — this landed in #757 with your commit cherry-picked, so you're preserved as `Author` and the squash carries `Co-authored-by: Wayne <email>`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "63a530151"
+      ]
+    },
+    {
+      "number": 750,
+      "author": "wayniacal",
+      "url": "https://github.com/rynfar/meridian/pull/750#issuecomment-5176220449",
+      "createdAt": "2026-08-04T08:00:52Z",
+      "statement": "Landed in #759 (370c286c), cherry-picked so you stay as `Author` with `Co-authored-by: Wayne <email>` on the squash.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "370c286cb"
+      ]
+    },
+    {
+      "number": 751,
+      "author": "wayniacal",
+      "url": "https://github.com/rynfar/meridian/pull/751#issuecomment-5176217882",
+      "createdAt": "2026-08-04T08:00:35Z",
+      "statement": "Landed in #758 (59931d0e) with your commit cherry-picked, so you stay as `Author` and the squash carries `Co-authored-by: Wayne <email>`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "59931d0e0"
+      ]
+    },
+    {
+      "number": 764,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/764#issuecomment-5256278412",
+      "createdAt": "2026-08-11T17:01:33Z",
+      "statement": "The way through is for a maintainer to cherry-pick, which re-signs the commit while preserving you as its author — your commit is on `main` unchanged, and the squash carries a `Co-authored-by:` trailer for you.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "697a61881"
+      ]
+    },
+    {
+      "number": 768,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/768#issuecomment-5258528447",
+      "createdAt": "2026-08-11T20:32:53Z",
+      "statement": "Continued in #793, where your seven commits are cherry-picked with your authorship intact (`main` requires signed commits, so fork PRs sit at `BLOCKED` with no visible reason — nothing you could have done from your side; the squash carries a `Co-authored-by:` trailer for you).",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "285215910"
+      ]
+    },
+    {
+      "number": 772,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/772#issuecomment-5738187465",
+      "createdAt": "2026-09-19T01:17:49Z",
+      "statement": "Incorporated into main in #1064 (commit b7b820e9d5f42f1bff7693aa7b2cf8347a51024b), retaining original commit authorship.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "b7b820e9d"
+      ]
+    },
+    {
+      "number": 773,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/773#issuecomment-5738258914",
+      "createdAt": "2026-09-19T01:28:46Z",
+      "statement": "Incorporated into main in #1065 (commit a80a15e227b5f292b177c1ef31d6af3d876009ac), retaining original commit authorship.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "a80a15e22"
+      ]
+    },
+    {
+      "number": 774,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/774#issuecomment-5738368813",
+      "createdAt": "2026-09-19T01:46:44Z",
+      "statement": "Incorporated into main in #1066 (commit c07cefd4226ec3cbd1ccde5dd3176978c10b3ebd), retaining original commit authorship.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "c07cefd42"
+      ]
+    },
+    {
+      "number": 781,
+      "author": "CrazyCoder",
+      "url": "https://github.com/rynfar/meridian/pull/781#issuecomment-5255567430",
+      "createdAt": "2026-08-11T15:57:02Z",
+      "statement": "The way through is for a maintainer to cherry-pick, which re-signs the commit while preserving you as its author — so your commit is on `main` unchanged, and the squash carries a `Co-authored-by:` trailer for you.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "128d87df0"
+      ]
+    },
+    {
+      "number": 783,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/783#issuecomment-5256384002",
+      "createdAt": "2026-08-11T17:11:11Z",
+      "statement": "Thanks @Nowaker — this shipped in #789, with your commit and authorship intact.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "7c8d2b414"
+      ]
+    },
+    {
+      "number": 787,
+      "author": "WarGloom",
+      "url": "https://github.com/rynfar/meridian/pull/787#issuecomment-5256280067",
+      "createdAt": "2026-08-11T17:01:42Z",
+      "statement": "The way through is for a maintainer to cherry-pick, which re-signs the commit while preserving you as its author — your commit is on `main` unchanged, and the squash carries a `Co-authored-by:` trailer for you.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "697a61881"
+      ]
+    },
+    {
+      "number": 795,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/795#issuecomment-5738628439",
+      "createdAt": "2026-09-19T02:30:57Z",
+      "statement": "This has been incorporated and merged via #1070 with original commit authorship preserved, resolving merge conflicts with the recent credential store hardening and extending account plan badges to the desktop application.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "85f87f740"
+      ]
+    },
+    {
+      "number": 804,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/804#issuecomment-5738628666",
+      "createdAt": "2026-09-19T02:31:00Z",
+      "statement": "This has been incorporated and merged via #1070 with original commit authorship preserved, resolving merge conflicts with the recent credential store hardening and extending account plan badges to the desktop application.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "85f87f740"
+      ]
+    },
+    {
+      "number": 807,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/807#issuecomment-5304538173",
+      "createdAt": "2026-08-15T22:30:41Z",
+      "statement": "Merged via #811 (`8455bd66`), with your authorship preserved on the commit and a `Co-authored-by:` trailer on the squash.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "cb6fe0c6b"
+      ]
+    },
+    {
+      "number": 810,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/810#issuecomment-5304577122",
+      "createdAt": "2026-08-15T22:41:46Z",
+      "statement": "Merged via #813 (`1bfaaa20`), authorship preserved, with a `Co-authored-by:` trailer on the squash.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "32ccab8a3"
+      ]
+    },
+    {
+      "number": 818,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/818#issuecomment-5738521638",
+      "createdAt": "2026-09-19T02:12:16Z",
+      "statement": "Incorporated into main via PR #1069 with original commit authorship preserved and extended with desktop status visibility ('Needs login' / 'Sign-in required').",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "1cfd98054"
+      ]
+    },
+    {
+      "number": 819,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/819#issuecomment-5738705873",
+      "createdAt": "2026-09-19T02:45:25Z",
+      "statement": "This has been incorporated and merged via #1072 with original commit authorship preserved, resolving import conflicts with recent telemetry/model exports and integrating the liveness probe into the desktop application.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "0d3d30c24"
+      ]
+    },
+    {
+      "number": 821,
+      "author": "debin-ge",
+      "url": "https://github.com/rynfar/meridian/pull/821#issuecomment-5312218490",
+      "createdAt": "2026-08-17T05:28:30Z",
+      "statement": "Your commit was cherry-picked unmodified onto current `main` (#815 had landed in the meantime), so **you remain its git author**, and you're credited as co-author on the squashed commit.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "83b2f5c8f"
+      ]
+    },
+    {
+      "number": 824,
+      "author": "Nowaker",
+      "url": "https://github.com/rynfar/meridian/pull/824#issuecomment-5738666520",
+      "createdAt": "2026-09-19T02:38:02Z",
+      "statement": "This has been incorporated and merged via #1071 with original commit authorship preserved, and extended to provide cached usage provenance and indicators in the desktop app and system tray.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "46c105631"
+      ]
+    },
+    {
+      "number": 834,
+      "author": "WarGloom",
+      "url": "https://github.com/rynfar/meridian/pull/834#issuecomment-5463332429",
+      "createdAt": "2026-08-29T15:44:43Z",
+      "statement": "Superseded by #897, which preserves all six of this PR's commits with Nikita Bige as author and carries explicit co-author credit on the merged commit.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "2e51fdb8e"
+      ]
+    },
+    {
+      "number": 835,
+      "author": "WarGloom",
+      "url": "https://github.com/rynfar/meridian/pull/835#issuecomment-5444896665",
+      "createdAt": "2026-08-27T20:34:07Z",
+      "statement": "Your two implementation/test commits were preserved on the replacement branch with `Nikita Bige <email>` as Git author.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "099741dd7"
+      ]
+    },
+    {
+      "number": 846,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/846#issuecomment-5435757564",
+      "createdAt": "2026-08-27T07:27:31Z",
+      "statement": "Your authorship is preserved on the carried commits and in the squash merge commit `40a69c7e` with an explicit `Co-authored-by` trailer.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "40a69c7ed"
+      ]
+    },
+    {
+      "number": 850,
+      "author": "chakflying",
+      "url": "https://github.com/rynfar/meridian/pull/850#issuecomment-5348960236",
+      "createdAt": "2026-08-19T22:52:36Z",
+      "statement": "I've split it and landed your `server.ts` half in **#853**, cherry-picked so you stay as author.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "e599aafc3"
+      ]
+    },
+    {
+      "number": 857,
+      "author": "mpeter",
+      "url": "https://github.com/rynfar/meridian/pull/857#issuecomment-5497083381",
+      "createdAt": "2026-09-01T16:26:41Z",
+      "statement": "Cherry-picked your commit so you stay the author; GitHub's `Co-authored-by:` trailer carries the credit to `main`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "1ea97d012"
+      ]
+    },
+    {
+      "number": 871,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/871#issuecomment-5433230728",
+      "createdAt": "2026-08-27T01:34:24Z",
+      "statement": "Your three commits were carried into #879 as patch-identical cherry-picks (`b35362a7`, `f82b2606`, `f798f362`), and the squash commit retains your credit with an explicit `Co-authored-by` trailer.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "2ccc48a5d"
+      ]
+    },
+    {
+      "number": 875,
+      "author": "CrazyCoder",
+      "url": "https://github.com/rynfar/meridian/pull/875#issuecomment-5433230995",
+      "createdAt": "2026-08-27T01:34:26Z",
+      "statement": "The squash commit retains your credit with an explicit `Co-authored-by` trailer.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "2ccc48a5d"
+      ]
+    },
+    {
+      "number": 882,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/882#issuecomment-5483988701",
+      "createdAt": "2026-08-31T20:16:39Z",
+      "statement": "Cherry-picked your commit so you stay the author — GitHub's `Co-authored-by:` trailer carries the credit through to `main`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "a167bc199"
+      ]
+    },
+    {
+      "number": 883,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/883#issuecomment-5483988899",
+      "createdAt": "2026-08-31T20:16:41Z",
+      "statement": "Cherry-picked your commit so you stay the author — GitHub's `Co-authored-by:` trailer carries the credit through to `main`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "a167bc199"
+      ]
+    },
+    {
+      "number": 884,
+      "author": "CrazyCoder",
+      "url": "https://github.com/rynfar/meridian/pull/884#issuecomment-5473774613",
+      "createdAt": "2026-08-31T04:35:22Z",
+      "statement": "Thanks — this was exactly right, and it landed as your commit in #903 (`Co-authored-by` on the squash, so the credit carries onto `main`).",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "3f18494db"
+      ]
+    },
+    {
+      "number": 894,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/894#issuecomment-5483989129",
+      "createdAt": "2026-08-31T20:16:42Z",
+      "statement": "Cherry-picked your commit so you stay the author — GitHub's `Co-authored-by:` trailer carries the credit through to `main`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "a167bc199"
+      ]
+    },
+    {
+      "number": 900,
+      "author": "StanChmielewski",
+      "url": "https://github.com/rynfar/meridian/pull/900#issuecomment-5475105409",
+      "createdAt": "2026-08-31T07:21:20Z",
+      "statement": "I cherry-picked yours to preserve authorship and added two commits on top; GitHub's `Co-authored-by:` trailer carries your credit onto `main`.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "0fc79a733"
+      ]
+    },
+    {
+      "number": 920,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/920#issuecomment-5533405318",
+      "createdAt": "2026-09-03T23:23:00Z",
+      "statement": "Thanks for this — the tier enumeration and the anti-false-positive work here were exactly right, and all of it shipped in #929 (`85d18d9c`) with your commits cherry-picked, so you're retained as author on the squash trailer.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "85d18d9c7"
+      ]
+    },
+    {
+      "number": 921,
+      "author": "emaadshamsi",
+      "url": "https://github.com/rynfar/meridian/pull/921#issuecomment-5538322944",
+      "createdAt": "2026-09-04T09:16:19Z",
+      "statement": "Thanks for this — the core of it shipped in #928 and you're credited as co-author on the merge commit.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "6c85fcd5d"
+      ]
+    },
+    {
+      "number": 962,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/962#issuecomment-5591102145",
+      "createdAt": "2026-09-08T20:03:33Z",
+      "statement": "cherry-picked so your Author and AuthorDate are preserved, and a",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "94e88cf09"
+      ]
+    },
+    {
+      "number": 963,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/963#issuecomment-5591319686",
+      "createdAt": "2026-09-08T20:19:15Z",
+      "statement": "cherry-picked so your Author and AuthorDate are preserved, plus a",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "dabd969b9"
+      ]
+    },
+    {
+      "number": 964,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/964#issuecomment-5591624121",
+      "createdAt": "2026-09-08T20:45:10Z",
+      "statement": "commits cherry-picked so your Author and AuthorDate are preserved, plus a",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "907a00ee8"
+      ]
+    },
+    {
+      "number": 965,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/965#issuecomment-5595245422",
+      "createdAt": "2026-09-09T03:19:01Z",
+      "statement": "cherry-picked so your Author and AuthorDate are preserved, plus a",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "03fe57165"
+      ]
+    },
+    {
+      "number": 966,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/966#issuecomment-5591951642",
+      "createdAt": "2026-09-08T21:13:43Z",
+      "statement": "cherry-picked so your Author and AuthorDate are preserved, plus a",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "4a031b97f"
+      ]
+    },
+    {
+      "number": 1030,
+      "author": "justprosh",
+      "url": "https://github.com/rynfar/meridian/pull/1030#issuecomment-5737018937",
+      "createdAt": "2026-09-18T22:37:14Z",
+      "statement": "Incorporated into main via #1036 (596a0d8363a88302e52f33841286e22d1c6177fc) with authorship preserved.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "596a0d836"
+      ]
+    },
+    {
+      "number": 1041,
+      "author": "reForMatt",
+      "url": "https://github.com/rynfar/meridian/pull/1041#issuecomment-5737017883",
+      "createdAt": "2026-09-18T22:37:06Z",
+      "statement": "Incorporated into main via #1052 with contributor authorship and commit metadata preserved.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "54859ed48"
+      ]
+    },
+    {
+      "number": 1042,
+      "author": "reForMatt",
+      "url": "https://github.com/rynfar/meridian/pull/1042#issuecomment-5737018410",
+      "createdAt": "2026-09-18T22:37:10Z",
+      "statement": "Incorporated into main via #1052 with contributor authorship and commit metadata preserved.",
+      "class": "relanded-under-maintainer",
+      "landed": [
+        "54859ed48"
+      ]
+    }
+  ],
+  "unmapped": [
+    {
+      "via": 1209,
+      "landed": "0f2a4a541b3b7b14022317ecd9ffe14c149b8f1d",
+      "commit": "5f488d8ee7950babf60eb7e299cb2999f6a5cdc1",
+      "name": "Nate Berkopec"
+    }
+  ],
+  "people": [
+    {
+      "login": "adinschmidt",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "BP602",
+      "opened": 3,
+      "merged": 3,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 3,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "juanferreiramorel",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "skipships",
+      "opened": 2,
+      "merged": 2,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 3,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "ianjwhite99",
+      "opened": 13,
+      "merged": 10,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 19,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "conversun",
+      "opened": 5,
+      "merged": 5,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 5,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "pablogtzgileta",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "davdroman",
+      "opened": 2,
+      "merged": 1,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "realsc0t",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "jaker-4c",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "zackslash",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "davetha",
+      "opened": 6,
+      "merged": 0,
+      "closed": 6,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "xpolb01",
+      "opened": 3,
+      "merged": 3,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 3,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "endre82",
+      "opened": 5,
+      "merged": 2,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "lnilluv",
+      "opened": 3,
+      "merged": 1,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "KentLee86",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "bnema",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "luis15pt",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "braydenbabbitt",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "rafaelsales",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "dayjoyx",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "beshkenadze",
+      "opened": 5,
+      "merged": 1,
+      "closed": 4,
+      "open": 0,
+      "authorOnMain": 19,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "rich-jojo",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "bussnet",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "hellosunghyun",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "murrayju",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "aaronjo-Telnyx",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "limsaehyun",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "ArshyaAI",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "briankeefe",
+      "opened": 2,
+      "merged": 1,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "mattsbl",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "Dreaming-Codes",
+      "opened": 3,
+      "merged": 1,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "jhenderiks",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "bardusco",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "cartwmic",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "Mewski",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "WarGloom",
+      "opened": 9,
+      "merged": 0,
+      "closed": 9,
+      "open": 0,
+      "authorOnMain": 3,
+      "trailerOnlyOnMain": 5
+    },
+    {
+      "login": "Alexander-Ollman",
+      "opened": 3,
+      "merged": 1,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 4,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "CrazyCoder",
+      "opened": 10,
+      "merged": 0,
+      "closed": 10,
+      "open": 0,
+      "authorOnMain": 6,
+      "trailerOnlyOnMain": 5
+    },
+    {
+      "login": "kmontag",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "Lumpiasty",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "isac322",
+      "opened": 3,
+      "merged": 2,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 4,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "heckradr",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "fredericgermain",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "BenIsLegit",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "davifernan",
+      "opened": 3,
+      "merged": 0,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "NexohLab",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "Blue-B",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "papercupai",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "ai-hustle-bro",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "ilie-neacsu",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "colto",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "StanChmielewski",
+      "opened": 4,
+      "merged": 0,
+      "closed": 4,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "d-arken",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "connor-grady",
+      "opened": 8,
+      "merged": 3,
+      "closed": 5,
+      "open": 0,
+      "authorOnMain": 28,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "EmrysMyrddin",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "sittitep",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "joematthews",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "qinwang-ai",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "mwd102",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "shanemmattner",
+      "opened": 5,
+      "merged": 1,
+      "closed": 4,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "tom-groves",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "rarest",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "Ca134",
+      "opened": 2,
+      "merged": 1,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "nickembrey",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "davidj4tech",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "thalysguimaraes",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "kilabyte",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "alexgleason",
+      "opened": 2,
+      "merged": 2,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "mAAdhaTTah",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "diwakar-s-maurya",
+      "opened": 3,
+      "merged": 0,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "robertn702",
+      "opened": 3,
+      "merged": 1,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "fhalim",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "1A7432",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "wayniacal",
+      "opened": 5,
+      "merged": 0,
+      "closed": 5,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 5
+    },
+    {
+      "login": "devsuitup",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "justprosh",
+      "opened": 29,
+      "merged": 5,
+      "closed": 24,
+      "open": 0,
+      "authorOnMain": 28,
+      "trailerOnlyOnMain": 21
+    },
+    {
+      "login": "Nowaker",
+      "opened": 95,
+      "merged": 17,
+      "closed": 67,
+      "open": 11,
+      "authorOnMain": 24,
+      "trailerOnlyOnMain": 52
+    },
+    {
+      "login": "debin-ge",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "dmitryrn",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "chakflying",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "mpeter",
+      "opened": 3,
+      "merged": 0,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "leonardparisi",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "amasover",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "emaadshamsi",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "materemias",
+      "opened": 14,
+      "merged": 2,
+      "closed": 9,
+      "open": 3,
+      "authorOnMain": 9,
+      "trailerOnlyOnMain": 6
+    },
+    {
+      "login": "martinmiglio",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 2
+    },
+    {
+      "login": "jakewimmer",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 3
+    },
+    {
+      "login": "Ardumine",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "reForMatt",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "SharkMagnus",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "addadi",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "chriswilson413",
+      "opened": 2,
+      "merged": 0,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 10,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "groundnuty",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "builder-main",
+      "opened": 3,
+      "merged": 0,
+      "closed": 3,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 3
+    },
+    {
+      "login": "XInTheDark",
+      "opened": 4,
+      "merged": 4,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 4,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "passabilities",
+      "opened": 11,
+      "merged": 7,
+      "closed": 1,
+      "open": 3,
+      "authorOnMain": 36,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "rasatpetabit",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "jaedync",
+      "opened": 3,
+      "merged": 2,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "caniko",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "Cd1s",
+      "opened": 4,
+      "merged": 1,
+      "closed": 1,
+      "open": 2,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 6
+    },
+    {
+      "login": "teancom",
+      "opened": 1,
+      "merged": 0,
+      "closed": 1,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "mradwankhalil",
+      "opened": 3,
+      "merged": 3,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 3,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "TristanSpeakEasy",
+      "opened": 3,
+      "merged": 3,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "Noah-Silvera",
+      "opened": 1,
+      "merged": 0,
+      "closed": 0,
+      "open": 1,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "nateberkopec",
+      "opened": 2,
+      "merged": 2,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 2,
+      "trailerOnlyOnMain": 1
+    },
+    {
+      "login": "Suyeo2025",
+      "opened": 3,
+      "merged": 1,
+      "closed": 2,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "technoch1ef",
+      "opened": 1,
+      "merged": 1,
+      "closed": 0,
+      "open": 0,
+      "authorOnMain": 1,
+      "trailerOnlyOnMain": 0
+    },
+    {
+      "login": "josenicomaia",
+      "opened": 1,
+      "merged": 0,
+      "closed": 0,
+      "open": 1,
+      "authorOnMain": 0,
+      "trailerOnlyOnMain": 0
+    }
+  ]
+}

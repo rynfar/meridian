@@ -1,0 +1,25 @@
+{
+  "approvedByUser": true,
+  "scope": "one contextual hosted diagnostic, not acceptance rerun",
+  "sourceBase": "c2adc2b5784e9bcd6020193cfcc538883f7695ee",
+  "originalFailedRun": "41718313625",
+  "originalFailedJob": "126204064158",
+  "originalGate": "failed; not waived",
+  "runtime": {
+    "runner": "ubuntu-latest",
+    "node": "22",
+    "bun": "1.4.3"
+  },
+  "unchangedConstants": {
+    "maintenanceStoreLockMs": 100,
+    "staleAgeMs": 0,
+    "testTimeoutMs": 30000
+  },
+  "newObserverBounds": {
+    "events": 10000,
+    "traceBytes": 4194304,
+    "runnerLogBytes": 16777216,
+    "runnerOuterDeadlineMs": 2100000
+  },
+  "liveModelCalls": false
+}

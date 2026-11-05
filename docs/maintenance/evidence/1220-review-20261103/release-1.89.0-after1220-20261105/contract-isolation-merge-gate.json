@@ -1,0 +1,23 @@
+{
+  "head": "d0904187c89631a459fa60a112332632b7fd75c4",
+  "base": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "local": {
+    "pass": 8857,
+    "skip": 65,
+    "fail": 0,
+    "groups": 29,
+    "typecheck": true,
+    "build": true
+  },
+  "CI": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 29
+  },
+  "mergeStateStatus": "UNSTABLE",
+  "explanation": "duplicate older Nix installable42078015508CANCELLED; samehead replacement42078024895SUCCESS allotherexecutedchecksSUCCESS",
+  "method": "normal squash --match-head-commit, no admin/checkbypass; GitHubenforcesprotection",
+  "noRequiredChecksReported": "gh pr checks --required returns1; testexplicitgateinspectedPASS",
+  "sourceRuntimeChanged": false
+}

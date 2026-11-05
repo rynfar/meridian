@@ -1,0 +1,17 @@
+{
+  "result": "REJECTED_FOR_EXECUTION",
+  "executed": false,
+  "frozenForExecution": false,
+  "designerCandidateSha256": "e2efd77a20016f108b6dbdb9f80cfed6a51945303ad72fddcd4b76fa3b2c9306",
+  "findings": [
+    "all6idlecasesinsteadrequestedfirstcase",
+    "180splanconflicts70sboundscope",
+    "detachedfixturegroupscleanupnotownedbyBunactorgroupalone",
+    "Bunspy/bodycapture/bytecount/joinobserverunvalidated"
+  ],
+  "noProductDefectEstablished": true,
+  "noSourceOrDeadlineChanges": true,
+  "noFollowupExecutionAutomatic": true,
+  "currentGate": "localnpmFAILkept; diagnosticnotperformed",
+  "designOnlyFilesRetained": true
+}

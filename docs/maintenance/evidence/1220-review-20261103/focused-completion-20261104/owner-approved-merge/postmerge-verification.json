@@ -1,0 +1,121 @@
+{
+  "result": "MERGED_OWNER_APPROVED_DISCLOSED_RISK",
+  "pr": 1220,
+  "url": "https://github.com/rynfar/meridian/pull/1220",
+  "mergedAt": "2026-11-05T16:38:49Z",
+  "mergeCommit": "41d7b3e3a2ead7e95e2790cc473b469bd3e9b567",
+  "reviewedBase": "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+  "reviewedHead": "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a",
+  "landedParents": [
+    "16c214941bf3f05aa4015a70d8b81bd94857a88f",
+    "ba0f9f5c70f94cebdbd10aa0f5dbd12793f29e2a"
+  ],
+  "tree": "83877acdaa4c8d5a414c0ebc46b7674aa75eb2b9",
+  "signedGitHubVerification": {
+    "verified": true,
+    "reason": "valid",
+    "verified_at": "2026-11-05T16:38:49Z"
+  },
+  "samePRShowsMerged": true,
+  "introducedObjectsCount": 22,
+  "everyIntroducedCommitReachableOnMain": true,
+  "actualAuthorsDatesAndObjectsUnchanged": true,
+  "sourceAuthorCommits": [
+    {
+      "sha": "63f541972475bfd9337bd7b983bd77e9eadcf6a9",
+      "author": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-09-30T13:05:46Z"
+      },
+      "committer": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-10-14T10:20:19Z"
+      },
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "verified_at": "2026-10-14T11:14:02Z"
+      },
+      "githubAuthor": "Nowaker"
+    },
+    {
+      "sha": "a21bf609fa1b2a492dae2b7a227306a9b8296d24",
+      "author": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:00:28Z"
+      },
+      "committer": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:00:28Z"
+      },
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "verified_at": "2026-11-03T01:01:11Z"
+      },
+      "githubAuthor": "Nowaker"
+    },
+    {
+      "sha": "826ff5ce7e1d376fd43eb3ee6e63819388a18823",
+      "author": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:18:39Z"
+      },
+      "committer": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:18:39Z"
+      },
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "verified_at": "2026-11-03T01:19:03Z"
+      },
+      "githubAuthor": "Nowaker"
+    },
+    {
+      "sha": "bb2e18a3f8362d1a2b3a3529cd50007361bc070b",
+      "author": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:35:25Z"
+      },
+      "committer": {
+        "name": "Nowaker",
+        "email": "spam@nowaker.net",
+        "date": "2026-11-03T01:35:25Z"
+      },
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "verified_at": "2026-11-03T01:35:31Z"
+      },
+      "githubAuthor": "Nowaker"
+    }
+  ],
+  "mergeCommitAuthorNotUsedAsSourceCredit": true,
+  "mergeMethod": "commit-preserving --merge --match-head-commit exactSHA; neutral subject/body",
+  "noAdminProtectionChangesOrCIBypass": true,
+  "checks": {
+    "finalHeadCI": "41868161833 allrequiredPASS",
+    "localNpm": {
+      "pass": 8857,
+      "skip": 65,
+      "fail": 0
+    },
+    "groups": 28,
+    "typecheck": "PASS",
+    "build": "PASScertified",
+    "liveActualClient": "PASSownedOpenCode1.18.34SDK.141selectednative.296actualOpus5.5V1+scrub"
+  },
+  "residualVerificationRisk": "owner-risk-approval.json; failuresnotrelabeledPASS",
+  "providerReport": "not sent perownerinstruction",
+  "release": "NOTPUBLISHED; nonebythismerge",
+  "ownerCheckout": "notmodified; readonlysnapshotatmerge a12b53bb withuntrackedreports/research_notes; do notresetorclean",
+  "attributionAudit": "PASS exit0 main41d7b3e3 #1220classmerged 137historicmaintainerrelands 0mergedButMaintainerAuthor; direct22objectproofauthoritative; beforeaudit180stimeoutretained"
+}

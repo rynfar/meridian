@@ -1,0 +1,28 @@
+{
+  "pr": 1504,
+  "head": "e1413322c891384f59651774fe2fb14b724b832c",
+  "sourceSha256": "bd259b98673fb9a929f624201ac4ab034738b513d9fa3015add391f1c9156bcf",
+  "base": "697f9482c23865e9d9a02095e35d79b0922047a7",
+  "scope": "single test file only",
+  "focused": {
+    "exit": 0,
+    "pass": 41,
+    "fail": 0,
+    "expects": 167,
+    "seconds": 19.85
+  },
+  "typecheckExit": 0,
+  "buildExit": 0,
+  "fullSuite": {
+    "exit": 1,
+    "duration": 759.8459725836292,
+    "failedTests": [
+      "(fail) bounded source identity recovery > slow optional Git facts share one recovery budget after root and SHA [2218.88ms]",
+      "(fail) bounded source identity recovery > slow optional Git facts share one recovery budget after root and SHA [2218.88ms]"
+    ],
+    "tail": "ntial, never the first profile's\n(skip) profile add routes > creates the profile from the pasted callback URL\n(skip) profile add routes > 410s a replayed completion\n(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store\n(skip) writes to the explicit inherited Claude credential context used by requests\n\n\n1 tests failed:\n(fail) bounded source identity recovery > slow optional Git facts share one recovery budget after root and SHA [2218.88ms]\n\n 8270 pass\n 65 skip\n 1 fail\n 45645 expect() calls\nRan 8336 tests across 485 files. [736.83s]\n"
+  },
+  "productionConstantsChanged": false,
+  "liveModelCalls": "none for this test-only change",
+  "adversarialReview": "independent final-source-hash no material finding; exact-path filter, real child/retry/cancel, invalid shebang, failed readiness join inspected"
+}

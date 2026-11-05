@@ -1,0 +1,31 @@
+{
+  "testedProductHead": "02554a0a748f695b79982da071145f83c402415c",
+  "harnessSha256": "616b61c0f36945cad3d87a3db4b84fe291fe468016e7437314d3a2cd112d1b4b",
+  "tarball": {
+    "filename": "rynfar-meridian-1.88.0.tgz",
+    "sha256": "2510d0a57a3fe511ff8deceb775cc060fc8bea198e95268b933f87f33097e5e9",
+    "integrity": "sha512-dv8tJmBNimZ065o1ciuXoYXNAMOTpojRY0/MP8vXtzXszBzinEKCWiR5QMTJBG1+V+6Yw5aOU23XjkbS+rvbjQ=="
+  },
+  "exit": 0,
+  "result": "PASS",
+  "runtime": {
+    "node": "22.22.3",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "scope": "independently installed tarball actual Node CLI+storage/HTTP; no live SDK/model",
+  "covers": [
+    "PREPARED native SIGKILL and exact journal phase",
+    "persisted lock owner PID",
+    "real resumed migration ready",
+    "export exact original canonical store",
+    "lock removed",
+    "two HTTP runtime processes",
+    "restart/export/baseline read",
+    "other original bootstrap/barrier/guard cases"
+  ],
+  "allOriginalChildPipesJoined": true,
+  "certification": "OPEN; packaged tarball came from successful uncertified archive build",
+  "historicalTimeoutCause": "UNRESOLVED",
+  "failedAttemptRetained": true
+}

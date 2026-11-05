@@ -1,0 +1,11 @@
+{
+  "report": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/lock-residue-independent-review.md",
+  "reportSha256": "132774bd787f6ac307da5961bd7d6684f1d04bf82a7178204e258643f03e9e5d",
+  "witness": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/lock-residue-default-dir-51a0f123f9f6.test.ts",
+  "witnessSha256": "51a0f123f9f6def505916dc8405ba968b5d6091a5b8f61d564d9d84901f7f471",
+  "witnessOutput": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/lock-residue-default-dir-witness.log",
+  "witnessExitCode": 0,
+  "sourceWorktree": "/Users/rynfar/Library/Caches/meridian-validation.noindex/release-1.89.0-after1220-20261105",
+  "bun": "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/bun-1.4.3/bin/bun",
+  "scope": "deterministic directory-drift witness; no historical caller attribution; no source changes"
+}

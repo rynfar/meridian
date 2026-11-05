@@ -1,0 +1,27 @@
+{
+  "main": {
+    "result": "PASS",
+    "platform": "darwin/arm64",
+    "bytes": 19270219,
+    "entries": 856,
+    "samples": 30,
+    "coldReadMs": 49.299041,
+    "medianWriteLoopLagMs": 9.345208000000014,
+    "p95WriteLoopLagMs": 16.807249999999954,
+    "maxWriteLoopLagMs": 23.732166000000007,
+    "artifact": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-store-cost-M8wl65"
+  },
+  "candidate": {
+    "result": "PASS",
+    "platform": "darwin/arm64",
+    "bytes": 19270219,
+    "entries": 856,
+    "samples": 30,
+    "coldReadMs": 78.70108399999998,
+    "medianWriteLoopLagMs": 1.068708000000015,
+    "p95WriteLoopLagMs": 1.1579169999999976,
+    "maxWriteLoopLagMs": 2.046624999999949,
+    "artifact": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-store-cost-EBUpQv"
+  },
+  "scope": "same committed fixture, same19.3MB store shape, no threshold enforced"
+}
