@@ -1,0 +1,52 @@
+{
+  "opencode": {
+    "config": {
+      "$schema": "https://opencode.ai/config.json",
+      "model": "anthropic/claude-sonnet-5-5",
+      "providers": {
+        "anthropic": {
+          "settings": {
+            "apiKey": "local-e2e",
+            "baseURL": "http://127.0.0.1:3567/v1"
+          },
+          "models": {
+            "claude-sonnet-5-5": {
+              "limit": {
+                "output": 4096
+              }
+            }
+          }
+        }
+      },
+      "plugins": [
+        "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/candidate-installed/node_modules/@rynfar/meridian/dist/meridian-v2"
+      ]
+    },
+    "activeConfiguredExactlyOnce": true,
+    "headers": {
+      "user-agent": "opencode/latest/2.2.0/cli",
+      "x-meridian-opencode-turn": "<signed>",
+      "x-opencode-agent-mode": "primary",
+      "x-opencode-agent-name": "build",
+      "x-opencode-client": "cli",
+      "x-opencode-project": "cb3d2da01cb2f147e4cf79961236281616c5072c",
+      "x-opencode-session": "ses_e532e0038ffed6Q75KjT5brcWs",
+      "x-opencode-session-id": "ses_e532e0038ffed6Q75KjT5brcWs",
+      "x-session-affinity": "ses_e532e0038ffed6Q75KjT5brcWs"
+    }
+  },
+  "pi": {
+    "client": "pi 1.4.0",
+    "version": "1.4.0",
+    "setupVersion": "1.4.0",
+    "extensionInstalledAndLoaded": true,
+    "headers": {
+      "user-agent": "pi/1.4.0 (darwin; node/v22.22.3; arm64)",
+      "x-meridian-agent": "pi",
+      "x-meridian-opencode-turn": "<signed>",
+      "x-session-affinity": "01a1acd1-c55e-705d-b442-fe8703b80134"
+    }
+  },
+  "signedTurnValues": "redactedbyoriginalharness",
+  "configTurnKeysNotArchived": true
+}

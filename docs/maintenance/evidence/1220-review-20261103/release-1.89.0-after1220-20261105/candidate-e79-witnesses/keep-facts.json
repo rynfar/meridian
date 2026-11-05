@@ -1,0 +1,42 @@
+{
+  "turn1": {
+    "status": 200,
+    "isResume": false,
+    "lineage": "new",
+    "cacheRead": 0,
+    "cacheCreate": 0,
+    "model": "sonnet",
+    "line": "lineage=new session=new diverged=not-found"
+  },
+  "turn2": {
+    "partialChars": 42,
+    "stoppedBeforeMessageStop": true
+  },
+  "turn3": {
+    "status": 200,
+    "isResume": false,
+    "lineage": "new",
+    "cacheRead": 0,
+    "cacheCreate": 0,
+    "model": "sonnet",
+    "httpStatus": 200,
+    "msAfterStop": 4122,
+    "line": "lineage=new session=new diverged=interrupted-turn-kept:kept-assistant",
+    "sessionWaitMs": 1205
+  },
+  "resumedTurn1Session": false,
+  "sdkHistory": {
+    "roles": "user,assistant",
+    "holdsTurn1": true,
+    "holdsStoppedQuestion": true,
+    "holdsNewQuestion": true,
+    "holdsPartial": true,
+    "unpairedToolUses": 0
+  },
+  "upstreamNextTurn": {
+    "holdsTurn1": true,
+    "holdsStoppedQuestion": true,
+    "holdsNewQuestion": true,
+    "holdsPartial": true
+  }
+}

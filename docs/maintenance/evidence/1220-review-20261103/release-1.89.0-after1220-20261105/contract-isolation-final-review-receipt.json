@@ -1,0 +1,12 @@
+{
+  "head": "d0904187c89631a459fa60a112332632b7fd75c4",
+  "PR": 1507,
+  "reviewSha256": "2fc051cebc7d04bed004bd255d5fdaee710c81c602fee3a447cfc0b4c29e0019",
+  "finding": "No known material bug; two scriptinsertionsonly; unchanged6mandatorytests+previouscommands",
+  "sourceNoRuntimeChange": true,
+  "frozenTestControlSha256": "3ef55d99979c6102e4eccb4249e464af3eae07e4f29117e81a3edc91e6de4994",
+  "originalCallerUnproven": true,
+  "CI": 42078024708,
+  "local": "running fulltesttypebuild",
+  "constantChanges": []
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-5-5",
+  "providers": {
+    "anthropic": {
+      "settings": {
+        "apiKey": "local-e2e",
+        "baseURL": "http://127.0.0.1:3567/v1"
+      },
+      "models": {
+        "claude-sonnet-5-5": {
+          "limit": {
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+  "plugins": [
+    "/Volumes/DevSSD/meridian/evidence/focused-completion-20261104/release-after1220/candidate-installed/node_modules/@rynfar/meridian/dist/meridian-v2"
+  ]
+}

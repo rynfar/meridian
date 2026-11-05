@@ -85,5 +85,13 @@
     "run": 42073924495,
     "note": "samefinalhead duplicate earlierNixworkflow cancelled; current42073932240 installablebuildSUCCESS, no bypass"
   },
-  "noSourceChangesAfterFinalCI": true
+  "noSourceChangesAfterFinalCI": true,
+  "testCounts": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 28
+  },
+  "countsFrom": "finalhead-ci-test.log downloadedjob127408945293",
+  "originalLocalRedRetained": true
 }
