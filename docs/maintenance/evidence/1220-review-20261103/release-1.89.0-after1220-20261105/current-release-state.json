@@ -1,16 +1,41 @@
 {
-  "releaseFinalHead": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
-  "releaseTree": "6addd303a448894714a97675bfc87a9f307d53fd",
+  "head": "f4c1dcbcfd8c2d01cfd3c4eaa49479c25560aef2",
   "main": "cafdcf780f1b40c8f0dee17481132f47b4cbb353",
-  "oldReleaseHead": "e6c5604309fb9aa870e1200321cde4e1072aa3c8",
-  "testCorrectionPR": 1507,
-  "testCorrectionMerged": true,
-  "newFinalLocal": "running67067",
-  "newFinalCI": 42080848312,
-  "oldIndependentPackageE79": "PASS703/all6fixtures qualifiedoldhead",
-  "newHeadInstalled": "notyetpackagedawaitbuild",
-  "actualClient": "NOTRUNreadonlyusage429",
+  "version": "1.89.0",
+  "sourceLocal": {
+    "pass": 8857,
+    "skip": 65,
+    "fail": 0,
+    "groups": 29
+  },
+  "typecheckBuild": "PASS",
+  "CI": {
+    "pass": 8894,
+    "skip": 28,
+    "fail": 0,
+    "groups": 29
+  },
+  "independentReview": "no concrete material finding",
+  "artifact703/integrity": "PASS",
+  "packagedNodeRuntime": "PASS",
+  "exactHeadE79All": "running",
+  "liveActualClient": "NOTRUN read-only usage HTTP429beforeinference",
+  "modelCallsThisRelease": 0,
+  "ownerCredentialWrites": 0,
+  "refreshCalls": 0,
   "publication": "NOTSTARTED",
-  "nextQueue": "helduntilstable",
+  "remainingBeforePublish": [
+    "finishexactheadE79all",
+    "actualclientread/result/continuationgateorspecificownerdispositionformissingreleaseevidence",
+    "refreshfinalhead/base/CIatmerge"
+  ],
+  "postPublishRemaining": [
+    "release/tag/source",
+    "npm latestversionintegrityprovenance",
+    "freshregistryinstalledruntimeandactualclient",
+    "Dockerbotharchsemverminor",
+    "desktopassetsstatus"
+  ],
+  "nextQueue": "helduntillater",
   "constantsChanged": []
 }
