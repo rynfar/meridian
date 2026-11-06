@@ -1162,7 +1162,7 @@ Every request line carries `lineage=`, and every divergence also carries
 | `unverifiable` | An entry exists but cannot prove which history its session holds |
 | `replayed-request` | The same history arrived again; a retry, not a continuation |
 | `modified-history` | The stored prefix changed, so resume would skip history |
-| `undo-gap` | An undo whose rollback point would omit supplied history |
+| `undo-gap` | An undo whose rollback point would omit supplied history, or (with partial replay and a fork point) whose last shared message has no SDK message ID |
 | `unrelated-history` | The key resolved to a different conversation |
 | `missing-session-header` | An OpenCode request arrived without its session header |
 | `moved-on-elsewhere` | Another profile's copy, used since, holds more of the history; this profile's older copy would drop the replies given there, so the turn replays |
@@ -1199,11 +1199,16 @@ Off by default. When a client rewrites part of a long conversation, for example
 by editing a recent message, dropping a turn or filling in a reply it had kept
 empty, the request no longer continues the stored SDK session. Meridian then
 replays the whole history into a fresh session (`diverged=undo-gap` or
-`diverged=modified-history`). That replay reads only the system prompt and
-tool definitions from the prompt cache and writes everything else again, even
-when all but the last few messages are unchanged. The cache that already holds
-those messages was written from the SDK session's own turns, and a replayed
-history renders them as text, so it never matches.
+`diverged=modified-history`). So does an undo whose last shared message has no
+SDK message ID on record (`lineage=undo`, `rollback UUID: none`). A client
+background request causes that: omp's reply prediction and idle recap, sent
+with the main conversation's identity, append a reminder message ahead of
+their prompt, and the next request shares the reminder but not the rest. That
+replay reads only the system prompt and tool definitions from the prompt cache
+and writes everything else again, even when all but the last few messages are
+unchanged. The cache that already holds those messages was written from the SDK
+session's own turns, and a replayed history renders them as text, so it never
+matches.
 
 Turn it on with `MERIDIAN_PARTIAL_REPLAY=1`, or `"partialReplay": true` in
 `settings.json` (the environment wins, and `MERIDIAN_PARTIAL_REPLAY=0` forces

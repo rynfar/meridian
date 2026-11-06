@@ -871,17 +871,23 @@ export function verifyLineage(
     // Undo delivery sends only the final user message. Everything preceding
     // it must therefore be covered by the preserved prefix; edited intermediate
     // turns would otherwise be absent from both the fork and its input (#817).
-    if (prefixOverlap !== messages.length - 1 || messages.at(-1)?.role !== "user") {
-      return {
-        type: "diverged", reason: "undo-gap", prefixOverlap,
-        mismatch: describeLineageMismatch(cached, messages, incomingHashes),
-        ...rollbackTailOption(options.partialReplay, cached, messages, prefixOverlap),
+    const omitsHistory = prefixOverlap !== messages.length - 1 || messages.at(-1)?.role !== "user"
+    // The UUID must cover that entire prefix too. An older checkpoint would
+    // silently omit the matching turns after it. With no adjacent UUID, as
+    // when a client side request added the last shared user message, an
+    // earlier assistant turn may still anchor a rollback-tail fork; otherwise
+    // the undo-without-rollback path safely replays the full history.
+    const rollbackUuid = cached.sdkMessageUuids?.[prefixOverlap - 1] || undefined
+    if (omitsHistory || !rollbackUuid) {
+      const tail = rollbackTailOption(options.partialReplay, cached, messages, prefixOverlap)
+      if (omitsHistory || tail.rollbackTail) {
+        return {
+          type: "diverged", reason: "undo-gap", prefixOverlap,
+          mismatch: describeLineageMismatch(cached, messages, incomingHashes),
+          ...tail,
+        }
       }
     }
-    // The UUID must cover that entire prefix too. An older checkpoint would
-    // silently omit the matching turns after it. With no adjacent UUID the
-    // existing undo-without-rollback path safely replays the full history.
-    const rollbackUuid = cached.sdkMessageUuids?.[prefixOverlap - 1] || undefined
     return { type: "undo", session: cached, prefixOverlap, rollbackUuid }
   }
 
