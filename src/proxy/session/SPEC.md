@@ -170,6 +170,67 @@ outcomes are main's, with the eviction in place of the marking.
 A prompt-cache keepalive stops tracking the session at the client abort, as
 before; a later turn that writes the one-hour tier tracks it again.
 
+## Partial replay (rollback-tail)
+
+Opt-in (`partialReplay` setting, `MERIDIAN_PARTIAL_REPLAY`, default off). An
+undo-gap or modified-history divergence, an undo whose last shared message
+has no SDK UUID (a client side request, such as omp's prediction or recap,
+adds user messages the SDK never produced), and a passthrough checkpoint whose
+results do not settle it, used to replay the complete client history. That
+replay shares only the system and tool prefix with the prompt cache: the cache
+holding the conversation was written from the SDK session's native turns,
+which a rendered replay never matches byte for byte. Measured over seven days
+of one owner's traffic, these replays were about 59% of all cache writes.
+
+With the option on, the stored session is forked (`resume`, `forkSession`,
+`resumeSessionAt`, the primitives undo already uses) at a **rollback point**
+chosen by `planRollbackTail` (`lineage.ts`, pure):
+
+- the last assistant message inside the verified prefix (the leading messages
+  whose hashes match the stored ones) that has an SDK UUID;
+- if it called tools, the next message must answer exactly those calls, each
+  once, with tool_result blocks that lead the message; otherwise an earlier
+  assistant is tried, since the fork resumes right after the tool_use;
+- the stored session must prove its SDK prefix (`lineageHash`), and the
+  history must end in a user turn (trailing `system` notes allowed).
+
+`verifyLineage` attaches that point to the diverged result (`rollbackTail`)
+only when asked. `server.ts` turns it into a `rollback-tail` lineage after
+every reclassification (a moved copy or a priority failback keeps its
+replay), and finds the checkpoint case itself after the continuation's
+results fail to settle. Both cases go through one refusal rule, which
+replays fresh for a headerless OpenCode request (matched by fingerprint, it
+may be a side agent sharing the conversation's opening), for a request that
+lost a commit race, when the fork point's results would be native but the
+request is not passthrough, and when the estimated history exceeds the replay
+budget: a forked session cannot trim history as a replay does. The budget
+check is an estimate, so a fork the SDK reports as a context overflow is
+evicted and replayed fresh, like a session the SDK refuses to resume.
+
+With the option on, an undo without that UUID becomes an undo-gap divergence
+only when a rollback point qualifies; without one it stays a plain undo with
+no rollback UUID, which replays fresh as before. A refused fork of it replays
+fresh as well, logged and reported as the undo-gap it was reclassified to.
+
+Plugins' `onSession` hook sees a rollback-tail as `lineage: "undo"` (the
+contract's four kinds stay), with `reason`, `prefixOverlap` and `mismatch`
+from the divergence it replaces. The checkpoint case is found after the hook
+runs, so plugins see it as the `continuation` it was classified as.
+
+Delivery is one SDK input: the rollback point's own tool results natively,
+then every later client message rendered exactly as a fresh replay renders
+history (`frameReplayTurns` / `frameStructuredReplay`, with the context-only
+envelope and the live turn last). Splitting the tail across SDK inputs would
+have it answered as several turns. The published mapping keeps the stored
+SDK UUIDs through the rollback point and `null` for the delivered tail, so a
+later undo or rollback-tail never forks inside rendered context. Every client
+message after the rollback point is delivered, which keeps #817's rule that
+an SDK fork may not silently omit supplied history.
+
+Rejected alternatives: a prefix-stable fresh replay cannot read a cache that
+native turns wrote, and a synthetic native transcript written for `resume`
+depends on an undocumented, per-version CLI transcript schema.
+
 ## Known limitations
 
 - **Container host identity.** Inside containers the derived `hostId` changes on
@@ -210,3 +271,11 @@ before; a later turn that writes the one-hour tier tracks it again.
   whose transcript is already gone is refused and replays from client
   history instead. A pin-aware cleanup is a recorded follow-up (`proxy-core`
   → *Decisions*).
+- **A rollback-tail's rendered part is replay context, not native turns** (only
+  with `partialReplay` on). Thinking in it is dropped, and the model reads its
+  assistant turns as `[Assistant: …]` text after native ones. A forked
+  assistant whose SDK message also held an internal tool call (one the client
+  never saw) cannot be settled by the client's results alone; the API then
+  refuses the turn, as it would the same passthrough checkpoint resume. A
+  context overflow on the fork is not retried with a trimmed replay; the
+  budget check before it uses the same estimate as replay trimming.

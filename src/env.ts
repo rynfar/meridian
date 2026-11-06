@@ -55,6 +55,18 @@ export function envBool(suffix: string): boolean {
 }
 
 /**
+ * Resolve an operator switch that the environment can force either way over
+ * a saved setting: "1"/"true"/"yes"/"on" and "0"/"false"/"no"/"off" win;
+ * unset or unrecognized values fall through to the setting, off by default.
+ */
+export function resolveSwitch(envValue: string | undefined, setting: () => unknown): boolean {
+  const value = envValue?.trim().toLowerCase()
+  if (value === "1" || value === "true" || value === "yes" || value === "on") return true
+  if (value === "0" || value === "false" || value === "no" || value === "off") return false
+  return setting() === true
+}
+
+/**
  * Resolve passthrough mode from the env var (`MERIDIAN_PASSTHROUGH`, falling
  * back to `CLAUDE_PROXY_PASSTHROUGH`), applying an adapter-specific default
  * when the var is unset or holds an unrecognized value.

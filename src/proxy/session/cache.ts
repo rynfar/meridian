@@ -343,10 +343,12 @@ export function rollbackPrioritySessionPublication(
 function classifyLineage(
   state: SessionState,
   messages: Array<{ role: string; content: any }>,
-  cacheKey: string
+  cacheKey: string,
+  options: LookupSessionOptions,
 ): LineageResult {
   const result = verifyLineage(state, messages, {
     compactionSurvival: process.env.MERIDIAN_COMPACTION_SURVIVAL === "1",
+    partialReplay: options.partialReplay,
   })
 
   if (result.type === "continuation" && result.resumeContentFrom !== undefined) {
@@ -369,8 +371,9 @@ function classifyLineage(
     // The overlap count alone is not actionable — name the message that broke,
     // which verifyLineage already worked out to reach this branch.
     const detail = result.mismatch ? formatLineageMismatch(result.mismatch) : undefined
-    const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
-      + (result.reason === "undo-gap" ? " reason=undo-gap (rollback would omit supplied history)." : "")
+    const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. `
+      + (result.rollbackTail ? `Rollback-tail candidate: message ${result.rollbackTail.rollbackIndex}.` : "Starting fresh replay.")
+      + (result.reason === "undo-gap" ? " reason=undo-gap (no SDK checkpoint covers the history before the new message)." : "")
       + (detail ? `\n  ${detail}` : "")
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
@@ -391,6 +394,13 @@ function classifyLineage(
   }
 
   return result
+}
+
+/** Per-request lineage options the caller resolves. */
+export interface LookupSessionOptions {
+  /** Attach a rollback-tail fork point to undo-gap and modified-history
+   *  divergences (the opt-in `partialReplay` setting). */
+  readonly partialReplay?: boolean
 }
 
 /** Look up a cached session by header or fingerprint.
@@ -456,7 +466,8 @@ export function warnHeaderlessToolLoopOnce(adapterName: string): void {
 export function lookupSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
-  workingDirectory?: string
+  workingDirectory?: string,
+  options: LookupSessionOptions = {},
 ): LineageResult {
   if (sessionId) {
     // A durable absence is an authoritative eviction. Only an actual store
@@ -479,7 +490,7 @@ export function lookupSession(
       })
     }
     if (!state) return { type: "diverged", reason: "not-found" }
-    const result = classifyLineage(state, messages, sessionId)
+    const result = classifyLineage(state, messages, sessionId, options)
     if (result.type === "continuation" || result.type === "compaction") {
       afterSessionCacheCommit(() => { sessionCache.set(sessionId, touchSession(state)) })
     }
@@ -519,7 +530,7 @@ export function lookupSession(
       })
     }
     if (!state) return { type: "diverged", reason: "not-found" }
-    const result = classifyLineage(state, messages, fp)
+    const result = classifyLineage(state, messages, fp, options)
     if (result.type === "continuation" || result.type === "compaction") {
       afterSessionCacheCommit(() => { fingerprintCache.set(fp, touchSession(state)) })
     }
@@ -551,6 +562,8 @@ export function messagesHeld(lineage: LineageResult, messages: ReadonlyArray<{ r
       return lineage.resumeFrom + (messages[lineage.resumeFrom]?.role === "assistant" ? 1 : 0)
     case "undo":
       return lineage.prefixOverlap
+    case "rollback-tail":
+      return lineage.rollbackIndex + 1
     case "diverged":
       return 0
   }

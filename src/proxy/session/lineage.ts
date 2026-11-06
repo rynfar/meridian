@@ -122,6 +122,8 @@ export function reconcileReturnedSessionUuids(
  *
  * - `diverged`: no SDK session is resumed, so start empty.
  * - `undo`: retain only the preserved prefix `0 .. prefixOverlap - 1`.
+ * - `rollback-tail`: retain `0 .. rollbackIndex`, the messages the fork keeps
+ *   natively; the delivered tail has no SDK UUIDs.
  * - `continuation`: retain stored UUIDs (truncated to `incoming.length` when
  *   resuming from an in-place block boundary).
  * - `compaction`: retain any unchanged leading prefix, null out the replaced
@@ -137,6 +139,7 @@ export function inheritSdkUuids(
   const stored = cached.sdkMessageUuids ?? []
   if (lineage.type === "diverged") return []
   if (lineage.type === "undo") return stored.slice(0, lineage.prefixOverlap)
+  if (lineage.type === "rollback-tail") return stored.slice(0, lineage.rollbackIndex + 1)
   if (lineage.type === "continuation") {
     return lineage.resumeContentFrom !== undefined
       ? stored.slice(0, incoming.length)
@@ -169,13 +172,43 @@ export type LineageResult =
   | { type: "continuation"; session: SessionState; resumeFrom: number; resumeContentFrom?: number }
   | { type: "compaction";   session: SessionState; resumeFrom: number; suffixOverlap: number }
   | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
+  /** Opt-in partial replay: fork at a proved checkpoint, deliver the rest. */
+  | ({ type: "rollback-tail"; cause: RollbackTailCause } & RollbackTail)
   | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number;
       /** Which message stopped matching, when available for a history rewrite
        *  or an unsafe undo boundary. */
       mismatch?: LineageMismatch
       /** A fixed identifier refining the reason for the log line, never
        *  content (the interrupted-turn check's verdict, for one). */
-      detail?: string }
+      detail?: string
+      /** Where a rollback-tail could fork instead of replaying fresh. Set only
+       *  with the `partialReplay` option, on `undo-gap` and `modified-history`. */
+      rollbackTail?: RollbackTail }
+
+/** The lineage a rollback-tail serves. */
+export type RollbackTailLineage = Extract<LineageResult, { type: "rollback-tail" }>
+
+/** The replay a rollback-tail serves instead. A checkpoint mismatch is a
+ *  continuation whose passthrough tool results did not settle the stored
+ *  checkpoint, which the server finds after lineage verification. */
+export type RollbackTailCause = "undo-gap" | "modified-history" | "checkpoint-mismatch"
+
+/**
+ * A fork point inside the verified prefix of a history that no longer
+ * continues its stored SDK session. The fork keeps client messages
+ * `0 .. rollbackIndex` natively; the request delivers every message after it.
+ */
+export interface RollbackTail {
+  readonly session: SessionState
+  /** Client index of the assistant message the fork ends at. */
+  readonly rollbackIndex: number
+  /** That message's SDK assistant UUID: the `resumeSessionAt` boundary. */
+  readonly rollbackUuid: string
+  /** The tool calls it made. The next message settles exactly these with
+   *  leading tool_result blocks, which are delivered natively; empty when it
+   *  made none. */
+  readonly settledToolIds: readonly string[]
+}
 
 export type LineageDivergenceReason =
   | "unverifiable"
@@ -525,6 +558,18 @@ export function formatDivergence(
 }
 
 /**
+ * The request log's rollback-tail fields: the replay it replaces, how many
+ * client messages the fork keeps natively and how many it delivers.
+ */
+export function formatRollbackTail(
+  tail: { readonly cause: RollbackTailCause; readonly rollbackIndex: number },
+  messageCount: number,
+): string {
+  const prefix = tail.rollbackIndex + 1
+  return `from=${tail.cause} prefix=${prefix} tail=${messageCount - prefix}`
+}
+
+/**
  * Compute per-message hashes for an entire message array.
  */
 export function computeMessageHashes(messages: Array<{ role: string; content: any }>): string[] {
@@ -657,6 +702,9 @@ function findSuffixAnchorStart(
  *   Cached prefix changed while growing    → diverged     (fresh full-history replay)
  *   No overlap                             → diverged     (fresh full-history replay)
  *
+ * With `partialReplay`, an undo-gap or modified-history divergence also
+ * carries the fork point a rollback-tail could use (see planRollbackTail).
+ *
  * Appended content is admissible only when the complete stored prefix is
  * unchanged and the new content is delivered. Removed content is a history
  * rewrite: retaining a superset can preserve instructions the client revoked.
@@ -665,7 +713,7 @@ function findSuffixAnchorStart(
 export function verifyLineage(
   cached: SessionState,
   messages: Array<{ role: string; content: any }>,
-  options: { compactionSurvival?: boolean } = {},
+  options: { compactionSurvival?: boolean; partialReplay?: boolean } = {},
 ): LineageResult {
   // A legacy entry cannot prove which client history its SDK session contains.
   // Partial/legacy writers may preserve an unknown optional raw-only field.
@@ -823,16 +871,23 @@ export function verifyLineage(
     // Undo delivery sends only the final user message. Everything preceding
     // it must therefore be covered by the preserved prefix; edited intermediate
     // turns would otherwise be absent from both the fork and its input (#817).
-    if (prefixOverlap !== messages.length - 1 || messages.at(-1)?.role !== "user") {
-      return {
-        type: "diverged", reason: "undo-gap", prefixOverlap,
-        mismatch: describeLineageMismatch(cached, messages, incomingHashes),
+    const omitsHistory = prefixOverlap !== messages.length - 1 || messages.at(-1)?.role !== "user"
+    // The UUID must cover that entire prefix too. An older checkpoint would
+    // silently omit the matching turns after it. With no adjacent UUID, as
+    // when a client side request added the last shared user message, an
+    // earlier assistant turn may still anchor a rollback-tail fork; otherwise
+    // the undo-without-rollback path safely replays the full history.
+    const rollbackUuid = cached.sdkMessageUuids?.[prefixOverlap - 1] || undefined
+    if (omitsHistory || !rollbackUuid) {
+      const tail = rollbackTailOption(options.partialReplay, cached, messages, prefixOverlap)
+      if (omitsHistory || tail.rollbackTail) {
+        return {
+          type: "diverged", reason: "undo-gap", prefixOverlap,
+          mismatch: describeLineageMismatch(cached, messages, incomingHashes),
+          ...tail,
+        }
       }
     }
-    // The UUID must cover that entire prefix too. An older checkpoint would
-    // silently omit the matching turns after it. With no adjacent UUID the
-    // existing undo-without-rollback path safely replays the full history.
-    const rollbackUuid = cached.sdkMessageUuids?.[prefixOverlap - 1] || undefined
     return { type: "undo", session: cached, prefixOverlap, rollbackUuid }
   }
 
@@ -854,10 +909,93 @@ export function verifyLineage(
       reason: "modified-history",
       prefixOverlap,
       mismatch: describeLineageMismatch(cached, messages, incomingHashes),
+      ...rollbackTailOption(options.partialReplay, cached, messages, prefixOverlap),
     }
   }
 
   // No meaningful overlap — completely different conversation.
   return { type: "diverged", reason: "unrelated-history", prefixOverlap }
+}
+
+function rollbackTailOption(
+  partialReplay: boolean | undefined,
+  cached: SessionState,
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+  prefixOverlap: number,
+): { rollbackTail?: RollbackTail } {
+  const rollbackTail = partialReplay ? planRollbackTail(cached, messages, prefixOverlap) : undefined
+  return rollbackTail ? { rollbackTail } : {}
+}
+
+/**
+ * Find where a history that no longer continues its stored SDK session can
+ * fork that session instead of replaying it whole (opt-in `partialReplay`).
+ *
+ * `provedPrefix` counts the leading client messages whose hashes match the
+ * stored ones. The fork point is the last assistant message among them that
+ * has an SDK UUID: forking there keeps everything up to it as the SDK
+ * transcript holds it, so the prompt cache earlier turns wrote still covers
+ * it. The caller delivers every later message, so no client history is
+ * skipped (#817).
+ *
+ * An assistant that called tools is a fork point only when the very next
+ * message settles exactly those calls with leading tool_result blocks: the
+ * fork resumes right after its tool_use, where the API accepts nothing else.
+ * Otherwise an earlier assistant is tried. The stored session must prove its
+ * SDK prefix (`lineageHash`), and the history must end in a user turn for the
+ * model to answer. Undefined means no fork point is proved.
+ */
+export function planRollbackTail(
+  cached: SessionState,
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+  provedPrefix: number,
+): RollbackTail | undefined {
+  if (!cached.lineageHash || !endsWithUserTurn(messages)) return undefined
+  const uuids = cached.sdkMessageUuids ?? []
+  // At least one message must follow the fork point.
+  const end = Math.min(provedPrefix, cached.messageCount, messages.length - 1)
+  for (let index = end - 1; index >= 0; index--) {
+    const message = messages[index]!
+    const uuid = uuids[index]
+    if (message.role !== "assistant" || typeof uuid !== "string" || uuid.length === 0) continue
+    const toolIds = toolUseIds(message.content)
+    if (!toolIds) continue
+    if (toolIds.length > 0 && !settlesToolCalls(messages[index + 1], toolIds)) continue
+    return { session: cached, rollbackIndex: index, rollbackUuid: uuid, settledToolIds: toolIds }
+  }
+  return undefined
+}
+
+/** Trailing `system` messages are client notes folded into the live turn. */
+function endsWithUserTurn(messages: ReadonlyArray<{ role: string }>): boolean {
+  let index = messages.length - 1
+  while (index >= 0 && messages[index]!.role === "system") index--
+  return index >= 0 && messages[index]!.role === "user"
+}
+
+/** The ids of an assistant message's tool calls, in order; undefined when a
+ *  call has no id to settle. */
+function toolUseIds(content: unknown): string[] | undefined {
+  if (!Array.isArray(content)) return []
+  const ids: string[] = []
+  for (const block of content) {
+    if (block?.type !== "tool_use") continue
+    if (typeof block.id !== "string" || block.id.length === 0) return undefined
+    ids.push(block.id)
+  }
+  return ids
+}
+
+/** A user message whose leading tool_result blocks answer each call once. */
+function settlesToolCalls(message: { role: string; content: unknown } | undefined, toolIds: readonly string[]): boolean {
+  if (message?.role !== "user" || !Array.isArray(message.content)) return false
+  const pending = new Set(toolIds)
+  for (const block of message.content) {
+    if (block?.type !== "tool_result") break
+    if (typeof block.tool_use_id !== "string" || !pending.delete(block.tool_use_id)) return false
+  }
+  // A later result after other content is not a valid answer either.
+  const resultCount = message.content.filter((block) => block?.type === "tool_result").length
+  return pending.size === 0 && resultCount === toolIds.length
 }
 

@@ -507,7 +507,7 @@ function render(s, reqs, logs, routes, health) {
   // Lineage breakdown
   if (Object.keys(lineageCounts).length > 0) {
     html += '<div class="cards">';
-    const lineageColors = {continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)',diverged:'var(--red)',new:'var(--muted)'};
+    const lineageColors = {continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)','rollback-tail':'var(--purple)',diverged:'var(--red)',new:'var(--muted)'};
     for (const [type, count] of Object.entries(lineageCounts)) {
       html += '<div class="card"><div class="card-label">Lineage: ' + type + '</div>'
         + '<div class="card-value" style="color:' + (lineageColors[type] || 'var(--text)') + '">' + count + '</div></div>';
@@ -553,7 +553,7 @@ function render(s, reqs, logs, routes, health) {
     const ohW = Math.max((r.proxyOverheadMs || 0) * scale, 0);
     const respW = Math.max(r.upstreamDurationMs * scale, 2);
 
-    const lineageBadge = r.lineageType ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + ({continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)',diverged:'var(--red)',new:'var(--muted)'}[r.lineageType] || 'var(--muted)') + ';color:var(--bg)">' + r.lineageType + '</span>' : '';
+    const lineageBadge = r.lineageType ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + ({continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)','rollback-tail':'var(--purple)',diverged:'var(--red)',new:'var(--muted)'}[r.lineageType] || 'var(--muted)') + ';color:var(--bg)">' + r.lineageType + '</span>' : '';
     const envBadge = (r.envelopeViolations && r.envelopeViolations.length > 0) ? ' <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--red);color:var(--bg)" title="' + r.envelopeViolations.join(', ') + '">envelope×' + r.envelopeViolations.length + '</span>' : '';
     const sessionShort = r.sdkSessionId ? r.sdkSessionId.slice(0, 8) : '—';
     const msgCount = r.messageCount != null ? r.messageCount : '?';
