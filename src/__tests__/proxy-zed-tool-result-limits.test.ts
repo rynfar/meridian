@@ -260,6 +260,24 @@ describe("Zed: oversized client tool results", () => {
     expect(body.choices[0]!.message.content.endsWith("done")).toBe(true)
   })
 
+  it("keeps the note out of later answers, so it never becomes the thread's title", async () => {
+    // Zed asks for the title by resending the answered thread plus its summary
+    // prompt and takes the answer's first line. The oversized result is now in
+    // history: the model still gets the notice, the person gets no note.
+    mockMessages = [assistantMessage([{ type: "text", text: "Duplicate ids search" }])]
+    const res = await zedRequest(app, `thread-${randomUUID()}`, [
+      QUESTION, TOOL_CALL, TOOL_RESULT,
+      { role: "assistant", content: "Found two duplicates." },
+      { role: "user", content: "Generate a concise 3-7 word title for this conversation, omitting punctuation." },
+    ])
+    expect(res.status).toBe(200)
+    const body = await res.json() as { choices: Array<{ message: { content: string } }> }
+    expect(body.choices[0]!.message.content).toBe("Duplicate ids search")
+    const [prompt] = await promptMessagesOf(capturedQueryParamsAll[0])
+    expect(prompt).toContain("[Tool result withheld by the proxy] The `grep` result is 6 KB")
+    expect(prompt).not.toContain("PAYLOAD-END")
+  })
+
   it("stays silent when MERIDIAN_NO_TOOL_RESULT_NOTE is set, while the model still gets the notice", async () => {
     process.env.MERIDIAN_NO_TOOL_RESULT_NOTE = "1"
     mockMessages = [assistantMessage([{ type: "text", text: "quiet" }])]
