@@ -4421,10 +4421,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       messagesToConvert = cappedToolResults.messages
       logToolResultCuts(cappedToolResults.cuts, toolResultLimits, requestMeta.requestId)
       // Shown to the person at the top of the answer; the model's own notice is
-      // already in the prompt. MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
+      // already in the prompt. Only the live turn's cuts count: a result cut in
+      // history was announced when it arrived, and Zed resends the thread for
+      // its title, whose first line would otherwise be this note.
+      // MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
       const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE
         ? ""
-        : formatWithheldNote(cappedToolResults.cuts, toolResultLimits)
+        : formatWithheldNote(cappedToolResults.liveCuts, toolResultLimits)
 
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
@@ -6100,7 +6103,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // value, so it carries no note.
           if (withheldNote && !outputFormat) {
             contentBlocks.unshift({ type: "text", text: withheldNote })
-            claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.cuts.length })
+            claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.liveCuts.length })
           }
 
           const totalDurationMs = Date.now() - requestStartAt
@@ -6657,7 +6660,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 eventsForwarded += 1
                 if (frameType === "content_block_start") contentBlocksForwarded += 1
               }
-              claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.cuts.length })
+              claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.liveCuts.length })
             }
 
             // Call only after shouldEarlyStop(earlyStop) returned true.
