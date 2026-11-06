@@ -64,10 +64,10 @@ const conversation = (count: number): Message[] =>
   Array.from({ length: count }, (_, index) => index % 2 === 0 ? user(`user ${index}`) : assistant(`assistant ${index}`))
 const uuidsOf = (messages: Message[]) => messages.map((message, index) => message.role === "assistant" ? `uuid-${index}` : null)
 
-function seed(key: string | undefined, messages: Message[], checkpoint?: { uuid: string; ids: string[] }, workingDirectory?: string): void {
+async function seed(key: string | undefined, messages: Message[], checkpoint?: { uuid: string; ids: string[] }, workingDirectory?: string): Promise<unknown> {
   const uuids: Array<string | null> = uuidsOf(messages)
   if (checkpoint) uuids.push(checkpoint.uuid)
-  storeSession(key, messages, "sdk-source", workingDirectory, uuids, undefined, checkpoint?.uuid, checkpoint?.ids)
+  return storeSession(key, messages, "sdk-source", workingDirectory, uuids, undefined, checkpoint?.uuid, checkpoint?.ids)
 }
 
 type Client = { headers: Record<string, string>; body: Record<string, unknown> }
@@ -147,7 +147,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   for (const stream of [false, true]) {
     it(`forks an undo-gap at the assistant before the rewrite and delivers the tail (stream=${stream})`, async () => {
-      seed(key, history)
+      await seed(key, history)
       await send(key, undoGap, stream)
       expectFork("uuid-439")
       const prompt = await promptOf(captured[0]!)
@@ -171,7 +171,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   it("keeps today's full replay with the setting off", async () => {
     delete process.env.MERIDIAN_PARTIAL_REPLAY
-    seed(key, history)
+    await seed(key, history)
     await send(key, undoGap)
     expectFreshReplay()
     expect(await promptOf(captured[0]!)).toContain("user 438")
@@ -183,14 +183,14 @@ describe("rollback-tail partial replay over HTTP", () => {
   it("turns on from settings.json, and MERIDIAN_PARTIAL_REPLAY=0 forces it off", async () => {
     delete process.env.MERIDIAN_PARTIAL_REPLAY
     setSetting("partialReplay", true)
-    seed(key, history)
+    await seed(key, history)
     await send(key, undoGap)
     expectFork("uuid-439")
 
     captured = []
     process.env.MERIDIAN_PARTIAL_REPLAY = "0"
     const other = `${key}-off`
-    seed(other, history)
+    await seed(other, history)
     await send(other, undoGap)
     expectFreshReplay()
   })
@@ -199,7 +199,7 @@ describe("rollback-tail partial replay over HTTP", () => {
     // Stored: assistant 5 was thinking-only. Incoming: the same slot now holds
     // thinking+tool_use, and its result replaces the stored trailing turn.
     const stored = [...conversation(5), { role: "assistant", content: [{ type: "thinking", thinking: "…", signature: "sig" }] }, user("user 6")]
-    seed(key, stored)
+    await seed(key, stored)
     await send(key, [...stored.slice(0, 5), toolCall("filled"), toolResults("filled")])
     expectFork("uuid-3")
     const text = await promptOf(captured[0]!)
@@ -213,7 +213,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   it("forks modified history at the assistant before the change", async () => {
     const stored = conversation(9)
-    seed(key, stored)
+    await seed(key, stored)
     await send(key, [...stored.slice(0, 6), user("REWRITTEN_6"), assistant("reply 7"), user("user 8"), assistant("reply 9"), user("LIVE_10")])
     expectFork("uuid-5")
     const text = await promptOf(captured[0]!) as string
@@ -226,7 +226,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   it("settles a tool-call fork point with its native results, then the rendered rest", async () => {
     const stored = [user("go"), assistant("plan"), user("read both"), toolCall("t1", "t2"), toolResults("t1", "t2"), assistant("summary"), user("thanks")]
-    seed(key, stored)
+    await seed(key, stored)
     await send(key, [...stored.slice(0, 5), assistant("REVISED_SUMMARY"), user("LIVE")])
     expectFork("uuid-3")
     const content = await promptOf(captured[0]!) as Array<Record<string, unknown>>
@@ -245,7 +245,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   it("forks before a tool-call assistant whose results are not all present", async () => {
     const stored = [user("go"), assistant("plan"), user("read both"), toolCall("t1", "t2"), toolResults("t1"), assistant("summary"), user("thanks")]
-    seed(key, stored)
+    await seed(key, stored)
     await send(key, [...stored.slice(0, 5), assistant("REVISED_SUMMARY"), user("LIVE")])
     expectFork("uuid-1")
     const text = await promptOf(captured[0]!)
@@ -258,7 +258,7 @@ describe("rollback-tail partial replay over HTTP", () => {
   it("replays fresh when the history is over the replay budget", async () => {
     process.env.MERIDIAN_REPLAY_BUDGET_TOKENS = "20"
     const stored = conversation(9)
-    seed(key, stored)
+    await seed(key, stored)
     await send(key, [...stored.slice(0, 6), user("REWRITTEN_6"), assistant("reply 7"), user("LIVE_8")])
     expectFreshReplay()
     expect(diagnostics()).toContain("rollback-tail refused (over-budget) for undo-gap")
@@ -268,7 +268,7 @@ describe("rollback-tail partial replay over HTTP", () => {
   for (const stream of [false, true]) {
     it(`replays fresh when the forked tail overflows the context window (stream=${stream})`, async () => {
       overflowForks = true
-      seed(key, history)
+      await seed(key, history)
       await send(key, undoGap, stream, 2)
       expectFork("uuid-439")
       expect(captured[1]!.options?.resume).toBeUndefined()
@@ -283,7 +283,7 @@ describe("rollback-tail partial replay over HTTP", () => {
     // The stored turn forwarded c1 and c2; the client answered only c1.
     const stored = [user("go"), assistant("plan"), user("read it"), toolCall("t1"), toolResults("t1")]
     const incoming = [...stored, toolCall("c1", "c2"), toolResults("c1")]
-    seed(key, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] })
+    await seed(key, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] })
     await send(key, incoming)
     expectFork("uuid-3")
     const content = await promptOf(captured[0]!) as Array<Record<string, unknown>>
@@ -303,7 +303,7 @@ describe("rollback-tail partial replay over HTTP", () => {
     // ending in a tool_result skips lookup). It replays its own body instead
     // of forking the matched session.
     const stored = [user(`go ${key}`), assistant("plan"), user("read it"), toolCall("t1"), toolResults("t1")]
-    seed(undefined, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] }, OPENCODE_CWD)
+    await seed(undefined, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] }, OPENCODE_CWD)
     await sendAs(headerlessOpenCode, [...stored, toolCall("c1", "c2"), toolResults("c1"), user("QUEUED_TEXT")])
     expect(diagnostics()).not.toContain("lineage=rollback-tail")
     expect(diagnostics()).toContain("rollback-tail refused (headerless-opencode) for checkpoint-mismatch")
@@ -316,7 +316,7 @@ describe("rollback-tail partial replay over HTTP", () => {
 
   it("keeps the replay of a headerless OpenCode undo-gap", async () => {
     const stored = conversation(9)
-    seed(undefined, stored, undefined, OPENCODE_CWD)
+    await seed(undefined, stored, undefined, OPENCODE_CWD)
     await sendAs(headerlessOpenCode, [...stored.slice(0, 6), user("REWRITTEN_6"), assistant("reply 7"), user("LIVE_8")])
     expect(diagnostics()).toContain("rollback-tail refused (headerless-opencode) for undo-gap")
     expectFreshReplay()
@@ -326,7 +326,7 @@ describe("rollback-tail partial replay over HTTP", () => {
   it("keeps today's replay of an unsettled checkpoint with the setting off", async () => {
     delete process.env.MERIDIAN_PARTIAL_REPLAY
     const stored = [user("go"), assistant("plan"), user("read it"), toolCall("t1"), toolResults("t1")]
-    seed(key, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] })
+    await seed(key, stored, { uuid: "uuid-checkpoint", ids: ["c1", "c2"] })
     await send(key, [...stored, toolCall("c1", "c2"), toolResults("c1")])
     expectFreshReplay()
     expect(lastLineage()).toBe("continuation")
