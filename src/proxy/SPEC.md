@@ -220,7 +220,10 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   above 5% of the window (20% for the live turn's results together, tokens
   estimated at 2 bytes) becomes an `is_error` notice with size, limit, how to
   narrow the call and a sample; the person gets a `[meridian] Withheld …` line
-  at the top of that answer. The cap runs once per request on the messages
+  at the top of that answer, only for cuts in the live turn: the client
+  resends the thread on every request (Zed's title request included), so a
+  cut in history would repeat the line on every answer and become the
+  thread's title. The cap runs once per request on the messages
   that become the prompt — before the replay budget estimates them and before
   lineage-neutral rendering — and again inside `buildFreshPrompt` for the
   fallback replays. Fractions, not bytes, so the limits follow the window

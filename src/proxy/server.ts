@@ -4094,10 +4094,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       messagesToConvert = cappedToolResults.messages
       logToolResultCuts(cappedToolResults.cuts, toolResultLimits, requestMeta.requestId)
       // Shown to the person at the top of the answer; the model's own notice is
-      // already in the prompt. MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
+      // already in the prompt. Only the live turn's cuts count: a result cut in
+      // history was announced when it arrived, and Zed resends the thread for
+      // its title, whose first line would otherwise be this note.
+      // MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
       const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE
         ? ""
-        : formatWithheldNote(cappedToolResults.cuts, toolResultLimits)
+        : formatWithheldNote(cappedToolResults.liveCuts, toolResultLimits)
 
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
@@ -5785,7 +5788,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // carries no note.
           if (!outputFormat) {
             if (withheldNote) {
-              claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.cuts.length })
+              claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.liveCuts.length })
             }
             if (compactionNotes.length > 0) {
               claudeLog("response.context_compacted", { mode: "non_stream", count: compactionNotes.length })
@@ -6360,7 +6363,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               if (withheldNote && !withheldNoteEmitted && !outputFormat) {
                 withheldNoteEmitted = true
                 if (emitProxyNote(withheldNote, "withheld_note")) {
-                  claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.cuts.length })
+                  claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.liveCuts.length })
                 }
               }
               for (const note of pendingCompactionNotes.splice(0)) {
