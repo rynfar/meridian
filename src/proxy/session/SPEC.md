@@ -250,7 +250,9 @@ next request replays, as main's fresh replay of that turn would have.
 ## Partial replay (rollback-tail)
 
 Opt-in (`partialReplay` setting, `MERIDIAN_PARTIAL_REPLAY`, default off). An
-undo-gap or modified-history divergence, and a passthrough checkpoint whose
+undo-gap or modified-history divergence, an undo whose last shared message
+has no SDK UUID (a client side request, such as omp's prediction or recap,
+adds user messages the SDK never produced), and a passthrough checkpoint whose
 results do not settle it, used to replay the complete client history. That
 replay shares only the system and tool prefix with the prompt cache: the cache
 holding the conversation was written from the SDK session's native turns,
@@ -281,6 +283,11 @@ request is not passthrough, and when the estimated history exceeds the replay
 budget: a forked session cannot trim history as a replay does. The budget
 check is an estimate, so a fork the SDK reports as a context overflow is
 evicted and replayed fresh, like a session the SDK refuses to resume.
+
+With the option on, an undo without that UUID becomes an undo-gap divergence
+only when a rollback point qualifies; without one it stays a plain undo with
+no rollback UUID, which replays fresh as before. A refused fork of it replays
+fresh as well, logged and reported as the undo-gap it was reclassified to.
 
 Plugins' `onSession` hook sees a rollback-tail as `lineage: "undo"` (the
 contract's four kinds stay), with `reason`, `prefixOverlap` and `mismatch`
