@@ -212,6 +212,24 @@ describe("capClientToolResults", () => {
     expect(capped.cuts).toEqual([{ tool: "read_file", originalBytes: 400, limitBytes: 100, reason: "turn" }])
   })
 
+  it("reports only the live turn's cuts in liveCuts, while cuts keeps history's too", () => {
+    const limits = { windowTokens: 200_000, perResultBytes: 100, perTurnBytes: Infinity }
+    const big = "h".repeat(300)
+    const answered = [
+      { role: "user", content: "start" },
+      call("toolu_1"), result("toolu_1", big),
+      { role: "assistant", content: "found it" },
+      { role: "user", content: "Generate a concise 3-7 word title for this conversation" },
+    ]
+    const later = capClientToolResults(answered, limits, names)
+    expect(later.cuts.map((c) => c.tool)).toEqual(["grep"])
+    expect(later.liveCuts).toHaveLength(0)
+    expect(String((later.messages[2]!.content as Array<{ content: string }>)[0]!.content)).toContain("withheld")
+
+    const live = capClientToolResults(answered.slice(0, 3), limits, names)
+    expect(live.liveCuts.map((c) => c.tool)).toEqual(["grep"])
+  })
+
   it("returns an equal array and no cuts when nothing is oversized", () => {
     const limits = { windowTokens: 200_000, perResultBytes: 1_000, perTurnBytes: 5_000 }
     const messages = [{ role: "user", content: "start" }, call("toolu_1"), result("toolu_1", "ok")]
@@ -219,5 +237,6 @@ describe("capClientToolResults", () => {
     expect(capped.messages).toEqual(messages)
     expect(capped.messages[2]).toBe(messages[2])
     expect(capped.cuts).toHaveLength(0)
+    expect(capped.liveCuts).toHaveLength(0)
   })
 })

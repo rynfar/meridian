@@ -222,7 +222,10 @@ export function capStructuredToolResults(
 
 export interface CappedClientMessages<T> {
   messages: T[]
+  /** Every cut made while building this prompt, history included — for the logs. */
   cuts: ToolResultCut[]
+  /** The cuts made in the live turn only — the ones to tell the person about. */
+  liveCuts: ToolResultCut[]
   limits: ToolResultLimits
 }
 
@@ -234,6 +237,11 @@ export interface CappedClientMessages<T> {
  * fresh replay of a long history carries every earlier result as well, and
  * spending the turn's budget on those would withhold the newest results, the
  * ones the model is about to act on; history size is the replay budget's job.
+ *
+ * `liveCuts` holds only the live turn's cuts. A cut in history was announced
+ * on the turn its result arrived; the client resends that result on every
+ * later request of the thread (Zed's title request among them), so counting
+ * it again would repeat the note on every answer and turn it into the title.
  * Returns the same array when nothing changed.
  */
 export function capClientToolResults<T extends { role: string; content: unknown }>(
@@ -252,5 +260,5 @@ export function capClientToolResults<T extends { role: string; content: unknown 
     changed = true
     return { ...message, content }
   })
-  return { messages: changed ? capped : [...messages], cuts: [...history.cuts, ...live.cuts], limits }
+  return { messages: changed ? capped : [...messages], cuts: [...history.cuts, ...live.cuts], liveCuts: [...live.cuts], limits }
 }
