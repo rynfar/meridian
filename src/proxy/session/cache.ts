@@ -367,7 +367,7 @@ function classifyLineage(
     const detail = result.mismatch ? formatLineageMismatch(result.mismatch) : undefined
     const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. `
       + (result.rollbackTail ? `Rollback-tail candidate: message ${result.rollbackTail.rollbackIndex}.` : "Starting fresh replay.")
-      + (result.reason === "undo-gap" ? " reason=undo-gap (rollback would omit supplied history)." : "")
+      + (result.reason === "undo-gap" ? " reason=undo-gap (no SDK checkpoint covers the history before the new message)." : "")
       + (detail ? `\n  ${detail}` : "")
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
