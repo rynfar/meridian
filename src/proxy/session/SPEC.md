@@ -209,6 +209,11 @@ history's last user message, a session without block hashes, and a run that
 ends the request (a resent turn keeps its verdict). A reminder with any other
 text beside it, even a newline, is content.
 
+A turn that resumed a realigned session and was stopped mid-stream is not
+marked interrupted (`interruptCandidateOf` skips it): the marking keeps the
+durable mapping's hashes, which are in stored positions. It evicts, and the
+next request replays, as main's fresh replay of that turn would have.
+
 ## Known limitations
 
 - **Container host identity.** Inside containers the derived `hostId` changes on
