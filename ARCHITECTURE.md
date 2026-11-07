@@ -643,6 +643,7 @@ Every request verifies that incoming messages are a valid continuation of the ca
 | Classification | Condition | Action |
 |---------------|-----------|--------|
 | **Continuation** | Full stored prefix hash matches | Resume from the stored message boundary |
+| *(Regrouped user messages)* | User message boundaries or reminder-only user messages changed, blocks otherwise identical | Classify the stored history realigned to incoming positions (see *Appended content and transient hooks*) |
 | **Compaction** | Suffix preserved, beginning changed | Resume after the matched suffix |
 | **Undo** | Prefix preserved, suffix changed | Fork at rollback point |
 | **Diverged** | No overlap, unverifiable state, or a changed cached prefix followed by new messages | Start fresh and replay the complete client history |
@@ -862,6 +863,8 @@ A trailing user tool-result slot may gain new content while every stored block r
 The OpenCode adapter separately recognizes complete `user-prompt-submit-hook` JSON envelopes for UserPromptSubmit additional context and common SDK hook-control fields, including `continue`. These per-turn blocks remain in the original SDK request but are excluded from durable lineage comparisons when a durable block remains. Unknown/malformed envelopes, surrounding prose, hook-only messages and assistant-authored lookalikes remain significant. Other adapters do not inherit this rule. A subset of arbitrary user blocks is never sufficient proof of a continuation.
 
 Structured resume deltas are delivered in one SDK user input, matching text-delta delivery. SDK streamed inputs are independently answered live turns; splitting a growing request's appended context from its final question can yield concatenated answers. The shared pure coalescer preserves result wrappers and media order, and also backs fresh replay framing.
+
+A client may also regroup its user messages between requests: split one into two, merge consecutive ones, or drop or add a user message whose text blocks hold only `<system-reminder>`s (Oh My Pi drops an eval-state note it never wrote to its session file; the 2026-11-07 incident replayed 767 messages for it). The SDK never held those boundaries, since consecutive user messages reach it as one input, and reminder text is already outside the lineage hash. `verifyLineage` therefore realigns a stored history block by block across runs of consecutive user messages, skipping reminder-only blocks on either side, and classifies the realigned history: a continuation resumes, an undo forks at the moved assistant UUID. The realignment needs stored block hashes and both sides on a message boundary after each run; a changed, reordered or moved block, a hash-ignored block, text appended to the stored history's last user message, or a run that ends the request keeps today's verdict. A reminder with other text beside it (even a newline) is content and is not skipped.
 
 ## Optional desktop application (preview)
 
