@@ -1,6 +1,32 @@
-# Meridian review checkpoint — 2026-11-02 UTC
+# Meridian review checkpoint — 2026-11-09 UTC
 
-Last code delivery: `3a700e365fef08b4549642746a9ccbf59c64d95e` (#1480). The 2026-11-02 work is recorded first, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `89fab76f546d29b151f90a8fa9dd7810c1adde52` (#1514). The 2026-11-09 work is recorded first, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-11-09: #1489, #1490, #1491, #1492 and #1497 merged
+
+The owner authorized fixing and merging contributor PRs with credit preserved. Each merge below was an exact-head squash of the contributor's own PR, with Damian Nowak as Git Author, checked with `git log -1 --format='%an <%ae>'`. `scripts/attribution-audit.mjs` afterwards showed no new maintainer-authored re-landings. [QA record](evidence/review-20261109/batch1.md).
+
+- [#1489](https://github.com/rynfar/meridian/pull/1489) `0e420513`: a renamed profile keeps its pool position. Reproduced on main (`['spare', 'employer']`) and fixed on the batch (`['employer', 'spare']`) against real servers.
+- [#1491](https://github.com/rynfar/meridian/pull/1491) `f6b3e8a2`: home-page address chips wrap on a phone (`scrollWidth` 426 before, 320 after, at 320px). Its Settings rule is redundant on current main, because `.setting-status` already wraps.
+- [#1497](https://github.com/rynfar/meridian/pull/1497) `e623e82e`: the (i) popup spans its card, measured in the browser at 1280px and 390px.
+- [#1490](https://github.com/rynfar/meridian/pull/1490) `b9e547e3`: head `ac07ecdd` includes a maintainer correction so `classifyError` also returns 401 for the bare wording; main returned 500.
+  - **Live gate waived by the owner.** A real expired token could not be produced. The bundled Claude Code binary contains `OAuth (?:access )?token has expired\b`.
+- [#1492](https://github.com/rynfar/meridian/pull/1492) `74d13657`: the attributes are present on the search, rename and add-profile fields in the browser.
+  - **Live gate waived by the owner.** No password manager extension was installed, so its fill behavior was not observed.
+
+**Local validation:** `origin/main` `cafdcf78` merged with the five heads, on CI's Bun 1.4.3 and Node 22.23.4. The build passed. `npm test` stops at the first failing command, so the chain was continued by hand, and every other test passed. Three failures, neither related to these changes:
+- `proxy-client-abort-resume` "after the session-turn watchdog" fails on clean main too (3 of 12 runs, against 1 of 12 on the batch).
+- `priority-routing-integration` "leaves the mark unchanged when the OAuth fetch …" failed in 2 of 7 whole-file runs, in both its null and rejecting variants. Run alone, it passed 16 of 16 on both trees at the same duration. Its 5-second margin sits close to the test's 3 seconds of retry backoff. It passed 6 of 6 whole-file runs on main, so a load-only cause is the best explanation, not a proof.
+
+Bun 1.3.11, the `packageManager` version, cannot open the session store on Linux and produces about 1,700 cascading failures. Use CI's versions.
+
+**Also merged, with gates still open:**
+- [#1513](https://github.com/rynfar/meridian/pull/1513) `d482b895` (for #1511, refusals close as `refusal`). Merged under the owner's live-gate waiver and the unsigned-commit `--admin` exception, after all 9 checks passed on its head and focused tests passed against current main. No real refusal has been observed, so #1511 stays open.
+- [#1514](https://github.com/rynfar/meridian/pull/1514) `89fab76f` (for #1472, `HEALTHCHECK` probes `/livez`). The built image has not been run, because Docker was unavailable, so #1472 stays open.
+
+**Deferred:** #1466 stays an error, by owner decision. Retrying with the cap lifted is only safe before anything is streamed, and here the text and the unparseable tool block are already on the wire. Revisit if the rate rises above the reported three in 28 hours, or if tool blocks start being held until their JSON validates. `MERIDIAN_PASSTHROUGH_EARLY_STOP=0` works around it.
+
+**Follow-up:** `weeklyReserve` is also stored by profile id and looked up exactly, so it appears not to follow a rename. Not tested.
 
 ## 2026-11-02: #1475, #1478, #1482 and #1480 merged
 
