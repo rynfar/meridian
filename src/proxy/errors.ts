@@ -326,7 +326,11 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   const lower = errMsg.toLowerCase()
 
   // Expired OAuth token (more specific than the generic auth check below)
-  if (lower.includes("oauth token has expired") || lower.includes("not logged in")) {
+  if (
+    lower.includes("oauth token has expired")
+    || lower.includes("oauth access token has expired")
+    || lower.includes("not logged in")
+  ) {
     return {
       status: 401,
       type: "authentication_error",
