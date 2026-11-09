@@ -1,6 +1,6 @@
 # Meridian review checkpoint — 2026-11-09 UTC
 
-Last code delivery: `74d13657eee837da90af1a63261727c399f4247b` (#1492). The 2026-11-09 work is recorded first, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `89fab76f546d29b151f90a8fa9dd7810c1adde52` (#1514). The 2026-11-09 work is recorded first, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
 
 ## 2026-11-09: #1489, #1490, #1491, #1492 and #1497 merged
 
@@ -20,9 +20,9 @@ The owner authorized fixing and merging contributor PRs with credit preserved. E
 
 Bun 1.3.11, the `packageManager` version, cannot open the session store on Linux and produces about 1,700 cascading failures. Use CI's versions.
 
-**Open, not merged:**
-- [#1513](https://github.com/rynfar/meridian/pull/1513) (for #1511, refusals close as `refusal`): live gate open. Its commit is unsigned, and the `build (.#checks.x86_64-linux.home)` check was cancelled.
-- [#1514](https://github.com/rynfar/meridian/pull/1514) (for #1472, `HEALTHCHECK` probes `/livez`): the built image has not been run, because Docker was unavailable.
+**Also merged, with gates still open:**
+- [#1513](https://github.com/rynfar/meridian/pull/1513) `d482b895` (for #1511, refusals close as `refusal`). Merged under the owner's live-gate waiver and the unsigned-commit `--admin` exception, after all 9 checks passed on its head and focused tests passed against current main. No real refusal has been observed, so #1511 stays open.
+- [#1514](https://github.com/rynfar/meridian/pull/1514) `89fab76f` (for #1472, `HEALTHCHECK` probes `/livez`). The built image has not been run, because Docker was unavailable, so #1472 stays open.
 
 **Deferred:** #1466 stays an error, by owner decision. Retrying with the cap lifted is only safe before anything is streamed, and here the text and the unparseable tool block are already on the wire. Revisit if the rate rises above the reported three in 28 hours, or if tool blocks start being held until their JSON validates. `MERIDIAN_PASSTHROUGH_EARLY_STOP=0` works around it.
 
