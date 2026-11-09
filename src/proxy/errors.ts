@@ -326,7 +326,11 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   const lower = errMsg.toLowerCase()
 
   // Expired OAuth token (more specific than the generic auth check below)
-  if (lower.includes("oauth token has expired") || lower.includes("not logged in")) {
+  if (
+    lower.includes("oauth token has expired")
+    || lower.includes("oauth access token has expired")
+    || lower.includes("not logged in")
+  ) {
     return {
       status: 401,
       type: "authentication_error",
@@ -553,9 +557,9 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
  * Triggers an inline token refresh + retry in server.ts.
  *
  * Patterns, in order of specificity:
- *   - "OAuth token has expired" / "Not logged in" — CLI-emitted (subprocess
- *     either got 401 with this wording from Anthropic or detected expiry
- *     locally before sending).
+ *   - "OAuth token has expired" / "OAuth access token has expired" / "Not
+ *     logged in" — CLI-emitted (subprocess either got 401 with this wording
+ *     from Anthropic or detected expiry locally before sending).
  *   - "invalid_token" / "token_expired" — RFC 6750 resource-server errors that
  *     can appear in the API response body.
  *   - "401" + ("authentication" | "unauthorized" | "invalid") — generic 401
@@ -569,7 +573,11 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
  */
 export function isExpiredTokenError(errMsg: string): boolean {
   const lower = errMsg.toLowerCase()
-  if (lower.includes("oauth token has expired") || lower.includes("not logged in")) return true
+  if (
+    lower.includes("oauth token has expired")
+    || lower.includes("oauth access token has expired")
+    || lower.includes("not logged in")
+  ) return true
   if (lower.includes("invalid_token") || lower.includes("token_expired")) return true
   if (lower.includes("401") && (lower.includes("authentication") || lower.includes("unauthorized") || lower.includes("invalid"))) return true
   return false

@@ -12,6 +12,12 @@ describe("classifyError", () => {
       expect(result.type).toBe("authentication_error")
     })
 
+    it("detects the bare access-token wording as an expired login", () => {
+      const result = classifyError("OAuth access token has expired")
+      expect(result.status).toBe(401)
+      expect(result.type).toBe("authentication_error")
+    })
+
     it("detects 'authentication' keyword", () => {
       const result = classifyError("authentication failed")
       expect(result.status).toBe(401)
