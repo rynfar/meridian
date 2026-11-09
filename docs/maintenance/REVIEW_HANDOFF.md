@@ -1,6 +1,6 @@
 # Meridian review checkpoint — 2026-11-09 UTC
 
-Last code delivery: `3a700e365fef08b4549642746a9ccbf59c64d95e` (#1480). The 2026-11-02 work is recorded first, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `74d13657eee837da90af1a63261727c399f4247b` (#1492). The 2026-11-09 work is recorded first, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
 
 ## 2026-11-09: #1489, #1490, #1491, #1492 and #1497 merged
 
