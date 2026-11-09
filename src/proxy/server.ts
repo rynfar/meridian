@@ -147,7 +147,7 @@ import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapters/letta"
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
-import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
+import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, resolveResponsesSessionKey, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
@@ -237,6 +237,8 @@ import { getConversationFingerprint, getPriorityAssignmentKey } from "./session/
 
 import {
   lookupSession,
+  seedSessionFromSource,
+  FORK_FROM_HEADER,
   copyElsewhereHoldingMore,
   messagesHeld,
   storeSession,
@@ -3365,9 +3367,31 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const isIndependentSession = independentCause !== undefined
         // Once per process: the operator cannot see this in success metrics.
         if (independentCause === "headerless-tool-result") warnHeaderlessToolLoopOnce(adapter.name)
-        const durableMappingAtTurn = durableMappingKey
+        let durableMappingAtTurn: ReturnType<typeof lookupSharedSessionResult> = durableMappingKey
           ? lookupSharedSessionResult(durableMappingKey)
-          : { status: "missing" as const }
+          : { status: "missing" }
+        // A keyed conversation that names the one it was forked from starts
+        // from that conversation's published session (see `session` spec,
+        // *Forked conversations*). Only its first turn, and only on the same
+        // account: the source key is scoped like this one.
+        const forkSourceId = c.req.header(FORK_FROM_HEADER)?.trim()
+        const absentGeneration = durableMappingAtTurn.status === "missing" && !durableMappingAtTurn.existing
+          ? durableMappingAtTurn.generation
+          : undefined
+        const seededFromFork = Boolean(
+          forkSourceId && agentSessionId && forkSourceId !== agentSessionId
+          && durableMappingKey && durableMappingKey === profileSessionId
+          && absentGeneration && !isIndependentSession
+          && await inDurableOrder(async () => seedSessionFromSource(
+            durableMappingKey,
+            mappingKeyOn(profile.id, forkSourceId),
+            absentGeneration,
+          )),
+        )
+        if (seededFromFork) {
+          durableMappingAtTurn = lookupSharedSessionResult(durableMappingKey)
+          claudeLog("session.fork_seeded", { found: durableMappingAtTurn.status === "found" })
+        }
         if (durableMappingAtTurn.status === "error") {
           throw new Error(`Shared session store is unavailable: ${durableMappingAtTurn.error.message}`)
         }
@@ -3401,7 +3425,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // Marking that turn rewrote the mapping after this request arrived. That
         // is the stopped turn's own cleanup, not a competing commit, so waiting
         // it out is not a lost race.
-        const advancedAcrossProcesses = arrivalRevision !== undefined
+        // Seeding wrote the mapping this turn found: that is not another commit.
+        const advancedAcrossProcesses = seededFromFork ? false : arrivalRevision !== undefined
           ? arrivalRevision !== currentDurableRevision && !waitedOutOwnInterruption(arrivalRevision, interruptedClaim)
           : durableMappingAtTurn.status === "found"
         let lineageResult: LineageResult = isIndependentSession
@@ -11465,6 +11490,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         "x-session-id",
         "x-opencode-agent-mode",
         "x-opencode-agent-name",
+        FORK_FROM_HEADER,
         "user-agent",
       ]) {
         const value = c.req.header(name)
@@ -11631,8 +11657,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // subagent inherits its parent's `prompt_cache_key` — see
     // resolveCodexThreadIdentity for what each signal answers.
     const codexThread = resolveCodexThreadIdentity(rawBody, c.req.header("x-codex-turn-metadata"))
-    if (codexThread.sessionKey) internalHeaders["x-codex-session"] = codexThread.sessionKey
+    const sessionKey = resolveResponsesSessionKey(
+      [c.req.header("x-session-affinity"), c.req.header("x-session-id")],
+      codexThread,
+    )
+    if (sessionKey) internalHeaders["x-codex-session"] = sessionKey
     if (codexThread.requestSource) internalHeaders["x-meridian-source"] = codexThread.requestSource
+    const forkSource = c.req.header(FORK_FROM_HEADER)
+    if (sessionKey && forkSource) internalHeaders[FORK_FROM_HEADER] = forkSource
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")

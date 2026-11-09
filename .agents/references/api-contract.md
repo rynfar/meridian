@@ -21,6 +21,7 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `ProxyConfig` type | `types.ts` | Plugin configuration |
 | `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
 | Generic OpenAI `x-session-id` on `/v1/chat/completions` | `adapters/openai.ts`, `server.ts` | Owner-approved #1441: distinct conversation identity after the existing OpenCode/session-affinity keys and agent scoping; blank values keep the headerless path |
+| `x-session-affinity` / `x-session-id` on `/v1/responses`, and `x-meridian-fork-from` | `openaiResponses.ts`, `session/cache.ts`, `server.ts` | Pending owner approval: a client-named conversation keeps its own session instead of the shared `prompt_cache_key`; a new keyed conversation may name the one it was forked from and starts from its published session |
 | `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection |
 | `GET /health` response shape | `server.ts` | Plugin health checks |
 | `/health` `backend` field | `server.ts` / `backends/antigravity.ts` | Desktop provider compatibility check (#1073) |

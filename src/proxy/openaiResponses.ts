@@ -378,6 +378,25 @@ export function resolveCodexThreadIdentity(
 
   return identity
 }
+
+/**
+ * The session key a Responses turn resumes under. A client that names its own
+ * conversation (`x-session-affinity`, or the generic `x-session-id`) keeps that
+ * name, as it does on /v1/chat/completions: a harness that gives several live
+ * conversations one `prompt_cache_key` so they share a provider cache would
+ * otherwise merge them into one session, the failure described above for Codex
+ * subagents. Without one, the Codex thread identity decides.
+ */
+export function resolveResponsesSessionKey(
+  clientSessionKeys: ReadonlyArray<string | undefined>,
+  thread: CodexThreadIdentity,
+): string | undefined {
+  for (const key of clientSessionKeys) {
+    const trimmed = key?.trim()
+    if (trimmed) return trimmed
+  }
+  return thread.sessionKey
+}
 // ---------------------------------------------------------------------------
 // Request translation: Responses → Anthropic
 // ---------------------------------------------------------------------------
