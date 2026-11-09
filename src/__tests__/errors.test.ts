@@ -2,7 +2,27 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { canRecoverCapturedToolUses, classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal, isRateLimitError } from "../proxy/errors"
+import { assistantRefusalOf, canRecoverCapturedToolUses, classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal, isRateLimitError } from "../proxy/errors"
+
+describe("assistantRefusalOf", () => {
+  const details = { type: "refusal", category: "cyber" }
+
+  it("keeps the structured details of a refusal row", () => {
+    expect(assistantRefusalOf({ message: { stop_reason: "refusal", stop_details: details } }))
+      .toEqual({ stopDetails: details })
+  })
+
+  it("tolerates a refusal without details", () => {
+    expect(assistantRefusalOf({ message: { stop_reason: "refusal" } })).toEqual({ stopDetails: null })
+    expect(assistantRefusalOf({ message: { stop_reason: "refusal", stop_details: "text" } })).toEqual({ stopDetails: null })
+  })
+
+  it("ignores other stops and subagent refusals", () => {
+    expect(assistantRefusalOf({ message: { stop_reason: "end_turn" } })).toBeNull()
+    expect(assistantRefusalOf({ message: { stop_reason: null } })).toBeNull()
+    expect(assistantRefusalOf({ parent_tool_use_id: "toolu_1", message: { stop_reason: "refusal", stop_details: details } })).toBeNull()
+  })
+})
 
 describe("classifyError", () => {
   describe("authentication errors", () => {

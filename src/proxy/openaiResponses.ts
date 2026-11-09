@@ -690,7 +690,11 @@ function mapUsage(usage: AnthropicUsage | undefined) {
  * can tell a cut-off answer from a finished one.
  */
 function toResponsesStatus(stopReason: string | undefined): "completed" | "incomplete" {
-  return stopReason === "max_tokens" ? "incomplete" : "completed"
+  return stopReason === "max_tokens" || stopReason === "refusal" ? "incomplete" : "completed"
+}
+
+function incompleteDetails(stopReason: string | undefined): { incomplete_details: { reason: string } } {
+  return { incomplete_details: { reason: stopReason === "refusal" ? "content_filter" : "max_output_tokens" } }
 }
 
 /**
@@ -743,7 +747,7 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
     created_at: ctx.created,
     model: ctx.model,
     status,
-    ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
+    ...(status === "incomplete" ? incompleteDetails(res.stop_reason) : {}),
     output,
     usage: mapUsage(res.usage),
     parallel_tool_calls: true,
@@ -951,7 +955,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
             parallel_tool_calls: true,
             tool_choice: "auto",
             tools: [],
-            ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
+            ...(status === "incomplete" ? incompleteDetails(stopReason) : {}),
           }),
         }))
         break

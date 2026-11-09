@@ -36,6 +36,8 @@ import {
 
 let mockMessages: any[] = []
 let mockErrorAfter: number | null = null
+const RATE_LIMIT_ERROR = "429 Too Many Requests - rate limit exceeded"
+let mockErrorMessage = RATE_LIMIT_ERROR
 
 installSdkMock(() => ({
   query: (params: any) => {
@@ -45,7 +47,7 @@ installSdkMock(() => ({
         yield withMockSdkSessionId(msg, params.options)
         yielded++
         if (mockErrorAfter !== null && yielded >= mockErrorAfter) {
-          throw new Error("429 Too Many Requests - rate limit exceeded")
+          throw new Error(mockErrorMessage)
         }
       }
     })()
@@ -97,7 +99,60 @@ describe("Stream error recovery after message_start", () => {
   beforeEach(async () => {
     mockMessages = []
     mockErrorAfter = null
+    mockErrorMessage = RATE_LIMIT_ERROR
     await clearSessionCache()
+  })
+
+  describe("safeguard refusals (#1511)", () => {
+    const stopDetails = { type: "refusal", category: "cyber", explanation: "Blocked under the Usage Policy." }
+    const refusalRow = (parentToolUseId: string | null = null) => ({
+      type: "assistant",
+      parent_tool_use_id: parentToolUseId,
+      error: "invalid_request",
+      uuid: "11111111-1111-4111-8111-111111111111",
+      session_id: "sdk-session",
+      message: {
+        id: "msg_refused",
+        type: "message",
+        role: "assistant",
+        model: "<synthetic>",
+        content: [{ type: "text", text: "API Error: safeguards flagged this message" }],
+        stop_reason: "refusal",
+        stop_details: stopDetails,
+        usage: { input_tokens: 0, output_tokens: 0 },
+      },
+    })
+    const refusalError = "Claude Code returned an error result: API Error: Opus 5.5's safeguards flagged this message."
+
+    const finalDelta = (events: Awaited<ReturnType<typeof postStream>>) =>
+      events.filter((e) => e.event === "message_delta").at(-1)?.data as any
+
+    it("closes a refused turn as a refusal so clients do not continue it", async () => {
+      mockMessages = [messageStart("msg_refused"), refusalRow()]
+      mockErrorAfter = 2
+      mockErrorMessage = refusalError
+
+      const events = await postStream(createTestApp())
+      const eventTypes = events.map((e) => e.event)
+
+      expect(finalDelta(events).delta).toEqual({
+        stop_reason: "refusal",
+        stop_sequence: null,
+        stop_details: stopDetails,
+      })
+      expect(eventTypes.indexOf("error")).toBeGreaterThan(eventTypes.lastIndexOf("message_delta"))
+      expect(eventTypes.indexOf("error")).toBeLessThan(eventTypes.lastIndexOf("message_stop"))
+    })
+
+    it("does not attribute a subagent's refusal to the client's turn", async () => {
+      mockMessages = [messageStart("msg_parent"), refusalRow("toolu_subagent")]
+      mockErrorAfter = 2
+      mockErrorMessage = refusalError
+
+      const delta = finalDelta(await postStream(createTestApp())).delta
+      expect(delta.stop_reason).toBe("max_tokens")
+      expect(delta).not.toHaveProperty("stop_details")
+    })
   })
 
   it("closes the message lifecycle and puts the error where the client will read it", async () => {

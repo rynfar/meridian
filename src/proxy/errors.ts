@@ -804,6 +804,20 @@ export interface StreamedToolBlockRecord {
   naturalStop: boolean
 }
 
+export interface AssistantRefusal {
+  readonly stopDetails: object | null
+}
+
+/** Reads Claude Code's structured refusal row; its error text changes wording between versions. */
+export function assistantRefusalOf(row: {
+  readonly parent_tool_use_id?: string | null
+  readonly message: { readonly stop_reason?: string | null; readonly stop_details?: unknown }
+}): AssistantRefusal | null {
+  if (row.parent_tool_use_id || row.message.stop_reason !== "refusal") return null
+  const details = row.message.stop_details
+  return { stopDetails: typeof details === "object" ? details : null }
+}
+
 /** Why a streamed-but-uncaptured tool call is not complete and executable. */
 export type StreamedToolBlockVeto = "unforwarded" | "unclosed" | "incomplete_json"
 
