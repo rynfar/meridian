@@ -1203,6 +1203,14 @@ describe("translateAnthropicSseEvent", () => {
     expect(chunk!.choices[0]!.finish_reason).toBe("length")
   })
 
+  it("message_delta refusal → finish chunk with content_filter", () => {
+    const chunk = translateAnthropicSseEvent(
+      { type: "message_delta", delta: { stop_reason: "refusal" } },
+      ID, MODEL, CREATED, NO_TOOL
+    )
+    expect(chunk!.choices[0]!.finish_reason).toBe("content_filter")
+  })
+
   it("ping → null", () => {
     expect(translateAnthropicSseEvent({ type: "ping" }, ID, MODEL, CREATED, NO_TOOL)).toBeNull()
   })
