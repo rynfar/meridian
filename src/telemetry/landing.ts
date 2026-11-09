@@ -39,6 +39,13 @@ export const landingHtml = `<!DOCTYPE html>
   .intro code { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
     padding: 1px 6px; color: var(--accent2); white-space: nowrap; }
+  /* The address chips carry this instance's own host, which can be longer
+     than a phone's column: a 37-character host was 348px in a 272px column at
+     320px and scrolled the page sideways. A desktop keeps each chip unbroken;
+     a phone lets it wrap. */
+  @media (max-width: 720px) {
+    .intro code { white-space: normal; overflow-wrap: anywhere; }
+  }
   .intro a { color: var(--accent); text-decoration: none; }
   .intro a:hover { text-decoration: underline; }
   .intro-meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
