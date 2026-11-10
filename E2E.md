@@ -1806,6 +1806,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
+| E88 | [Claude Code in-process teammate session isolation](#e88-claude-code-in-process-teammate-session-isolation) | **Automated, needs the `claude` CLI and `tmux`**: `bun scripts/e2e-claude-code-teammate-session.mjs` — real proxy + SDK, the REAL interactive Claude Code CLI (agent teams on) spawning two named teammates. Asserts the teammates' `name@team` agent ids each get their own session key, every teammate and parent turn after the first resumes, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys or Claude Code detection** | 2026-11-10 |
 | E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -7163,6 +7164,45 @@ subprocess had exited on `--thinking-display updates`) and nothing logged a
 drop; `"summarized"` answered. Branch: PASS, 4 of 4: both answered, thinking
 was not forced off, and the drop was logged once. Live, the owner's interactive Claude Code 2.1.287 session failed
 10 of 10 turns through the proxy with this error before the fix.
+
+## E88: Claude Code in-process teammate session isolation
+
+**What it proves:** named agents of a Claude Code agent team (in-process
+teammates, the `Agent` tool with a `name`) no longer break the parent
+conversation's session resume, and each teammate resumes its own. Companion
+of E72.
+
+A teammate sends its parent's `metadata.user_id` session id like an Agent-tool
+subagent, but its `x-claude-code-agent-id` is `<name>@<team>` (for example
+`alpha@session-2dfad12f`), not an opaque token. The adapter rejected that shape
+and keyed the teammate by the bare session id, so parent and teammates
+overwrote one another's mapping: every turn logged `unrelated-history`, replayed
+the whole history without the prompt cache, and queued on one turn lease. In a
+real session (Claude Code 2.1.322, ten teammates beside a ~200k-token parent)
+every parent turn for three hours read only the ~25k system/tools prefix from
+cache, waited 30–330s on the lease, and teammates failed with "Session turn
+exceeded its maximum hold time". The agent id pattern now also accepts one
+`@` between two token parts.
+
+```bash
+bun scripts/e2e-claude-code-teammate-session.mjs
+```
+
+Teammates exist only in the interactive REPL (`-p` runs a named agent as a
+plain subagent even with agent teams on), so the gate drives the client under
+tmux on a private socket (`tmux -L`), with onboarding and workspace trust
+pre-seeded in an isolated `CLAUDE_CONFIG_DIR` and
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. Otherwise it is E72's setup: a
+recording relay ties each proxy line to the agent id it carried, and the
+pass criteria are E72's plus "at least two agent ids of the `name@team` shape
+made requests", so a run without teammates fails.
+
+**Before/after (2026-11-10, Linux x86_64, Bun 1.4.4, Claude Code 2.1.322,
+`sonnet`).** Baseline `upstream/main` (1.89.0): FAIL, 4 checks. Teammates
+`alpha@…` and `beta@…` made four requests each; all 12 non-first requests
+logged `lineage=new diverged=unrelated-history`, session-lease waits 0.7–3.6s.
+Branch: PASS. 6 of 6 later teammate turns and 5 of 5 later parent requests
+logged `lineage=continuation`, no collision, longest lease wait 2ms.
 
 ## E74: Restart drain under overlapping traffic
 

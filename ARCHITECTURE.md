@@ -602,7 +602,9 @@ multiplexes agents over one session id needs the same treatment.
 Claude Code is the second such client: its Agent-tool subagents send the
 conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
 keys a request carrying `x-claude-code-agent-id` as `<sid>:agent:<agentId>`
-and leaves the main conversation on the bare `<sid>`. `getRootSessionId`
+and leaves the main conversation on the bare `<sid>`. The agent id is an
+opaque token for an Agent-tool subagent and `<name>@<team>` for an in-process
+teammate; both shapes are keyed. `getRootSessionId`
 keeps those subagents on the conversation's account under sticky and
 priority routing. Known limitation: a backgrounded main session (and a
 fork-of-main subagent) gets a fresh agent id but carries the whole
