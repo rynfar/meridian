@@ -172,6 +172,37 @@ describe("cache keepalive", () => {
     telemetryStore.clear()
   })
 
+  it("in client mode beats only when the client asks, past the automatic cap", async () => {
+    process.env.MERIDIAN_CACHE_KEEPALIVE = "client"
+    const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const start = Date.now()
+    await turn(proxy, { "x-opencode-session": "ses_client" })
+    await idleTicks(proxy, start + 50 * MIN, start + 59 * MIN, 5 * MIN)
+    expect(beatCalls()).toHaveLength(0)
+
+    const requestBeat = async (key: string) => {
+      const response = await proxy.app.fetch(new Request(`http://localhost/v1/sessions/${key}/cache-beat`, { method: "POST" }))
+      expect(response.status).toBe(200)
+      return (await response.json() as { outcome: string }).outcome
+    }
+    const outcomes: string[] = []
+    for (let beat = 1; beat <= 4; beat++) {
+      setSystemTime(new Date(start + beat * 50 * MIN))
+      outcomes.push(await requestBeat("ses_client"))
+    }
+    expect(outcomes).toEqual(["reached", "reached", "reached", "reached"])
+    expect(beatCalls()).toHaveLength(4)
+    expect(await requestBeat("ses_unknown")).toBe("untracked")
+  })
+
+  it("answers a beat request with disabled while keepalive is off", async () => {
+    const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
+    await turn(proxy, { "x-opencode-session": "ses_off_client" })
+    const response = await proxy.app.fetch(new Request("http://localhost/v1/sessions/ses_off_client/cache-beat", { method: "POST" }))
+    expect(await response.json()).toEqual({ session: "ses_off_client", outcome: "disabled" })
+    expect(beatCalls()).toHaveLength(0)
+  })
+
   it("is off unless the operator switches it on", async () => {
     const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
     const start = Date.now()

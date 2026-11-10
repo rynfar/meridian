@@ -53,7 +53,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
 | `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS` | — | `1` | Set to `0` to stop defaulting `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` in passthrough mode. Does not clear an explicitly inherited CLI setting. See [known limitations](#known-limitations). |
-| `MERIDIAN_CACHE_KEEPALIVE` | — | unset (off) | Set to `1` to keep idle one-hour-cache sessions warm with a few small cache-read requests; `0` forces it off. Wins over `cacheKeepalive` in `settings.json`. See [Prompt-cache keepalive](#prompt-cache-keepalive). |
+| `MERIDIAN_CACHE_KEEPALIVE` | — | unset (off) | Set to `1` to keep idle one-hour-cache sessions warm with a few small cache-read requests; `client` to beat only when a client asks; `0` forces it off. Wins over `cacheKeepalive` in `settings.json`. See [Prompt-cache keepalive](#prompt-cache-keepalive). |
 | `MERIDIAN_CACHE_KEEPALIVE_MAX_IN_FLIGHT` | — | `1` | Keepalive requests allowed to run at once across all sessions, clamped to `1`–`2`. |
 | `MERIDIAN_COMPACTION_SURVIVAL` | — | `0` | Set to `1` to resume the old SDK session after a client shortens its history head into a summary. By default Meridian replays the supplied summary in a fresh SDK session so the removed context is released. Equal-length pruning still resumes. |
 | `MERIDIAN_CONFIG_DIR` | — | `~/.config/meridian` | Meridian's own config directory. Moving it moves everything inside it — see [below](#relocating-the-config-directory). |
@@ -1263,6 +1263,35 @@ When it is on:
   rate.
 - Shutdown and drain stop new keepalives, abort a running one and wait for its
   Claude Code process to exit, like any other request.
+
+#### Client-requested beats
+
+With `MERIDIAN_CACHE_KEEPALIVE=client` (or `"cacheKeepalive": "client"`),
+Meridian tracks the same sessions but never beats on its own. A client that
+knows whether its user is coming back asks for each beat instead:
+
+```
+POST /v1/sessions/<session key>/cache-beat
+```
+
+`<session key>` is the key the client sends with its turns
+(`x-session-affinity`, `x-opencode-session`, ...). The request answers once
+the beat has finished, as `{ "session": "...", "outcome": "..." }`:
+
+| Outcome | Meaning |
+|---|---|
+| `reached` | Upstream read the cached prefix; the cache lives another hour. |
+| `retry` | The beat could not run now (no free SDK slot, account blocked, transient error). |
+| `busy` | A real turn or another beat is running for the session. |
+| `stop` | The session cannot be kept warm (cache gone, five-minute tier, mapping moved). |
+| `expired` | The cache had already expired; nothing was sent. |
+| `untracked` | No eligible session under that key. |
+| `disabled` | Keepalive is off. |
+
+The client owns the schedule, so the three-beat cap does not apply; every
+other rule above (subscription accounts only, never the last SDK slot, never
+an expired cache, never beside a real turn) still does. A tracked session
+whose cache expires is forgotten as before.
 
 Keepalives appear in `/telemetry` with `requestSource: "cache-keepalive"`.
 They are left out of the request, error, cache-hit and cost figures and shown
