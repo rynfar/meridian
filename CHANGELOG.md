@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.89.0](https://github.com/rynfar/meridian/compare/meridian-v1.88.0...meridian-v1.89.0) (2026-11-09)
+
+
+### Features
+
+* keep a stopped turn's session when the client discarded its output ([#1480](https://github.com/rynfar/meridian/issues/1480)) ([3a700e3](https://github.com/rynfar/meridian/commit/3a700e365fef08b4549642746a9ccbf59c64d95e))
+
+
+### Bug Fixes
+
+* **auth:** refresh on Anthropic's "OAuth access token has expired" wording ([#1490](https://github.com/rynfar/meridian/issues/1490)) ([b9e547e](https://github.com/rynfar/meridian/commit/b9e547e34fa9bd2f2ab0e0371091738a4438defe))
+* avoid occupied store-lock writes and isolate native test fixtures ([#1506](https://github.com/rynfar/meridian/issues/1506)) ([2297d61](https://github.com/rynfar/meridian/commit/2297d61e4f157ad6448dc787c64849f565f4377f))
+* keep explicit models on refusal fallback ([#1505](https://github.com/rynfar/meridian/issues/1505)) ([16c2149](https://github.com/rynfar/meridian/commit/16c214941bf3f05aa4015a70d8b81bd94857a88f))
+* **landing:** size the (i) details popup to its card ([#1497](https://github.com/rynfar/meridian/issues/1497)) ([e623e82](https://github.com/rynfar/meridian/commit/e623e82e53a810fe1638360c2526a349746ee9e5))
+* probe liveness in the Docker healthcheck ([#1514](https://github.com/rynfar/meridian/issues/1514)) ([89fab76](https://github.com/rynfar/meridian/commit/89fab76f546d29b151f90a8fa9dd7810c1adde52))
+* **profiles:** a renamed profile keeps its place in the pool order ([#1489](https://github.com/rynfar/meridian/issues/1489)) ([0e42051](https://github.com/rynfar/meridian/commit/0e4205137997fa87364deec5f9517ff6ab151e7c))
+* **profiles:** keep password managers out of the page's text fields ([#1492](https://github.com/rynfar/meridian/issues/1492)) ([74d1365](https://github.com/rynfar/meridian/commit/74d13657eee837da90af1a63261727c399f4247b))
+* report safeguard refusals as refusals, not truncations ([#1513](https://github.com/rynfar/meridian/issues/1513)) ([d482b89](https://github.com/rynfar/meridian/commit/d482b8951c2646d12a47700391919403275273fb))
+* **session:** invalidate evicted JSON cache after durable commit ([67d02f5](https://github.com/rynfar/meridian/commit/67d02f56ba69b7e738aea67119ba5b1376ef0db0))
+* **ui:** let long addresses and executable paths wrap on a phone ([#1491](https://github.com/rynfar/meridian/issues/1491)) ([f6b3e8a](https://github.com/rynfar/meridian/commit/f6b3e8a2170e7f05fc9a0c14b032638c00cd0131))
+
 ## [1.88.0](https://github.com/rynfar/meridian/compare/meridian-v1.87.0...meridian-v1.88.0) (2026-11-02)
 
 
