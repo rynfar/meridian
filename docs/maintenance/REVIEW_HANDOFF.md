@@ -1,6 +1,15 @@
-# Meridian review checkpoint — 2026-11-09 UTC
+# Meridian review checkpoint — 2026-11-10 UTC
 
-Last code delivery: `89fab76f546d29b151f90a8fa9dd7810c1adde52` (#1514). The 2026-11-09 work is recorded first, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+Last code delivery: `8f5e705a72a928be910e4c234c6b75fc289c068d` (1.89.0 release). The 1.89.0 release is recorded first, then the 2026-11-09 work, then the 2026-11-02 work, then the 2026-11-01 review of the new contributor PRs; older sections below are unchanged history. The previous checkpoint is [immutable at 95b3af5a](https://github.com/rynfar/meridian/blob/95b3af5a2441731285c6c0dbfb29fc0b72411bf8/docs/maintenance/REVIEW_HANDOFF.md).
+
+## 2026-11-10: 1.89.0 released
+
+[Record](evidence/review-20261109/release-1.89.0.md). Release Please #1486 head `39815736` merged as `8f5e705a`. npm `1.89.0` is `latest` with provenance, and `ghcr.io/rynfar/meridian:1.89.0` is published for amd64 and arm64. The live OpenCode + Opus 5.5 flow with the Meridian V1 plugin and the scrub passed on both the packed candidate and the published package. #1472 is closed after the published image stayed healthy while logged out. #1511 stays open: its fix shipped under a live-gate waiver.
+
+Open:
+- **macOS desktop:** notarization fails with 401 on 1.87.0, 1.88.0 and 1.89.0. The owner needs to renew the Apple credentials in the repository secrets, then rerun the desktop release.
+- **Changelog:** the 1.89.0 notes do not name #1220, because Release Please could not parse its merge commit.
+- **Load-sensitive tests:** `bookkeeping-server` (held writer lock retry) and `store-mutation-baseline` (legacy mutation order) each failed once in a full local run, then passed alone and in a full rerun.
 
 ## 2026-11-09: #1489, #1490, #1491, #1492 and #1497 merged
 
