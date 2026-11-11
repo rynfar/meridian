@@ -51,6 +51,7 @@ describe("meridianSelection.live", () => {
 function landingPage() {
   const clicks: Array<(event: { target: unknown }) => void> = []
   const switches: string[] = []
+  const sorts: string[] = []
   let selection: Selection | null = null
   const element = (id: string) => ({
     id, hidden: false, innerHTML: "", style: {}, dataset: {}, textContent: "",
@@ -76,7 +77,7 @@ function landingPage() {
       createElement: () => ({ textContent: "", innerHTML: "" }),
     },
     getSelection: () => selection && { ...selection, toString: () => selection!.text },
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: () => null, setItem: (_key: string, value: string) => { sorts.push(value) }, removeItem() {} },
     URL, console,
     location: { href: "http://127.0.0.1:3456/", hash: "", search: "", pathname: "/" },
     history: { state: null, replaceState() {}, pushState() {} },
@@ -96,10 +97,13 @@ function landingPage() {
   const card = { dataset: { profile: "work" } }
   // A click on a card's text: the only ancestor it has is the switchable card.
   const onCardText = { closest: (selector: string) => (selector === ".profile-card.switchable" ? card : null) }
+  const onSortTab = { closest: (selector: string) => (selector === ".sort-tab" ? { dataset: { sort: "test-sort" } } : null) }
   return {
     switches,
+    sorts,
     select: (next: Selection | null) => { selection = next },
     clickCard: () => { for (const fn of clicks) fn({ target: onCardText }) },
+    clickSortTab: () => { for (const fn of clicks) fn({ target: onSortTab }) },
   }
 }
 
@@ -122,5 +126,12 @@ describe("a click on a switchable card of /", () => {
     page.select({ isCollapsed: false, text: "Meridian", anchorNode: inHeader })
     page.clickCard()
     expect(page.switches).toEqual(["work"])
+  })
+
+  test("a sort tab still works while text is selected", () => {
+    const page = landingPage()
+    page.select({ isCollapsed: false, text: "work@example.com", anchorNode: inContent })
+    page.clickSortTab()
+    expect(page.sorts).toEqual(["test-sort"])
   })
 })

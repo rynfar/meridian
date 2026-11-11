@@ -733,9 +733,6 @@ document.getElementById('content').addEventListener('click',function(e){
     if(chip==='*'){var first=document.querySelector('.provider-chip');if(first)first.focus()}
     return;
   }
-  // Releasing a drag-select over a card dispatches a click on it too; that
-  // click finished a copy, so it is not a request to switch account.
-  if(meridianSelection.live())return;
   if(onHandle(e))return;
   // The card is itself the switch button, so the icon inside one has to opt
   // out of it or reading an account would move all traffic to that account.
@@ -744,6 +741,9 @@ document.getElementById('content').addEventListener('click',function(e){
   if(e.target.closest('a'))return;
   var tab=e.target.closest('.sort-tab');
   if(tab&&tab.dataset.sort){setViewSort(tab.dataset.sort);return}
+  // Releasing a drag-select over a card dispatches a click on it too; that
+  // click finished a copy, so it is not a request to switch account.
+  if(meridianSelection.live())return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile)switchProfile(card.dataset.profile);
 });
