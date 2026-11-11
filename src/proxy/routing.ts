@@ -498,15 +498,18 @@ export function findCooldownReset(
   return null
 }
 
+/** A model family Anthropic reports its own weekly budget for. */
+export type WeeklyModelFamily = "opus" | "sonnet" | "fable"
+
 /** Per-model weekly buckets, keyed by Anthropic's window name. */
-const PER_MODEL_BUCKETS: Record<string, ClaudeModelFamily> = {
+const PER_MODEL_BUCKETS: Record<string, WeeklyModelFamily> = {
   seven_day_opus: "opus",
   seven_day_sonnet: "sonnet",
   seven_day_fable: "fable",
 }
 
 /** The model family a per-model weekly bucket limits, or null for any other bucket. */
-export function perModelBucketFamily(bucket: string | null | undefined): ClaudeModelFamily | null {
+export function perModelBucketFamily(bucket: string | null | undefined): WeeklyModelFamily | null {
   return bucket && Object.hasOwn(PER_MODEL_BUCKETS, bucket) ? PER_MODEL_BUCKETS[bucket]! : null
 }
 
@@ -524,9 +527,10 @@ export function perModelBucketFamily(bucket: string | null | undefined): ClaudeM
 export function perModelRefusalFamily(
   diagnosis: { bucket: string | null; reported: boolean } | undefined,
   requestFamily: ClaudeModelFamily,
-): ClaudeModelFamily | null {
+): WeeklyModelFamily | null {
   if (!diagnosis?.reported) return null
-  return perModelBucketFamily(diagnosis.bucket) === requestFamily ? requestFamily : null
+  const family = perModelBucketFamily(diagnosis.bucket)
+  return family === requestFamily ? family : null
 }
 
 /**

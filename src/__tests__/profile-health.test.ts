@@ -31,6 +31,8 @@ describe("SpentStore", () => {
     expect(record?.profileId).toBe("corp4")
     expect(record?.until).toBe(now + 60_000)
     expect(record?.diagnosis.bucket).toBe("five_hour")
+    // Only pool routing's per-model bench sets a model scope.
+    expect(record?.modelFamily).toBeNull()
   })
 
   it("expires on read once the window is expected back", () => {

@@ -1827,6 +1827,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const until = findModelCooldownReset(bucket, spent.diagnosis.resetsAt, profileCooldownWindows(candidate), now)
         ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
       priorityExhaustion.markModel(candidate, modelFamily, until, reason)
+      // Clients read this to tell a model-only bench from a profile-wide one;
+      // the diagnosis alone can name a bucket this refusal was not benched for.
+      spent.modelFamily = modelFamily
       claudeLog("priority.exhausted", { profile: candidate, until, reason, modelFamily })
       refinePriorityCooldown(candidate, { bucket, family: modelFamily })
       return until

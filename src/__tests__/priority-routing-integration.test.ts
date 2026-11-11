@@ -2635,7 +2635,17 @@ describe("per-model weekly bench", () => {
   type Health = {
     exhausted: Array<{ id: string; until: number; reason: string }>
     exhaustedModels: Array<{ id: string; modelFamily: string; until: number; reason: string }>
-    spent: Array<{ profileId: string; diagnosis: { bucket: string | null; reported: boolean; source: string } }>
+    spent: Array<{ profileId: string; diagnosis: { bucket: string | null; reported: boolean; source: string }; modelFamily: string | null }>
+  }
+
+  type QuotaSpent = { diagnosis: { bucket: string | null; reported: boolean }; modelFamily: string | null } | null
+
+  /** One profile's `spent` as `/v1/usage/quota/all` reports it. */
+  async function quotaSpent(app: TestApp, id: string): Promise<QuotaSpent> {
+    const body = await (await app.fetch(new Request("http://localhost/v1/usage/quota/all"))).json() as {
+      profiles: Array<{ id: string; spent: QuotaSpent }>
+    }
+    return body.profiles.find(profile => profile.id === id)?.spent ?? null
   }
 
   async function health(app: TestApp): Promise<Health> {
@@ -2726,10 +2736,26 @@ describe("per-model weekly bench", () => {
     expect(after.exhaustedModels).toEqual([{ id: "work", modelFamily: "fable", until: fableReset, reason: "rate_limit_error" }])
     // What a client reads to tell a Fable-only refusal apart.
     expect(after.spent.map(entry => entry.diagnosis)).toEqual([expect.objectContaining({ bucket: "seven_day_fable", reported: true, source: "error_message" })])
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: "fable" })
 
     expect(await attempts(app, "claude-opus-4-1", "opus after the fable refusal")).toEqual(["work"])
     // Mythos runs on the fable tier, so it shares the bench.
     expect(await attempts(app, "claude-mythos-5", "mythos after the fable refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("benches the whole profile when a reported Fable bucket comes back on an Opus refusal", async () => {
+    failureMessage = FABLE_LIMIT
+    failingModelDirs.set("prof-work", "opus")
+    const app = createTestApp()
+
+    expect((await attempts(app, "claude-opus-4-1", "opus refused with fable wording")).at(-1)).toBe("personal")
+    const after = await health(app)
+    expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
+    expect(after.exhaustedModels).toEqual([])
+    // The diagnosis still names the Fable bucket, so only modelFamily says
+    // this refusal was not benched for Fable alone.
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: null })
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the mismatched refusal")).toEqual(["personal"])
   }, 20_000)
 
   it("benches the whole profile for an account-wide weekly refusal, as before", async () => {
@@ -2741,6 +2767,7 @@ describe("per-model weekly bench", () => {
     const after = await health(app)
     expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
     expect(after.exhaustedModels).toEqual([])
+    expect(after.spent.map(entry => entry.modelFamily)).toEqual([null])
     expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the weekly refusal")).toEqual(["personal"])
   }, 20_000)
 
@@ -2775,6 +2802,7 @@ describe("per-model weekly bench", () => {
     expect(after.spent.map(entry => entry.diagnosis)).toEqual([expect.objectContaining({ bucket: "seven_day_opus", reported: false, source: "cached_usage" })])
     expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
     expect(after.exhaustedModels).toEqual([])
+    expect(after.spent.map(entry => entry.modelFamily)).toEqual([null])
     expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the guessed refusal")).toEqual(["personal"])
   }, 20_000)
 

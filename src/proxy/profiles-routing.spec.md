@@ -105,7 +105,12 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   clears the bucket lifts its model bench. `/profiles/list` (pool modes) and
   `/profiles/health` list these as `exhaustedModels`
   (`{id, modelFamily, until, reason}`); `exhausted` keeps profile-wide marks
-  only. The `spent` record is unchanged.
+  only. The `spent` record (`/v1/usage/quota/all`, `/profiles/list`,
+  `/profiles/health`) keeps its fields and adds `modelFamily`
+  (`"opus" | "sonnet" | "fable" | null`): non-null exactly when this refusal
+  took the per-model path, so the profile is benched for that family alone.
+  `diagnosis.bucket` cannot say that on its own, because a rejected SDK event
+  from an earlier refusal can name a bucket this refusal was not benched for.
 - **Account identity is Meridian's own record, re-read per credential.**
   `GET /api/oauth/profile` supplies the organization name, account and
   organization UUIDs and email; they are kept in `organizations.json` beside
