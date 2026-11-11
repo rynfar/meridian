@@ -217,6 +217,11 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   account with `claude login` stays benched until that reset, exactly as the
   refused profile itself would; a Meridian sign-in or `/auth/refresh` clears
   it.
+- A twin whose access token was renewed after its account was last read is not
+  recognized until that record is read again, which happens when something
+  polls `/profiles/list` (any open Meridian page does). On an instance with no
+  page open, the busy twin has usually renewed, so the request still tries it
+  once and hears the same refusal, as it did before.
 - **No failover after content streams.** A rate limit arriving after the first
   real SSE frame is relayed to the client instead of failing over —
   deliberately, so a stream the client is consuming is never yanked.

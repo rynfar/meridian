@@ -778,6 +778,30 @@ describe("priority routing", () => {
       expect((await exhaustedMarks(app)).map(mark => mark.id)).toEqual(["work"])
     }, 20_000)
 
+    it("the OAuth refinement extends the twin's cooldown too", async () => {
+      const WORK_RESET = Date.now() + 4 * 60 * 60_000
+      __setFetchOAuthUsageOverride(async (opts) => {
+        if (opts?.profileId !== "work") return null
+        return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
+      })
+      const app = createTwinApp()
+      await post(app, {}, "refined twin unique message")
+      await Bun.sleep(50)
+      const marks = await exhaustedMarks(app)
+      expect(marks.map(m => [m.id, m.until]).sort()).toEqual([["twin", WORK_RESET], ["work", WORK_RESET]])
+    }, 20_000)
+
+    it("a twin whose token renewed since its account was read is still tried", async () => {
+      // Same account, but the twin's access token was renewed after its record
+      // was read and no /profiles/list poll has re-read it yet (headless use).
+      rememberOrganization("twin", sameAccount, tokenMarks["twin-of-w"]! - 8 * 3_600_000)
+      failingDirs.add("twin-of-w")
+      const app = createTwinApp()
+      const res = await post(app, {}, "renewed twin unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(true)
+    }, 20_000)
+
     it("a billing refusal benches only the refused profile", async () => {
       failureMessage = SUBSCRIPTION_REFUSAL
       const app = createTwinApp()
