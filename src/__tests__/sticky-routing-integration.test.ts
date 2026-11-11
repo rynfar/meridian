@@ -3,7 +3,7 @@
  * layer, mocked SDK. The profile that served a request is observable via the
  * SDK subprocess env (CLAUDE_CONFIG_DIR carries the profile's config dir).
  */
-import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, mock, beforeAll, beforeEach, afterEach, afterAll } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -93,12 +93,21 @@ async function postClaudeCode(app: any, session: string, agentId?: string) {
 
 describe("Integration: sticky profile routing (#383)", () => {
   let app: any
+  let sweepSessionGc: (() => Promise<void>) | undefined
   let savedRouting: string | undefined
   let savedPassthrough: string | undefined
 
   beforeAll(() => {
-    const { app: a } = createProxyServer({ port: 0, host: "127.0.0.1", profiles: PROFILES })
-    app = a
+    const proxy = createProxyServer({ port: 0, host: "127.0.0.1", profiles: PROFILES })
+    app = proxy.app
+    sweepSessionGc = proxy.sweepSessionGc
+  })
+
+  // A published session fires a session GC sweep without awaiting it. Drain it
+  // before the file ends: a sweep still running when the next file switches the
+  // session store directory takes its session-gc.json lock there instead.
+  afterAll(async () => {
+    await sweepSessionGc?.()
   })
 
   beforeEach(() => {
