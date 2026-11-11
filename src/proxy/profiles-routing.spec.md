@@ -92,6 +92,20 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at
   full utilization, is not awaited, and is skipped for non-`claude-max` and
   billing refusals.
+- **A per-model weekly refusal benches only that model.** When Anthropic
+  names a per-model weekly bucket (`seven_day_opus`, `seven_day_sonnet`,
+  `seven_day_fable`) for a refused request of that same model family, pool
+  routing skips the profile only for requests of that family (the tier
+  `mapModelToClaudeModel` sends the request to; Mythos is fable), until that
+  bucket's named reset, else its own exhausted window, capped like `seven_day`,
+  else the 10-minute default. Other models keep using the profile. An inferred
+  (`cached_usage`) bucket, an unknown one, or one naming another family keeps
+  the profile-wide bench: a wrong per-model guess would keep sending every
+  other request into an account that refuses them all. A confirmed reset that
+  clears the bucket lifts its model bench. `/profiles/list` (pool modes) and
+  `/profiles/health` list these as `exhaustedModels`
+  (`{id, modelFamily, until, reason}`); `exhausted` keeps profile-wide marks
+  only. The `spent` record is unchanged.
 - **Account identity is Meridian's own record, re-read per credential.**
   `GET /api/oauth/profile` supplies the organization name, account and
   organization UUIDs and email; they are kept in `organizations.json` beside

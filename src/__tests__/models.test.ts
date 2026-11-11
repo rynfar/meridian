@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-import { bundledClaudeCodeVersion, mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { bundledClaudeCodeVersion, mapModelToClaudeModel, claudeModelFamily, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -184,6 +184,19 @@ describe("mapModelToClaudeModel", () => {
     it("routes claude-mythos-5-1 through the fable tier too", () => {
       expect(mapModelToClaudeModel("claude-mythos-5-1")).toBe("fable[1m]")
       expect(mapModelToClaudeModel("claude-mythos-5-1", "max", "subagent")).toBe("fable")
+    })
+  })
+
+  describe("claudeModelFamily", () => {
+    it("names the tier the mapper sends a request to", () => {
+      expect(claudeModelFamily("claude-fable-5-2")).toBe("fable")
+      expect(claudeModelFamily("fable[1m]")).toBe("fable")
+      expect(claudeModelFamily("claude-mythos-5-1")).toBe("fable")
+      expect(claudeModelFamily("claude-opus-4-1")).toBe("opus")
+      expect(claudeModelFamily("opus[1m]")).toBe("opus")
+      expect(claudeModelFamily("claude-sonnet-4-5-20250929")).toBe("sonnet")
+      expect(claudeModelFamily("claude-haiku-4-5")).toBe("haiku")
+      expect(claudeModelFamily("unknown-model")).toBe("sonnet")
     })
   })
 

@@ -22,6 +22,9 @@ import {
   resolveCooldownUntil,
   cooldownCapMs,
   type PriorityAssignment,
+  perModelBucketFamily,
+  perModelRefusalFamily,
+  findModelCooldownReset,
   type PriorityPromotionInput,
 } from "../proxy/routing"
 
@@ -222,6 +225,101 @@ describe("ProfileExhaustion tracker", () => {
     ex.mark("work", T0 + 120_000, "rate_limit_error")
     ex.mark("work", T0 + 30_000, "rate_limit_error")
     expect(ex.snapshot()[0]!.until).toBe(T0 + 120_000)
+  })
+})
+
+describe("ProfileExhaustion model marks", () => {
+  const T0 = 1_800_000_000_000
+
+  it("benches a profile only for the marked model family", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.markModel("work", "fable", T0 + 60_000, "rate_limit_error")
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+    expect(ex.isExhausted("work", "opus")).toBe(false)
+    expect(ex.isExhausted("work", "sonnet")).toBe(false)
+    expect(ex.isExhausted("work")).toBe(false)
+    expect(ex.isExhausted("personal", "fable")).toBe(false)
+  })
+
+  it("a profile-wide mark still benches every model", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    expect(ex.isExhausted("work", "opus")).toBe(true)
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+  })
+
+  it("lasts until its own reset, then self-heals", () => {
+    let now = T0
+    const ex = new ProfileExhaustion(() => now)
+    const reset = T0 + 3 * 24 * 60 * 60_000
+    ex.markModel("work", "fable", reset, "rate_limit_error")
+    now = reset - 1
+    expect(ex.isExhausted("work", "fable")).toBe(true)
+    now = reset
+    expect(ex.isExhausted("work", "fable")).toBe(false)
+    expect(ex.modelSnapshot()).toEqual([])
+  })
+
+  it("reports model marks apart from profile-wide ones", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.markModel("work", "fable", T0 + 120_000, "rate_limit_error")
+    ex.markModel("work", "fable", T0 + 30_000, "rate_limit_error")
+    expect(ex.snapshot()).toEqual([])
+    expect(ex.modelSnapshot()).toEqual([{ id: "work", modelFamily: "fable", until: T0 + 120_000, reason: "rate_limit_error" }])
+  })
+
+  it("forgets one family or the whole profile", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.markModel("work", "fable", T0 + 60_000, "rate_limit_error")
+    ex.markModel("work", "opus", T0 + 60_000, "rate_limit_error")
+    ex.forgetModel("work", "fable")
+    expect(ex.modelSnapshot().map(e => e.modelFamily)).toEqual(["opus"])
+    ex.forget("work")
+    expect(ex.modelSnapshot()).toEqual([])
+  })
+})
+
+describe("per-model weekly buckets", () => {
+  const NOW = 1_800_000_000_000
+  const WEEK_CAP = cooldownCapMs("seven_day")
+
+  it("maps only per-model weekly buckets to a family", () => {
+    expect(perModelBucketFamily("seven_day_fable")).toBe("fable")
+    expect(perModelBucketFamily("seven_day_opus")).toBe("opus")
+    expect(perModelBucketFamily("seven_day_sonnet")).toBe("sonnet")
+    for (const bucket of ["five_hour", "seven_day", "seven_day_oauth_apps", "seven_day_cowork", "constructor", "", null, undefined]) {
+      expect(perModelBucketFamily(bucket)).toBeNull()
+    }
+  })
+
+  it("scopes a refusal to a model only when Anthropic named that model's bucket", () => {
+    expect(perModelRefusalFamily({ bucket: "seven_day_fable", reported: true }, "fable")).toBe("fable")
+    // A cached-usage guess keeps the profile-wide bench.
+    expect(perModelRefusalFamily({ bucket: "seven_day_fable", reported: false }, "fable")).toBeNull()
+    // Another family's budget cannot explain this request's refusal.
+    expect(perModelRefusalFamily({ bucket: "seven_day_fable", reported: true }, "opus")).toBeNull()
+    expect(perModelRefusalFamily({ bucket: "seven_day", reported: true }, "fable")).toBeNull()
+    expect(perModelRefusalFamily({ bucket: null, reported: false }, "fable")).toBeNull()
+    expect(perModelRefusalFamily(undefined, "fable")).toBeNull()
+  })
+
+  it("prefers the named reset, then the bucket's own exhausted window, capped at the weekly cap", () => {
+    const named = NOW + 2 * 24 * 60 * 60_000
+    const observed = NOW + 4 * 24 * 60 * 60_000
+    const windows = [
+      { type: "seven_day", resetsAt: NOW + 6 * 24 * 60 * 60_000, exhausted: false },
+      { type: "seven_day_fable", resetsAt: observed, exhausted: true },
+    ]
+    expect(findModelCooldownReset("seven_day_fable", named, windows, NOW)).toBe(named)
+    expect(findModelCooldownReset("seven_day_fable", null, windows, NOW)).toBe(observed)
+    expect(findModelCooldownReset("seven_day_fable", NOW - 1, windows, NOW)).toBe(observed)
+    expect(findModelCooldownReset("seven_day_fable", NOW + 30 * 24 * 60 * 60_000, [], NOW)).toBe(NOW + WEEK_CAP)
+  })
+
+  it("returns null when nothing says when the bucket reopens", () => {
+    const healthy = [{ type: "seven_day_fable", resetsAt: NOW + 60_000, exhausted: false }]
+    expect(findModelCooldownReset("seven_day_fable", null, healthy, NOW)).toBeNull()
+    expect(findModelCooldownReset("seven_day_fable", null, [{ type: "seven_day_opus", resetsAt: NOW + 60_000, exhausted: true }], NOW)).toBeNull()
   })
 })
 

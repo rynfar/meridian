@@ -24,6 +24,7 @@
 
 import { createHash } from "node:crypto"
 import type { RouteKind } from "../telemetry/types"
+import type { ClaudeModelFamily } from "./models"
 
 export type RoutingMode = "active" | "sticky" | "priority" | "active+priority"
 
@@ -255,15 +256,27 @@ export interface ExhaustionEntry {
   reason: string
 }
 
+/** A bench that applies only to requests for one model family. */
+export interface ModelExhaustionEntry extends ExhaustionEntry {
+  modelFamily: ClaudeModelFamily
+}
+
+type Mark = { until: number; reason: string }
+
 /**
  * In-memory per-profile exhaustion marks with expiry. Deliberately not
  * persisted: this is routing hygiene, not durable truth — after a restart
  * the first failing request re-marks. A later mark may extend an entry but
  * an earlier one never shortens it (two concurrent failures shouldn't
  * un-learn the longer reset).
+ *
+ * A profile-wide mark benches the profile for every request. A model mark
+ * (`markModel`) benches it only for requests of that model family, for a
+ * refusal from a per-model weekly budget such as `seven_day_fable`.
  */
 export class ProfileExhaustion {
-  private readonly marks = new Map<string, { until: number; reason: string }>()
+  private readonly marks = new Map<string, Mark>()
+  private readonly modelMarks = new Map<string, Map<ClaudeModelFamily, Mark>>()
   constructor(private readonly now: () => number = Date.now) {}
 
   mark(id: string, until: number, reason: string): void {
@@ -272,21 +285,40 @@ export class ProfileExhaustion {
     this.marks.set(id, { until, reason })
   }
 
-  isExhausted(id: string): boolean {
-    const entry = this.marks.get(id)
-    if (!entry) return false
-    if (entry.until <= this.now()) {
-      this.marks.delete(id)
-      return false
+  markModel(id: string, family: ClaudeModelFamily, until: number, reason: string): void {
+    let families = this.modelMarks.get(id)
+    if (!families) {
+      families = new Map()
+      this.modelMarks.set(id, families)
     }
-    return true
+    const existing = families.get(family)
+    if (existing && existing.until >= until) return
+    families.set(family, { until, reason })
+  }
+
+  /** Whether a request for `family` must skip this profile. Without a family only profile-wide marks count. */
+  isExhausted(id: string, family?: ClaudeModelFamily): boolean {
+    if (this.live(this.marks, id)) return true
+    if (family === undefined) return false
+    const families = this.modelMarks.get(id)
+    if (!families) return false
+    const benched = this.live(families, family)
+    if (families.size === 0) this.modelMarks.delete(id)
+    return benched
   }
 
   forget(id: string): void {
     this.marks.delete(id)
+    this.modelMarks.delete(id)
   }
 
-  /** Live entries only — expired marks are dropped on read. */
+  forgetModel(id: string, family: ClaudeModelFamily): void {
+    const families = this.modelMarks.get(id)
+    families?.delete(family)
+    if (families?.size === 0) this.modelMarks.delete(id)
+  }
+
+  /** Live profile-wide entries only — expired marks are dropped on read. */
   snapshot(): ExhaustionEntry[] {
     const out: ExhaustionEntry[] = []
     for (const [id, entry] of this.marks) {
@@ -294,6 +326,29 @@ export class ProfileExhaustion {
       out.push({ id, until: entry.until, reason: entry.reason })
     }
     return out
+  }
+
+  /** Live model-scoped entries only — expired marks are dropped on read. */
+  modelSnapshot(): ModelExhaustionEntry[] {
+    const out: ModelExhaustionEntry[] = []
+    for (const [id, families] of this.modelMarks) {
+      for (const [modelFamily, entry] of families) {
+        if (entry.until <= this.now()) { families.delete(modelFamily); continue }
+        out.push({ id, modelFamily, until: entry.until, reason: entry.reason })
+      }
+      if (families.size === 0) this.modelMarks.delete(id)
+    }
+    return out
+  }
+
+  private live<K>(marks: Map<K, Mark>, key: K): boolean {
+    const entry = marks.get(key)
+    if (!entry) return false
+    if (entry.until <= this.now()) {
+      marks.delete(key)
+      return false
+    }
+    return true
   }
 }
 
@@ -356,12 +411,13 @@ export class AssignmentStore {
  * re-probed every 10 minutes, with a real failing upstream request on the
  * request path, for however many days the weekly window had left.
  *
- * Only the ACCOUNT-WIDE windows bench a profile. Anthropic also reports
- * per-model weekly budgets (`seven_day_opus`, `seven_day_fable`, …), and an
- * exhausted one of those does not mean the account is unusable — sidelining a
- * profile for days because a single model's budget ran out would be worse than
- * the bug this fixes. Those cases keep the old default and are called out as a
- * known remainder rather than silently mishandled.
+ * Only the ACCOUNT-WIDE windows bench a profile for every model. Anthropic also
+ * reports per-model weekly budgets (`seven_day_opus`, `seven_day_fable`, …),
+ * and an exhausted one of those does not mean the account is unusable —
+ * sidelining a profile for days because a single model's budget ran out would
+ * be worse than the bug this fixes. A reported per-model refusal instead
+ * benches the profile for that model family alone, until that bucket resets
+ * (`perModelRefusalFamily`, `findModelCooldownReset`).
  */
 export type CooldownWindowType = "five_hour" | "seven_day"
 
@@ -440,6 +496,54 @@ export function findCooldownReset(
     }
   }
   return null
+}
+
+/** Per-model weekly buckets, keyed by Anthropic's window name. */
+const PER_MODEL_BUCKETS: Record<string, ClaudeModelFamily> = {
+  seven_day_opus: "opus",
+  seven_day_sonnet: "sonnet",
+  seven_day_fable: "fable",
+}
+
+/** The model family a per-model weekly bucket limits, or null for any other bucket. */
+export function perModelBucketFamily(bucket: string | null | undefined): ClaudeModelFamily | null {
+  return bucket && Object.hasOwn(PER_MODEL_BUCKETS, bucket) ? PER_MODEL_BUCKETS[bucket]! : null
+}
+
+/**
+ * The model family a quota refusal benches on its own, or null when it must
+ * bench the whole profile.
+ *
+ * Only a bucket Anthropic named (`reported`) qualifies. A `cached_usage`
+ * guess picks whichever window looked hottest, and a wrong per-model guess
+ * would keep sending every other model's requests into an account that
+ * refuses them all. The bucket must also limit the refused request's own
+ * family: a fable budget cannot be why an opus request was refused, so that
+ * diagnosis describes some earlier refusal, not this one.
+ */
+export function perModelRefusalFamily(
+  diagnosis: { bucket: string | null; reported: boolean } | undefined,
+  requestFamily: ClaudeModelFamily,
+): ClaudeModelFamily | null {
+  if (!diagnosis?.reported) return null
+  return perModelBucketFamily(diagnosis.bucket) === requestFamily ? requestFamily : null
+}
+
+/**
+ * When a per-model weekly bucket reopens: Anthropic's named reset first, then
+ * the profile's own exhausted window for that bucket, or null when neither
+ * says. Capped like the account-wide weekly window. Pure.
+ */
+export function findModelCooldownReset(
+  bucket: string,
+  namedReset: number | null | undefined,
+  windows: readonly CooldownWindow[],
+  now: number,
+): number | null {
+  const cap = now + cooldownCapMs("seven_day")
+  if (namedReset && namedReset > now) return Math.min(namedReset, cap)
+  const match = windows.find(w => w.type === bucket && w.exhausted && (w.resetsAt ?? 0) > now)
+  return match?.resetsAt ? Math.min(match.resetsAt, cap) : null
 }
 
 // ---------------------------------------------------------------------------
