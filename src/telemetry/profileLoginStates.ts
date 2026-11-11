@@ -52,17 +52,15 @@ export const LOGIN_STATE_URL_PARAM = "login"
 export const LOGIN_STATES_NONE_SHOWN_HTML = 'No account is in a login state shown. '
   + '<button type="button" class="provider-show-all" data-login-chip="*">Show all states</button>'
 
-// The semantic colours as channels, for the chips' tinted fills: themeCss
-// declares --green, --yellow and --red as hex only.
-const STATE_COLOURS: Record<string, [string, string]> = {
-  "authenticated": ["green", "63,185,80"],
-  "expires-soon": ["yellow", "210,153,34"],
-  "needs-auth": ["red", "248,81,73"],
+const STATE_COLOURS: Record<string, string> = {
+  "authenticated": "green",
+  "expires-soon": "yellow",
+  "needs-auth": "red",
 }
 
 export const profileLoginStatesCss = LOGIN_STATES.map(s => {
-  const [token, rgb] = STATE_COLOURS[s.id]!
-  return `  .login-${s.id} { --brand: var(--${token}); --brand-bright: var(--${token}); --brand-rgb: ${rgb}; }`
+  const token = STATE_COLOURS[s.id]!
+  return `  .login-${s.id} { --brand: var(--${token}); --brand-bright: var(--${token}); --brand-rgb: var(--${token}-rgb); }`
 }).join("\n") + `
   /* The provider and login-state chips share one row and wrap as one. */
   .chip-row { display: flex; flex-wrap: wrap; column-gap: 16px; row-gap: 6px; margin-bottom: 12px; }
