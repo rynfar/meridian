@@ -95,6 +95,8 @@ export interface ChatGptProfile extends ChatGptPlanFields {
   aliases: string[]
   /** 0-based position in the credential owner's store, when it has one. */
   storeIndex: number | null
+  /** When Meridian renews the seat next because chatgpt.com refused its access token, epoch ms. */
+  renewalRetryAt: number | null
 }
 
 /** One window in Claude's `/v1/usage/quota` vocabulary. */
@@ -256,6 +258,7 @@ export function chatGptProfiles(
       ownerActive: seat.active === true,
       aliases,
       storeIndex: seat.storeIndex ?? null,
+      renewalRetryAt: seat.renewalRetryAt ?? null,
       ...chatGptPlanFields(options.planTypes?.get(seat.id) ?? seat.planType),
     }
   })

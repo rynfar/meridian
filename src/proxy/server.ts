@@ -9334,9 +9334,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const refreshChatGptUsage = (): Promise<void> | undefined => {
     if (!chatGptSource) return undefined
     if (!chatGptUsageRefresh && Date.now() - chatGptUsageAt >= 30_000) {
-      chatGptUsageAt = Date.now()
+      const startedAt = Date.now()
+      chatGptUsageAt = startedAt
       chatGptUsageRefresh = getCodexUsage({ loadPool: () => chatGptSource.usagePool() })
-        .then(result => { chatGptUsage = result })
+        .then(result => {
+          chatGptUsage = result
+          // A refused access token may only need renewing (chatgpt/owned.ts).
+          for (const entry of result.entries) {
+            if (entry.error === "unauthorized") chatGptSource.accessRefused?.(entry.id, startedAt)
+            else if (entry.fetchedAt !== null && !entry.error && !entry.stale) chatGptSource.accessAccepted?.(entry.id, startedAt)
+          }
+        })
         .catch(error => { plog(`[PROXY] ChatGPT usage refresh failed: ${error instanceof Error ? error.message : String(error)}`) })
         .finally(() => { chatGptUsageRefresh = undefined })
     }
@@ -9411,6 +9419,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   }
 
   const recordChatGptRefusal = (refusal: ChatGptSeatRefusal): void => {
+    if (refusal.kind === "requires_reauth") chatGptSource?.accessRefused?.(refusal.seat, refusal.startedAt)
     const profileId = chatGptProfiles?.profileIdFor(refusal.seat) ?? refusal.seat
     const diagnosis = chatGptRefusalDiagnosis(refusal)
     // `spent` means quota, as it does for Claude; a refused credential is an

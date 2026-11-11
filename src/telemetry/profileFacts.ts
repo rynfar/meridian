@@ -125,6 +125,11 @@ function profileFacts(p) {
     tone: p.loggedIn ? 'ok' : 'err',
     cached: authStale && p.authProvenance !== 'never'
   });
+  if (chatgpt && !p.loggedIn && typeof p.renewalRetryAt === 'number') {
+    var retryIn = p.renewalRetryAt - Date.now();
+    facts.push({ label: 'Next renewal', value: retryIn > 0 ? 'in ' + expirySpan(retryIn) : 'now', tone: '',
+      title: 'chatgpt.com refused the access token; Meridian renews it on its own at ' + new Date(p.renewalRetryAt).toLocaleString() });
+  }
   facts = facts.concat(expiryFacts(p, Date.now()));
   if (p.email) facts.push({ label: 'Email', value: p.email, tone: '', cached: authStale });
   if (p.organizationName) facts.push({ label: 'Organization', value: p.organizationName, tone: '' });
@@ -198,6 +203,11 @@ function profileAccessHelp(p) {
   }
   var owner = p.owner || {};
   if (owner.name === 'meridian') {
+    if (p.tokenState === 'refused' && typeof p.renewalRetryAt === 'number') {
+      var retryIn = p.renewalRetryAt - Date.now();
+      var renewing = 'chatgpt.com refused this seat\\u2019s access token. Meridian renews it on its own, next ' + (retryIn > 0 ? 'in ' + expirySpan(retryIn) : 'now') + '.';
+      return { pill: 'renewing', reason: renewing, summary: renewing + ' Sign it in again only if a renewal is refused.' };
+    }
     var owned = 'Meridian holds this seat\\u2019s login and cannot renew it.';
     if (owner.webSignIn) {
       return { pill: 'needs login', reason: owned, summary: owned + ' Sign it in again with Sign in again on its card.' };
