@@ -38,6 +38,19 @@ const OWNER_FILE = "owner.json"
 const DEFAULT_ACQUIRE_TIMEOUT_MS = 30_000
 const DEFAULT_STALE_AFTER_MS = 30_000
 const DEFAULT_RETRY_DELAY_MS = 25
+/** The last delay repeats until the abandoned lock is gone. */
+const DEFAULT_RELEASE_RETRY_DELAYS_MS: readonly number[] = [1_000, 5_000, 30_000, 60_000]
+
+/**
+ * Tokens of the leases this process currently holds, across every coordinator
+ * instance. A lock stamped with this process's incarnation whose token is not
+ * here was released by its lease, so it is abandoned, not live. Kept on
+ * `globalThis` so a second copy of this module in the same process shares it
+ * instead of reading the other copy's live leases as abandoned.
+ */
+const LIVE_LEASE_TOKENS: unique symbol = Symbol.for("meridian.crossProcessTurn.liveLeaseTokens")
+const leaseTokenRegistry = globalThis as typeof globalThis & { [LIVE_LEASE_TOKENS]?: Set<string> }
+const liveLeaseTokens = leaseTokenRegistry[LIVE_LEASE_TOKENS] ??= new Set<string>()
 
 export interface CrossProcessTurnCoordinatorOptions {
   /** Maximum time an acquire may wait. Acquires always have a finite bound. */
@@ -48,6 +61,11 @@ export interface CrossProcessTurnCoordinatorOptions {
   heartbeatIntervalMs?: number
   /** Delay between attempts while another process owns the turn. */
   retryDelayMs?: number
+  /**
+   * Background retry delays after a release fails on a filesystem error. The
+   * last delay repeats until the lock is gone; an empty list disables retries.
+   */
+  releaseRetryDelaysMs?: readonly number[]
 }
 
 export interface CrossProcessTurnLease {
@@ -193,7 +211,27 @@ function ownerIsDead(owner: OwnerRecord | undefined): boolean {
   return owner ? processIncarnationIsDead(owner.incarnation) : false
 }
 
+function sameIncarnation(left: ProcessIncarnation, right: ProcessIncarnation): boolean {
+  return left.pid === right.pid
+    && left.hostId === right.hostId
+    && left.bootId === right.bootId
+    && left.startId === right.startId
+    && left.startIdKind === right.startIdKind
+}
+
+/** A lock this exact process published and no longer holds a lease for. */
+function abandonedBySelf(owner: OwnerRecord): boolean {
+  if (liveLeaseTokens.has(owner.token)) return false
+  const current = captureProcessIncarnation()
+  return current !== undefined && sameIncarnation(owner.incarnation, current)
+}
+
 function canRecover(snapshot: LockSnapshot, staleAfterMs: number, now = Date.now()): boolean {
+  // This process released the lease, but the release failed (for example
+  // ENOSPC while renaming the lock away). Its heartbeat has stopped and its
+  // turn is over, but the owner process is alive, so the dead-owner rule
+  // below would keep the session wedged until a restart.
+  if (snapshot.owner && abandonedBySelf(snapshot.owner)) return true
   // Never steal from a process that may still be executing: without a fencing
   // token in sessions.json, a stale-but-live owner could later overwrite its
   // successor. Same-host PID death is authoritative. Ownerless half-created
@@ -369,6 +407,7 @@ export class CrossProcessTurnCoordinator {
   private readonly staleAfterMs: number
   private readonly heartbeatIntervalMs: number
   private readonly retryDelayMs: number
+  private readonly releaseRetryDelaysMs: readonly number[]
 
   constructor(root: string, options: CrossProcessTurnCoordinatorOptions = {}) {
     if (!root) throw new TypeError("root must not be empty")
@@ -392,6 +431,8 @@ export class CrossProcessTurnCoordinator {
     if (this.heartbeatIntervalMs >= this.staleAfterMs) {
       throw new TypeError("heartbeatIntervalMs must be shorter than staleAfterMs")
     }
+    this.releaseRetryDelaysMs = (options.releaseRetryDelaysMs ?? DEFAULT_RELEASE_RETRY_DELAYS_MS)
+      .map((delay) => positiveFinite(delay, "releaseRetryDelaysMs"))
   }
 
   /** Whether any process holds the turn lock for key, or left it behind stale. */
@@ -507,6 +548,7 @@ export class CrossProcessTurnCoordinator {
     let released = false
     let releasePromise: Promise<void> | undefined
 
+    liveLeaseTokens.add(owner.token)
     const timer = setInterval(() => {
       if (refreshing || released) return
       refreshing = true
@@ -533,9 +575,55 @@ export class CrossProcessTurnCoordinator {
         released = true
         clearInterval(timer)
         releasePromise = this.releaseOwned(lockPath, owner.token, heartbeatError)
+          .catch((error: unknown) => {
+            if (!(error instanceof CrossProcessTurnOwnershipError)) {
+              this.retryRelease(lockPath, owner.token, 0)
+            }
+            throw error
+          })
+          .finally(() => {
+            // The turn is over whether or not the directory moved. Dropping the
+            // token lets this process reclaim a lock the release left behind.
+            liveLeaseTokens.delete(owner.token)
+          })
         return releasePromise
       },
     }
+  }
+
+  /**
+   * Keep clearing a lock whose release failed on a filesystem error, so a
+   * process waiting on this key is unblocked once the error clears. This
+   * process does not depend on it: its own acquires reclaim the lock directly.
+   *
+   * It goes through `recover`, not `releaseOwned`: the generation's recovery
+   * claim makes it and a same-process reclaim mutually exclusive, and the
+   * identity recheck under that claim means it never moves a successor's lock.
+   */
+  private retryRelease(lockPath: string, token: string, attempt: number): void {
+    const delays = this.releaseRetryDelaysMs
+    if (delays.length === 0) return
+    const delayMs = delays[Math.min(attempt, delays.length - 1)]!
+    const timer = setTimeout(() => {
+      void (async () => {
+        const snapshot = await snapshotLock(lockPath)
+        // Gone, or a later generation: the abandoned lock was already cleared.
+        if (!snapshot || snapshot.owner?.token !== token) return
+        await this.recover(lockPath, snapshot)
+        if ((await snapshotLock(lockPath))?.owner?.token === token) {
+          throw new Error("abandoned turn lock is still present")
+        }
+      })().catch((error: unknown) => {
+        if (attempt + 1 === delays.length) {
+          console.error(
+            "[crossProcessTurnCoordinator] abandoned turn lock release still failing; retrying:",
+            (error as Error).message,
+          )
+        }
+        this.retryRelease(lockPath, token, attempt + 1)
+      })
+    }, delayMs)
+    timer.unref()
   }
 
   private async recover(lockPath: string, snapshot: LockSnapshot): Promise<void> {
