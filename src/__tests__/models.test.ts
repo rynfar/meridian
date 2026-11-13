@@ -138,6 +138,12 @@ describe("mapModelToClaudeModel", () => {
       expect(mapModelToClaudeModel("claude-fable-5-1", "max", "subagent")).toBe("fable")
     })
 
+    it("routes claude-fable-5-2 through the same tier as claude-fable-5", () => {
+      expect(mapModelToClaudeModel("claude-fable-5-2")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-2", "max", "primary")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-2", "max", "subagent")).toBe("fable")
+    })
+
     it("downgrades fable[1m] to fable during the Extra Usage cooldown", () => {
       recordExtendedContextUnavailable()
       expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
@@ -184,6 +190,8 @@ describe("mapModelToClaudeModel", () => {
     it("routes claude-mythos-5-1 through the fable tier too", () => {
       expect(mapModelToClaudeModel("claude-mythos-5-1")).toBe("fable[1m]")
       expect(mapModelToClaudeModel("claude-mythos-5-1", "max", "subagent")).toBe("fable")
+      expect(mapModelToClaudeModel("claude-mythos-5-2")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-mythos-5-2", "max", "subagent")).toBe("fable")
     })
   })
 
