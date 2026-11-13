@@ -97,6 +97,20 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   (Mythos follows Fable). Values are normalized; an unrecognized value warns
   once and keeps the default, because with Extra Usage enabled a silent 1M
   choice is silently billed. A generic multi-tier switch was rejected.
+- **A canonical single-turn name-dispatch refusal can retain a keyed tool
+  checkpoint without PreToolUse capture.** The CLI can reject a bare client
+  tool name before invoking hooks even though its assistant UUID and rejection
+  are durably written at `error_max_turns`. Requiring hook capture to publish
+  that checkpoint discarded fresh replays and cold-cached every following
+  turn. Retain it only after observing the canonical SDK result at the
+  one-turn cap, with complete streamed calls all declared by the client,
+  id/name-matched CLI name-dispatch refusals for every call, no dropped calls,
+  and the ordinary settled assistant UUID/full-call-set and publication
+  guards. Resume rewinds before the rejection and appends real client results.
+  Abort-window calls without a result, malformed-input refusals, undeclared
+  names, unkeyed requests and larger turn budgets keep the existing eviction
+  behavior. Retained checkpoints use ordinary continuation tool caching;
+  the one-shot recovery tool grant remains only for evicted checkpoints.
 - **Passthrough tool sets are shared by content, never by lifetime.** Sessions
   sending identical tools share one built definition set (#1410) and one raw
   tool list (#1444), found through process-wide indexes keyed by a digest of

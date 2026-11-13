@@ -860,15 +860,16 @@ const CLI_REJECTION_PATTERNS: readonly RegExp[] = [
 ]
 
 /** CLI dispatch rejection, keyed by the exact tool-use id and name. A generic
- * failed tool_result is not evidence that a call was never executed. */
-export function cliRejectedToolResults(content: unknown): Array<{ id: string; name: string }> {
+ * failed tool_result is not evidence that a call was never executed.
+ * `nameDispatchOnly` excludes malformed-input refusals from checkpoint proof. */
+export function cliRejectedToolResults(content: unknown, nameDispatchOnly = false): Array<{ id: string; name: string }> {
   if (!Array.isArray(content)) return []
   const rejected: Array<{ id: string; name: string }> = []
   for (const block of content) {
     if (!block || typeof block !== "object" || block.type !== "tool_result" ||
       block.is_error !== true || typeof block.tool_use_id !== "string" ||
       typeof block.content !== "string") continue
-    for (const pattern of CLI_REJECTION_PATTERNS) {
+    for (const pattern of nameDispatchOnly ? CLI_REJECTION_PATTERNS.slice(0, 1) : CLI_REJECTION_PATTERNS) {
       const name = pattern.exec(block.content)?.[1]
       if (name) {
         rejected.push({ id: block.tool_use_id, name })

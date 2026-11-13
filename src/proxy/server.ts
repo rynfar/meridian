@@ -6137,8 +6137,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // The CLI sometimes refuses a client call before the PreToolUse
             // hook runs: a bare tool name, or arguments it cannot parse. A
             // complete streamed call with an explicit, id-matched rejection
-            // (see cliRejectedToolResults) can still be handed to the client,
-            // but the rejected SDK session must be evicted first.
+            // (see cliRejectedToolResults) can still be handed to the client.
+            // Without a canonical declared-name checkpoint, evict it first.
             // The opt-in flag also covers uncaptured calls without that proof;
             // =0 disables both paths.
             const uncapturedRecoverySetting = env("PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY")
@@ -6146,6 +6146,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             const trackUncapturedTools = uncapturedRecoverySetting !== "0"
             const streamedToolBlockRecords = new Map<number, StreamedToolBlockRecord>()
             const cliRejectedToolNames = new Map<string, string>()
+            const cliUnavailableToolIds = new Set<string>()
             // Silent-turn recovery state (see turnOutcome.ts). Kill switch:
             // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
             // telemetry in place and skips only the extra model turn — so an
@@ -6815,6 +6816,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   if (trackUncapturedTools && message.type === "user") {
                     for (const { id, name } of cliRejectedToolResults(message.message.content)) {
                       cliRejectedToolNames.set(id, resolveClientToolName(name, passthroughMcp?.clientNameByAlias, passthroughMcpName))
+                    }
+                    for (const { id } of cliRejectedToolResults(message.message.content, true)) {
+                      cliUnavailableToolIds.add(id)
                     }
                   }
                   if (earlyStopEnabled && !earlyStopFired) {
@@ -8286,7 +8290,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const uncapturedRecoveryActive = uncapturedVeto === undefined
 
               // A turn-cap stop is the one drain failure whose checkpoint is
-              // safe to keep — but only for the CAPTURED path, and the reason
+              // safe to keep for the captured path, and the reason
               // is specific: the SDK can only report `max_turns` from a
               // `result` message it has already enqueued, and it awaits its
               // transcript flush on `result` (Query.readMessages in the
@@ -8295,20 +8299,29 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // populates). So in the captured case the transcript is
               // committed by the time we see this.
               //
-              // That inference does NOT extend to the uncaptured shape:
-              // the CLI's abort path yields the same `max_turns_reached`
-              // attachment without running the hook or committing a
-              // transcript (verified 2026-09-10, sessions 46466398/ee5c8ac9
-              // never wrote one). Uncaptured recovery therefore always
-              // evicts; it never publishes a resumeSessionAt checkpoint.
+              // An uncaptured abort-window call still has no durability proof.
+              // An explicit CLI rejection at the single-turn boundary is
+              // different: require the iterator's canonical result, complete
+              // declared calls, and no dropped calls before retaining its
+              // settled assistant checkpoint (see proxy-core SPEC).
               //
               // Keeping the captured checkpoint lets the next request rewind
               // to the tool-use boundary and append the client's real
               // tool_result, instead of replaying the conversation against a
               // cold cache. Other drain failures remain unsafe and are
               // evicted.
+              const canonicalRejectedCheckpoint =
+                uncapturedRecoveryActive &&
+                confirmedToolUnavailable &&
+                Boolean(profileSessionId) &&
+                sawCanonicalResult &&
+                lastAttemptMaxTurns === 1 &&
+                droppedToolUseIds.size === 0 &&
+                [...streamedToolBlockRecords.values()].every(record =>
+                  cliUnavailableToolIds.has(record.id) &&
+                  requestTools.some((tool: { name: string }) => tool.name === record.name))
               const recoverableCheckpoint =
-                canRecoverAsToolUse &&
+                (canRecoverAsToolUse || canonicalRejectedCheckpoint) &&
                 sdkTerm.reason === "max_turns" &&
                 Boolean(currentSessionId) &&
                 Boolean(nextPassthroughToolCallAssistantUuid) &&
@@ -8319,10 +8332,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
               const mustEvictBeforeRecoveredTerminal =
                 (!isIndependentSession && canRecoverAsToolUse && !recoverableCheckpoint) ||
-                // Uncaptured recovery never has a tool-boundary UUID to pin
-                // (the hook never ran), so the checkpoint is always false and
-                // the durable mapping must be invalidated before the terminal
-                // authorizes tool execution.
+                // Unproved uncaptured recovery must invalidate the mapping
+                // before the terminal authorizes tool execution.
                 (!isIndependentSession && uncapturedRecoveryActive && !recoverableCheckpoint)
               let recoveredMappingEvicted = false
               if (

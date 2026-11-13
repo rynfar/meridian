@@ -27,7 +27,7 @@ let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
 let mockBeforeTerminalError: (() => void | Promise<void>) | undefined
-let mockLogObserver: ((event: string) => void) | undefined
+let mockLogObserver: ((event: string, fields?: Record<string, unknown>) => void) | undefined
 /** What each PostToolBatch hook returned for a `test_post_tool_batch` step. */
 let postToolBatchResults: Array<{ ids: string[]; result: unknown }> = []
 /**
@@ -130,7 +130,7 @@ installSdkMock(() => ({
 }), "passthrough-early-stop-integration.test.ts")
 
 installLoggerMock(() => ({
-  claudeLog: (event: string) => { mockLogObserver?.(event) },
+  claudeLog: (event: string, fields?: Record<string, unknown>) => { mockLogObserver?.(event, fields) },
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
@@ -296,6 +296,85 @@ describe("Integration: passthrough early stop", () => {
     if (savedUncapturedRecovery !== undefined) process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = savedUncapturedRecovery
     else delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
   })
+
+  for (const timing of ["during-generation", "after-boundary", "after-metadata", "no-returned-session-id", "cli-rejected", "cli-rejected-without-result"] as const) {
+    it("stream: fresh replay checkpoint (" + timing + ")", async () => {
+      const sessionKey = "fresh-checkpoint-" + timing + "-" + TEST_RUN_ID
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0", "x-session-affinity": sessionKey }
+      const history = [
+        { role: "user", content: "read old file" },
+        { role: "assistant", content: [{ type: "tool_use", id: "old-call", name: "read", input: { file_path: "old" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "old-call", content: "old data" }] },
+        { role: "assistant", content: "old file read" },
+        { role: "user", content: "now read new file" },
+      ]
+      const call = { type: "tool_use", id: "new-call",
+        name: timing.startsWith("cli-rejected") ? "read" : "mcp__oc__read", input: { file_path: "new" } }
+      const metadata = assistantMessage([call])
+      const events: Array<{ event: string; fields?: Record<string, unknown> }> = []
+      mockLogObserver = (event, fields) => { events.push({ event, fields }) }
+      delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+      const rejected = timing.startsWith("cli-rejected")
+      mockOmitReturnedSessionId = timing === "no-returned-session-id"
+      const hookStep = { type: "test_pre_tool_hook", tool_name: call.name, tool_use_id: call.id, tool_input: call.input }
+      mockMessages = [
+        messageStart("fresh-probe"), toolUseBlockStart(0, call.name, call.id),
+        inputJsonDelta(0, JSON.stringify(call.input)), blockStop(0),
+        ...(timing === "during-generation" ? [metadata] : []),
+        messageDelta("tool_use"), messageStop(),
+        ...(timing === "after-boundary" || timing === "no-returned-session-id" ? [hookStep] : []),
+        ...(timing === "during-generation" ? [] : [{ ...metadata, test_skip_pre_tool_hook: timing !== "after-metadata" }]),
+        rejected ? unavailableToolMessage(call.id, call.name) : userDenyMessage(call.id),
+        ...(timing === "cli-rejected-without-result" ? [] : [{ type: "result", subtype: "error_max_turns", is_error: true }]),
+      ]
+      mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+      const response = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: true, tools: [READ_TOOL], messages: history,
+      }, "unused", headers)
+      const body = await response.text()
+      const query = capturedQueryParamsAll[0]
+      expect(query.options.resume).toBeUndefined()
+      expect(query.options.maxTurns).toBe(1)
+      expect(query.options.env.ENABLE_TOOL_SEARCH).toBe("false")
+      expect(query.options.allowedTools).toContain("mcp__oc__read")
+      expect(events.some(row => row.event === "session.fresh_prepared")).toBe(true)
+      const prompt: unknown[] = []
+      if (typeof query.prompt === "string") prompt.push(query.prompt)
+      else for await (const row of query.prompt) prompt.push(row)
+      expect(JSON.stringify(prompt)).toContain("mcp__oc__read")
+      const ready = events.find(row => row.event === "passthrough.checkpoint_ready")
+      const mapping = lookupSharedSession(sessionKey)
+      expect(ready?.fields?.captured).toBe(rejected ? 0 : 1)
+      if (rejected) expect(events.some(row => row.event === "passthrough.deny_hold_released")).toBe(false)
+      if (timing === "cli-rejected-without-result") {
+        expect(mapping).toBeUndefined()
+        expect(events.some(row => row.event === "passthrough.checkpoint_persisted")).toBe(false)
+        expect(events.some(row => row.event === "passthrough.noncanonical_session_evicted")).toBe(true)
+        return
+      }
+      expect(body).not.toContain("event: error")
+      expect(mapping?.claudeSessionId).toBe(query.options.sessionId)
+      expect(mapping?.passthroughToolCallIds).toEqual([call.id])
+      expect(mapping?.passthroughToolCallAssistantUuid).toBe(metadata.uuid)
+      expect(events.some(row => row.event === "passthrough.noncanonical_session_evicted")).toBe(false)
+      expect(events.some(row => row.event === "passthrough.checkpoint_persisted")).toBe(true)
+      mockOmitReturnedSessionId = false
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "new data read" }])]
+      const next = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: false, tools: [READ_TOOL],
+        messages: [...history,
+          { role: "assistant", content: [{ ...call, name: "read" }] },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: call.id, content: "new data" }] },
+        ],
+      }, "unused", headers)
+      await next.text()
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      expect(capturedQueryParamsAll[1].options.resume).toBe(query.options.sessionId)
+      expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(metadata.uuid)
+    })
+  }
 
   it("replays and replaces a legacy user-denial boundary without a false conflict", async () => {
     const sessionHeader = "es-legacy-upgrade"
@@ -2988,7 +3067,7 @@ describe("Integration: passthrough early stop", () => {
   })
   // The SDK can stream a declared client call but reject its bare name before
   // PreToolUse runs ("No such tool available: read"). The proxy must deliver
-  // that complete call to the client, then evict the unusable SDK checkpoint.
+  // that complete call to the client and retain its canonical checkpoint.
   // Incomplete calls must remain errors.
   it("stream: uncaptured declared Pi calls complete the handoff by default", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
@@ -3053,7 +3132,10 @@ describe("Integration: passthrough early stop", () => {
     })
     expect(terminalReasons).toEqual(["tool_use"])
     expect(events.filter(e => e.event === "message_stop")).toHaveLength(1)
-    expect(lookupSharedSession(sessionHeader)).toBeUndefined()
+    const checkpoint = lookupSharedSession(sessionHeader)
+    expect(checkpoint?.claudeSessionId).toBe(capturedQueryParamsAll[1]?.options.sessionId)
+    expect(checkpoint?.passthroughToolCallIds).toEqual(["toolu_dangling", "toolu_glob"])
+    expect(checkpoint?.passthroughToolCallAssistantUuid).toBeDefined()
     mockTerminalError = undefined
     mockMessages = [
       assistantMessage([{ type: "tool_use", id: "toolu_followup", name: "glob", input: { pattern: "*.ts" } }]),
@@ -3076,7 +3158,8 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
     const continuationBody = await continuation.json()
-    expect(capturedQueryParamsAll[2]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[2]?.options.resume).toBe(checkpoint?.claudeSessionId)
+    expect(capturedQueryParamsAll[2]?.options.resumeSessionAt).toBe(checkpoint?.passthroughToolCallAssistantUuid)
     expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__read")
     expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__glob")
     expect(continuationBody.content).toEqual(expect.arrayContaining([
@@ -3464,7 +3547,7 @@ describe("Integration: passthrough early stop", () => {
     expect(lookupSharedSession(sessionHeader)).toBeUndefined()
   })
 
-  it("stream: explicit empty tools do not spend the recovered grant", async () => {
+  it.each([false, true])("stream: empty tools use ordinary cache only with a canonical refusal checkpoint (result=%s)", async canonical => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const sessionHeader = "es-pi-recovery-empty-tools"
     mockMessages = [
@@ -3478,7 +3561,7 @@ describe("Integration: passthrough early stop", () => {
         { type: "tool_use", id: "toolu_empty_tools", name: "read", input: { file_path: "/x" } },
       ]), test_skip_pre_tool_hook: true },
       unavailableToolMessage("toolu_empty_tools", "read"),
-      { type: "result", subtype: "error_max_turns", is_error: true },
+      ...(canonical ? [{ type: "result", subtype: "error_max_turns", is_error: true }] : []),
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
     const recovered = await post(app, {
@@ -3503,7 +3586,15 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
     expect((await continuation.json()).content).toContainEqual({ type: "text", text: "no tools requested" })
-    expect(capturedQueryParamsAll[1]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+    // Keep the existing distinction: an evicted turn's one-shot grant is
+    // spent only by omitted tools; a retained turn uses ordinary resume caching.
+    if (canonical) {
+      expect(capturedQueryParamsAll[1]?.options.resume).toBe(capturedQueryParamsAll[0]?.options.sessionId)
+      expect(capturedQueryParamsAll[1]?.options.allowedTools).toContain("mcp__oc__read")
+    } else {
+      expect(capturedQueryParamsAll[1]?.options.resume).toBeUndefined()
+      expect(capturedQueryParamsAll[1]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+    }
   })
 
   it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {
@@ -3770,7 +3861,8 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
     expect(await recovered.text()).toContain('"stop_reason":"tool_use"')
-    expect(lookupSharedSession(sessionHeader)).toBeUndefined()
+    expect(lookupSharedSession(sessionHeader)?.claudeSessionId).toBe(capturedQueryParamsAll[1]?.options.sessionId)
+    expect(lookupSharedSession(sessionHeader)?.passthroughToolCallIds).toEqual(["toolu_unrelated_refusal"])
 
     mockTerminalError = undefined
     mockMessages = [assistantMessage([{ type: "text", text: "unrelated" }])]

@@ -1,3 +1,19 @@
+## Offline fresh-replay checkpoint
+
+`bun scripts/e2e-offline-fresh-checkpoint.mjs --claude=/absolute/path/to/claude`
+uses the real Meridian HTTP handler, Agent SDK and named Claude Code executable,
+but a loopback-only canned Anthropic SSE upstream, a dummy API key, and disposable
+HOME/config/session directories. It never contacts an installed Meridian service
+or makes live model calls. Scratch is removed on success and failure.
+
+The upstream deliberately emits a bare declared tool name, which the CLI rejects
+before PreToolUse. At `maxTurns=1`, the fresh replay must publish the assistant
+checkpoint before its terminal tool-use response. The harness inspects the real
+CLI transcript, submits the client's result, proves continuation and native
+assistant/result context with the rejection rewound, and asserts exactly two
+upstream calls (no retry or digest). This proves transport and persistence, not
+live model name selection or actual prompt-cache billing.
+
 ## Pi extension (#1408)
 
 Three harnesses use the actual Pi CLI with the extension that

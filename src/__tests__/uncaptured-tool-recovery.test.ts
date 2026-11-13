@@ -144,6 +144,13 @@ describe("cliRejectedToolResults", () => {
     ])).toEqual([{ id: "toolu_unparsed_1", name: "mcp__oc__edit" }])
   })
 
+  it("can isolate name-dispatch refusals from malformed-input recovery", () => {
+    expect(cliRejectedToolResults([
+      { type: "tool_result", tool_use_id: "name", is_error: true, content: "<tool_use_error>Error: No such tool available: read</tool_use_error>" },
+      { type: "tool_result", tool_use_id: "json", is_error: true, content: UNPARSED_INPUT_RESULT },
+    ], true)).toEqual([{ id: "name", name: "read" }])
+  })
+
   it("requires the error flag and the complete CLI envelope for unparseable input", () => {
     expect(cliRejectedToolResults([
       { type: "tool_result", tool_use_id: "t1", is_error: false, content: UNPARSED_INPUT_RESULT },
