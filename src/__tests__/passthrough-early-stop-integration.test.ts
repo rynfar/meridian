@@ -3547,6 +3547,46 @@ describe("Integration: passthrough early stop", () => {
     expect(lookupSharedSession(sessionHeader)).toBeUndefined()
   })
 
+  // The deferred-tools budget is 4, so the settled assistant boundary of a
+  // CLI-rejected call is not provable: the rejection, the declared name and
+  // the canonical result all hold, but only the single-turn cap proves every
+  // streamed call belongs to the client's turn. The mapping is evicted, not
+  // retained as a canonical rejection checkpoint.
+  it("stream: a CLI-rejected declared tool at the deferred-tools budget evicts the mapping", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-cli-rejected-deferred-budget"
+    const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0", "x-session-affinity": sessionKey }
+    const BASH_TOOL = {
+      name: "bash",
+      description: "Run a shell command",
+      input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
+    }
+    const call = { type: "tool_use", id: "toolu_bash_rejected", name: "bash", input: { command: "ls" } }
+    mockMessages = [
+      messageStart("msg_bash_rejected"),
+      toolUseBlockStart(0, call.name, call.id),
+      inputJsonDelta(0, JSON.stringify(call.input)),
+      blockStop(0),
+      messageDelta("tool_use"), messageStop(),
+      { ...assistantMessage([call]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage(call.id, call.name),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (4)")
+    const response = await post(app, {
+      model: "opus[1m]", max_tokens: 400, stream: true,
+      tools: [BASH_TOOL,
+        { name: "lsp_diagnostics", defer_loading: true, input_schema: { type: "object", properties: { file: { type: "string" } } } }],
+      messages: [{ role: "user", content: "list the directory" }],
+    }, "unused", headers)
+    const body = await response.text()
+    expect(body).not.toContain("event: error")
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(4)
+    expect(lookupSharedSession(sessionKey)).toBeUndefined()
+  })
+
   it.each([false, true])("stream: empty tools use ordinary cache only with a canonical refusal checkpoint (result=%s)", async canonical => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const sessionHeader = "es-pi-recovery-empty-tools"
@@ -3595,6 +3635,53 @@ describe("Integration: passthrough early stop", () => {
       expect(capturedQueryParamsAll[1]?.options.resume).toBeUndefined()
       expect(capturedQueryParamsAll[1]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
     }
+  })
+
+  // A retained canonical rejection checkpoint rewinds the next request to the
+  // rejected turn's assistant message, so the client's real tool_result is
+  // appended at the boundary the CLI itself committed.
+  it("stream: a canonical CLI rejection resumes the next turn at the rejected assistant boundary", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-cli-rejected-resume-boundary"
+    const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0", "x-session-affinity": sessionKey }
+    const call = { type: "tool_use", id: "toolu_rejected_boundary", name: "read", input: { file_path: "/x" } }
+    const toolTurn = assistantMessage([call])
+    mockMessages = [
+      messageStart("msg_rejected_boundary"),
+      toolUseBlockStart(0, call.name, call.id),
+      inputJsonDelta(0, JSON.stringify(call.input)),
+      blockStop(0),
+      messageDelta("tool_use"), messageStop(),
+      { ...toolTurn, test_skip_pre_tool_hook: true },
+      unavailableToolMessage(call.id, call.name),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const rejected = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "call read" }],
+    }, "unused", headers)
+    expect(await rejected.text()).toContain('"stop_reason":"tool_use"')
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    expect(lookupSharedSession(sessionKey)?.passthroughToolCallAssistantUuid).toBe(toolTurn.uuid)
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "file contents" }])]
+    const continuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "call read" },
+        { role: "assistant", content: [call] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: call.id, content: "file contents" }] },
+      ],
+    }, "unused", headers)
+    expect((await continuation.json()).content).toContainEqual({ type: "text", text: "file contents" })
+    expect(capturedQueryParamsAll).toHaveLength(2)
+    expect(capturedQueryParamsAll[1].options.resume).toBe(capturedQueryParamsAll[0].options.sessionId)
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
   })
 
   it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {
