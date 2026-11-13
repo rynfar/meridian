@@ -62,6 +62,14 @@ describe("resolveModelPricing", () => {
     })
     expect(resolveModelPricing("claude-opus-5")?.inputPerMTok).toBe(5)
   })
+  it("prices Fable 5.2 and Mythos 5.2 including their reduced cache-read rate", () => {
+    for (const model of ["claude-fable-5-2", "claude-fable-5-2[1m]", "claude-mythos-5-2"]) {
+      expect(resolveModelPricing(model)).toEqual({
+        inputPerMTok: 8, outputPerMTok: 40, cacheReadPerMTok: 0.2, cacheWritePerMTok: 10,
+      })
+    }
+    expect(resolveModelPricing("claude-fable-5-1")?.inputPerMTok).toBe(10)
+  })
   it("resolves SDK aliases meridian uses", () => {
     expect(resolveModelPricing("opus")).toMatchObject({ inputPerMTok: 4, outputPerMTok: 20 })
     expect(resolveModelPricing("sonnet")).toMatchObject({ inputPerMTok: 2, outputPerMTok: 10 })
