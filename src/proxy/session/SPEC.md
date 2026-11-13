@@ -170,6 +170,33 @@ outcomes are main's, with the eviction in place of the marking.
 A prompt-cache keepalive stops tracking the session at the client abort, as
 before; a later turn that writes the one-hour tier tracks it again.
 
+## Forked conversations
+
+A harness that runs several conversations in parallel from one history (an
+agent that splits its work into lanes) wants each lane to be its own
+conversation, with its own key, without paying a full replay to start it. A
+lane's first request may carry `x-meridian-fork-from: <source key>`, the key of
+the conversation it was forked from. When the lane's own key has no mapping
+yet, Meridian copies the source's durable mapping (on the same account) under
+the lane's key, then runs the turn as usual: lineage is classified against the
+source history, so the lane resumes the source session, or forks it at the
+shared turn when the source has moved on since, and publishes its own managed
+fork under its own key.
+
+This needs no new lifecycle rules. Every resume already writes a fresh managed
+fork, so a transcript id names one published state and the copy agrees with
+the source for as long as both name it; transcripts are retained while any
+mapping names them, so either mapping keeps the shared one pinned; and the
+source mapping is only read. A source without resume proof (interrupted, or
+published from rewritten history) is not copied, an existing lane mapping is
+never overwritten, and a lost generation race copies nothing: in each case the
+lane replays as it would have without the header.
+
+On `/v1/responses`, a client-named session (`x-session-affinity`, then
+`x-session-id`) is the turn's key ahead of the Codex thread and
+`prompt_cache_key`, as on `/v1/chat/completions`: lanes that share one
+`prompt_cache_key` to share the provider cache stay separate conversations.
+
 ## Known limitations
 
 - **Container host identity.** Inside containers the derived `hostId` changes on

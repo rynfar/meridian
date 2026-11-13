@@ -760,6 +760,53 @@ export function storeSession(
   })
 }
 
+/** Names the conversation a new keyed conversation was forked from. */
+export const FORK_FROM_HEADER = "x-meridian-fork-from"
+
+/**
+ * Start a new conversation key from another conversation's published session.
+ *
+ * The new key gets a copy of the source mapping, so its first turn is
+ * classified against the source's history and resumes it through the ordinary
+ * managed fork: the SDK copies the source transcript, which keeps the prompt
+ * cache, and the source mapping is never written. A transcript id names one
+ * published state, so the copy and the source agree for as long as both name
+ * it, and either mapping keeps it pinned.
+ *
+ * Seeds only an absent key (`expectedGeneration` is its missing generation)
+ * from a source that holds resume proof; anything else leaves the key absent
+ * and the turn replays as it would have.
+ */
+export function seedSessionFromSource(
+  key: string,
+  sourceKey: string,
+  expectedGeneration: StoredSessionGeneration,
+): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
+  if (key === sourceKey) return false
+  const source = lookupSharedSessionResult(sourceKey)
+  if (source.status !== "found") return false
+  const session = source.session
+  if (!session.claudeSessionId || !session.lineageHash) return false
+  if (session.currentTranscript && session.currentTranscript.sessionId !== session.claudeSessionId) return false
+  return storeSharedSession(
+    key,
+    session.claudeSessionId,
+    session.messageCount,
+    session.lineageHash,
+    session.messageHashes,
+    session.sdkMessageUuids,
+    session.contextUsage,
+    session.messageBlockHashes,
+    session.passthroughToolCallAssistantUuid ?? null,
+    session.passthroughToolCallIds ?? null,
+    session.currentTranscript,
+    undefined,
+    expectedGeneration,
+    session.clientLineageHash ?? null,
+    session.resumeContextHash ?? null,
+  )
+}
+
 /**
  * Keep the mapping an interrupted turn resumed, marked interrupted.
  *
