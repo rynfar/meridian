@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.90.0](https://github.com/rynfar/meridian/compare/meridian-v1.89.0...meridian-v1.90.0) (2026-11-13)
+
+
+### Features
+
+* **models:** add Claude Fable 5.2 ([#1527](https://github.com/rynfar/meridian/issues/1527)) ([eab8d9b](https://github.com/rynfar/meridian/commit/eab8d9bd8fe37154d4dbb47c9c0c8ed445d60f91))
+* **profiles:** filter accounts by login state ([#1495](https://github.com/rynfar/meridian/issues/1495)) ([663311e](https://github.com/rynfar/meridian/commit/663311e1c7da8e599ffdef330c8b2dfa4bdaf758))
+
+
+### Bug Fixes
+
+* **landing:** finishing a text selection on a card does not switch accounts ([#1496](https://github.com/rynfar/meridian/issues/1496)) ([63c33fa](https://github.com/rynfar/meridian/commit/63c33faf0637bde3bf45ee188d069c0dabcc126a))
+
 ## [1.89.0](https://github.com/rynfar/meridian/compare/meridian-v1.88.0...meridian-v1.89.0) (2026-11-09)
 
 
