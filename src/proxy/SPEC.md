@@ -189,6 +189,12 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     rewrote 86,385 tokens; with it, one beat at 55.3 min read 90,018 and the
     next turn read 90,018 and wrote 340, about 89% cheaper in input-token
     equivalents net of the beat.
+  - *Client mode* (deploy-only). `MERIDIAN_CACHE_KEEPALIVE=client` tracks the
+    same sessions but starts no beat on its own; `POST
+    /v1/sessions/:key/cache-beat` runs one now and answers with its outcome.
+    A client that knows whether its user is coming back owns the schedule,
+    so the per-period cap does not apply; eligibility, the account rules, the
+    in-flight cap and "never refresh an expired prefix" still do.
   - *Never on someone's money or an exhausted window.* No beat on API-key or
     token profiles, while any live window reports `isUsingOverage`, a
     rejected or fully used window, priority cooldown, a spent refusal, or a

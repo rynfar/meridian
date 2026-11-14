@@ -44,7 +44,7 @@ import {
   CacheKeepaliveScheduler,
   cacheKeepaliveAccountBlock,
   classifyCacheTier,
-  resolveCacheKeepaliveEnabled,
+  resolveCacheKeepaliveMode,
   resolveCacheKeepaliveMaxInFlight,
   type CacheTierUsage,
 } from "./cacheKeepalive"
@@ -1389,10 +1389,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // Prompt-cache keepalive (src/proxy/SPEC.md → Decisions). Off unless the
   // operator switches it on; beats run on the same gated SDK path as turns
   // and count as in-flight work for shutdown.
-  const cacheKeepaliveEnabled = (): boolean =>
-    resolveCacheKeepaliveEnabled(env("CACHE_KEEPALIVE"), () => getSetting("cacheKeepalive"))
+  const cacheKeepaliveMode = () =>
+    resolveCacheKeepaliveMode(env("CACHE_KEEPALIVE"), () => getSetting("cacheKeepalive"))
+  const cacheKeepaliveEnabled = (): boolean => cacheKeepaliveMode() !== "off"
   const cacheKeepalive = new CacheKeepaliveScheduler<CacheKeepaliveRecipe>({
     enabled: cacheKeepaliveEnabled,
+    autoBeats: () => cacheKeepaliveMode() === "auto",
     maxInFlight: resolveCacheKeepaliveMaxInFlight(envIntValue("CACHE_KEEPALIVE_MAX_IN_FLIGHT")),
     currentSessionId: currentCacheKeepaliveSessionId,
     beat: createCacheKeepaliveRunner({
@@ -2281,7 +2283,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         status: "ok",
         service: "meridian",
         format: "anthropic",
-        endpoints: ["/v1/messages", "/messages", "/v1/chat/completions", "/v1/responses", "/v1/models", "/v1/sessions/:key/cancel", "/v1/design/*", "/design-login", "/telemetry", "/metrics", "/health"]
+        endpoints: ["/v1/messages", "/messages", "/v1/chat/completions", "/v1/responses", "/v1/models", "/v1/sessions/:key/cancel", "/v1/sessions/:key/cache-beat", "/v1/design/*", "/design-login", "/telemetry", "/metrics", "/health"]
       })
     }
     return c.html(withSavedLayout(landingHtml))
@@ -9862,6 +9864,27 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       cancelled: { sessions: cancelled.keys.length, requests: cancelled.requestIds.length },
       requestIds: cancelled.requestIds,
     })
+  })
+
+  /**
+   * Refresh a session's prompt cache now (prompt-cache keepalive in `client`
+   * mode, src/proxy/SPEC.md → Decisions). `:key` is the client's session key
+   * (`x-session-affinity`, `x-opencode-session`, ...). The beat is the same
+   * read-only one the automatic schedule sends; this only lets a client that
+   * knows whether its user is coming back decide when. Answers once the beat
+   * has finished, with its outcome.
+   */
+  app.post("/v1/sessions/:key/cache-beat", async (c) => {
+    const key = c.req.param("key")
+    if (!key) {
+      return c.json({ type: "error", error: { type: "invalid_request_error", message: "Session key is required" } }, 400)
+    }
+    if (!cacheKeepaliveEnabled()) return c.json({ session: key, outcome: "disabled" })
+    const trackedKeys = cacheKeepalive.keysForSession(key)
+    if (trackedKeys.length === 0) return c.json({ session: key, outcome: "untracked" })
+    const outcomes = await Promise.all(trackedKeys.map((trackedKey) => cacheKeepalive.beatNow(trackedKey)))
+    const outcome = outcomes.find((value) => value === "reached") ?? outcomes[0]
+    return c.json({ session: key, outcome })
   })
 
   // Telemetry dashboard and API

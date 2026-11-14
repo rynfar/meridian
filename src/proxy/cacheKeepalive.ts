@@ -52,10 +52,30 @@ export const CACHE_KEEPALIVE_SOURCE = "cache-keepalive"
  * values fall through to the setting, and the default is off.
  */
 export function resolveCacheKeepaliveEnabled(envValue: string | undefined, setting: () => unknown): boolean {
+  return resolveCacheKeepaliveMode(envValue, setting) !== "off"
+}
+
+/**
+ * How keepalive runs:
+ * - `off`: nothing is tracked.
+ * - `auto`: Meridian beats idle sessions on its own schedule (see above).
+ * - `client`: sessions are tracked but beat only when the client asks
+ *   (`POST /v1/sessions/:key/cache-beat`), so a client that knows whether its
+ *   user is coming back decides how long a cache stays warm.
+ *
+ * The environment wins over the setting. `1`/`true` (or a `true` setting)
+ * mean `auto`; `client` means `client`.
+ */
+export type CacheKeepaliveMode = "off" | "auto" | "client"
+
+export function resolveCacheKeepaliveMode(envValue: string | undefined, setting: () => unknown): CacheKeepaliveMode {
   const value = envValue?.trim().toLowerCase()
-  if (value === "1" || value === "true" || value === "yes" || value === "on") return true
-  if (value === "0" || value === "false" || value === "no" || value === "off") return false
-  return setting() === true
+  if (value === "client") return "client"
+  if (value === "1" || value === "true" || value === "yes" || value === "on") return "auto"
+  if (value === "0" || value === "false" || value === "no" || value === "off") return "off"
+  const saved = setting()
+  if (saved === "client") return "client"
+  return saved === true ? "auto" : "off"
 }
 
 /** Concurrent beats allowed; clamped to a small number. */
@@ -165,6 +185,13 @@ const DEFAULT_TIMING: CacheKeepaliveTiming = {
   settleMs: CACHE_KEEPALIVE_SETTLE_MS,
 }
 
+/** When the session's cache was last read: its latest turn or reached beat. */
+function cacheAnchor(state: CacheKeepaliveState, currentSessionId: string | undefined): number {
+  return currentSessionId && state.lastBeat?.sessionId === currentSessionId
+    ? Math.max(state.lastBeat.at, state.lastTurnAt)
+    : state.lastTurnAt
+}
+
 /**
  * Decide what to do for one session at `now`, given the SDK session its
  * mapping currently resumes.
@@ -181,9 +208,7 @@ export function decideCacheKeepalive(
   timing: CacheKeepaliveTiming = DEFAULT_TIMING,
 ): CacheKeepaliveDecision {
   if (state.beats >= timing.maxBeats) return "expire"
-  const anchor = currentSessionId && state.lastBeat?.sessionId === currentSessionId
-    ? Math.max(state.lastBeat.at, state.lastTurnAt)
-    : state.lastTurnAt
+  const anchor = cacheAnchor(state, currentSessionId)
   if (now >= anchor + timing.ttlMs) return "expire"
   if (!currentSessionId) return "wait"
   if (now < anchor + timing.intervalMs) return "wait"
@@ -201,6 +226,15 @@ export function decideCacheKeepalive(
  */
 export type CacheKeepaliveBeatOutcome = "reached" | "retry" | "stop"
 
+/**
+ * What a client-requested beat did: a beat outcome, or why none ran.
+ * - `untracked`: no eligible session under that key (never a one-hour-tier
+ *   subscription turn, keepalive off, or forgotten).
+ * - `expired`: the cache had already expired, so a beat would rewrite it.
+ * - `busy`: a real turn or another beat is running; ask again shortly.
+ */
+export type CacheBeatRequestOutcome = CacheKeepaliveBeatOutcome | "untracked" | "expired" | "busy"
+
 export interface CacheKeepaliveSchedulerOptions<R> {
   /** The SDK session the recipe's mapping currently resumes, if any. */
   currentSessionId(recipe: R): string | undefined
@@ -208,6 +242,8 @@ export interface CacheKeepaliveSchedulerOptions<R> {
   beat(recipe: R, sessionId: string, signal: AbortSignal): Promise<CacheKeepaliveBeatOutcome>
   /** Whether the operator has keepalive switched on; re-read on every tick. */
   enabled?: () => boolean
+  /** Whether due beats start on their own; off, beats run only through `beatNow`. */
+  autoBeats?: () => boolean
   now?: () => number
   intervalMs?: number
   ttlMs?: number
@@ -321,6 +357,12 @@ export class CacheKeepaliveScheduler<R> {
       }
       entry.observed = { sessionId }
       if ((this.turns.get(key) ?? 0) > 0) continue
+      if (this.options.autoBeats && !this.options.autoBeats()) {
+        // Client-driven: the client decides when to beat; only a cache that is
+        // already gone is forgotten.
+        if (now >= cacheAnchor(entry.state, sessionId) + this.timing.ttlMs) this.entries.delete(key)
+        continue
+      }
       const decision = decideCacheKeepalive(entry.state, sessionId, now, this.timing)
       if (decision === "expire") {
         this.entries.delete(key)
@@ -330,11 +372,49 @@ export class CacheKeepaliveScheduler<R> {
     }
   }
 
-  private start(key: string, entry: Entry<R>, sessionId: string, now: number): void {
+  /** Tracked session keys whose client session id is `sessionId`. */
+  keysForSession(sessionId: string): string[] {
+    const suffix = `:${sessionId}`
+    return [...this.entries.keys()].filter((key) => key.endsWith(suffix))
+  }
+
+  /**
+   * Run one beat on `key` now, because the client asked. Unlike scheduled
+   * beats this ignores the interval and the per-period cap (the client owns
+   * the schedule) but never refreshes a cache that has already expired, never
+   * runs beside a real turn or another beat of the session, and respects the
+   * in-flight cap.
+   */
+  async beatNow(key: string): Promise<CacheBeatRequestOutcome> {
+    if (this.stopped) return "untracked"
+    const entry = this.entries.get(key)
+    if (!entry) return "untracked"
+    if ((this.turns.get(key) ?? 0) > 0 || entry.running) return "busy"
+    let sessionId: string | undefined
+    try {
+      sessionId = this.options.currentSessionId(entry.recipe)
+    } catch {
+      return "retry"
+    }
+    if (!sessionId) return "untracked"
+    const now = this.now()
+    if (now >= cacheAnchor(entry.state, sessionId) + this.timing.ttlMs) {
+      this.entries.delete(key)
+      return "expired"
+    }
+    if (this.running.size >= this.maxInFlight) return "busy"
+    return this.start(key, entry, sessionId, now)
+  }
+
+  private start(key: string, entry: Entry<R>, sessionId: string, now: number): Promise<CacheKeepaliveBeatOutcome> {
     const running = new AbortController()
     entry.running = running
     this.running.add(running)
-    const settle = (outcome: CacheKeepaliveBeatOutcome): void => {
+    const settle = (outcome: CacheKeepaliveBeatOutcome): CacheKeepaliveBeatOutcome => {
+      settleEntry(outcome)
+      return outcome
+    }
+    const settleEntry = (outcome: CacheKeepaliveBeatOutcome): void => {
       if (this.entries.get(key) !== entry) return
       if (outcome === "stop") {
         this.entries.delete(key)
@@ -348,7 +428,7 @@ export class CacheKeepaliveScheduler<R> {
         entry.state.beats++
       }
     }
-    this.options.beat(entry.recipe, sessionId, running.signal)
+    return this.options.beat(entry.recipe, sessionId, running.signal)
       .then(settle, () => settle("retry"))
       .finally(() => {
         this.running.delete(running)
