@@ -92,6 +92,26 @@ A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
+## Oh My Pi regrouped user messages
+
+`node scripts/e2e-lineage-regroup-omp.mjs --omp=<omp> --agent-dir=<dir>
+--log=<meridian log> [--model=opus] [--expect=resume|replay]` drives the real
+omp client against a running Meridian (a built tree on a spare port with its
+own `MERIDIAN_CONFIG_DIR` and `MERIDIAN_SESSION_DIR`, output teed to `--log`).
+`--agent-dir` is a scratch `PI_CODING_AGENT_DIR` whose `models.yml` points the
+anthropic provider at that port with `x-meridian-agent: pi`. It inserts a
+reminder-only user message into the scratch session file before the second
+turn and removes it before the third, as omp's idle rebuild and a restart did
+on 2026-11-07, then asserts the third turn resumes. `--expect=replay` asserts
+the pre-fix fresh replay for a before run.
+
+Recorded 2026-11-07 on Linux x64, Node 24.22.2, omp 18.18.0, Claude Code
+2.1.316, `opus` on the owner's Claude subscription: upstream main `cafdcf78`
+replayed the third turn (`lineage=new diverged=modified-history`, prefix
+overlap 2/4, cache_write 7k), the fix resumed it (`lineage=continuation`,
+`Regrouped user messages … 1 run, stored 4 -> incoming 3; resuming.`,
+cache_read 16k, cache_write 46).
+
 ## Claude Code's own tool search in passthrough (#1478)
 
 `node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
