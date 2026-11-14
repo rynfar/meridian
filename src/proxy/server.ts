@@ -105,7 +105,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { isSdkToolSearchCall, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { isSdkToolSearchCall, checkpointHasRejectedParallelCalls, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -4491,6 +4491,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // and store the earlier assistant UUID only after the drain completes.
       const earlyStopEnabled = passthrough && process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP !== "0"
       const earlyStop = createEarlyStopTracker()
+      const cliUnavailableToolIds = new Set<string>()
       let earlyStopFired = false
       // Deny-hold: the CLI dispatches each tool's PreToolUse hook AS SOON AS
       // that block finishes streaming — while later parallel blocks are still
@@ -5336,6 +5337,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 claudeLog("passthrough.loop_break", { mode: "non_stream", assistantMessages, captured: capturedToolUses.length })
                 break
               }
+              if (passthrough && message.type === "user") {
+                for (const { id } of cliRejectedToolResults(message.message.content, true)) {
+                  cliUnavailableToolIds.add(id)
+                }
+              }
               // Checkpoint settlement: the deny tool_results identify when all
               // visible calls have been handled. Freeze that assistant boundary,
               // then keep draining; iterator observation alone is not durable.
@@ -5855,7 +5861,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // result, which gives the CLI time to persist the assistant boundary.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 const checkpointTurn = passthrough && contentBlocks.some((b) => b.type === "tool_use")
-                if (checkpointTurn && (!earlyStopFired || !sawCanonicalResult)) {
+                if (checkpointTurn && (
+                  !earlyStopFired || !sawCanonicalResult ||
+                  checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds)
+                )) {
                   // Iterator visibility is not durability. Never publish a
                   // resumeSessionAt UUID unless the CLI reached its terminal
                   // result and had a chance to commit the transcript.
@@ -6146,7 +6155,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             const trackUncapturedTools = uncapturedRecoverySetting !== "0"
             const streamedToolBlockRecords = new Map<number, StreamedToolBlockRecord>()
             const cliRejectedToolNames = new Map<string, string>()
-            const cliUnavailableToolIds = new Set<string>()
             // Silent-turn recovery state (see turnOutcome.ts). Kill switch:
             // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
             // telemetry in place and skips only the extra model turn — so an
@@ -6813,9 +6821,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   } else if (earlyStopEnabled && message.type === "user" && !earlyStopFired) {
                     noteUserContent(earlyStop, (message as any).message?.content)
                   }
-                  if (trackUncapturedTools && message.type === "user") {
-                    for (const { id, name } of cliRejectedToolResults(message.message.content)) {
-                      cliRejectedToolNames.set(id, resolveClientToolName(name, passthroughMcp?.clientNameByAlias, passthroughMcpName))
+                  if (passthrough && message.type === "user") {
+                    if (trackUncapturedTools) {
+                      for (const { id, name } of cliRejectedToolResults(message.message.content)) {
+                        cliRejectedToolNames.set(id, resolveClientToolName(name, passthroughMcp?.clientNameByAlias, passthroughMcpName))
+                      }
                     }
                     for (const { id } of cliRejectedToolResults(message.message.content, true)) {
                       cliUnavailableToolIds.add(id)
@@ -7320,7 +7330,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const checkpointTurn = passthrough && streamedToolUseIds.size > 0
                 if (
                   exitedBeforeCanonicalTerminal ||
-                  (checkpointTurn && (!earlyStopFired || !sawCanonicalResult))
+                  (checkpointTurn && (
+                    !earlyStopFired || !sawCanonicalResult ||
+                    checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds)
+                  ))
                 ) {
                   const evicted = await evictSession(
                     profileSessionId,
@@ -8327,6 +8340,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   requestTools.some((tool: { name: string }) => tool.name === record.name))
               const recoverableCheckpoint =
                 (canRecoverAsToolUse || canonicalRejectedCheckpoint) &&
+                !checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds) &&
                 sdkTerm.reason === "max_turns" &&
                 Boolean(currentSessionId) &&
                 Boolean(nextPassthroughToolCallAssistantUuid) &&

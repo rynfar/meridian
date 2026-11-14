@@ -3,6 +3,11 @@
 // No provider credentials, live model calls, or existing Meridian state are used.
 // bun scripts/e2e-offline-fresh-checkpoint.mjs --claude=/absolute/path/to/claude
 // Optional: --thinking --calls=1|2|3 --transient-tail (client-history mutation control).
+// --mixed emits one registered/captured call and the remaining bare/rejected calls.
+// --deferred lifts maxTurns to 4: rejected-only calls run a hidden digest;
+// captured batches stop via PostToolBatch. Both complete normally with success.
+// --non-stream exercises JSON completion; --captured emits only registered calls.
+// --captured-last puts the captured call last in a mixed batch (JSON backfill).
 // --calls=1 retains the rejection checkpoint and resumes. --calls=2|3 evicts it
 // and the follow-up is a fresh replay carrying every real client result.
 import assert from "node:assert/strict"
@@ -16,9 +21,23 @@ const callCount = Number(process.argv.find(arg => arg.startsWith("--calls="))?.s
 assert(Number.isInteger(callCount) && callCount > 0 && callCount <= 3, "--calls must be 1, 2, or 3")
 const thinking = process.argv.includes("--thinking")
 const transientTail = process.argv.includes("--transient-tail")
+const mixed = process.argv.includes("--mixed")
+const deferred = process.argv.includes("--deferred")
+const nonStream = process.argv.includes("--non-stream")
+const captured = process.argv.includes("--captured")
+const capturedLast = process.argv.includes("--captured-last")
+assert(!capturedLast || mixed, "--captured-last requires --mixed")
+assert(!mixed || callCount > 1, "--mixed requires at least two calls")
+assert(!(mixed && captured), "choose --mixed or --captured")
+const extended = mixed || deferred || nonStream || captured
+const digestExpected = deferred && !mixed && !captured
 const calls = Array.from({ length: callCount }, (_, index) => ({
   type: "tool_use", id: index === 0 ? "toolu_offline" : "toolu_offline_" + index,
   name: "read", input: { file_path: "new-" + index },
+}))
+const realResult = call => "REAL_CLIENT_RESULT_" + call.id
+const upstreamCalls = calls.map((call, index) => ({ ...call,
+  name: captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__read" : call.name,
 }))
 const root = mkdtempSync(join(process.cwd(), ".fresh-checkpoint-e2e-"))
 // Start without inherited provider credentials or operational overrides.
@@ -38,6 +57,8 @@ Object.assign(process.env, {
   MERIDIAN_TELEMETRY_PERSIST: "0",
 })
 const wire = []
+let followUp = false
+let firstRequestCalls = 0
 const upstream = Bun.serve({
   hostname: "127.0.0.1", port: 0,
   async fetch(request) {
@@ -47,10 +68,12 @@ const upstream = Bun.serve({
     assert.equal(body.stream, true)
     assert(body.tools.some(tool => tool.name === "mcp__oc__read"))
     const first = wire.length === 1
-    assert(wire.length <= 2, "no retry or hidden digest is permitted")
+    if (!followUp) firstRequestCalls++
+    assert(firstRequestCalls <= (digestExpected ? 2 : 1), "no retry or extra digest is permitted")
+    assert(wire.length <= (digestExpected ? 3 : 2), "no retry is permitted")
     const blocks = first
-      ? [...(thinking ? [{ type: "thinking", thinking: "offline thought", signature: "offline-signature" }] : []), ...calls]
-      : [{ type: "text", text: "read complete" }]
+      ? [...(thinking ? [{ type: "thinking", thinking: "offline thought", signature: "offline-signature" }] : []), ...upstreamCalls]
+      : [{ type: "text", text: followUp ? "read complete" : "hidden digest" }]
     const events = [
       ["message_start", { type: "message_start", message: {
         id: "msg_offline_" + wire.length, type: "message", role: "assistant", model: body.model,
@@ -81,6 +104,7 @@ let proxy
 try {
   const version = Bun.spawnSync([cli, "--version"], { env: process.env }).stdout.toString().trim()
   const { createProxyServer } = await import("../src/proxy/server.ts")
+  const { PASSTHROUGH_DENY_REASON } = await import("../src/proxy/passthroughDenial.ts")
   const { lookupSharedSession } = await import("../src/proxy/sessionStore.ts")
   const { telemetryStore } = await import("../src/telemetry/index.ts")
   const { computeMessageHashes, verifyLineage } = await import("../src/proxy/session/lineage.ts")
@@ -91,7 +115,8 @@ try {
   const session = "offline-fresh-checkpoint"
   const tools = [{ name: "read", input_schema: {
     type: "object", properties: { file_path: { type: "string" } }, required: ["file_path"],
-  } }]
+  } }, ...(deferred ? [{ name: "lsp_diagnostics", defer_loading: true,
+    input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])]
   const history = [
     { role: "user", content: "read old file" },
     { role: "assistant", content: [{ type: "tool_use", id: "old-call", name: "read", input: { file_path: "old" } }] },
@@ -102,7 +127,7 @@ try {
   const post = messages => proxy.app.fetch(new Request("http://offline.invalid/v1/messages", {
     method: "POST", headers: { "content-type": "application/json", "x-meridian-agent": "pi",
       "user-agent": "pi/1.4.0", "x-session-affinity": session },
-    body: JSON.stringify({ model: "opus[1m]", max_tokens: 400, stream: true, tools, messages }),
+    body: JSON.stringify({ model: "opus[1m]", max_tokens: 400, stream: !nonStream, tools, messages }),
   }))
   const suffix = transientTail ? [
     { role: "user", content: "request-only context" },
@@ -114,10 +139,23 @@ try {
   assert.equal(first.status, 200)
   assert(!firstBody.includes("event: error"), firstBody)
   assert(firstBody.includes('"stop_reason":"tool_use"'), firstBody)
-  const retainCheckpoint = callCount === 1
+  assert.equal(firstRequestCalls, digestExpected ? 2 : 1, "deferred flow must complete its hidden second model turn")
+  const retainCheckpoint = captured || (!nonStream && !mixed && callCount === 1)
   const mapping = lookupSharedSession("offline:" + session)
   const rejectionText = "<tool_use_error>Error: No such tool available: read</tool_use_error>"
-  if (retainCheckpoint) {
+  if (extended) {
+    const transcripts = readdirSync(root, { recursive: true }).filter(path => String(path).endsWith(".jsonl"))
+    const rows = transcripts.flatMap(file => readFileSync(join(root, String(file)), "utf8").trim().split("\n").map(line => JSON.parse(line)))
+    for (const [index, call] of calls.entries()) {
+      const results = rows.flatMap(row => Array.isArray(row.message?.content) ? row.message.content : [])
+        .filter(block => block.type === "tool_result" && block.tool_use_id === call.id)
+      assert(results.length > 0, "CLI transcript lacks result for " + call.id)
+      if (upstreamCalls[index].name === "read") assert(results.some(block => block.content === rejectionText), "bare call must be name-dispatch rejected")
+      else assert(results.some(block => JSON.stringify(block.content).includes(PASSTHROUGH_DENY_REASON)), "registered call must reach PreToolUse deny")
+    }
+    if (digestExpected) assert(rows.some(row => row.message?.content?.some?.(block => block.type === "text" && block.text === "hidden digest")), "CLI must commit hidden second-turn completion")
+    console.log("SHAPE " + JSON.stringify({ mixed, deferred, nonStream, captured, capturedLast, checkpointRetained: Boolean(mapping), firstRequestCalls }))
+  } else if (retainCheckpoint) {
     assert(mapping, "fresh canonical rejection lost its mapping")
     assert.deepEqual(mapping.messageHashes, computeMessageHashes(firstHistory))
     assert.deepEqual(mapping.passthroughToolCallIds, calls.map(call => call.id))
@@ -141,9 +179,9 @@ try {
   }
   // Assemble the exact client-visible assistant from the emitted stream, not
   // from the canned upstream or the CLI's assistant metadata.
-  const content = []
+  const content = nonStream ? JSON.parse(firstBody).content : []
   const json = new Map()
-  for (const { event, data } of parseSSE(firstBody)) {
+  for (const { event, data } of nonStream ? [] : parseSSE(firstBody)) {
     const index = data.index
     if (event === "content_block_start") content[index] = { ...data.content_block }
     if (event !== "content_block_delta") continue
@@ -157,10 +195,10 @@ try {
   if (thinking) assert.equal(content[0].type, "thinking")
   const nextHistory = [...history,
     { role: "assistant", content },
-    { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: "REAL_CLIENT_RESULT" })) },
+    { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) },
     ...suffix,
   ]
-  if (retainCheckpoint) {
+  if (mapping) {
     const lineage = verifyLineage({ ...mapping, lastAccess: 0 }, nextHistory)
     assert.equal(lineage.type, transientTail ? "diverged" : "continuation")
     if (!transientTail) console.log("PASS lineage: exact streamed assistant plus client results is continuation")
@@ -172,44 +210,47 @@ try {
       console.log("PASS diagnostic: incoming assistant replaces a stored transient USER slot at count - 2")
     }
   }
+  followUp = true
   const next = await post(nextHistory)
   const nextBody = await next.text()
   assert.equal(next.status, 200)
   assert(!nextBody.includes("event: error"), nextBody)
   assert(nextBody.includes("read complete"), nextBody)
-  assert.equal(wire.length, 2)
-  const expectResume = retainCheckpoint && !transientTail
+  assert.equal(wire.length, digestExpected ? 3 : 2)
+  const followUpWire = wire.at(-1)
+  const expectResume = Boolean(mapping) && !transientTail
   const replayParts = []
   const collectReplayText = (value) => {
     if (typeof value === "string") replayParts.push(value)
     else if (Array.isArray(value)) for (const item of value) collectReplayText(item)
     else if (value && typeof value === "object") for (const item of Object.values(value)) collectReplayText(item)
   }
-  collectReplayText(wire[1].messages)
+  collectReplayText(followUpWire.messages)
   const replayText = replayParts.join("\n")
   if (expectResume) for (const call of calls) {
-    assert(wire[1].messages.some(message => message.role === "assistant" &&
+    assert(followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)))
-    assert(wire[1].messages.some(message => message.content?.some?.(block =>
-      block.type === "tool_result" && block.tool_use_id === call.id && block.content === "REAL_CLIENT_RESULT")),
+    assert(followUpWire.messages.some(message => message.content?.some?.(block =>
+      block.type === "tool_result" && block.tool_use_id === call.id && block.content === realResult(call))),
       "resumed upstream lacks real client result for " + call.id)
   }
-  if (!retainCheckpoint) {
+  if (!expectResume) {
     // A fresh SDK query cannot carry native assistant tool blocks. The replay
     // renders each client result as history text attributed to its call id.
     assert.equal(replayText.split("REAL_CLIENT_RESULT").length - 1, calls.length,
       "fresh replay must contain one real client result per call")
     for (const call of calls) {
-      assert(replayText.includes(`"tool_use_id":"${call.id}"`),
+      assert(replayText.includes(`"tool_use_id":"${call.id}"`) && replayText.includes(realResult(call)),
         "fresh replay lacks real client result for " + call.id)
     }
     assert(replayText.includes("now read new file"), "fresh replay must include the client history")
-    assert(!wire[1].messages.some(message => message.role === "assistant" &&
+    assert(!followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use")),
       "fresh replay must not resume a native assistant tool turn")
   }
   assert(!replayText.includes("No such tool available"),
     expectResume ? "resume must rewind before the rejection" : "fresh replay must not carry the CLI rejection")
+  if (extended) assert.equal(Boolean(mapping), retainCheckpoint, "unsafe checkpoint must be evicted; single-call retention must remain unchanged")
   const turns = telemetryStore.getRecent({ limit: 10 })
   assert.equal(turns.some(turn => turn.isResume === true), expectResume,
     retainCheckpoint ? "only an unchanged request prefix can resume" : "multi-call follow-up must be a fresh replay, not a resumed continuation")
@@ -217,9 +258,9 @@ try {
     ? "PASS follow-up: fresh replay, not a resumed continuation; real client result for every call; no CLI rejection"
     : transientTail
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
-    : "PASS continuation: native assistant and real client result; rejection rewound; exactly two upstream calls")
+    : "PASS continuation: native assistant and real client result for every call; rejection rewound")
   const sdkVersion = JSON.parse(readFileSync(new URL("../node_modules/@anthropic-ai/claude-agent-sdk/package.json", import.meta.url), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, upstreamCalls: wire.length, liveModelCalls: 0 }))
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
   await proxy?.closeBackend?.()
   upstream.stop(true)

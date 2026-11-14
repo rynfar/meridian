@@ -3721,6 +3721,83 @@ describe("Integration: passthrough early stop", () => {
     expect(lookupSharedSession(sessionKey)).toBeUndefined()
   })
 
+  for (const shape of [
+    { stream: true, deferred: false, mixed: true, recoveryDisabled: false },
+    { stream: true, deferred: false, mixed: true, recoveryDisabled: true },
+    { stream: true, deferred: true, mixed: false, recoveryDisabled: false },
+    { stream: true, deferred: true, mixed: true, recoveryDisabled: false },
+    { stream: false, deferred: true, mixed: false, recoveryDisabled: false },
+    { stream: false, deferred: true, mixed: true, recoveryDisabled: false },
+  ]) {
+    it(`rejected parallel checkpoint evicts before ${shape.stream ? "SSE" : "JSON"} terminal (${JSON.stringify(shape)})`, async () => {
+      if (shape.recoveryDisabled) process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "0"
+      else delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+      const sessionKey = `rejected-parallel-${JSON.stringify(shape)}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = [
+        { type: "tool_use", id: "rejected-parallel-a", name: "read", input: { file_path: "/a" } },
+        { type: "tool_use", id: "rejected-parallel-b", name: shape.mixed ? "mcp__oc__read" : "read", input: { file_path: "/b" } },
+      ]
+      const tools = [READ_TOOL, ...(shape.deferred ? [{ name: "lsp_diagnostics", defer_loading: true,
+        input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])]
+      mockMessages = [
+        messageStart("msg_rejected_parallel"),
+        ...calls.flatMap((call, index) => [toolUseBlockStart(index, call.name, call.id),
+          inputJsonDelta(index, JSON.stringify(call.input)), blockStop(index)]),
+        messageDelta("tool_use"), messageStop(),
+        { ...assistantMessage(calls), test_skip_pre_tool_hook: true },
+        ...(shape.mixed ? [{ type: "test_pre_tool_hook", tool_name: calls[1]!.name,
+          tool_use_id: calls[1]!.id, tool_input: calls[1]!.input }] : []),
+        unavailableToolMessage(calls[0]!.id, calls[0]!.name),
+        shape.mixed ? userDenyMessage(calls[1]!.id) : unavailableToolMessage(calls[1]!.id, calls[1]!.name),
+        ...(shape.deferred ? [
+          messageStart("msg_hidden_digest"), textBlockStart(0), textDelta(0, "hidden digest"), blockStop(0),
+          messageDelta("end_turn"), messageStop(), assistantMessage([{ type: "text", text: "hidden digest" }]),
+          { type: "result", subtype: "success", is_error: false },
+        ] : [{ type: "result", subtype: "error_max_turns", is_error: true }]),
+      ]
+      mockTerminalError = shape.deferred ? undefined
+        : new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+      const messages = [{ role: "user", content: "read both files" }]
+      const response = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: shape.stream, tools, messages,
+      }, "unused", headers)
+      const body = await response.text()
+      expect(response.status).toBe(200)
+      expect(body).not.toContain("event: error")
+      expect(body).not.toContain("hidden digest")
+      expect(body).toContain('"stop_reason":"tool_use"')
+      for (const call of calls) expect(body).toContain(call.id)
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(shape.deferred ? 4 : 1)
+      expect(lookupSharedSession(sessionKey)).toBeUndefined()
+
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "both files read" }])]
+      const next = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: false, tools,
+        messages: [...messages,
+          { role: "assistant", content: calls.map(call => ({ ...call, name: "read" })) },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: `REAL_CLIENT_RESULT_${call.id}` })) },
+        ],
+      }, "unused", headers)
+      expect((await next.json()).content).toContainEqual({ type: "text", text: "both files read" })
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      const followUp = capturedQueryParamsAll[1]
+      expect(followUp.options.resume).toBeUndefined()
+      const prompt: unknown[] = []
+      if (typeof followUp.prompt === "string") prompt.push(followUp.prompt)
+      else for await (const row of followUp.prompt) prompt.push(row)
+      const replay = JSON.stringify(prompt)
+      for (const call of calls) {
+        expect(replay).toContain(call.id)
+        expect(replay).toContain(`REAL_CLIENT_RESULT_${call.id}`)
+      }
+      expect(replay).not.toContain("No such tool available")
+    })
+  }
+
   it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }
@@ -4207,7 +4284,7 @@ describe("Integration: passthrough early stop", () => {
 
   // A batch where the hook captured one call is the captured recovery's, with
   // or without #1364: both blocks already streamed, so the client gets both
-  // and answers the invented one itself.
+  // and answers the invented one itself. Its mixed checkpoint must be evicted.
   it("stream: a captured call beside a rejected undeclared call hands over both", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const sessionHeader = "es-undeclared-beside-captured"
@@ -4235,8 +4312,36 @@ describe("Integration: passthrough early stop", () => {
     expect(events.filter(e => e.event === "error")).toHaveLength(0)
     expect(streamedToolCalls(events)).toEqual(["toolu_real:bash", "toolu_invented:bash_placeholder"])
     expect(stopReasons(events)).toEqual(["tool_use"])
-    expect(lookupSharedSession(`${sessionHeader}-${TEST_RUN_ID}`)?.passthroughToolCallIds)
-      .toEqual(["toolu_real", "toolu_invented"])
+    expect(lookupSharedSession(`${sessionHeader}-${TEST_RUN_ID}`)).toBeUndefined()
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "results received" }])]
+    const next = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false, tools: [BASH_TOOL],
+      messages: [
+        { role: "user", content: "list the files" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_real", name: "bash", input: { command: "ls" } },
+          { type: "tool_use", id: "toolu_invented", name: "bash_placeholder", input: { command: "ls" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_real", content: "REAL_DIRECTORY_LISTING" },
+          { type: "tool_result", tool_use_id: "toolu_invented", content: "REAL_CLIENT_INVALID_TOOL", is_error: true },
+        ] },
+      ],
+    }, sessionHeader)
+    expect(next.status).toBe(200)
+    await next.text()
+    expect(capturedQueryParamsAll).toHaveLength(2)
+    const followUp = capturedQueryParamsAll[1]
+    expect(followUp.options.resume).toBeUndefined()
+    const prompt: unknown[] = []
+    if (typeof followUp.prompt === "string") prompt.push(followUp.prompt)
+    else for await (const row of followUp.prompt) prompt.push(row)
+    const replay = JSON.stringify(prompt)
+    expect(replay).toContain("REAL_DIRECTORY_LISTING")
+    expect(replay).toContain("REAL_CLIENT_INVALID_TOOL")
+    expect(replay).not.toContain("No such tool available")
   })
 
   // A name under another MCP server's prefix is hidden from the client as an

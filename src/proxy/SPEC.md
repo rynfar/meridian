@@ -107,14 +107,19 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   client, an id/name-matched CLI name-dispatch refusal for that call, no
   dropped calls, and the ordinary settled assistant UUID/full-call-set and
   publication guards. Resume rewinds before the rejection and appends the
-  real client result. Two or more rejected calls in the same assistant turn
-  are evicted: resuming them drops the client's real tool results, and
-  delivering those results on a multi-call resume is an open item
-  (`docs/maintenance/FRESH_REPLAY_CHECKPOINT.md`). Abort-window calls without
+  real client result. Any parallel checkpoint containing a CLI name-dispatch
+  rejection is evicted, including mixed captured/rejected batches and normal
+  canonical completion at larger turn budgets, on both response paths. A
+  durable assistant boundary alone does not prove that resume will carry every
+  real client result; full replay is the safe fallback. Single-call captured
+  and rejected retention is unchanged. Delivering all results on a rejected
+  multi-call resume remains an open item
+  (`docs/maintenance/FRESH_REPLAY_CHECKPOINT.md`; mixed/completion evidence in
+  `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md`). Abort-window calls without
   a result, malformed-input refusals, undeclared names, unkeyed requests and
-  larger turn budgets keep the existing eviction behavior. Retained
-  checkpoints use ordinary continuation tool caching; the one-shot recovery
-  tool grant remains only for evicted checkpoints.
+  larger turn budgets remain ineligible for this rejection-only recovery
+  retention. Retained checkpoints use ordinary continuation tool caching; the
+  one-shot recovery tool grant remains only for evicted checkpoints.
 - **Passthrough tool sets are shared by content, never by lifetime.** Sessions
   sending identical tools share one built definition set (#1410) and one raw
   tool list (#1444), found through process-wide indexes keyed by a digest of

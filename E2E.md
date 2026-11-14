@@ -14,6 +14,37 @@ assistant/result context with the rejection rewound, and asserts exactly two
 upstream calls (no retry or digest). This proves transport and persistence, not
 live model name selection or actual prompt-cache billing.
 
+For exact client-echo lineage diagnostics, add `--thinking --calls=1` or
+`--thinking --calls=3`. `--transient-tail` removes/reappends a two-user request
+suffix on the follow-up: it must reproduce `modified-history`, not silently
+resume changed ancestry. The three-call canonical-rejection control must evict
+its checkpoint and replay every real client result, not qualify native parallel
+resume.
+
+Rejected parallel checkpoint controls (all use the same `--claude=...`):
+
+- `--mixed --calls=2`: one registered call reaches PreToolUse and one bare call
+  is rejected at the one-turn cap. The mixed checkpoint must be evicted.
+- `--deferred --calls=2`: an unused deferred tool lifts the cap to 4; both bare
+  calls are rejected, then a hidden second model turn completes successfully.
+  Normal SSE completion must evict the checkpoint too.
+- `--deferred --mixed --captured-last --calls=2 --non-stream`: JSON completion
+  with a rejected call followed by a captured call. PostToolBatch stops the
+  real CLI with success before a digest. The capture backfills the second
+  client-visible call; both real results must replay on the follow-up.
+- `--captured --calls=1` preserves captured-call retention. `--deferred
+  --calls=1` preserves safe single-rejection streaming retention; adding
+  `--non-stream` preserves the existing JSON eviction/replay behavior.
+
+Each control inspects the real transcript to distinguish hook capture from
+name-dispatch rejection, assembles the follow-up from the actual client
+response, and checks every call's distinct real result at the upstream. A
+native resume must carry matching tool_result blocks; a full replay must
+carry each call ID and result in history text. Neither may contain the CLI's
+"No such tool available" result. The mocked early-stop integration file also
+covers both paths with a full parallel assistant and second-turn success.
+See [baseline/fixed evidence and reachability limits](docs/maintenance/MIXED_REJECTION_CHECKPOINT.md).
+
 ## Pi extension (#1408)
 
 Three harnesses use the actual Pi CLI with the extension that
