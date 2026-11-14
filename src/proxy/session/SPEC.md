@@ -170,6 +170,39 @@ outcomes are main's, with the eviction in place of the marking.
 A prompt-cache keepalive stops tracking the session at the client abort, as
 before; a later turn that writes the one-hour tier tracks it again.
 
+## Abandoned turn locks
+
+A cross-process turn lock (`crossProcessTurnCoordinator.ts`) is recovered from
+another owner only when that owner's exact process incarnation is dead and its
+heartbeat has aged out; a live or unprovable owner fails closed (see #1223 for
+why age alone is not enough).
+
+That rule cannot clear a lock whose **own** release failed. Releasing renames
+the lock directory away, and a filesystem error there (ENOSPC on a full disk
+was observed) left the directory behind with a live owner: the proxy that
+wrote it. Its heartbeat had stopped and its turn was over, but no process could
+prove the owner dead, so every later turn on that conversation waited behind it
+until the proxy restarted.
+
+So a release that fails still ends the lease, and the coordinator keeps the
+tokens of the leases this process holds. A lock stamped with this process's
+incarnation whose token is not among them is abandoned: an acquire in this
+process reclaims it at once through the normal recovery claim, with no
+staleness wait. This grants nothing a successful release would not have; the
+lease had already been released. A lease that is never released (the turn
+watchdog's abort, or the fence kept after a mandatory cleanup failure) still
+holds its token and is never reclaimed this way. The token set lives on
+`globalThis`, so a second copy of the module in one process cannot read the
+other copy's live leases as abandoned.
+
+Another process cannot prove the lock abandoned, so the owning process also
+keeps clearing it in the background (`releaseRetryDelaysMs`, whose last delay
+repeats) until it is gone, which unblocks those waiters once the error clears.
+That retry goes through the same recovery claim and identity recheck as a
+reclaim, not through a second `releaseOwned`: a bare release racing a
+same-process reclaim could move a successor's live lock between its check and
+its rename, breaking mutual exclusion.
+
 ## Regrouped user messages
 
 A client may regroup its user messages between requests without changing
