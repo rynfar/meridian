@@ -5886,13 +5886,20 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     throw new Error("Request canceled after non-stream publication")
                   }
                   if (!mappingStored && !publicationDeferred) {
-                    if (profileSessionId) {
+                    // A resumed keyed turn answered from durable state that
+                    // changed under it, so its answer is not authoritative.
+                    if (profileSessionId && resumeSessionId) {
                       throw new Error("Shared session mapping changed before publication")
                     }
-                    // A fingerprint is a weak hint, not a client session identity.
-                    // Concurrent headerless chats may share it; let the CAS winner
-                    // own resume state without failing the other successful response.
-                    claudeLog("session.fingerprint_publication_lost", {})
+                    // A fresh turn answered from the client's own history, so
+                    // its answer stands whatever happened to the mapping; the
+                    // CAS winner, or absence, owns resume state and the next
+                    // turn verifies its lineage. A fingerprint is a weak hint
+                    // shared by concurrent headerless chats, so its loss is
+                    // routine; a keyed one is not, so it is named.
+                    claudeLog(profileSessionId
+                      ? "session.keyed_publication_lost"
+                      : "session.fingerprint_publication_lost", {})
                     void sweepSessionGc()
                   } else if (mappingStored) {
                     mappingExpectedGeneration = mappingStored
@@ -7350,13 +7357,20 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     throw new Error("Request canceled after stream publication")
                   }
                   if (!mappingStored && !publicationDeferred) {
-                    if (profileSessionId) {
+                    // A resumed keyed turn answered from durable state that
+                    // changed under it, so its answer is not authoritative.
+                    if (profileSessionId && resumeSessionId) {
                       throw new Error("Shared session mapping changed before publication")
                     }
-                    // A fingerprint is a weak hint, not a client session identity.
-                    // Concurrent headerless chats may share it; let the CAS winner
-                    // own resume state without failing the other successful response.
-                    claudeLog("session.fingerprint_publication_lost", {})
+                    // A fresh turn answered from the client's own history, so
+                    // its answer stands whatever happened to the mapping; the
+                    // CAS winner, or absence, owns resume state and the next
+                    // turn verifies its lineage. A fingerprint is a weak hint
+                    // shared by concurrent headerless chats, so its loss is
+                    // routine; a keyed one is not, so it is named.
+                    claudeLog(profileSessionId
+                      ? "session.keyed_publication_lost"
+                      : "session.fingerprint_publication_lost", {})
                     void sweepSessionGc()
                   } else if (mappingStored) {
                     mappingExpectedGeneration = mappingStored
@@ -7703,10 +7717,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     silentTurnRecovered = false
                     recoveryToolCallAssistantUuid = undefined
                     capturedToolUses.splice(capturedBeforeRecovery)
-                    if (profileSessionId) {
+                    if (profileSessionId && resumeSessionId) {
                       throw new Error("Shared session mapping changed before silent recovery publication")
                     }
-                    claudeLog("session.fingerprint_publication_lost", { mode: "silent_recovery" })
+                    claudeLog(profileSessionId
+                      ? "session.keyed_publication_lost"
+                      : "session.fingerprint_publication_lost", { mode: "silent_recovery" })
                     void sweepSessionGc()
                   } else {
                     currentSessionId = recoverySessionId
