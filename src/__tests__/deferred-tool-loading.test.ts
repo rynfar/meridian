@@ -625,3 +625,42 @@ describe("client ToolSearch stays a client tool across modes", () => {
     expect(toolNames).toContain("ToolSearch")
   })
 })
+
+describe("SDK search under the client prefix", () => {
+  const prefixedThenTool = () => [
+    messageStart(),
+    toolUseBlockStart(0, "mcp__oc__ToolSearch", "tu_ps_1"),
+    inputJsonDelta(0, '{"query":"custom_lint"}'),
+    blockStop(0),
+    toolUseBlockStart(1, "mcp__oc__custom_lint", "tu_lint_1"),
+    inputJsonDelta(1, '{"file":"/tmp/app.ts"}'),
+    blockStop(1),
+    messageDelta("tool_use"),
+    messageStop(),
+  ]
+  const names = async (tools: unknown[]) => {
+    const res = await app().fetch(new Request("http://localhost/v1/messages", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeRequest({ stream: true, tools, messages: [{ role: "user", content: "Lint" }] })),
+    }))
+    return parseSSE(await res.text()).filter((e) => e.event === "content_block_start")
+      .map((e) => (e.data as { content_block?: { type?: string; name?: string } }).content_block)
+      .filter((b) => b?.type === "tool_use").map((b) => b?.name)
+  }
+  it("filters the prefixed search when the SDK owns it (deferred tools, no client ToolSearch)", async () => {
+    mockMessages = prefixedThenTool()
+    const got = await names([ALWAYS_LOADED_TOOL, DEFERRED_TOOL])
+    expect(got).not.toContain("ToolSearch")
+    expect(got).toContain("custom_lint")
+  })
+  it("still forwards it without deferred tools", async () => {
+    process.env.MERIDIAN_DEFER_TOOL_THRESHOLD = "0"
+    mockMessages = prefixedThenTool()
+    expect(await names([ALWAYS_LOADED_TOOL])).toContain("ToolSearch")
+  })
+  it("forwards it when the client declares its own ToolSearch", async () => {
+    mockMessages = prefixedThenTool()
+    const clientSearch = { name: "ToolSearch", description: "Search tools", input_schema: { type: "object", properties: { query: { type: "string" } } } }
+    expect(await names([ALWAYS_LOADED_TOOL, DEFERRED_TOOL, clientSearch])).toContain("ToolSearch")
+  })
+})

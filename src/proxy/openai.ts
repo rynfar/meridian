@@ -1275,6 +1275,18 @@ export function buildModelList(extendedContextIncluded: boolean, now = Math.floo
       capabilities: FULL_CAPABILITIES,
     },
     {
+      id: "claude-fable-5-2",
+      object: "model",
+      created: now,
+      owned_by: "anthropic",
+      display_name: "Claude Fable 5.2",
+      context_window: disable1mContext ? 200_000 : 1_000_000,
+      capabilities: {
+        ...FULL_CAPABILITIES,
+        thinking: { supported: true, types: { adaptive: { supported: true }, enabled: { supported: false } } },
+      },
+    },
+    {
       id: "claude-fable-5-1",
       object: "model",
       created: now,

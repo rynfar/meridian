@@ -117,6 +117,13 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   #1107), and each discovery re-primes the prompt cache by changing the
   registered set. Other client-deferral keeps the inner ToolSearch and maps
   `tool_reference` names to the registered names at a checkpoint.
+- **A search call under the client prefix is the SDK's when Meridian owns the
+  search.** The deferred-tools note lists `mcp__oc__*` names, and a model can
+  call `mcp__oc__ToolSearch`. With deferred tools and no client tool behind
+  that name, it is filtered like the bare `ToolSearch` and never arms the
+  early-stop tracker, so the CLI's refusal stays inside the SDK and the model
+  retries with the real search. Known limit, the same as for the bare name: a
+  turn whose budget runs out on repeated refusals ends as a max-turns error.
 - **Transcript retention is opt-in and delegated to Claude Code (#1261,
   owner decision 2026-10-27).** Meridian's empty `settingSources` (#490/#634)
   also skips Claude Code's retention cleanup, so transcripts Meridian's own GC

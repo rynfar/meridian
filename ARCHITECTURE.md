@@ -475,6 +475,7 @@ site carries a `NOTE: agent-specific` marker.
 |-------|----------|--------|
 | `buildAgentDefinitions` | `agentDefs.ts`, `transforms/opencode.ts` | Pure OpenCode Task parser invoked by the adapter transform. |
 | Passthrough mode | `passthroughTools.ts` | Agent-agnostic but OpenCode-motivated. Keep as-is. |
+| SDK search under the client prefix | `passthroughTools.ts` (`sdkOwnsPrefixedToolSearch`) and `passthroughEarlyStop.ts` (`isSdkToolSearchCall`), used by `server.ts` | A model can call `mcp__oc__ToolSearch` from the deferred-tools note. With deferred tools and no client tool behind that name it is the SDK's: filtered from responses and never tracked as a client call. |
 | Client-owned tool search (#1478) | `passthroughTools.ts` (`clientOwnsToolSearch`), used by `server.ts` and `passthroughEarlyStop.ts` | Claude Code's convention: a loaded tool named `ToolSearch` beside `defer_loading` tools. Detected from the request's shape rather than the adapter, so Claude Code traffic routed to another adapter (`x-meridian-agent`, an adapter instance) is handled the same way. |
 
 ## Session Management
@@ -602,7 +603,9 @@ multiplexes agents over one session id needs the same treatment.
 Claude Code is the second such client: its Agent-tool subagents send the
 conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
 keys a request carrying `x-claude-code-agent-id` as `<sid>:agent:<agentId>`
-and leaves the main conversation on the bare `<sid>`. `getRootSessionId`
+and leaves the main conversation on the bare `<sid>`. The agent id is an
+opaque token for an Agent-tool subagent and `<name>@<team>` for an in-process
+teammate; both shapes are keyed. `getRootSessionId`
 keeps those subagents on the conversation's account under sticky and
 priority routing. Known limitation: a backgrounded main session (and a
 fork-of-main subagent) gets a fresh agent id but carries the whole
