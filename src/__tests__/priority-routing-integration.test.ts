@@ -3522,6 +3522,22 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     expect(capturedEnvs[0]).toContain("prof-work")
   }, 20_000)
 
+  it("lifts a profile-wide bench whose refusal named another model's bucket when that bucket is cleared", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    failureMessage = "Claude Code returned an error result: You've hit your Fable limit"
+    failingModelDirs.set("prof-work", "opus")
+    expect((await postMessages(app, { model: "claude-opus-4-1", content: "opus refused with fable wording before reset", stream: false })).status).toBe(200)
+    const health = async () => await (await app.fetch(new Request("http://localhost/profiles/health"))).json() as {
+      exhausted: Array<{ id: string }>
+      exhaustedModels: unknown[]
+    }
+    expect((await health()).exhausted.map(entry => entry.id)).toEqual(["work"])
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["seven_day_fable"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await health()).toMatchObject({ exhausted: [], exhaustedModels: [] })
+  }, 20_000)
+
   it("preserves quota refusals whose bucket was never identified", async () => {
     const { app, workDir } = createReauthTestApp()
     await seedResetCredentials(workDir)

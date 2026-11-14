@@ -188,7 +188,6 @@ import {
   cooldownCapMs,
   findCooldownReset,
   findModelCooldownReset,
-  perModelBucketFamily,
   perModelRefusalFamily,
   parseWeeklyReserves,
   WeeklyReserveTracker,
@@ -11208,7 +11207,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const spent = spentProfiles.get(profileId)
     if (!spent?.diagnosis.reported || !spent.diagnosis.bucket || !cleared.includes(spent.diagnosis.bucket)) return
     spentProfiles.forget(profileId)
-    const modelFamily = perModelBucketFamily(spent.diagnosis.bucket)
+    const modelFamily = spent.modelFamily
     if (modelFamily) {
       // Only a refusal from this bucket sets this model mark, so clearing the
       // bucket clears it exactly. A profile-wide mark came from some other
