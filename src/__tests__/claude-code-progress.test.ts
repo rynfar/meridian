@@ -20,6 +20,10 @@ describe("Claude Code progress-caption classification", () => {
     expect(await auxiliary(progressBody())).toBe(true)
   })
 
+  it("classifies an in-process teammate's progress caption as auxiliary", async () => {
+    expect(await auxiliary(progressBody(), { "x-claude-code-agent-id": "design-a@session-25a7d9d8" })).toBe(true)
+  })
+
   it("classifies the first caption, which quotes no previous caption", async () => {
     const body = progressBody()
     body.messages.at(-1)!.content = [
