@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.91.0](https://github.com/rynfar/meridian/compare/meridian-v1.90.0...meridian-v1.91.0) (2026-11-14)
+
+
+### Features
+
+* **routing:** cool down profiles signed in to the refused account ([#1494](https://github.com/rynfar/meridian/issues/1494)) ([48b00a3](https://github.com/rynfar/meridian/commit/48b00a3b59dbc26a581d8567027c018ffa6ac253))
+
+
+### Bug Fixes
+
+* **claude-code:** key in-process teammates by their name@team agent id ([#1520](https://github.com/rynfar/meridian/issues/1520)) ([bd4128a](https://github.com/rynfar/meridian/commit/bd4128a3d22d0f04d267398430d9de876b0df41f))
+* **passthrough:** keep a prefixed ToolSearch call inside the SDK ([#1526](https://github.com/rynfar/meridian/issues/1526)) ([8c22ad8](https://github.com/rynfar/meridian/commit/8c22ad84b32fc3aeb8a80e48ba4274e047f9cd2f))
+* reclaim turn locks whose own release failed ([#1525](https://github.com/rynfar/meridian/issues/1525)) ([3a48b0d](https://github.com/rynfar/meridian/commit/3a48b0dddcc020704bb4d836683cadc83d918ef5))
+* resume a history whose user messages were regrouped ([#1510](https://github.com/rynfar/meridian/issues/1510)) ([84c2a83](https://github.com/rynfar/meridian/commit/84c2a83a938addcc5355d64d0d1af5f60fa0b03b))
+* **routing:** bench a per-model weekly refusal only for that model ([#1524](https://github.com/rynfar/meridian/issues/1524)) ([dacea62](https://github.com/rynfar/meridian/commit/dacea62623334e35898ecb6b907832aefff465de))
+
 ## [1.90.0](https://github.com/rynfar/meridian/compare/meridian-v1.89.0...meridian-v1.90.0) (2026-11-13)
 
 
