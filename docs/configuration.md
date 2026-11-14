@@ -291,15 +291,26 @@ What it does and does not change:
 - **Following your own address is refused** at startup: the followed value
   could never change and local switching would be refused, freezing the active
   profile permanently.
+- **Usage figures come from the followed instance too**, polled every two
+  minutes from its `GET /v1/usage/quota/all` and matched by profile id.
+  Anthropic's usage endpoint is rate limited per account, and that budget is
+  shared by every process holding the account's credentials, so two instances
+  polling the same accounts compete for it and the loser reads `429` for all of
+  them. A follower therefore makes no usage call of its own while it has the
+  followed instance's figures. The cadence is far longer than the followed
+  instance's 30s usage cache, so following it does not drive it into the same
+  limit. A profile the followed instance could not read is skipped, and this
+  instance tries its own credentials for it; figures not refreshed for ten
+  minutes stop being served, and the local path decides again.
 
 The mode is announced at startup and surfaced on `/profiles/list` as a `follow`
 object (`url`, `activeProfile`, `followedValue`, `reason`, `stale`,
 `lastSyncedAt`, `lastError`), which the shared header chip renders on every
 page.
 
-Limitation: the poll sends no credentials, so a followed instance behind
-`MERIDIAN_API_KEY` will always fail the poll and the follower will fall back to
-its local active profile.
+Limitation: the polls send no credentials, so a followed instance behind
+`MERIDIAN_API_KEY` will always fail them and the follower will fall back to
+its local active profile and its own usage reads.
 
 ### Subprocess traffic
 
