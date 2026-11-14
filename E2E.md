@@ -9176,6 +9176,22 @@ session at its checkpoint and return the nonce. `--expect-digest` inverts the
 deferred count for a build without the fix. Unchanged `main` before #1370 made
 three model requests per deferred hand-off. Costs a few cents of real tokens.
 
+## ToolSearch under the client prefix
+
+`bun scripts/e2e-prefixed-toolsearch.mjs [--stream]` drives the real SDK and
+CLI through `startProxyServer` with an `api` profile pointed at a local fixture,
+so no subscription or model is involved. The request defers one tool. The
+fixture model first calls the search tool under the client prefix
+(`mcp__oc__ToolSearch`), as a live Haiku 5.5 did through Pi; after the CLI
+refuses that name it calls the real `ToolSearch`, then the loaded tool.
+
+It asserts that the client receives exactly the loaded tool's call with
+`stop_reason: "tool_use"` and no `ToolSearch` call under any name, and that the
+model reached the real search and the tool inside one client round. Before the
+fix the client received a `ToolSearch` call that it never declared. Run it
+before any release touching the passthrough tool filters, the early-stop
+tracker, or deferred-tool registration.
+
 ## Antigravity prompt byte budget (#1382)
 
 `node scripts/e2e-antigravity-prompt-limit.mjs <dist/server.js> <pi cli.js> <official agy> <report.json> <label>`
