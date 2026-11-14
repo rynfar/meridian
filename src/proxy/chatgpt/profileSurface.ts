@@ -160,13 +160,19 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
     /**
      * Where one turn may go. `pin` is the request's own profile header and is
      * obeyed only when it names a ChatGPT seat - on an instance serving both
-     * providers it may name a Claude profile, which says nothing here. A warm
-     * may use an excluded seat, as a Claude warm may; work may not.
+     * providers it may name a Claude profile, which says nothing here. A pin
+     * naming neither is `unknown`: the client asked for one account, and the
+     * pool would serve it from another. A warm may use an excluded seat, as a
+     * Claude warm may; work may not.
      */
     route(pin: string | undefined, purpose: "work" | "warm") {
       const list = profiles()
       const excluded = excludedSeats(list)
       const pinned = findChatGptProfile(list, pin)
+      const named = pin?.trim()
+      if (!pinned && named && !deps.reserved().has(named)) {
+        return { kind: "unknown" as const, id: named }
+      }
       if (pinned) {
         if (purpose === "work" && excluded.has(pinned.seat)) {
           return { kind: "refuse" as const, profile: pinned }

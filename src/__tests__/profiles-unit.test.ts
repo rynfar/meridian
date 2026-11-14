@@ -13,6 +13,8 @@ import {
   getActiveProfileId,
   resetActiveProfile,
   restoreActiveProfile,
+  unknownPinnedProfile,
+  unknownProfileResponse,
   type ProfileConfig,
 } from "../proxy/profiles"
 
@@ -462,5 +464,32 @@ describe("resolveProfile — sticky routing (#383)", () => {
     const r = resolveProfile(undefined, undefined, undefined, opts("sess-a", "sticky"))
     expect(r.id).toBe("default")
     expect(r.env).toEqual({})
+  })
+})
+
+describe("unknownPinnedProfile", () => {
+  const profiles: ProfileConfig[] = [
+    { id: "personal", type: "claude-max" },
+    { id: "work", type: "claude-max", aliases: ["corp"] },
+  ]
+
+  test("a pin naming a profile, an alias or another pool's seat is usable", () => {
+    expect(unknownPinnedProfile("work", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("corp", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("seat-a", profiles, id => id === "seat-a")).toBeUndefined()
+  })
+
+  test("no pin, or no profiles to pin, is not a pin at all", () => {
+    expect(unknownPinnedProfile(undefined, profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("  ", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("anything", [])).toBeUndefined()
+  })
+
+  test("a pin naming nothing is reported rather than served from the first profile", async () => {
+    expect(unknownPinnedProfile(" typo ", profiles)).toBe("typo")
+    expect(resolveProfile(profiles, undefined, "typo").id).toBe("personal")
+    const response = unknownProfileResponse("typo")
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: { type: string } }).error.type).toBe("unknown_profile")
   })
 })
