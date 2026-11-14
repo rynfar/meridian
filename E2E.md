@@ -2036,6 +2036,37 @@ curl -s http://127.0.0.1:3456/v1/messages \
 - `Undo detected` message in proxy stderr
 - Response is valid (not an error)
 
+### Partial replay (rollback-tail)
+
+`partialReplay` is checked against a running instance through the Pi adapter
+with Oh My Pi's request shape (`x-meridian-agent: pi`, the conversation key in
+`metadata.user_id`), pinned to one profile, with a real account. Run the build
+as a second instance beside the usual one, with its own config, session and
+telemetry state, a `profiles.json` naming the same profile directories, and
+`MERIDIAN_CREDENTIALS_READONLY=1` so it never refreshes or writes the shared
+credentials. Leave `MERIDIAN_PARTIAL_REPLAY` unset: the script toggles
+`partialReplay` in the instance's `settings.json`, which Meridian re-reads per
+turn, and restores the file afterwards.
+
+```bash
+B=/tmp/meridian-partial-e2e; mkdir -p $B/config $B/sessions $B/work
+cp ~/.config/meridian/profiles.json $B/config/; echo '{}' > $B/config/settings.json
+MERIDIAN_PORT=3457 MERIDIAN_CONFIG_DIR=$B/config MERIDIAN_SESSION_DIR=$B/sessions \
+MERIDIAN_TELEMETRY_DB=$B/telemetry.db MERIDIAN_WORKDIR=$B/work MERIDIAN_CREDENTIALS_READONLY=1 \
+MERIDIAN_CHATGPT_CREDENTIALS=off node dist/cli.js &
+E2E_MERIDIAN_URL=http://127.0.0.1:3457 E2E_SETTINGS_FILE=$B/config/settings.json \
+E2E_PROFILE=<profile> bun scripts/e2e-partial-replay.mjs
+```
+
+**Pass criteria:** the script prints `PASS` and one line per request with the
+lineage and cache read/write. Each case runs on two conversations built the
+same way. With the setting on, the undo-gap, modified-history and
+thinking-only-filled rewrites are `rollback-tail` and read the history up to
+the fork point from cache; with it off they are fresh replays (`new`) that
+read only the system prefix and write the rest. Afterwards remove the
+transcripts the run left under each used profile's
+`projects/<encoded $B/work>/`.
+
 ---
 
 ## E6: Compaction

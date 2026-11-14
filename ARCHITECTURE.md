@@ -649,6 +649,7 @@ Every request verifies that incoming messages are a valid continuation of the ca
 | *(Regrouped user messages)* | User message boundaries or reminder-only user messages changed, blocks otherwise identical | Classify the stored history realigned to incoming positions (see *Appended content and transient hooks*) |
 | **Compaction** | Suffix preserved, beginning changed | Resume after the matched suffix |
 | **Undo** | Prefix preserved, suffix changed | Fork at rollback point |
+| **Rollback-tail** (opt-in `partialReplay`) | An undo-gap, an undo without an adjacent SDK UUID, modified history or unsettled passthrough checkpoint whose verified prefix holds an assistant turn with an SDK UUID | Fork at that assistant turn and deliver every later client message: its own tool results natively, the rest as replay context |
 | **Diverged** | No overlap, unverifiable state, or a changed cached prefix followed by new messages | Start fresh and replay the complete client history |
 
 Lineage verification is side-effect free. A classification may select an SDK

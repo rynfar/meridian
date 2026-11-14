@@ -57,6 +57,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_CACHE_KEEPALIVE_MAX_IN_FLIGHT` | — | `1` | Keepalive requests allowed to run at once across all sessions, clamped to `1`–`2`. |
 | `MERIDIAN_COMPACTION_SURVIVAL` | — | `0` | Set to `1` to resume the old SDK session after a client shortens its history head into a summary. By default Meridian replays the supplied summary in a fresh SDK session so the removed context is released. Equal-length pruning still resumes. |
 | `MERIDIAN_CONFIG_DIR` | — | `~/.config/meridian` | Meridian's own config directory. Moving it moves everything inside it — see [below](#relocating-the-config-directory). |
+| `MERIDIAN_PARTIAL_REPLAY` | — | unset (off) | Set to `1` to send only the changed tail of a rewritten history instead of replaying all of it; `0` forces it off. Wins over `partialReplay` in `settings.json`. See [Partial replay after a history rewrite](#partial-replay-after-a-history-rewrite). |
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
 | `MERIDIAN_DEFER_TOOL_THRESHOLD` | — | `15` | Number of tools before non-core tools are deferred via ToolSearch. A client that marks any tool `defer_loading: true` manages deferral itself and is never auto-deferred. Set to `0` to disable. |
@@ -216,7 +217,7 @@ second instance pointed at an empty directory starts genuinely empty:
 
 | File | Holds |
 |---|---|
-| `settings.json` | Active profile, routing mode, priority order, `checkForUpdates`, `cacheKeepalive`, page `layout`, `transcriptRetentionDays` |
+| `settings.json` | Active profile, routing mode, priority order, `checkForUpdates`, `cacheKeepalive`, `partialReplay`, page `layout`, `transcriptRetentionDays` |
 | `profiles.json` | Configured profiles ([Multi-Profile Support](profiles.md)) |
 | `profiles/<id>/` | Per-profile `CLAUDE_CONFIG_DIR` (credentials, SDK state) |
 | `adapter-instances.json` | [Adapter instances](agents.md#adapter-instances) |
@@ -1171,7 +1172,7 @@ Every request line carries `lineage=`, and every divergence also carries
 | `unverifiable` | An entry exists but cannot prove which history its session holds |
 | `replayed-request` | The same history arrived again; a retry, not a continuation |
 | `modified-history` | The stored prefix changed, so resume would skip history |
-| `undo-gap` | An undo whose rollback point would omit supplied history |
+| `undo-gap` | An undo whose rollback point would omit supplied history, or (with partial replay and a fork point) whose last shared message has no SDK message ID |
 | `unrelated-history` | The key resolved to a different conversation |
 | `missing-session-header` | An OpenCode request arrived without its session header |
 | `moved-on-elsewhere` | Another profile's copy, used since, holds more of the history; this profile's older copy would drop the replies given there, so the turn replays |
@@ -1182,7 +1183,9 @@ Every request line carries `lineage=`, and every divergence also carries
 | `independent-request:subagent` | Declared a subagent flow |
 | `independent-request:no-cache-identity` | No header and no derivable fingerprint |
 
-A resumed turn prints no `diverged=` field at all. The
+A resumed turn prints no `diverged=` field at all, and neither does a
+`lineage=rollback-tail` turn (see [Partial replay after a history
+rewrite](#partial-replay-after-a-history-rewrite)). The
 `independent-request:*` causes skip session lookup before it happens; the rest
 are the verdict of a lookup that ran.
 
@@ -1199,6 +1202,64 @@ line reads `session=new`. One value applies, in this order:
 `headerless-tool-result` also prints a one-time warning at the first
 occurrence, because it is a property of how the client is wired rather than of
 a single turn.
+
+### Partial replay after a history rewrite
+
+Off by default. When a client rewrites part of a long conversation, for example
+by editing a recent message, dropping a turn or filling in a reply it had kept
+empty, the request no longer continues the stored SDK session. Meridian then
+replays the whole history into a fresh session (`diverged=undo-gap` or
+`diverged=modified-history`). So does an undo whose last shared message has no
+SDK message ID on record (`lineage=undo`, `rollback UUID: none`). A client
+background request causes that: omp's reply prediction and idle recap, sent
+with the main conversation's identity, append a reminder message ahead of
+their prompt, and the next request shares the reminder but not the rest. That
+replay reads only the system prompt and tool definitions from the prompt cache
+and writes everything else again, even when all but the last few messages are
+unchanged. The cache that already holds those messages was written from the SDK
+session's own turns, and a replayed history renders them as text, so it never
+matches.
+
+Turn it on with `MERIDIAN_PARTIAL_REPLAY=1`, or `"partialReplay": true` in
+`settings.json` (the environment wins, and `MERIDIAN_PARTIAL_REPLAY=0` forces
+it off). Both are re-read on every turn.
+
+When it is on, such a request forks the stored session at the last assistant
+message before the first changed one, so the fork keeps the history up to there
+exactly as the session holds it and reads it from the cache. The fork point
+must be an assistant message the session produced, with its SDK message ID on
+record. Every client message after the fork point is sent in one SDK input,
+framed as replay context the same way a fresh replay frames the whole history:
+user turns as plain text, assistant turns as `[Assistant: …]`, earlier tool
+calls as `Previously called tool:` and their results as `Recorded tool result:`,
+with the client's last turn as the live message.
+
+If the fork-point message called tools, the next message must answer exactly
+those calls with tool results. Those results go to the model natively, ahead of
+the rendered rest. Otherwise Meridian moves to an earlier assistant message.
+The same applies to a passthrough tool checkpoint the client's results did not
+settle, which used to replay the whole history too.
+
+Meridian still replays the whole history when no fork point qualifies, when
+the estimated history is over the model's replay budget (a forked session
+cannot drop old messages the way a replay does), when the request lost a race
+for the session, for an OpenCode request without a session header (it was
+matched by its opening message, so it may be a side agent), and in every other
+case that replayed fresh before. A refused fork logs
+`rollback-tail refused (<reason>)`. A fork the SDK refuses at run time also
+replays fresh, as an undo does.
+
+The request line reads
+`lineage=rollback-tail session=<id> rollback=<uuid> from=<cause> prefix=<n> tail=<m>`:
+`from=` is `undo-gap`, `modified-history` or `checkpoint-mismatch`, `prefix=`
+counts the client messages the fork keeps, and `tail=` the messages sent after
+them. Telemetry records `lineageType: "rollback-tail"`. A checkpoint mismatch is
+found after the request line is printed, so it prints a second line in the same
+form. `onSession` plugins see these turns as `undo`.
+
+The model sees the rewritten part as replayed context instead of its own
+native turns, and thinking blocks in that part are not restored, as in a full
+replay.
 
 ### Stopping a turn
 
