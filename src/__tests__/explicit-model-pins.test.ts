@@ -34,6 +34,8 @@ describe("explicitModelPin (#631)", () => {
 
   it("routes mythos ids through the fable tier pin", () => {
     expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-fable-5-2[1m]")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-2", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
+    expect(explicitModelPin("claude-mythos-5-2")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5-2", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
     expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
     expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5", CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: "1" })
   })

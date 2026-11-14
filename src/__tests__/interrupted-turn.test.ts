@@ -215,7 +215,8 @@ describe("interruptCandidateOf", () => {
     const compaction: LineageResult = { type: "compaction", session: SESSION, resumeFrom: 1, suffixOverlap: 2 }
     const appended: LineageResult = { ...CONTINUATION, resumeContentFrom: 1 }
     const elsewhere: LineageResult = { type: "continuation", session: SESSION, resumeFrom: 0 }
-    for (const lineage of [undo, compaction, appended, elsewhere, { type: "diverged", reason: "not-found" } as LineageResult]) {
+    const regrouped: LineageResult = { ...CONTINUATION, regrouped: { runs: 1, storedMessages: 2, incomingMessages: 1 } }
+    for (const lineage of [undo, compaction, appended, elsewhere, regrouped, { type: "diverged", reason: "not-found" } as LineageResult]) {
       expect(interruptCandidateOf({ ...candidateInput, lineage })).toBeUndefined()
     }
   })

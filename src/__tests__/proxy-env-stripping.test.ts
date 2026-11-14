@@ -262,6 +262,12 @@ describe("SDK model pin injection (fixes #419)", () => {
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
   })
 
+  it("explicit claude-fable-5-2 requests pin the SDK env to Fable 5.2", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASIC_REQUEST, model: "claude-fable-5-2" })
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5-2")
+  })
+
   it("explicit claude-fable-5-1 requests pin the SDK env to Fable 5.1", async () => {
     const app = createTestApp()
     await post(app, { ...BASIC_REQUEST, model: "claude-fable-5-1" })

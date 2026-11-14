@@ -349,6 +349,15 @@ function classifyLineage(
     compactionSurvival: process.env.MERIDIAN_COMPACTION_SURVIVAL === "1",
   })
 
+  // Said before the verdict's own line, which then reads in incoming positions.
+  if (result.regrouped) {
+    const { runs, storedMessages, incomingMessages } = result.regrouped
+    const resumes = result.type === "continuation" || result.type === "compaction"
+    const msg = `Regrouped user messages (key=${cacheKey.slice(0, 8)}…): ${runs} run${runs === 1 ? "" : "s"}, stored ${storedMessages} -> incoming ${incomingMessages}${resumes ? "; resuming." : "."}`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  }
+
   if (result.type === "continuation" && result.resumeContentFrom !== undefined) {
     const msg = `Parallel tool-result continuation (key=${cacheKey.slice(0, 8)}…): resume from message ${result.resumeFrom}, content block ${result.resumeContentFrom}.`
     console.error(`[PROXY] ${msg}`)

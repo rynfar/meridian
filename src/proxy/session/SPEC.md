@@ -170,6 +170,50 @@ outcomes are main's, with the eviction in place of the marking.
 A prompt-cache keepalive stops tracking the session at the client abort, as
 before; a later turn that writes the one-hour tier tracks it again.
 
+## Regrouped user messages
+
+A client may regroup its user messages between requests without changing
+what it claims: split or merge consecutive user messages, or drop or add a
+user message holding only system reminders. Oh My Pi does the last when an
+idle rebuild adds an eval-state note that its session file never keeps; after
+a restart the note is gone and every later message shifts by one. Positional
+lineage then stopped at the note and replayed the whole history (2026-11-07:
+767 messages, a 409K-token cache write).
+
+Consecutive user messages reach the SDK as one input (`getLastUserMessage`,
+`coalesceStructuredUserMessages`), so its transcript never held those
+boundaries, and `stripSystemReminders` already keeps reminder text out of
+lineage identity. After the fast path misses, and before any suffix-based
+verdict (a regroup near the end would read as a client compaction),
+`verifyLineage` realigns the stored history (`alignRegroupedUserRuns`,
+pure): across each incoming run of consecutive user messages, the stored
+messages' block hashes must equal the run's in order, skipping blocks that
+are empty once reminders are stripped; a stored reminder-only message before
+a non-user message may be dropped. Both sides must sit on a message boundary
+after the run.
+
+The realigned session is the stored one in incoming positions: hashes from the
+request through the realigned span and stored ones after it, SDK UUIDs moved
+with their messages. It is classified as usual, so a full realignment resumes
+as a continuation and a partial one can still undo at a moved assistant UUID.
+The lineage proof is rebuilt only for a full realignment (in the encoding the
+stored mapping used, so an interrupted mapping keeps its withheld proof);
+every position-indexed field (`resumeFrom`, `prefixOverlap`, UUIDs,
+`messagesHeld`) is then in incoming positions. The plugin `onSession` contract
+is unchanged; its counts and mismatch index are in the realigned positions.
+
+Still a divergence: an edited, reordered or moved block (including across an
+assistant turn), a dropped user message with real text, a hash-ignored block
+(thinking) in the run, a message with no blocks, text appended to the stored
+history's last user message, a session without block hashes, and a run that
+ends the request (a resent turn keeps its verdict). A reminder with any other
+text beside it, even a newline, is content.
+
+A turn that resumed a realigned session and was stopped mid-stream is not
+marked interrupted (`interruptCandidateOf` skips it): the marking keeps the
+durable mapping's hashes, which are in stored positions. It evicts, and the
+next request replays, as main's fresh replay of that turn would have.
+
 ## Known limitations
 
 - **Container host identity.** Inside containers the derived `hostId` changes on
