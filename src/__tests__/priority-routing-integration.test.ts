@@ -73,6 +73,8 @@ let capturedEnvs: string[] = []
 let capturedSdkCalls: CapturedSdkCall[] = []
 let capturePhase = 0
 let failingDirs = new Set<string>()
+// Accounts that refuse only one model: dir fragment -> SDK model substring.
+let failingModelDirs = new Map<string, string>()
 // Accounts that fail only AFTER streaming some content — the error frame then
 // lands behind message_start, where the sniffer must not touch it.
 let failAfterContentDirs = new Set<string>()
@@ -224,6 +226,10 @@ installSdkMock(() => ({
           throw new Error(failureMessage)
         }
         if ([...failingDirs].some((f) => dir.includes(f))) {
+          throw new Error(failureMessage)
+        }
+        const sdkModel = String(params.options?.model ?? "")
+        if ([...failingModelDirs].some(([f, model]) => dir.includes(f) && sdkModel.includes(model))) {
           throw new Error(failureMessage)
         }
         if ([...failAfterContentDirs].some((f) => dir.includes(f))) {
@@ -404,6 +410,7 @@ type PostMessagesOptions = {
   readonly stream: boolean
   readonly signal?: AbortSignal
   readonly tools?: readonly Record<string, unknown>[]
+  readonly model?: string
 }
 
 async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
@@ -413,7 +420,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise
     method: "POST",
     headers: { "Content-Type": "application/json", ...options.headers },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5",
+      model: options.model ?? "claude-sonnet-4-5",
       max_tokens: 128,
       stream: options.stream,
       messages,
@@ -510,6 +517,7 @@ let savedPriorityFailbackSetting: PriorityFailbackPolicy | undefined
 beforeEach(() => {
   failureMessage = DEFAULT_FAILURE
   failAfterContentDirs = new Set()
+  failingModelDirs = new Map()
   preludePingDirs = new Set()
   preludePingSucceedDirs = new Set()
   preludeHeartbeatDirs = new Map()
@@ -789,6 +797,29 @@ describe("priority routing", () => {
       await Bun.sleep(50)
       const marks = await exhaustedMarks(app)
       expect(marks.map(m => [m.id, m.until]).sort()).toEqual([["twin", WORK_RESET], ["work", WORK_RESET]])
+    }, 20_000)
+
+    it("a per-model weekly refusal benches the twin for that model only", async () => {
+      failingDirs.delete("prof-work")
+      failingModelDirs.set("prof-work", "fable")
+      failureMessage = "Claude Code returned an error result: You've hit your Fable limit"
+      const app = createTwinApp()
+      const res = await postMessages(app, { model: "claude-fable-5-2", content: "fable twin unique message", stream: false })
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain("prof-personal")
+      expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(false)
+      const health = await (await app.fetch(new Request("http://localhost/profiles/health"))).json() as {
+        exhausted: unknown[]
+        exhaustedModels: Array<{ id: string; modelFamily: string }>
+      }
+      expect(health.exhausted).toEqual([])
+      expect(health.exhaustedModels.map(m => [m.id, m.modelFamily]).sort()).toEqual([["twin", "fable"], ["work", "fable"]])
+      capturedEnvs = []
+      const other = await postMessages(app, { model: "claude-opus-4-1", content: "opus after fable twin unique message", stream: false })
+      expect(other.status).toBe(200)
+      await other.text()
+      expect(capturedEnvs).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-work")
     }, 20_000)
 
     it("a twin whose token renewed since its account was read is still tried", async () => {
@@ -2755,6 +2786,199 @@ describe("priority cooldown resolution", () => {
   }, 20_000)
 })
 
+describe("per-model weekly bench", () => {
+  const DAY_MS = 24 * 60 * 60_000
+  const FABLE_LIMIT = "Claude Code returned an error result: You've hit your Fable limit"
+
+  type Health = {
+    exhausted: Array<{ id: string; until: number; reason: string }>
+    exhaustedModels: Array<{ id: string; modelFamily: string; until: number; reason: string }>
+    spent: Array<{ profileId: string; diagnosis: { bucket: string | null; reported: boolean; source: string }; modelFamily: string | null }>
+  }
+
+  type QuotaSpent = { diagnosis: { bucket: string | null; reported: boolean }; modelFamily: string | null } | null
+
+  /** One profile's `spent` as `/v1/usage/quota/all` reports it. */
+  async function quotaSpent(app: TestApp, id: string): Promise<QuotaSpent> {
+    const body = await (await app.fetch(new Request("http://localhost/v1/usage/quota/all"))).json() as {
+      profiles: Array<{ id: string; spent: QuotaSpent }>
+    }
+    return body.profiles.find(profile => profile.id === id)?.spent ?? null
+  }
+
+  async function health(app: TestApp): Promise<Health> {
+    return await (await app.fetch(new Request("http://localhost/profiles/health"))).json() as Health
+  }
+
+  /** The profiles one request tried, in order. */
+  async function attempts(app: TestApp, model: string, content: string, stream = false): Promise<string[]> {
+    capturedEnvs = []
+    const res = await postMessages(app, { model, content, stream })
+    expect(res.status).toBe(200)
+    await res.text()
+    return capturedEnvs.map(dir => dir.includes("prof-work") ? "work" : dir.includes("prof-personal") ? "personal" : dir)
+  }
+
+  beforeEach(async () => {
+    resetProcessSdkSemaphoreForTests()
+    capturedEnvs = []
+    failingDirs = new Set()
+    await clearSessionCache()
+    resetActiveProfile()
+    savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
+    savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
+    savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
+    rateLimitStore.clear()
+    resetOAuthUsageCache()
+  })
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    rateLimitStore.clear()
+    resetOAuthUsageCache()
+  })
+
+  it("benches a profile only for the refused model, until that model's bucket resets", async () => {
+    const opusReset = Date.now() + 3 * DAY_MS
+    rateLimitStore.record("work", { status: "rejected", rateLimitType: "seven_day_opus", utilization: 1, resetsAt: opusReset })
+    failingModelDirs.set("prof-work", "opus")
+    const app = createTestApp()
+
+    const first = await attempts(app, "claude-opus-4-1", "opus refused on work")
+    expect(first[0]).toBe("work")
+    expect(first.at(-1)).toBe("personal")
+    const after = await health(app)
+    expect(after.exhausted).toEqual([])
+    expect(after.exhaustedModels).toEqual([{ id: "work", modelFamily: "opus", until: opusReset, reason: "rate_limit_error" }])
+    expect(after.spent.map(entry => entry.diagnosis)).toEqual([expect.objectContaining({ bucket: "seven_day_opus", reported: true, source: "sdk_event" })])
+
+    // Other models keep using the profile; the refused one skips it without a re-probe.
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the opus refusal")).toEqual(["work"])
+    expect(await attempts(app, "claude-fable-5-2", "fable after the opus refusal")).toEqual(["work"])
+    expect(await attempts(app, "claude-opus-4-1", "opus after the opus refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("keeps routing other models to a Fable-refused profile and learns the Fable bucket's reset", async () => {
+    const fableReset = Date.now() + 5 * DAY_MS
+    __setFetchOAuthUsageOverride(async (opts) => opts?.profileId === "work"
+      ? {
+          windows: [
+            { type: "five_hour", utilization: 0.2, resetsAt: Date.now() + 60 * 60_000 },
+            { type: "seven_day", utilization: 0.4, resetsAt: Date.now() + 6 * DAY_MS },
+            { type: "seven_day_fable", utilization: 1, resetsAt: fableReset },
+          ],
+          extraUsage: null,
+          bankedResets: null,
+          fetchedAt: Date.now(),
+        }
+      : null)
+    failureMessage = FABLE_LIMIT
+    failingModelDirs.set("prof-work", "fable")
+    const app = createTestApp()
+
+    const first = await attempts(app, "claude-fable-5-2", "fable refused on work")
+    expect(first[0]).toBe("work")
+    expect(first.at(-1)).toBe("personal")
+    // The refinement is deliberately not awaited by the request path.
+    await Bun.sleep(20)
+    const after = await health(app)
+    expect(after.exhausted).toEqual([])
+    expect(after.exhaustedModels).toEqual([{ id: "work", modelFamily: "fable", until: fableReset, reason: "rate_limit_error" }])
+    // What a client reads to tell a Fable-only refusal apart.
+    expect(after.spent.map(entry => entry.diagnosis)).toEqual([expect.objectContaining({ bucket: "seven_day_fable", reported: true, source: "error_message" })])
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: "fable" })
+
+    expect(await attempts(app, "claude-opus-4-1", "opus after the fable refusal")).toEqual(["work"])
+    // Mythos runs on the fable tier, so it shares the bench.
+    expect(await attempts(app, "claude-mythos-5", "mythos after the fable refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("benches the whole profile when a reported Fable bucket comes back on an Opus refusal", async () => {
+    failureMessage = FABLE_LIMIT
+    failingModelDirs.set("prof-work", "opus")
+    const app = createTestApp()
+
+    expect((await attempts(app, "claude-opus-4-1", "opus refused with fable wording")).at(-1)).toBe("personal")
+    const after = await health(app)
+    expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
+    expect(after.exhaustedModels).toEqual([])
+    // The diagnosis still names the Fable bucket, so only modelFamily says
+    // this refusal was not benched for Fable alone.
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: null })
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the mismatched refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("benches the whole profile for an account-wide weekly refusal, as before", async () => {
+    failureMessage = "Claude Code returned an error result: You've hit your weekly limit"
+    failingModelDirs.set("prof-work", "opus")
+    const app = createTestApp()
+
+    expect((await attempts(app, "claude-opus-4-1", "weekly refusal on work")).at(-1)).toBe("personal")
+    const after = await health(app)
+    expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
+    expect(after.exhaustedModels).toEqual([])
+    expect(after.spent.map(entry => entry.modelFamily)).toEqual([null])
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the weekly refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("benches the whole profile when the per-model bucket was only guessed from cached usage", async () => {
+    const root = mkdtempSync(join(tmpdir(), "meridian-model-bench-"))
+    const directory = join(root, "work")
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, ".credentials.json"), JSON.stringify({
+      claudeAiOauth: { accessToken: "fake-model-bench-token", refreshToken: "fake-refresh", expiresAt: Date.now() + 3_600_000, subscriptionType: "max" },
+    }))
+    // Loaded after the SDK mock is installed, like the rest of this file's proxy modules.
+    const tokens = await import("../proxy/tokenRefresh")
+    tokens.setCredentialStorePlatformForTests("linux")
+    try {
+      const seeded = await fetchOAuthUsageResult({
+        profileId: "work",
+        store: createOwnedCredentialStore(root, directory),
+        fetchImpl: async () => Response.json({ seven_day_opus: { utilization: 95, resets_at: new Date(Date.now() + 3 * DAY_MS).toISOString() } }),
+      })
+      expect(seeded.error).toBeNull()
+    } finally {
+      tokens.setCredentialStorePlatformForTests(null)
+      rmSync(root, { recursive: true, force: true })
+    }
+    // The default failure names no window, so the diagnosis falls back to
+    // the hottest cached one.
+    failingModelDirs.set("prof-work", "opus")
+    const app = createTestApp()
+
+    expect((await attempts(app, "claude-opus-4-1", "unnamed refusal on work")).at(-1)).toBe("personal")
+    const after = await health(app)
+    expect(after.spent.map(entry => entry.diagnosis)).toEqual([expect.objectContaining({ bucket: "seven_day_opus", reported: false, source: "cached_usage" })])
+    expect(after.exhausted.map(entry => entry.id)).toEqual(["work"])
+    expect(after.exhaustedModels).toEqual([])
+    expect(after.spent.map(entry => entry.modelFamily)).toEqual([null])
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet after the guessed refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("skips a Fable-benched active profile only for Fable in active+priority mode, streaming too", async () => {
+    process.env.MERIDIAN_ROUTING = "active+priority"
+    failureMessage = FABLE_LIMIT
+    failingModelDirs.set("prof-work", "fable")
+    const app = createTestApp()
+
+    const first = await attempts(app, "claude-fable-5-2", "streamed fable refusal", true)
+    expect(first[0]).toBe("work")
+    expect(first.at(-1)).toBe("personal")
+    expect((await health(app)).exhaustedModels.map(entry => [entry.id, entry.modelFamily])).toEqual([["work", "fable"]])
+    expect(await attempts(app, "claude-sonnet-4-5", "sonnet on the active profile", true)).toEqual(["work"])
+    expect(await attempts(app, "claude-fable-5-2", "fable skips the active profile", true)).toEqual(["personal"])
+  }, 20_000)
+})
+
 describe("keyless priority affinity", () => {
   beforeEach(async () => {
     capturedEnvs = []
@@ -3276,6 +3500,27 @@ describe("re-authenticated profile unbenching (#1385)", () => {
       expect(rateLimitStore.get("work", "five_hour")?.status).toBe("rejected")
     }, 20_000)
   }
+
+  it("lifts a model bench when a confirmed reset clears that model's bucket", async () => {
+    const { app, workDir } = createReauthTestApp()
+    await seedResetCredentials(workDir)
+    rateLimitStore.record("work", { status: "rejected", rateLimitType: "seven_day_opus", utilization: 1, resetsAt: Date.now() + 3 * 24 * 60 * 60_000 })
+    failingModelDirs.set("prof-work", "opus")
+    expect((await postMessages(app, { model: "claude-opus-4-1", content: "opus before model reset", stream: false })).status).toBe(200)
+    const health = async () => await (await app.fetch(new Request("http://localhost/profiles/health"))).json() as {
+      exhaustedModels: Array<{ id: string; modelFamily: string }>
+      spent: unknown[]
+    }
+    expect((await health()).exhaustedModels.map(entry => [entry.id, entry.modelFamily])).toEqual([["work", "opus"]])
+    stubOAuthEndpoints(200, { result: "reset", cleared: ["seven_day_opus"] })
+    expect((await resetQuota(app)).status).toBe(200)
+    expect(await health()).toMatchObject({ exhaustedModels: [], spent: [] })
+    failingModelDirs.clear()
+    capturedEnvs = []
+    expect((await postMessages(app, { model: "claude-opus-4-1", content: "opus after model reset", stream: false })).status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
 
   it("preserves quota refusals whose bucket was never identified", async () => {
     const { app, workDir } = createReauthTestApp()
