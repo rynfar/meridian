@@ -431,7 +431,7 @@ ${reorderLiveRegionHtml}
       <code>meridian profile list</code> \u2014 show all profiles and auth status<br>
       <code>meridian profile login &lt;name&gt;</code> \u2014 re-authenticate an expired profile<br>
       <code>meridian profile rename &lt;old&gt; &lt;new&gt;</code> \u2014 rename a profile (or use the pencil above)<br>
-      <code>meridian profile remove &lt;name&gt;</code> \u2014 remove a profile
+      <code>meridian profile remove &lt;name&gt;</code> \u2014 remove a profile (or use the trash can above)
     </div>
     <p style="font-size:13px;color:var(--muted);margin-top:12px">
       Renaming keeps the old name working: requests still naming it are served by
@@ -553,7 +553,7 @@ var updatePollTimer = null;
 // innerHTML, which would blank the input mid-keystroke.
 var editingProfile = null;
 var renameError = null;
-// A ChatGPT seat being removed: its confirm panel is open, and the poll waits.
+// A profile or seat being removed: its confirm panel is open, and the poll waits.
 var removingProfile = null;
 var removeError = null;
 
@@ -632,9 +632,11 @@ function cancelRemove() {
 }
 
 async function commitRemove(id) {
+  var target = ((lastProfiles && lastProfiles.profiles) || []).find(function (p) { return p.id === id; });
+  var route = target && isChatGptProfile(target) ? '/profiles/chatgpt/remove' : '/profiles/claude/remove';
   var data;
   try {
-    var res = await fetch('/profiles/chatgpt/remove', {
+    var res = await fetch(route, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile: id })
@@ -1180,7 +1182,7 @@ function render(data, quotaData) {
       if ((quotaById[p.id] || {}).servingOnCredits) html += '<span class="profile-badge badge-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
       html += "<span class=\\"profile-card-actions\\">";
       html += "<button class=\\"icon-btn\\" title=\\"Rename profile\\" onclick=\\"startRename(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_PENCIL + "</button>";
-      if (isChatGptProfile(p)) html += "<button class=\\"icon-btn danger\\" title=\\"Remove seat\\" onclick=\\"startRemove(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_TRASH + "</button>";
+      html += "<button class=\\"icon-btn danger\\" title=\\"" + (isChatGptProfile(p) ? "Remove seat" : "Remove profile") + "\\" onclick=\\"startRemove(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_TRASH + "</button>";
       html += "</span>";
     }
     html += '</div>';

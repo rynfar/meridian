@@ -165,7 +165,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { authKeepaliveTargets, resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
-import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { adoptedProfiles, followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
 import { organizationNames, organizationNeedsRefresh, organizationRecordCurrent, organizationLookupEnabled, refreshOrganizationNameSoon, refreshOrganizationNow, type OrganizationRecord } from "./organizationName"
@@ -11082,6 +11082,77 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const chatGptSeat = chatGptProfiles?.resolve(body.profile)
     if (!chatGptSeat) return c.json({ error: `No ChatGPT seat is called "${body.profile}".`, code: "unknown_profile" }, 404)
     return removeChatGptSeat(c, chatGptSeat)
+  })
+
+  // A Claude profile is removed the way `meridian profile remove` removes it
+  // (profileRemove.ts): its profiles.json entry, the credential directory it
+  // owns under the profiles directory, its place in the saved order, and the
+  // active pointer moves to the profile that would serve next. Only profiles
+  // this instance keeps in profiles.json can go; one defined in its startup
+  // configuration or adopted from a followed instance is removed there.
+  app.post("/profiles/claude/remove", async (c) => {
+    if (!permitsLocalBrowserWrite(c.req.raw)) return c.json({ error: "Claude profile changes require a same-origin request" }, 403)
+    if (isCredentialsReadOnly()) {
+      return c.json({ error: "MERIDIAN_CREDENTIALS_READONLY=1 — this instance may not modify credentials." }, 403)
+    }
+    let body: { profile?: unknown }
+    try {
+      body = await c.req.json() as { profile?: unknown }
+    } catch {
+      return c.json({ error: "Invalid JSON in request body" }, 400)
+    }
+    if (typeof body.profile !== "string" || !body.profile) {
+      return c.json({ error: "Missing 'profile' in request body" }, 400)
+    }
+    const removedId = body.profile
+    const wasActive = getActiveProfileId() === removedId
+    const { applyProfileRemove } = await import("./profileRemove")
+    const result = applyProfileRemove(removedId)
+    if (!result.ok) {
+      if (result.code === "store_write_failed") return c.json({ error: result.error, code: result.code, provider: "claude" }, 503)
+      if (finalConfig.profiles?.some(p => p.id === removedId)) {
+        return c.json({ error: `Profile "${removedId}" is defined in this instance's startup configuration, not in profiles.json. Remove it there.`, code: "owned_elsewhere", provider: "claude" }, 409)
+      }
+      const following = followStatus(getEffectiveProfiles(finalConfig.profiles).map(p => p.id))
+      if (following && adoptedProfiles().some(p => p.id === removedId)) {
+        return c.json({ error: `Profile "${removedId}" comes from ${following.url} (MERIDIAN_FOLLOW_ACTIVE). Remove it there.`, code: "owned_elsewhere", provider: "claude" }, 409)
+      }
+      return c.json({ error: result.hint ? `${result.error} ${result.hint}` : result.error, code: result.code, provider: "claude" }, 404)
+    }
+    // The profile is off disk now; drop the TTL cache so this caller's very
+    // next /profiles/list is not answered from a copy that still lists it.
+    invalidateDiskProfileCache()
+    // applyProfileRemove moved the persisted pointer; this process holds its
+    // own copy in memory, and the profile that serves next is the first one
+    // in its effective list, which also holds configured profiles.
+    let activeProfile = result.activeProfile
+    if (wasActive) {
+      activeProfile = getEffectiveProfiles(finalConfig.profiles)[0]?.id ?? null
+      if (activeProfile) setActiveProfile(activeProfile)
+    }
+    for (const id of [result.id, ...result.aliases]) {
+      spentProfiles.forget(id)
+      profileFactsRefresh.forget(id)
+    }
+    claudeLog("profile.removed", {
+      profile: result.id,
+      provider: "claude",
+      dirsRemoved: result.dirsRemoved.length,
+      dirsOrphaned: result.dirsOrphaned.length,
+      remaining: result.profiles.length,
+      userAgent: c.req.header("user-agent")?.slice(0, 120) ?? null,
+      origin: c.req.header("origin") ?? c.req.header("referer")?.slice(0, 120) ?? null,
+    })
+    plog(`[PROXY] Profile removed: ${result.id} (${result.profiles.length} remaining${activeProfile !== undefined ? `, active moves to ${activeProfile ?? "none"}` : ""})`)
+    for (const orphan of result.dirsOrphaned) plog(`[PROXY] Left behind ${orphan.dir}: ${orphan.reason}`)
+    return c.json({
+      success: true,
+      profile: result.id,
+      provider: "claude",
+      activeProfile,
+      remaining: result.profiles.map(p => p.id),
+      dirsOrphaned: result.dirsOrphaned,
+    })
   })
 
   // --- Profile login routes (browser-completable OAuth) ---

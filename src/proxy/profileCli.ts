@@ -11,7 +11,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process"
 import { createHash, randomBytes } from "node:crypto"
-import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { configPath } from "../configDir"
@@ -20,6 +20,7 @@ import { authFieldPaths, describeAuthFields } from "./authDiscovery"
 import { resolveClaudeExecutableSync } from "./models"
 import { fetchOAuthPlanFields, type OAuthPlanFields } from "./oauthPlan"
 import type { ProfileConfig } from "./profiles"
+import { applyProfileRemove } from "./profileRemove"
 import { envBool } from "../env"
 import { findChatGptSeat, listChatGptSeats, printChatGptSeats, removeChatGptSeat, renameChatGptSeat, signInChatGptSeat, switchChatGptSeat, type SeatCliContext } from "./chatgpt/seatCli"
 
@@ -759,61 +760,33 @@ async function chatGptSignInOrExit(id: string, options: AuthLoginOptions): Promi
   if (!await signInChatGptSeat(id, { headless: options.headless }, seatContext())) process.exit(1)
 }
 
-/**
- * Pure: resolve which on-disk directories should be removed when this profile
- * is deleted. Browser-login profiles drop their explicit `claudeConfigDir`
- * (provided it lives under `profilesDir`); oauth-token profiles drop the
- * pinned isolation dir at `profilesDir/<id>` (created by the SDK during use,
- * not stored on the profile itself).
- *
- * Caller is responsible for the actual `rmSync` — this returns paths only.
- */
-export function dirsToRemoveOnProfileRemove(profile: ProfileConfig, profilesDir: string): string[] {
-  const dirs: string[] = []
-  if (profile.claudeConfigDir?.startsWith(profilesDir)) {
-    dirs.push(profile.claudeConfigDir)
-  }
-  if (profile.oauthToken || profile.type === "oauth-token") {
-    const isolationDir = join(profilesDir, profile.id)
-    if (!dirs.includes(isolationDir)) dirs.push(isolationDir)
-  }
-  return dirs
-}
-
 export async function profileRemove(id: string): Promise<void> {
   if (chatGptSeatNamed(id)) {
     if (!await removeChatGptSeat(id, seatContext())) process.exit(1)
     return
   }
-  try { withProfileConfigLockSync(profilesConfigFile(), () => profileRemoveLocked(id)) }
-  catch (error) {
-    console.error(`✗ ${error instanceof Error ? error.message : String(error)}`)
+  if (envBool("CREDENTIALS_READONLY")) {
+    console.error("\x1b[31m✗ MERIDIAN_CREDENTIALS_READONLY=1 — this instance may not modify credentials.\x1b[0m")
+    console.error("  Remove the profile from the instance that owns them.")
     process.exit(1)
   }
-}
 
-function profileRemoveLocked(id: string): void {
-  const profiles = readProfileConfigForUpdate(profilesConfigFile())
-  const idx = profiles.findIndex(p => p.id === id)
-  if (idx === -1) {
-    throw new Error(`Profile "${id}" not found.`)
-  }
-
-  const removed = profiles[idx]
-  if (!removed) {
-    throw new Error(`Profile "${id}" not found.`)
-  }
-  const dirsToRemove = dirsToRemoveOnProfileRemove(removed, configPath("profiles"))
-  profiles.splice(idx, 1)
-  saveProfileConfig(profiles)
-
-  for (const dir of dirsToRemove) {
-    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+  const result = applyProfileRemove(id)
+  if (!result.ok) {
+    console.error(`\x1b[31m✗ ${result.error}\x1b[0m`)
+    if (result.hint) console.error(`  ${result.hint}`)
+    process.exit(1)
   }
 
   console.log(`\x1b[32m✓ Profile "${id}" removed.\x1b[0m`)
-  if (profiles.length > 0) {
-    printEnvHint(profiles)
+  for (const orphan of result.dirsOrphaned) {
+    console.error(`\x1b[33m⚠ Left behind ${orphan.dir}: ${orphan.reason}\x1b[0m`)
+  }
+  if (result.activeProfile !== undefined) {
+    console.log(result.activeProfile ? `  Active profile is now "${result.activeProfile}".` : "  No profile is active now.")
+  }
+  if (result.profiles.length > 0) {
+    printEnvHint(result.profiles)
   }
 }
 

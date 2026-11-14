@@ -329,7 +329,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   const PROFILES_DIR = "/tmp/test-profiles-dir"
 
   test("browser-login profile drops its claudeConfigDir when under PROFILES_DIR", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "personal", claudeConfigDir: `${PROFILES_DIR}/personal` },
       PROFILES_DIR,
@@ -338,7 +338,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("never returns a claudeConfigDir outside PROFILES_DIR (refuses to rm-rf foreign paths)", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "wild", claudeConfigDir: "/home/user/.claude" },
       PROFILES_DIR,
@@ -347,7 +347,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("oauth-token profile drops the pinned isolation dir at PROFILES_DIR/<id>", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "ci", oauthToken: "sk-ant-oat01-xxx" },
       PROFILES_DIR,
@@ -356,7 +356,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("explicit type='oauth-token' without oauthToken still drops the isolation dir", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "bare-ci", type: "oauth-token" },
       PROFILES_DIR,
@@ -365,7 +365,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("api profile returns no dirs (token lives in profiles.json, no on-disk state)", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "direct-api", type: "api", apiKey: "sk-ant-api03-..." },
       PROFILES_DIR,
