@@ -244,6 +244,22 @@ function supports1mContext(model: string): boolean {
   return true
 }
 
+/** The SDK tier a requested model runs on, without the `[1m]` variant. */
+export type ClaudeModelFamily = "haiku" | "fable" | "opus" | "sonnet"
+
+/**
+ * Which tier `mapModelToClaudeModel` sends a requested model to. Kept as the
+ * mapper's own first step so a per-model routing bench names the tier the
+ * request actually runs on: anything unrecognized falls through to sonnet,
+ * and Mythos rides the fable tier.
+ */
+export function claudeModelFamily(model: string): ClaudeModelFamily {
+  if (model.includes("haiku")) return "haiku"
+  if (model.includes("fable") || model.includes("mythos")) return "fable"
+  if (model.includes("opus")) return "opus"
+  return "sonnet"
+}
+
 /**
  * `sessionKey` scopes the extended-context bench to one conversation. See
  * `recordExtendedContextRateLimited` — a rate limit on one session must not
@@ -252,7 +268,8 @@ function supports1mContext(model: string): boolean {
  * profile-wide bench.
  */
 export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null, profileId?: string, sessionKey?: string): ClaudeModel {
-  if (model.includes("haiku")) return "haiku"
+  const family = claudeModelFamily(model)
+  if (family === "haiku") return "haiku"
 
   const use1m = supports1mContext(model)
   // Subagents handle focused subtasks and don't benefit from 1M context.
@@ -283,7 +300,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // opus[1m], which IS included. Only "fable" (normalized) opts out; the
   // [1m] form is a documented no-op; anything else (including unset) leaves
   // the default untouched, with a once-per-process warning for typos.
-  if (model.includes("fable") || model.includes("mythos")) {
+  if (family === "fable") {
     const fableOverrideRaw = env("FABLE_MODEL")
     const fableOverride = fableOverrideRaw?.trim().toLowerCase()
     if (fableOverride === "fable") return "fable"
@@ -306,7 +323,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // out; the [1m] form is a documented no-op; anything else (including
   // unset) leaves the default untouched, with a once-per-process warning
   // for typos.
-  if (model.includes("opus")) {
+  if (family === "opus") {
     const opusOverrideRaw = env("OPUS_MODEL")
     const opusOverride = opusOverrideRaw?.trim().toLowerCase()
     if (opusOverride === "opus") return "opus"
