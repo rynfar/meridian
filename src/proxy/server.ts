@@ -100,12 +100,12 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { parseToolInputObject } from "./toolInputJson"
-import { createPassthroughMcpServer, sharedPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, resolveAutoDeferDecision, clientOwnsToolSearch, referencedToolNames, clientSearchRegistrationTools } from "./passthroughTools"
+import { createPassthroughMcpServer, sharedPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, resolveAutoDeferDecision, clientOwnsToolSearch, sdkOwnsPrefixedToolSearch, referencedToolNames, clientSearchRegistrationTools } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { isSdkToolSearchCall, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -137,7 +137,7 @@ import { buildRuntime } from "./buildRuntime"
 import { checkPluginsNow, getLatestVersion, isUpdateCheckEnabled, startUpdateCheck, stopUpdateCheck } from "./updateCheck"
 import { getPluginUpdates, trackPlugins } from "./pluginUpdateCheck"
 import { createAuthStatusOwner } from "./authStatusOwnership"
-import { mapModelToClaudeModel, claudeModelFamily, type ClaudeModelFamily, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, expireAuthStatusCache, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, subscriptionIncludesExtendedContext } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, expireAuthStatusCache, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, subscriptionIncludesExtendedContext } from "./models"
 import { livenessReport, readinessReport, renderProbe } from "./probes"
 import { UpstreamReachability, DEFAULT_OVERRIDE_TTL_MS, MAX_OVERRIDE_TTL_MS, unreachableDetail, withReachability } from "./upstreamReachability"
 import { resolveReachabilityThresholds } from "./upstreamReachabilityConfig"
@@ -187,9 +187,6 @@ import {
   resolveCooldownUntil,
   cooldownCapMs,
   findCooldownReset,
-  findModelCooldownReset,
-  perModelBucketFamily,
-  perModelRefusalFamily,
   parseWeeklyReserves,
   WeeklyReserveTracker,
   WEEKLY_RESERVE_WINDOW,
@@ -749,8 +746,6 @@ type PriorityDispatchOptions = {
   readonly wantsStream: boolean
   readonly currentProfileId: string | undefined
   readonly routing?: RoutingMode
-  /** The requested model's tier: a per-model weekly bench skips a profile only for this family. */
-  readonly modelFamily: ClaudeModelFamily
   readonly turnWatchdogSignal?: AbortSignal
   readonly requestAbortLink?: RequestAbortLink
   readonly publicationTurn?: {
@@ -1406,7 +1401,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       accountBlock: (recipe) => cacheKeepaliveAccountBlock({
         profileType: recipe.profileType,
         rateLimits: rateLimitStore.getAll(recipe.profileId),
-        coolingDown: priorityExhaustion.isExhausted(recipe.profileId, claudeModelFamily(recipe.model)),
+        coolingDown: priorityExhaustion.isExhausted(recipe.profileId),
         spent: spentProfiles.get(recipe.profileId) !== undefined,
         benched: recipe.extendedContext && isExtendedContextKnownUnavailable(recipe.profileId, recipe.benchSessionKey),
         reserveHeld: currentWeeklyReserveHolds([recipe.profileId]).has(recipe.profileId),
@@ -1706,7 +1701,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    *  it's skipped too — the conservative default is the safer thing to
    *  leave standing. `sharedWith` are the profiles the refusal also benched
    *  (`quotaSharedWith`): one account, so the refined reset is theirs too. */
-  function refinePriorityCooldown(profileId: string, sharedWith: readonly string[] = [], model?: { bucket: string; family: ClaudeModelFamily }): void {
+  function refinePriorityCooldown(profileId: string, sharedWith: readonly string[] = []): void {
     const profiles = getEffectiveProfiles(finalConfig.profiles)
     const target = profiles.find(p => p.id === profileId)
     // Only `claude-max` profiles have credentials this can consult. `api`
@@ -1731,14 +1726,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           resetsAt: w.resetsAt,
           exhausted: (w.utilization ?? 0) >= 1,
         }))
-        // A per-model refusal also learns when its own bucket reopens, which
-        // the account-wide resolution below never reads.
-        const modelUntil = model ? findModelCooldownReset(model.bucket, null, windows, now) : null
-        if (model && modelUntil !== null) {
-          priorityExhaustion.markModel(profileId, model.family, modelUntil, "rate_limit_error")
-          for (const twin of sharedWith) priorityExhaustion.markModel(twin, model.family, modelUntil, "rate_limit_error")
-          claudeLog("priority.cooldown_refined", { profile: profileId, until: modelUntil, modelFamily: model.family, source: "oauth_usage", ...(sharedWith.length > 0 ? { sharedWith } : {}) })
-        }
         // Sentinel: resolveCooldownUntil falls back to `now + defaultMs` when
         // nothing is exhausted. Passing 0 makes that fallback identifiable, so
         // a snapshot showing a healthy account refines nothing and tier 3's
@@ -1850,51 +1837,24 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return current.filter((id): id is string => id !== null && id !== profileId)
   }
 
-  /** `quotaSharedWith`, where a failed lookup costs only the attempts it would have saved. */
-  function sharedQuotaTwins(candidate: string): Promise<string[]> {
-    return quotaSharedWith(candidate).catch((error: unknown) => {
+  /** `sharedQuota` collects the profiles this refusal also spoke for, so the
+   *  request's remaining candidates can skip them. */
+  async function markPriorityFailure(candidate: string, reason: string, sharedQuota: Set<string>): Promise<number> {
+    const quotaRefusal = isQuotaRefusal(reason)
+    const until = quotaRefusal
+      ? priorityCooldownUntil(candidate, Date.now())
+      : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
+    priorityExhaustion.mark(candidate, until, reason)
+    claudeLog("priority.exhausted", { profile: candidate, until, reason })
+    if (!quotaRefusal) return until
+    // A failed lookup costs only the attempts it would have saved.
+    const twins = await quotaSharedWith(candidate).catch((error: unknown) => {
       claudeLog("priority.shared_quota_failed", {
         profile: candidate,
         error: error instanceof Error ? error.message : String(error),
       })
       return []
     })
-  }
-
-  /** `sharedQuota` collects the profiles this refusal also spoke for, so the
-   *  request's remaining candidates can skip them. */
-  async function markPriorityFailure(candidate: string, reason: string, sharedQuota: Set<string>, requestFamily: ClaudeModelFamily): Promise<number> {
-    const quotaRefusal = isQuotaRefusal(reason)
-    const now = Date.now()
-    const spent = quotaRefusal ? spentProfiles.get(candidate) : undefined
-    const modelFamily = perModelRefusalFamily(spent?.diagnosis, requestFamily)
-    if (spent?.diagnosis.bucket && modelFamily) {
-      // A per-model weekly budget ran out: other models keep using this
-      // account, and this one waits for its own bucket, not the default.
-      const bucket = spent.diagnosis.bucket
-      const until = findModelCooldownReset(bucket, spent.diagnosis.resetsAt, profileCooldownWindows(candidate), now)
-        ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
-      priorityExhaustion.markModel(candidate, modelFamily, until, reason)
-      // Clients read this to tell a model-only bench from a profile-wide one;
-      // the diagnosis alone can name a bucket this refusal was not benched for.
-      spent.modelFamily = modelFamily
-      claudeLog("priority.exhausted", { profile: candidate, until, reason, modelFamily })
-      const twins = await sharedQuotaTwins(candidate)
-      for (const twin of twins) {
-        priorityExhaustion.markModel(twin, modelFamily, until, reason)
-        sharedQuota.add(twin)
-        claudeLog("priority.exhausted", { profile: twin, until, reason, modelFamily, sharedWith: candidate })
-      }
-      refinePriorityCooldown(candidate, twins, { bucket, family: modelFamily })
-      return until
-    }
-    const until = quotaRefusal
-      ? priorityCooldownUntil(candidate, now)
-      : now + PRIORITY_DEFAULT_COOLDOWN_MS
-    priorityExhaustion.mark(candidate, until, reason)
-    claudeLog("priority.exhausted", { profile: candidate, until, reason })
-    if (!quotaRefusal) return until
-    const twins = await sharedQuotaTwins(candidate)
     for (const twin of twins) {
       priorityExhaustion.mark(twin, until, reason)
       sharedQuota.add(twin)
@@ -1982,7 +1942,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               await verdict.discard()
               await responseCompletions.get(inner)?.catch(() => {})
               const reason = verdict.errorType
-              const cooldownUntil = await markPriorityFailure(candidate, reason, start.sharedQuota, options.modelFamily)
+              const cooldownUntil = await markPriorityFailure(candidate, reason, start.sharedQuota)
               if (isCancelled()) break
               earliestPoolReset = Math.min(earliestPoolReset ?? cooldownUntil, cooldownUntil)
               lastError = verdict.errorPayload
@@ -2223,7 +2183,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement.
-      const cooldownUntil = await markPriorityFailure(candidate, reason, sharedQuota, options.modelFamily)
+      const cooldownUntil = await markPriorityFailure(candidate, reason, sharedQuota)
       if (earliestPoolReset === null || cooldownUntil < earliestPoolReset) {
         earliestPoolReset = cooldownUntil
       }
@@ -2829,17 +2789,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 assignment = priorityAssignments.get(sessionKey)
               }
 
-              // A per-model weekly bench skips a profile only for requests of
-              // that model; profile-wide marks skip it for every request.
-              const modelFamily = claudeModelFamily(typeof body.model === "string" ? body.model : "sonnet")
-              const benched = (id: string) => priorityExhaustion.isExhausted(id, modelFamily)
               const shouldPromote = assignment !== undefined
                 && durableRoute !== undefined
                 && routeMappingIsCurrent
                 && assignment.profileId !== preferred
                 && order.includes(assignment.profileId)
-                && !benched(assignment.profileId)
-                && !benched(preferred)
+                && !priorityExhaustion.isExhausted(assignment.profileId)
+                && !priorityExhaustion.isExhausted(preferred)
                 && shouldPromotePriorityAssignment({
                   policy: failbackPolicy,
                   assignment,
@@ -2849,7 +2805,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const assignedProfile = assignment?.profileId
               const assignmentIsHealthy = assignedProfile !== undefined
                 && order.includes(assignedProfile)
-                && !benched(assignedProfile)
+                && !priorityExhaustion.isExhausted(assignedProfile)
               const retainOnlyProfile = durableRoute && !promotionTurn
                 ? assignedProfile
                 : undefined
@@ -2873,7 +2829,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   ...retryAfterBodyFields(retryAfter),
                 }, 429, retryAfterHeaders(retryAfter))
               }
-              const unavailable = (id: string) => benched(id) || reserveHolds.has(id)
+              const unavailable = (id: string) => priorityExhaustion.isExhausted(id) || reserveHolds.has(id)
               let candidates: string[]
               if (routingMode === ACTIVE_PRIORITY) {
                 const activeId = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
@@ -2883,7 +2839,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       .filter(id => !reserveHolds.has(id))
                 if (candidates.length === 0) candidates = [order[0]!]
               } else {
-                const pick = choosePriorityProfile(order, benched)
+                const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
                 const first = retainOnlyProfile
                   ?? (shouldPromote
                     ? preferred
@@ -2895,7 +2851,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 // that the durable route has no authenticated authority to adopt.
                 candidates = retainOnlyProfile
                   ? [retainOnlyProfile]
-                  : [first, ...order.filter(id => id !== first && !benched(id))]
+                  : [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
               }
               return dispatchPriority({
                 context: c,
@@ -2911,7 +2867,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 claimTurn: trustedTurn,
                 durableRoute,
                 routing: routingMode,
-                modelFamily,
               })
             }
           }
@@ -4631,6 +4586,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
+      const sdkOwnsPrefixedSearch = passthrough
+        && sdkOwnsPrefixedToolSearch(requestTools, hasDeferredTools, passthroughMcp?.clientNameByAlias)
       // Prompt-cache keepalive (src/proxy/SPEC.md → Decisions). Only a real
       // turn of a keyed passthrough session on a subscription account is
       // tracked: beats resume the stored mapping, and in passthrough every
@@ -5350,7 +5307,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 // until the full client-visible ID set is covered; internal and
                 // duplicate calls are filtered by noteAssistantMessage.
                 const expectedBefore = earlyStop.expected.size
-                noteAssistantMessage(earlyStop, message, clientToolPrefix, clientToolSearch)
+                noteAssistantMessage(earlyStop, message, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)
                 assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
               } else if (passthrough && message.type === "user" && !earlyStopFired) {
                 noteUserContent(earlyStop, (message as any).message?.content)
@@ -5408,7 +5365,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   // The predicate the tracker arms `expected` with, so the two
                   // sets are comparable by construction.
                   const block = event.content_block
-                  if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch)) streamedToolUseIds.add(block.id)
+                  if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) streamedToolUseIds.add(block.id)
                 }
               }
               if (message.type === "assistant") {
@@ -5463,7 +5420,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   for (const block of message.message.content) {
                     const b = block as unknown as Record<string, unknown>
                     // Filter ToolSearch from non-streaming passthrough responses
-                    if (b.type === "tool_use" && !clientToolSearch && (b as any).name === "ToolSearch") {
+                    if (b.type === "tool_use" && typeof b.name === "string" && isSdkToolSearchCall(b.name, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) {
                       claudeLog("passthrough.toolsearch_filtered", { mode: "non_stream" })
                       continue
                     }
@@ -6806,7 +6763,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   let assistantAddedForwardedCall = false
                   if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
                     const expectedBefore = earlyStop.expected.size
-                    noteAssistantMessage(earlyStop, message, clientToolPrefix, clientToolSearch)
+                    noteAssistantMessage(earlyStop, message, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)
                     assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
                   } else if (earlyStopEnabled && message.type === "user" && !earlyStopFired) {
                     noteUserContent(earlyStop, (message as any).message?.content)
@@ -6990,7 +6947,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       if (block?.type === "tool_use" && typeof block.name === "string") {
                         // Filter out ToolSearch — handled internally by the SDK
                         // for deferred tool loading, not visible to the client.
-                        if (!clientToolSearch && block.name === "ToolSearch") {
+                        if (isSdkToolSearchCall(block.name, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) {
                           if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
                           continue
                         }
@@ -7604,7 +7561,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       recoverySessionId = recoveryMessage.session_id
                     }
                     if (recoveryMessage.type === "assistant") {
-                      noteAssistantMessage(recoveryEarlyStop, recoveryMessage, clientToolPrefix, clientToolSearch)
+                      noteAssistantMessage(recoveryEarlyStop, recoveryMessage, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)
                     } else if (recoveryMessage.type === "user") {
                       noteUserContent(recoveryEarlyStop, recoveryMessage.message?.content)
                     }
@@ -7622,7 +7579,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     if (recoveryEvent.type === "message_start") turnGenerating = true
                     if (
                       recoveryEvent.type === "content_block_start"
-                      && isClientForwardedToolUse(recoveryEvent.content_block, clientToolPrefix, clientToolSearch)
+                      && isClientForwardedToolUse(recoveryEvent.content_block, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)
                     ) {
                       recoveryStreamedToolUseIds.add(
                         (recoveryEvent.content_block as { id: string }).id,
@@ -10656,9 +10613,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             ...priorityExhaustion.snapshot(),
             ...chatGptExhaustion.snapshot().map(mark => ({ ...mark, id: chatGptProfiles?.profileIdFor(mark.id) ?? mark.id })),
           ],
-          // Additive: benches that skip a profile only for one model family
-          // (a per-model weekly budget such as `seven_day_fable`).
-          exhaustedModels: priorityExhaustion.modelSnapshot(),
         }
       : {}
     // Additive: follow state, so UIs can say where the active profile comes
@@ -10741,7 +10695,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       activeProfile: getActiveProfileId() || finalConfig.defaultProfile || undefined,
       spent: spentProfiles.snapshot(),
       exhausted: priorityExhaustion.snapshot(),
-      exhaustedModels: priorityExhaustion.modelSnapshot(),
       asOf: Date.now(),
     })
   })
@@ -11206,14 +11159,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const spent = spentProfiles.get(profileId)
     if (!spent?.diagnosis.reported || !spent.diagnosis.bucket || !cleared.includes(spent.diagnosis.bucket)) return
     spentProfiles.forget(profileId)
-    const modelFamily = perModelBucketFamily(spent.diagnosis.bucket)
-    if (modelFamily) {
-      // Only a refusal from this bucket sets this model mark, so clearing the
-      // bucket clears it exactly. A profile-wide mark came from some other
-      // refusal and stays.
-      priorityExhaustion.forgetModel(profileId, modelFamily)
-      return
-    }
     const now = Date.now()
     const stillRejected = rateLimitStore.getAll(profileId).some(entry =>
       ((entry.status === "rejected" || (entry.utilization ?? 0) >= 1) && (entry.resetsAt === undefined || entry.resetsAt > now))
