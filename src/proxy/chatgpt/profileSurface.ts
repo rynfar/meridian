@@ -265,6 +265,7 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
           // same evidence Claude's "Last Verified" rests on.
           lastCheckedAt: reading?.failure?.lastFailureAt ?? reading?.fetchedAt ?? null,
           lastSuccessAt: reading?.fetchedAt ?? null,
+          renewalRetryAt: profile.renewalRetryAt,
           authProvenance: "live" as const,
           credentialDir: null,
         }

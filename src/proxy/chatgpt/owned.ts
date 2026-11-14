@@ -24,7 +24,7 @@ import { decodeCodexToken } from "../codex/token"
 import { createChatGptCredentialStore, type ChatGptAccount, type ChatGptCredentialStore } from "./credentials"
 import { acquireWriterLease, type WriterLease } from "./lease"
 import { chatGptLockPath } from "./paths"
-import { createChatGptRefresher, EXCHANGE_TIMEOUT_MS, type ChatGptRefresher, type TokenExchangeFetch } from "./refresh"
+import { createChatGptRefresher, EXCHANGE_TIMEOUT_MS, type ChatGptRefresher, type RefreshOutcome, type TokenExchangeFetch } from "./refresh"
 import type { ChatGptCredentialSource, ChatGptRenewalPass, ChatGptSeatView } from "./source"
 
 /** Renew this far ahead of expiry, matching the Claude path's own margin. */
@@ -37,6 +37,34 @@ const ACCESS_TOKEN_BUFFER_MS = 5 * 60_000
  * out, which leaves room for several waits.
  */
 const RENEWAL_PAUSE_MS = 6 * 60 * 60_000
+
+/**
+ * chatgpt.com can refuse a seat's access token while its refresh token is
+ * still good, and a renewal brings the seat back. A refused token is renewed
+ * at once; when the token that renewal brought is refused too, the next one
+ * waits these steps after it, the last repeating for as long as the refresh
+ * token is accepted. Only a refused or unverifiable refresh, which leaves the
+ * seat's stamp in place, ends it at a sign-in.
+ */
+export const ACCESS_REFUSAL_RETRY_MS: readonly number[] = [5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 6 * 60 * 60_000]
+
+interface AccessRefusal {
+  /** The latest moment chatgpt.com was seen refusing the seat's access token. */
+  refusedAt: number
+  /** Renewals made because of it. */
+  attempts: number
+  lastAttemptAt: number | null
+  /** When the next renewal is due; null while waiting to see the last renewal's token accepted or refused. */
+  nextAt: number | null
+}
+
+const retryStep = (attempts: number): number =>
+  ACCESS_REFUSAL_RETRY_MS[Math.min(Math.max(attempts - 1, 0), ACCESS_REFUSAL_RETRY_MS.length - 1)]!
+
+/** When the seat's current access token was issued, as far as anything says. */
+function tokenIssuedAt(account: Pick<ChatGptAccount, "accessToken" | "tokenRotatedAt">): number {
+  return decodeCodexToken(account.accessToken)?.issuedAt ?? account.tokenRotatedAt ?? 0
+}
 
 /**
  * When a seat's access token falls due for renewal: 80% into its life, which
@@ -117,6 +145,7 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
   let refresher: ChatGptRefresher | undefined
   let renewal: Promise<ChatGptRenewalPass> | undefined
   let renewalPausedUntil = 0
+  const accessRefusals = new Map<string, AccessRefusal>()
 
   const holdsLease = (): boolean => {
     if (!lease) return false
@@ -128,6 +157,32 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     }
   }
 
+  // A seat's refusal as it stands. A token renewed since the last refusal by
+  // any path - a request near expiry, Renew now - counts as the attempt.
+  const refusalOf = (account: ChatGptAccount): AccessRefusal | undefined => {
+    const known = accessRefusals.get(account.accountUserId)
+    if (!known) return undefined
+    const issuedAt = tokenIssuedAt(account)
+    if (known.nextAt !== null && issuedAt > known.refusedAt) {
+      known.attempts++
+      known.lastAttemptAt = issuedAt
+      known.nextAt = null
+    }
+    return known
+  }
+
+  const afterRefusalRenewal = (seat: string, outcome: RefreshOutcome): void => {
+    const known = accessRefusals.get(seat)
+    if (!known) return
+    if (outcome.status === "requires-reauth" || (outcome.status === "unavailable" && outcome.reason === "unknown-account")) {
+      accessRefusals.delete(seat)
+      return
+    }
+    known.attempts++
+    known.lastAttemptAt = now()
+    known.nextAt = outcome.status === "refreshed" ? null : now() + retryStep(known.attempts)
+  }
+
   // One exchange per pass, for the seat most overdue, so renewals never go out
   // as a burst and a provider failure costs one seat its sign-in, not every
   // seat that happened to be due with it.
@@ -136,13 +191,23 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     if (!renewer || !holdsLease() || now() < renewalPausedUntil) return { due: [], outcome: null }
     const due = reader.readAccounts()
       .filter(account => account.exchangeStartedAt === null)
-      .map(account => ({ seat: account.accountUserId, at: renewalDueAt(account) }))
+      .map(account => {
+        const scheduled = renewalDueAt(account)
+        const refusal = refusalOf(account)
+        const retry = refusal?.nextAt ?? Infinity
+        return { seat: account.accountUserId, at: Math.min(scheduled, retry), refusal: retry <= now() ? refusal : undefined }
+      })
       .filter(candidate => candidate.at <= now())
       .sort((a, b) => a.at - b.at)
     const next = due[0]
     if (!next) return { due: [], outcome: null }
-    console.log(`[chatgpt] renewing account ${next.seat} ahead of expiry (due since ${new Date(next.at).toISOString()}; ${due.length - 1} more due)`)
+    if (next.refusal) {
+      console.log(`[chatgpt] renewing account ${next.seat}: chatgpt.com refused its access token (attempt ${next.refusal.attempts + 1}; ${due.length - 1} more due)`)
+    } else {
+      console.log(`[chatgpt] renewing account ${next.seat} ahead of expiry (due since ${new Date(next.at).toISOString()}; ${due.length - 1} more due)`)
+    }
     const outcome = await renewer.refreshAccount(next.seat)
+    afterRefusalRenewal(next.seat, outcome)
     if (outcome.status === "requires-reauth" && outcome.reason === "unverifiable") {
       renewalPausedUntil = now() + RENEWAL_PAUSE_MS
       console.error(`[chatgpt] renewing ahead of expiry paused until ${new Date(renewalPausedUntil).toISOString()}: the provider failed an exchange`)
@@ -170,6 +235,7 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     seats() {
       return reader.readAccounts().map((account, index): ChatGptSeatView => {
         const pending = account.exchangeStartedAt !== null && !exchangeOut(account)
+        const retryAt = pending ? null : refusalOf(account)?.nextAt ?? null
         return {
           id: account.accountUserId,
           email: account.email,
@@ -177,6 +243,7 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
           eligible: !pending,
           ...(pending ? { reason: "requires_reauth" as const } : {}),
           expiresAt: account.expiresAt,
+          ...(retryAt !== null ? { renewalRetryAt: retryAt } : {}),
           active: index === 0,
           storeIndex: index,
         }
@@ -303,6 +370,31 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     renewDue() {
       renewal ??= renewMostOverdue().finally(() => { renewal = undefined })
       return renewal
+    },
+
+    accessRefused(seat, observedAt) {
+      if (readOnly) return
+      const account = reader.readAccount(seat)
+      // A stamped seat needs a sign-in or is being renewed; a refusal read
+      // before its current token was issued was about one since replaced.
+      if (!account || account.exchangeStartedAt !== null || observedAt < tokenIssuedAt(account)) return
+      const known = refusalOf(account)
+      if (!known) {
+        accessRefusals.set(seat, { refusedAt: observedAt, attempts: 0, lastAttemptAt: null, nextAt: now() })
+        console.log(`[chatgpt] chatgpt.com refused account ${seat}'s access token; renewing it`)
+        return
+      }
+      known.refusedAt = Math.max(known.refusedAt, observedAt)
+      if (known.nextAt !== null) return
+      known.nextAt = Math.max(now(), (known.lastAttemptAt ?? now()) + retryStep(known.attempts))
+      console.log(`[chatgpt] chatgpt.com refused account ${seat}'s renewed access token too; renewing again at ${new Date(known.nextAt).toISOString()}`)
+    },
+
+    accessAccepted(seat, observedAt) {
+      const known = accessRefusals.get(seat)
+      if (!known || observedAt <= (known.lastAttemptAt ?? known.refusedAt)) return
+      accessRefusals.delete(seat)
+      if (known.attempts > 0) console.log(`[chatgpt] chatgpt.com accepts account ${seat}'s access token again`)
     },
 
     async settle() {
