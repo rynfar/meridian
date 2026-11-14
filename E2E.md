@@ -1808,6 +1808,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 | E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 | E80 | [Claude Code in-process teammate session isolation](#e80-claude-code-in-process-teammate-session-isolation) | **Automated, needs the `claude` CLI and `tmux`**: `bun scripts/e2e-claude-code-teammate-session.mjs` — real proxy + SDK, the REAL interactive Claude Code CLI (agent teams on) spawning two named teammates. Asserts the teammates' `name@team` agent ids each get their own session key, every teammate and parent turn after the first resumes, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys or Claude Code detection** | 2026-11-10 |
+| E81 | [Abandoned turn lock after a failed release](#e81-abandoned-turn-lock-after-a-failed-release) | **Automated, needs the `claude` CLI, non-root**: `bash scripts/e2e-abandoned-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Makes the turn-lock directory read-only while turn 1 streams so the lock release fails, restores it, then asserts turn 2 continues the conversation promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-13 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7368,6 +7369,28 @@ Maintainer rerun (2026-11-13, Linux x86_64, Claude Code 2.1.323, `sonnet`):
 PASS. Teammates `alpha@…` and `beta@…` made four requests each; 6 of 6 later
 teammate turns and 5 of 5 later parent requests resumed, no collision across
 15 requests, longest lease wait 5ms.
+
+## E81: Abandoned turn lock after a failed release
+
+**What it proves:** a conversation whose cross-process turn lock failed to
+release (#1525: `ENOSPC` renaming the lock away on a full disk) no longer
+wedges. The proxy reclaims a lock stamped with its own incarnation whose lease
+it already ended, and keeps retrying the cleanup in the background.
+
+```bash
+bash scripts/e2e-abandoned-turn-lock.sh   # E2E_MODEL, CLAUDE_BIN, E2E_PORT, TURN2_LIMIT optional
+```
+
+Filling a real disk needs root, so the harness stages the same failure with a
+read-only `turn-locks` directory: the release's rename out of it fails with
+`EACCES` through the same path as `ENOSPC`. Write access is restored before
+turn 2, as freeing space would.
+
+**Before/after (2026-11-13, Linux x86_64 WSL2, Claude Code 2.1.323, `sonnet`).**
+Baseline `main` (`663311e`): FAIL. The release failed, turn 2 (`claude -p
+--continue`) queued behind the lock until its 120s client timeout and the lock
+remained. Branch: PASS. Turn 2 continued the conversation in 3s
+(`lineage=continuation`, session wait 25–62ms) and the lock was gone.
 
 ## Concurrent transcript publication
 
