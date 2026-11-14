@@ -15,6 +15,7 @@ import { passthroughAdapter } from "../proxy/adapters/passthrough"
 import { forgeCodeAdapter } from "../proxy/adapters/forgecode"
 import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
 import { jcodeAdapter } from "../proxy/adapters/jcode"
+import { zedAdapter } from "../proxy/adapters/zed"
 
 function makeContext(userAgent: string, extraHeaders?: Record<string, string>): any {
   const allHeaders: Record<string, string> = {}
@@ -176,6 +177,21 @@ describe("detectAdapter — Jcode detection", () => {
     expect(detectAdapter(makeContext("factory-cli/1.0.0", {
       "x-jcode-session": "session_local_123",
     }))).toBe(droidAdapter)
+  })
+})
+
+describe("detectAdapter — Zed detection", () => {
+  it("returns zedAdapter for Zed's User-Agent", () => {
+    expect(detectAdapter(makeContext("Zed/1.25.3 (windows; x86_64)"))).toBe(zedAdapter)
+  })
+
+  it("accepts an explicit Zed adapter override", () => {
+    expect(detectAdapter(makeContext("curl/8.0.0", { "x-meridian-agent": "zed" }))).toBe(zedAdapter)
+  })
+
+  it("matches the prefix only — a lookalike falls through", () => {
+    expect(detectAdapter(makeContext("Zedd/1.0.0"))).toBe(openCodeAdapter)
+    expect(detectAdapter(makeContext("my-zed-client/1.0"))).toBe(openCodeAdapter)
   })
 })
 

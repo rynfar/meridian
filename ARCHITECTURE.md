@@ -280,6 +280,8 @@ src/
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── toolInputJson.ts       ← Tool input JSON repair for raw control characters in strings (PURE)
 │   ├── retryAfter.ts          ← Retry-After computation for 429/503/529 (PURE)
+│   ├── toolResultLimits.ts    ← Client tool result size limits, a fraction of the context window (PURE)
+│   ├── compactionNote.ts      ← Compaction notice from the SDK's compact_boundary message (PURE)
 │   ├── sseFailureSniff.ts     ← SSE framing/classification and bounded priority stream transport (leaf)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
 │   ├── authStatusProcess.ts   ← Bounded auth/resolver children and explicit process/pipe joins
@@ -374,6 +376,8 @@ server.ts (HTTP layer)
     ├── errors.ts ──► toolInputJson.ts
     ├── toolInputJson.ts
     ├── retryAfter.ts
+    ├── toolResultLimits.ts
+    ├── compactionNote.ts
     ├── requestAbort.ts
     ├── sessionTree.ts
     ├── models.ts
@@ -400,7 +404,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `pluginUpdateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts` and `toolInputJson.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` and `pluginUpdateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
+3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `toolResultLimits.ts`, `compactionNote.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `pluginUpdateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts`, `toolInputJson.ts`, `toolResultLimits.ts` and `compactionNote.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` and `pluginUpdateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
 
 4. **`server.ts` owns Hono route registration and orchestration.** Hono
    middleware stays at the proxy boundary. Standard `Request`/`Response`

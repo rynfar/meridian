@@ -92,7 +92,9 @@ export type {
 // transforms through the same runner meridian uses internally.
 export { runTransformHook, runObserveHook, buildPipeline, createRequestContext } from "./transform"
 import { claudeLog } from "../logger"
-import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
+import { contextWindowFor, replayBudgetFor, trimReplayHistory } from "./replayBudget"
+import { capClientToolResults, formatBytes, formatWithheldNote, resolveToolResultLimits, type ToolResultCut, type ToolResultLimits } from "./toolResultLimits"
+import { describeCompaction, extractCompaction, formatCompactionNote, type Compaction } from "./compactionNote"
 import { haikuThinkingCompatibilityError } from "./haikuCompatibility"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
@@ -145,13 +147,15 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator, translateAnthropicSseError } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapters/letta"
+import { extractZedSessionId, isZedUserAgent, ZED_SESSION_HEADER } from "./adapters/zed"
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
-import { requireAuth, authEnabled } from "./auth"
+import { requireAuth, authEnabled, hasValidApiKey, keyMatches, sessionCookieValue, loginCookieOptions, LOGIN_COOKIE } from "./auth"
+import { setCookie, deleteCookie } from "hono/cookie"
 import { detectAdapter } from "./adapters/detect"
 import { rootSessionIdOf } from "./adapter"
 import { buildQueryOptions, isCliThinkingDisplay, promptCachingDisabled, passthroughThinking, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
@@ -615,7 +619,17 @@ function buildFreshPrompt(
   renderToolName?: (name: string) => string,
   budget?: number,
   attempt = "fallback",
+  toolResultLimits?: ToolResultLimits,
 ): string | AsyncIterable<any> {
+  if (toolResultLimits) {
+    // Bound client tool results before the replay budget estimates them: a
+    // result the model will never see must not drop history to make room.
+    const capped = capClientToolResults(messages, toolResultLimits, buildToolUseIndex(messages))
+    messages = capped.messages
+    for (const cut of capped.cuts) {
+      claudeLog("session.tool_result_withheld", { ...cut, windowTokens: toolResultLimits.windowTokens, attempt })
+    }
+  }
   if (budget !== undefined) {
     const trimmed = trimReplayHistory(messages, budget)
     messages = trimmed.messages
@@ -671,6 +685,29 @@ function buildFreshPrompt(
       return { role: m.role, text: flattenUserContent(m.content, sanitizeOpts, toolIndex, renderToolName) }
     })
   )
+}
+
+/** Log every client tool result the proxy replaced while building a prompt. */
+function logToolResultCuts(cuts: readonly ToolResultCut[], limits: ToolResultLimits, requestId: string): void {
+  for (const cut of cuts) {
+    const scope = cut.reason === "result" ? "per-result" : "per-turn"
+    const message = `${requestId} tool_result_withheld: ${cut.tool} result of ${formatBytes(cut.originalBytes)} exceeds the ${scope} limit of ${formatBytes(cut.limitBytes)} (${limits.windowTokens.toLocaleString("en-US")}-token window)`
+    plog(`[PROXY] ${message}`)
+    diagnosticLog.log({ level: "warn", category: "token", message, requestId })
+    claudeLog("session.tool_result_withheld", { ...cut, windowTokens: limits.windowTokens, attempt: "primary" })
+  }
+}
+
+/** Log a compaction Claude Code ran inside this request's session. */
+function logCompaction(compaction: Compaction, requestId: string): void {
+  const message = `${requestId} ${describeCompaction(compaction)}`
+  plog(`[PROXY] ${message}`)
+  diagnosticLog.log({ level: "info", category: "token", message, requestId })
+}
+
+/** The person's note for a compaction, unless MERIDIAN_NO_COMPACTION_NOTE turns it off. */
+function compactionNoteFor(compaction: Compaction): string {
+  return process.env.MERIDIAN_NO_COMPACTION_NOTE ? "" : formatCompactionNote(compaction)
 }
 
 function logLateIdleDeadline(mode: string): (late: LateIdleDeadline) => void {
@@ -2248,6 +2285,46 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return c.html(withSavedLayout(landingHtml))
   })
 
+  // Browser sign-in for the admin pages when MERIDIAN_API_KEY is set. API
+  // clients present the key in a header; a browser opening /profiles has no
+  // header to put it in, so requireAuth sends such a navigation here. The key
+  // is posted once and answered with an HttpOnly cookie carrying a MAC of it
+  // (proxy/auth.ts), never the key. Open routes, on the audit allowlist in
+  // proxy-settings-auth.test.ts: the one place a browser presents the key is
+  // before it has a session. `next` is confined to a same-origin path.
+  const safeNextPath = (raw: unknown): string =>
+    typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/login") ? raw : "/profiles"
+  app.get("/login", async (c) => {
+    c.header("Cache-Control", "no-store")
+    const next = safeNextPath(c.req.query("next"))
+    if (!authEnabled() || hasValidApiKey(c.req.raw.headers)) return c.redirect(next, 302)
+    const { renderLoginPage } = await import("../telemetry/loginPage")
+    return c.html(renderLoginPage({ next }))
+  })
+  app.post("/login", async (c) => {
+    c.header("Cache-Control", "no-store")
+    let form: Record<string, unknown> = {}
+    try {
+      form = await c.req.parseBody()
+    } catch {
+      // An unparseable body is treated as an empty form: the key is absent.
+    }
+    const next = safeNextPath(form.next)
+    if (!authEnabled()) return c.redirect(next, 302)
+    const key = typeof form.key === "string" ? form.key : ""
+    if (!keyMatches(key)) {
+      const { renderLoginPage } = await import("../telemetry/loginPage")
+      return c.html(renderLoginPage({ next, error: "That key was not accepted." }), 401)
+    }
+    setCookie(c, LOGIN_COOKIE, sessionCookieValue(key), loginCookieOptions(new URL(c.req.url).protocol === "https:"))
+    return c.redirect(next, 302)
+  })
+  app.post("/logout", (c) => {
+    c.header("Cache-Control", "no-store")
+    deleteCookie(c, LOGIN_COOKIE, { path: "/" })
+    return c.redirect("/login", 302)
+  })
+
   const handleMessages = async (
     c: Context,
     requestMeta: RequestMeta,
@@ -3208,6 +3285,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
 
 
+        // Per-adapter default effort, only when the request carries none
+        // Claude accepts. Zed's openai_compatible provider sends
+        // `reasoning_effort: "none"`, which normalizeEffort drops, so without
+        // this its turns run at the model's own depth. Applied before the
+        // thinking guards below, so an explicit
+        // "disabled" or a stripped thinking beta still drops it.
+        if (!effort && sdkFeatures.defaultEffort) {
+          effort = normalizeEffort(sdkFeatures.defaultEffort)
+          if (effort) plog(`[PROXY] ${requestMeta.requestId} effort=${effort} applied from per-adapter default`)
+        }
         // Resolve thinking against the per-adapter setting.
         //
         // An *explicitly* configured "disabled" is authoritative: it overrides
@@ -4051,6 +4138,26 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         messages: lineageMessages,
       })
 
+      // Client tool results are bounded by a fraction of this model's context
+      // window before anything estimates or renders them: a result the model
+      // will never see must neither drop history to make room nor overflow the
+      // live turn, which no replay budget can shorten (toolResultLimits.ts).
+      // Lineage and the SDK UUID mapping keep the client's original messages.
+      const toolResultLimits = resolveToolResultLimits(
+        contextWindowFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel()),
+      )
+      const cappedToolResults = capClientToolResults(messagesToConvert, toolResultLimits, buildToolUseIndex(executionMessages))
+      messagesToConvert = cappedToolResults.messages
+      logToolResultCuts(cappedToolResults.cuts, toolResultLimits, requestMeta.requestId)
+      // Shown to the person at the top of the answer; the model's own notice is
+      // already in the prompt. Only the live turn's cuts count: a result cut in
+      // history was announced when it arrived, and Zed resends the thread for
+      // its title, whose first line would otherwise be this note.
+      // MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
+      const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE
+        ? ""
+        : formatWithheldNote(cappedToolResults.liveCuts, toolResultLimits)
+
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
       const freshReplay = !isResume && !resumeSessionId
@@ -4873,6 +4980,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
         if (!stream) {
           const contentBlocks: Array<Record<string, unknown>> = []
+          // Notes for the person about compactions Claude Code ran during this turn.
+          const compactionNotes: string[] = []
           let assistantMessages = 0
           let hasStructuredOutput = false
           let structuredOutput: unknown
@@ -5101,7 +5210,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_resume_replay"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_resume_replay", toolResultLimits),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5162,7 +5271,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_model_fallback"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_model_fallback", toolResultLimits),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5280,6 +5389,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   ? managedForkTarget.sessionId
                   : returnedSessionId
                 validateManagedForkResult(returnedSessionId)
+              }
+              // Claude Code compacted the session's context: tell the person
+              // at the top of the answer, once it is assembled.
+              const compaction = extractCompaction(message)
+              if (compaction) {
+                logCompaction(compaction, requestMeta.requestId)
+                const note = compactionNoteFor(compaction)
+                if (note) compactionNotes.push(note)
               }
               // Passthrough single-turn guard: once the model re-emits a call it
               // already made (detected in the PreToolUse hook between turns), it
@@ -5713,13 +5830,29 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }
           }
 
-          // If no content at all, add a fallback text block
-          if (contentBlocks.length === 0) {
+          // If no content at all, add a fallback text block. A turn that only
+          // compacted the context (a manual `/compact`) answers with its note.
+          if (contentBlocks.length === 0 && compactionNotes.length === 0) {
             contentBlocks.push({
               type: "text",
               text: "I can help with that. Could you provide more details about what you'd like me to do?"
             })
             claudeLog("response.fallback_used", { mode: "non_stream", reason: "no_content_blocks" })
+          }
+
+          // Tool results withheld while building this prompt, and compactions
+          // Claude Code ran during the turn: tell the person, as the first
+          // text of the answer. Structured output is one JSON value, so it
+          // carries no note.
+          if (!outputFormat) {
+            if (withheldNote) {
+              claudeLog("response.tool_results_withheld", { mode: "non_stream", count: cappedToolResults.liveCuts.length })
+            }
+            if (compactionNotes.length > 0) {
+              claudeLog("response.context_compacted", { mode: "non_stream", count: compactionNotes.length })
+            }
+            const leadingNotes = withheldNote + compactionNotes.join("")
+            if (leadingNotes) contentBlocks.unshift({ type: "text", text: leadingNotes })
           }
 
           const totalDurationMs = Date.now() - requestStartAt
@@ -6071,6 +6204,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             let currentClientAssistantUuid: string | null = null
 
             let messageStartEmitted = false
+            let withheldNoteEmitted = false
+            // Compaction notes seen before the client's message started; they
+            // go out with its first block.
+            const pendingCompactionNotes: string[] = []
             // Claude Code re-sends a turn without streaming when its stream fails
             // before message_start (a burst rate_limit_error does this). Such a
             // turn arrives only as assistant messages, never as stream events, so
@@ -6256,6 +6393,44 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               : undefined
             let nextClientBlockIndex = 0
 
+            // A note from the proxy to the person, as a text block of its own.
+            // Only between blocks, once message_start has gone out. Structured
+            // output is one JSON value, so it carries no note.
+            const emitProxyNote = (text: string, source: string): boolean => {
+              if (outputFormat) return false
+              const noteIndex = nextClientBlockIndex++
+              const frames: Array<[string, Record<string, unknown>]> = [
+                ["content_block_start", { type: "content_block_start", index: noteIndex, content_block: { type: "text", text: "" } }],
+                ["content_block_delta", { type: "content_block_delta", index: noteIndex, delta: { type: "text_delta", text } }],
+                ["content_block_stop", { type: "content_block_stop", index: noteIndex }],
+              ]
+              for (const [frameType, data] of frames) {
+                if (!safeEnqueue(encoder.encode(`event: ${frameType}\ndata: ${JSON.stringify(data)}\n\n`), `${source}_${frameType}`)) return false
+                eventsForwarded += 1
+                if (frameType === "content_block_start") contentBlocksForwarded += 1
+              }
+              return true
+            }
+
+            // Tool results withheld while building this prompt: tell the person
+            // as the first text block of the answer, right after message_start.
+            // The cuts are known before generation, so the note also reaches
+            // tool-call turns, which close the stream before any trailing
+            // block. Compactions seen before the message started follow it.
+            const emitLeadingNotes = (source: string): void => {
+              if (withheldNote && !withheldNoteEmitted && !outputFormat) {
+                withheldNoteEmitted = true
+                if (emitProxyNote(withheldNote, "withheld_note")) {
+                  claudeLog("response.tool_results_withheld", { mode: "stream", source, count: cappedToolResults.liveCuts.length })
+                }
+              }
+              for (const note of pendingCompactionNotes.splice(0)) {
+                if (emitProxyNote(note, "compaction_note")) {
+                  claudeLog("response.context_compacted", { mode: "stream", source, placement: "leading" })
+                }
+              }
+            }
+
             // Call only after shouldEarlyStop(earlyStop) returned true.
             const freezeEarlyStopCheckpoint = (): void => {
               nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
@@ -6306,6 +6481,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               ), "unstreamed_message_start")) {
                 messageStartEmitted = true
                 eventsForwarded += 1
+                emitLeadingNotes("unstreamed_envelope")
               }
               for (const turn of turns) {
                 for (const block of turn.content ?? []) {
@@ -6528,7 +6704,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay", toolResultLimits),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -6585,7 +6761,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback", toolResultLimits),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -6759,6 +6935,25 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       ? managedForkTarget.sessionId
                       : returnedSessionId
                     validateManagedForkResult(returnedSessionId)
+                  }
+
+                  // Claude Code compacted the session's context. The boundary
+                  // arrives between API calls, so no content block is open: once
+                  // the client's message has started the note goes out at once;
+                  // before that it waits for message_start, like the withheld note.
+                  const compaction = extractCompaction(message)
+                  if (compaction) {
+                    logCompaction(compaction, requestMeta.requestId)
+                    const note = compactionNoteFor(compaction)
+                    if (note) {
+                      if (messageStartEmitted) {
+                        if (emitProxyNote(note, "compaction_note")) {
+                          claudeLog("response.context_compacted", { mode: "stream", source: "sdk_message", placement: "inline" })
+                        }
+                      } else {
+                        pendingCompactionNotes.push(note)
+                      }
+                    }
                   }
                   let assistantAddedForwardedCall = false
                   if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
@@ -7075,6 +7270,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       if (eventType === "content_block_start" && (event as { content_block?: { type?: unknown } }).content_block?.type === "tool_use") {
                         clientToolUseExposed = true
                       }
+                      if (eventType === "message_start") emitLeadingNotes("stream_event")
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.
@@ -7811,6 +8007,29 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
               if (!streamClosed) {
                 const unstreamedStopReason = openUnstreamedEnvelope()
+
+                // A turn that only compacted the context (a manual `/compact`)
+                // produced no assistant message, so nothing opened the envelope:
+                // open one for the note, or the person sees an empty answer. No
+                // SDK message_delta was seen either, so the terminal delta below
+                // needs an explicit end_turn.
+                let noteOnlyStopReason: string | undefined
+                if (!messageStartEmitted && pendingCompactionNotes.length > 0 && !outputFormat) {
+                  if (safeEnqueue(encoder.encode(
+                    `event: message_start\ndata: ${JSON.stringify({
+                      type: "message_start",
+                      message: {
+                        id: `msg_${Date.now()}`, type: "message", role: "assistant", model,
+                        content: [], stop_reason: null, stop_sequence: null, usage: lastUsage ?? {},
+                      },
+                    })}\n\n`
+                  ), "compaction_note_message_start")) {
+                    messageStartEmitted = true
+                    eventsForwarded += 1
+                    noteOnlyStopReason = "end_turn"
+                    emitLeadingNotes("compaction_only_turn")
+                  }
+                }
                 const unseenToolUses = capturedToolUses.filter(tu => !streamedToolUseIds.has(tu.id))
 
                 // In passthrough mode, emit captured tool_use blocks as stream events
@@ -7900,7 +8119,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 assertPriorityPublicationReady()
                 await finalizePriorityPublication()
                 if (messageStartEmitted) {
-                  sendTerminalDelta(streamedToolUseIds.size > 0 ? "tool_use" : unstreamedStopReason)
+                  sendTerminalDelta(streamedToolUseIds.size > 0 ? "tool_use" : unstreamedStopReason ?? noteOnlyStopReason)
                   sendTerminalStop("final_message_stop")
                 }
 
@@ -11418,7 +11637,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const refused = admissionRefusal(owner, "anthropic")
     if (refused) return refused
     const userAgent = c.req.header("user-agent") ?? ""
-    const jcodeSessionId = userAgent.startsWith("jcode/")
+    // NOTE: Zed-specific. Zed identifies itself by User-Agent and sends its
+    // thread id as `prompt_cache_key`, on thread turns and on its title and
+    // summary one-shots alike. The id is the session key; the one-shots are
+    // told apart by the adapter (no agent system prompt) and never resume or
+    // store. A Zed request keeps its real history even without the id.
+    const isZed = isZedUserAgent(userAgent)
+    const zedSessionId = isZed ? extractZedSessionId(rawBody) : undefined
+    const jcodeSessionId = !isZed && userAgent.startsWith("jcode/")
       ? normalizeJcodeSessionId(c.req.header("x-jcode-session"))
       : undefined
     const isJcode = jcodeSessionId !== undefined
@@ -11430,9 +11656,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // adapters/letta.ts). Parsing it here both selects the adapter and supplies
     // the key: a body without one is not a Letta request and keeps today's
     // generic behaviour.
-    const lettaConversationId = isJcode ? undefined : extractLettaConversationId(rawBody)
+    const lettaConversationId = isJcode || isZed ? undefined : extractLettaConversationId(rawBody)
     const isLetta = lettaConversationId !== undefined
-    const adapterName = isJcode ? "jcode" : isLetta ? "letta" : "openai"
+    const adapterName = isZed ? "zed" : isJcode ? "jcode" : isLetta ? "letta" : "openai"
     // A generic client that carries a session key the adapter recognizes
     // (x-opencode-session / x-session-affinity / x-session-id) keeps its real
     // messages and resumes, like Jcode — packing re-sends the whole conversation as fresh
@@ -11440,7 +11666,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // The key is forwarded on the internal hop below so the inner handler
     // resolves the same session. The forwarded headers are gated on a resolved
     // key below.
-    const openAiHeaderSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
+    const openAiHeaderSessionId = isJcode || isZed ? undefined : openAiAdapter.getSessionId(c)
     // NOTE: agent-specific (OpenAI). A client running its own tool loop and
     // sending no header gets a key derived from the loop's first tool-call id
     // (see deriveToolLoopSessionId).
@@ -11448,12 +11674,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // packed, the headerless-tool-result guard skips lookup, and nothing is
     // stored for the next round. The derived key is a fallback only — a client
     // that sends its own key keeps it, and an ordinary chat derives none.
-    const toolLoopSessionId = isJcode || openAiHeaderSessionId !== undefined
+    const toolLoopSessionId = isJcode || isZed || openAiHeaderSessionId !== undefined
       ? undefined
       : deriveToolLoopSessionId(rawBody)
     const openAiSessionId = openAiHeaderSessionId ?? toolLoopSessionId
     const anthropicBody = translateOpenAiToAnthropic(rawBody, {
-      preserveConversationHistory: isJcode || isLetta || openAiSessionId !== undefined,
+      preserveConversationHistory: isZed || isJcode || isLetta || openAiSessionId !== undefined,
     })
 
     if (!anthropicBody) {
@@ -11511,7 +11737,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,
     }
-    if (jcodeSessionId) {
+    if (zedSessionId) {
+      // Resolved from the OpenAI body above; the inner hop sees the
+      // translated Anthropic body, so hand it the id (see adapters/zed.ts).
+      internalHeaders[ZED_SESSION_HEADER] = zedSessionId
+    } else if (jcodeSessionId) {
       internalHeaders["x-jcode-session"] = jcodeSessionId
     } else if (lettaConversationId) {
       // The inner hop rebuilds headers from scratch, so hand it the id the

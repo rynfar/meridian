@@ -60,6 +60,11 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
 | `MERIDIAN_DEFER_TOOL_THRESHOLD` | — | `15` | Number of tools before non-core tools are deferred via ToolSearch. A client that marks any tool `defer_loading: true` manages deferral itself and is never auto-deferred. Set to `0` to disable. |
+| `MERIDIAN_MAX_TOOL_RESULT_PCT` | — | `5` | Largest client tool result passed to the model, as a percentage of the model's context window (tokens estimated at 2 bytes each: 100 KB on a 1M window, 20 KB on 200k). A larger result is replaced by a notice naming the size, the limit and a sample — see [Oversized tool results](#oversized-tool-results). `0` disables. |
+| `MERIDIAN_MAX_TURN_RESULTS_PCT` | — | `20` | Same, for all tool results of the live turn together. `0` disables. |
+| `MERIDIAN_MAX_TOOL_RESULT_BYTES` | — | unset | Absolute per-result limit in bytes; overrides `MERIDIAN_MAX_TOOL_RESULT_PCT`. `0` disables. |
+| `MERIDIAN_NO_TOOL_RESULT_NOTE` | — | unset | Set to `1` to drop the `[meridian] Withheld …` note prepended to an answer when tool results were withheld for that request. The model's notice and the log line stay. |
+| `MERIDIAN_NO_COMPACTION_NOTE` | — | unset | Set to `1` to drop the `[meridian] Claude Code compacted …` note added to an answer when Claude Code compacted the session's context during that request — see [Compaction notice](#compaction-notice). The log line stays. |
 | `MERIDIAN_TELEMETRY_PERSIST` | `CLAUDE_PROXY_TELEMETRY_PERSIST` | unset | Enable SQLite telemetry persistence. Data survives proxy restarts. |
 | `MERIDIAN_TELEMETRY_DB` | `CLAUDE_PROXY_TELEMETRY_DB` | `~/.config/meridian/telemetry.db` | SQLite database path (when persistence is enabled) |
 | `MERIDIAN_TELEMETRY_RETENTION_DAYS` | `CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS` | `7` | Days to retain telemetry data before cleanup |
@@ -365,6 +370,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /profiles/login/status` | Poll a started login: `waiting`, `completed` or `failed` |
 | `POST /profiles/login/complete` | Finish that login with the code the user pasted back |
 | `GET /callback` | Anthropic's OAuth redirect target. **Not** behind `MERIDIAN_API_KEY` — the redirect carries no key; acts only on a single-use `state` minted by `/profiles/login/start` |
+| `GET /login`, `POST /login` | Browser sign-in when `MERIDIAN_API_KEY` is set: form posts the key once, answered with the `meridian_session` cookie and a redirect to `next` (same-origin paths only). Open by necessity; see [Signing in from a browser](#signing-in-from-a-browser) |
+| `POST /logout` | Clears the session cookie |
 | `POST /profiles/add/start` | Begin creating a new profile — validates the name and returns the authorize URL (see [Adding from the web UI](profiles.md#from-the-web-ui-add-a-profile)) |
 | `POST /profiles/add/complete` | Finish that creation — writes the profile only once Anthropic returns credentials |
 | `GET /v1/usage/quota` | Usage windows for the active profile (JSON) |
@@ -1360,6 +1367,23 @@ When set:
 - All API routes (`/v1/messages`, `/v1/chat/completions`, etc.) and admin routes (`/telemetry`, `/metrics`, `/profiles`) require a matching key
 - `/` and `/health` remain open (monitoring tools need unauthenticated health checks)
 - Keys are accepted via `x-api-key` header or `Authorization: Bearer` header
+- Browsers sign in once at `/login` (see below) and then carry a session cookie
+
+### Signing in from a browser
+
+A browser opening `/profiles`, `/settings`, `/telemetry` or `/plugins` has no
+header to put the key in, so a navigation to a gated page (a `GET` asking for
+HTML with no key header) is redirected to `/login` and back again after the
+key is accepted. `GET /login` and `POST /login` are open: the one place a
+browser can present the key is before it has a session. `POST /logout` ends it.
+
+The cookie (`meridian_session`, `HttpOnly`, `SameSite=Strict`, 30 days, `Secure`
+when served over https) holds an HMAC of the key, never the key itself, so a
+cookie copied out of a browser profile does not disclose the credential API
+clients use. Rotating `MERIDIAN_API_KEY` signs every browser out at once. A
+request that carries a key header is judged by that header alone; a wrong
+header is not rescued by a valid cookie. Scripts and API clients see the same
+401 JSON as before.
 
 Clients just set their `ANTHROPIC_API_KEY` to the shared secret — since most tools already send this header, no workflow changes are needed:
 
@@ -1615,6 +1639,7 @@ Every adapter Meridian can route to appears on that page — the list is derived
 | **Auto-Dream** | on / off | Background memory consolidation between sessions |
 | **Thinking** | disabled / adaptive / enabled | Extended thinking mode for complex reasoning |
 | **Thinking Passthrough** | on / off | Forward thinking blocks to the client for display |
+| **Default Effort** | none / low / medium / high / xhigh / max | Reasoning effort applied when the request carries none Claude accepts (`zed` defaults to `high`: Zed's `openai_compatible` provider sends `"none"`, which is dropped). A request that sends a valid effort keeps it |
 | **Shared Memory** | on / off | Share memory directory with Claude Code (`~/.claude`) instead of isolated storage |
 | **WebFetch Preflight** | on / off | Check each WebFetch hostname against the Anthropic blocklist before fetching (default on, `cherry` only — see below) |
 | **claude.ai Connectors** | on / off | Load the MCP connectors attached to your claude.ai account (default off) |
@@ -1749,6 +1774,20 @@ A lifted budget still stops at the tool boundary. Deferred tools and an advisor 
 > safe precisely because nothing had reached the client yet. An explicit
 > `MERIDIAN_PASSTHROUGH_MAX_TURNS` suppresses the reissue too: the budget is
 > then the operator's, and a second identical attempt would only spend a turn.
+
+### Oversized tool results
+
+A client that runs its own tools sends every result back verbatim, and some tools have no ceiling of their own: Zed's `grep` paginates by match count, not size, so a few matches on a file with multi-megabyte lines come back as one multi-megabyte result. Observed live: a 3.8 MB `grep` result landed on a 176k-token thread and every retry failed with `Prompt is too long`, because the client resends its history on each turn — the replay budget can drop earlier history, but never the live turn that carries the result.
+
+Meridian therefore bounds client tool results before they reach the model, on resumed continuations as well as on fresh replays. A result above `MERIDIAN_MAX_TOOL_RESULT_PCT` of the model's context window (default 5%, tokens estimated at 2 bytes each: 100 KB on a 1M window, 20 KB on 200k), or beyond what `MERIDIAN_MAX_TURN_RESULTS_PCT` (default 20%) leaves for the live turn's results together, is replaced by a `[Tool result withheld by the proxy]` notice marked as a tool error: the tool, the size, the limit, how to narrow the call and a sample of at most 2 KB. The model treats the call as failed and narrows it; the client keeps showing its own full copy. The per-result limit applies to replayed history too; the per-turn limit only to the messages after the last assistant turn, so a fresh replay keeps its newest results. `MERIDIAN_MAX_TOOL_RESULT_BYTES` pins an absolute per-result size instead of the percentage; `0` in any of the three variables disables that limit.
+
+Every cut is logged as `tool_result_withheld` in `/telemetry/logs` and as `session.tool_result_withheld` in the structured log, and the answer of that request starts with a one-line `[meridian] Withheld …` note naming each tool, its size and the limit, so the person sees in the client what the model did not get. `MERIDIAN_NO_TOOL_RESULT_NOTE=1` drops the note; structured-output answers never carry it.
+
+### Compaction notice
+
+Claude Code compacts a session's context on its own once it grows past its auto-compact threshold, and the SDK reports it as a `system` message with subtype `compact_boundary`. Nothing else tells the client: the thread looks intact while the model now reaches the earlier turns only through a summary, which is where a long conversation starts to lose details the person still sees on screen.
+
+Meridian turns that message into a one-line `[meridian] Claude Code compacted this conversation's context …` note with the trigger (automatically or on request) and the token counts before and after, emitted as a text block of its own: the first block of the answer when the compaction ran before the model answered, between blocks when it happened mid-turn, prepended on the non-streamed path. The compaction is also logged as `context_compacted` in `/telemetry/logs` and as `response.context_compacted` in the structured log. A `/compact` typed as a message reaches Claude Code as its slash command; such a turn produces no model message, so its answer is the note alone. `MERIDIAN_NO_COMPACTION_NOTE=1` drops the note; structured-output answers never carry it.
 
 ### Silent turns
 

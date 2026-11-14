@@ -21,6 +21,7 @@ import { lettaAdapter } from "./letta"
 import { codexAdapter } from "./codex"
 import { cherryAdapter } from "./cherry"
 import { polytokenAdapter, normalizePolytokenSessionId } from "./polytoken"
+import { zedAdapter, isZedUserAgent } from "./zed"
 import { loadAdapterInstances, matchesInstance, type AdapterInstanceDef } from "../adapterInstances"
 
 const ADAPTER_MAP: Record<string, AgentAdapter> = {
@@ -60,6 +61,11 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   // Codex CLI endpoint (/v1/responses). Forces passthrough — Codex executes
   // its own tools. Selected via the x-meridian-agent: codex internal tag.
   codex: codexAdapter,
+  // Zed's agent panel over /v1/chat/completions. Executes its own tools,
+  // keys sessions by the thread id it sends as prompt_cache_key. Selected by
+  // its `Zed/` User-Agent, the x-meridian-agent: zed tag the handler sets on
+  // the internal hop, or MERIDIAN_DEFAULT_AGENT.
+  zed: zedAdapter,
 }
 
 /**
@@ -121,10 +127,11 @@ function isLiteLLMRequest(c: Context): boolean {
  * 6. User-Agent starts with "opencode/"     → OpenCode adapter
  * 7. User-Agent starts with "factory-cli/"  → Droid adapter
  * 8. User-Agent starts with "Charm-Crush/"  → Crush adapter
- * 9. User-Agent starts with "claude-cli/"  → Claude Code adapter
- * 10. Polytoken UA ("Polytoken <v>" / "Polytoken/<v>") → Polytoken adapter
- * 11. litellm/* UA or x-litellm-* headers   → LiteLLM passthrough adapter
- * 12. Default                                → MERIDIAN_DEFAULT_AGENT env var, or OpenCode
+ * 9. User-Agent starts with "Zed/"          → Zed adapter
+ * 10. User-Agent starts with "claude-cli/"  → Claude Code adapter
+ * 11. Polytoken UA ("Polytoken <v>" / "Polytoken/<v>") → Polytoken adapter
+ * 12. litellm/* UA or x-litellm-* headers   → LiteLLM passthrough adapter
+ * 13. Default                                → MERIDIAN_DEFAULT_AGENT env var, or OpenCode
  */
 /**
  * Materialize an adapter INSTANCE (#476): the base adapter's behavior under
@@ -214,6 +221,11 @@ export function detectAdapter(c: Context): AgentAdapter {
 
   if (userAgent.startsWith("Charm-Crush/")) {
     return crushAdapter
+  }
+
+  // Zed's agent panel: `Zed/<version> (<os>; <arch>)`. Unambiguous.
+  if (isZedUserAgent(userAgent)) {
+    return zedAdapter
   }
 
   // Polytoken's own User-Agent, without a session header. Token-boundary
