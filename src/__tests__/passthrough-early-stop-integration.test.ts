@@ -3065,9 +3065,10 @@ describe("Integration: passthrough early stop", () => {
     const body = await res.text()
     expect(body).toContain("event: error")
   })
-  // The SDK can stream a declared client call but reject its bare name before
+  // The SDK can stream declared client calls but reject their bare names before
   // PreToolUse runs ("No such tool available: read"). The proxy must deliver
-  // that complete call to the client and retain its canonical checkpoint.
+  // every complete call to the client. Two rejected calls are not a resumable
+  // checkpoint: the mapping is evicted and the next turn is a fresh replay.
   // Incomplete calls must remain errors.
   it("stream: uncaptured declared Pi calls complete the handoff by default", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
@@ -3132,10 +3133,7 @@ describe("Integration: passthrough early stop", () => {
     })
     expect(terminalReasons).toEqual(["tool_use"])
     expect(events.filter(e => e.event === "message_stop")).toHaveLength(1)
-    const checkpoint = lookupSharedSession(sessionHeader)
-    expect(checkpoint?.claudeSessionId).toBe(capturedQueryParamsAll[1]?.options.sessionId)
-    expect(checkpoint?.passthroughToolCallIds).toEqual(["toolu_dangling", "toolu_glob"])
-    expect(checkpoint?.passthroughToolCallAssistantUuid).toBeDefined()
+    expect(lookupSharedSession(sessionHeader)).toBeUndefined()
     mockTerminalError = undefined
     mockMessages = [
       assistantMessage([{ type: "tool_use", id: "toolu_followup", name: "glob", input: { pattern: "*.ts" } }]),
@@ -3158,8 +3156,8 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
     const continuationBody = await continuation.json()
-    expect(capturedQueryParamsAll[2]?.options.resume).toBe(checkpoint?.claudeSessionId)
-    expect(capturedQueryParamsAll[2]?.options.resumeSessionAt).toBe(checkpoint?.passthroughToolCallAssistantUuid)
+    expect(capturedQueryParamsAll[2]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[2]?.options.resumeSessionAt).toBeUndefined()
     expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__read")
     expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__glob")
     expect(continuationBody.content).toEqual(expect.arrayContaining([
@@ -3682,6 +3680,45 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll).toHaveLength(2)
     expect(capturedQueryParamsAll[1].options.resume).toBe(capturedQueryParamsAll[0].options.sessionId)
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  // A resumed multi-call rejection does not carry the client's real tool
+  // results upstream. Evict two or more rejected calls so the next turn is a
+  // full replay; a single rejected call still keeps the checkpoint above.
+  it("stream: two canonical CLI rejections at the one-turn cap evict the mapping", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-cli-rejected-two-calls"
+    const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0", "x-session-affinity": sessionKey }
+    const calls = [
+      { type: "tool_use", id: "toolu_rejected_a", name: "read", input: { file_path: "/a" } },
+      { type: "tool_use", id: "toolu_rejected_b", name: "read", input: { file_path: "/b" } },
+    ]
+    mockMessages = [
+      messageStart("msg_rejected_two"),
+      toolUseBlockStart(0, calls[0]!.name, calls[0]!.id),
+      inputJsonDelta(0, JSON.stringify(calls[0]!.input)),
+      blockStop(0),
+      toolUseBlockStart(1, calls[1]!.name, calls[1]!.id),
+      inputJsonDelta(1, JSON.stringify(calls[1]!.input)),
+      blockStop(1),
+      messageDelta("tool_use"), messageStop(),
+      { ...assistantMessage(calls), test_skip_pre_tool_hook: true },
+      unavailableToolMessage(calls[0]!.id, calls[0]!.name),
+      unavailableToolMessage(calls[1]!.id, calls[1]!.name),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const rejected = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "call read twice" }],
+    }, "unused", headers)
+    const body = await rejected.text()
+    expect(body).toContain('"stop_reason":"tool_use"')
+    expect(body).not.toContain("event: error")
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    expect(lookupSharedSession(sessionKey)).toBeUndefined()
   })
 
   it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {

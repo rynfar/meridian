@@ -103,14 +103,18 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   are durably written at `error_max_turns`. Requiring hook capture to publish
   that checkpoint discarded fresh replays and cold-cached every following
   turn. Retain it only after observing the canonical SDK result at the
-  one-turn cap, with complete streamed calls all declared by the client,
-  id/name-matched CLI name-dispatch refusals for every call, no dropped calls,
-  and the ordinary settled assistant UUID/full-call-set and publication
-  guards. Resume rewinds before the rejection and appends real client results.
-  Abort-window calls without a result, malformed-input refusals, undeclared
-  names, unkeyed requests and larger turn budgets keep the existing eviction
-  behavior. Retained checkpoints use ordinary continuation tool caching;
-  the one-shot recovery tool grant remains only for evicted checkpoints.
+  one-turn cap, with exactly one complete streamed call declared by the
+  client, an id/name-matched CLI name-dispatch refusal for that call, no
+  dropped calls, and the ordinary settled assistant UUID/full-call-set and
+  publication guards. Resume rewinds before the rejection and appends the
+  real client result. Two or more rejected calls in the same assistant turn
+  are evicted: resuming them drops the client's real tool results, and
+  delivering those results on a multi-call resume is an open item
+  (`docs/maintenance/FRESH_REPLAY_CHECKPOINT.md`). Abort-window calls without
+  a result, malformed-input refusals, undeclared names, unkeyed requests and
+  larger turn budgets keep the existing eviction behavior. Retained
+  checkpoints use ordinary continuation tool caching; the one-shot recovery
+  tool grant remains only for evicted checkpoints.
 - **Passthrough tool sets are shared by content, never by lifetime.** Sessions
   sending identical tools share one built definition set (#1410) and one raw
   tool list (#1444), found through process-wide indexes keyed by a digest of

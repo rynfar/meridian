@@ -8310,9 +8310,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // tool_result, instead of replaying the conversation against a
               // cold cache. Other drain failures remain unsafe and are
               // evicted.
+              //
+              // Exactly one streamed call. Resuming two or more rejected calls
+              // drops the client's real tool results; those turns are evicted
+              // and the next request is a full replay.
               const canonicalRejectedCheckpoint =
                 uncapturedRecoveryActive &&
                 confirmedToolUnavailable &&
+                streamedToolBlockRecords.size === 1 &&
                 Boolean(profileSessionId) &&
                 sawCanonicalResult &&
                 lastAttemptMaxTurns === 1 &&
