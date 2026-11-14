@@ -100,7 +100,7 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { parseToolInputObject } from "./toolInputJson"
-import { createPassthroughMcpServer, sharedPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, resolveAutoDeferDecision, clientOwnsToolSearch, referencedToolNames, clientSearchRegistrationTools } from "./passthroughTools"
+import { createPassthroughMcpServer, sharedPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, resolveAutoDeferDecision, clientOwnsToolSearch, sdkOwnsPrefixedToolSearch, referencedToolNames, clientSearchRegistrationTools } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
@@ -4178,8 +4178,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const clientToolPrefix = passthroughMcpPrefix(passthroughMcpName)
       // Client-owned search: register eager tools plus referenced deferred ones.
       const clientToolSearch = passthrough && clientOwnsToolSearch(requestTools)
-      // A client ToolSearch makes `mcp__oc__ToolSearch` its own, never the SDK's.
-      const clientDeclaresToolSearch = passthrough && requestTools.some((tool: { name?: unknown }) => tool?.name === "ToolSearch")
       const registrationTools = clientToolSearch
         ? clientSearchRegistrationTools(requestTools, referencedToolNames(body.messages))
         : requestTools
@@ -4532,12 +4530,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
-      // The SDK's search under the client prefix stays inside the SDK, so the
-      // model retries with the real ToolSearch (isSdkToolSearchCall).
-      // A client tool whose registered alias is `ToolSearch` (a client tool
-      // literally named `mcp__oc__ToolSearch`) owns that name too.
-      const sdkOwnsPrefixedSearch = hasDeferredTools && !clientDeclaresToolSearch
-        && !passthroughMcp?.clientNameByAlias.has("ToolSearch")
+      const sdkOwnsPrefixedSearch = passthrough
+        && sdkOwnsPrefixedToolSearch(requestTools, hasDeferredTools, passthroughMcp?.clientNameByAlias)
       // Prompt-cache keepalive (src/proxy/SPEC.md → Decisions). Only a real
       // turn of a keyed passthrough session on a subscription account is
       // tracked: beats resume the stored mapping, and in passthrough every
