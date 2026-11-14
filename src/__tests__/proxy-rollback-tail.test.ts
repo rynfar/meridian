@@ -169,6 +169,35 @@ describe("rollback-tail partial replay over HTTP", () => {
     })
   }
 
+  // #1510 composition (Oh My Pi, 2026-11-07): the stored history holds an
+  // eval-state note the client later dropped, plus a background side request
+  // under the main key. Regrouping proves the prefix through the final answer;
+  // the remaining change is the undone side request, which forks there.
+  it("forks a regrouped history at its moved final answer instead of replaying it", async () => {
+    const reminder = (body: string) => `<system-reminder>\n${body}\n</system-reminder>`
+    const userBlocks = (...texts: string[]): Message => ({ role: "user", content: texts.map(text => ({ type: "text", text })) })
+    const head = [user("HEAD_MARKER start the work"), assistant("first part done"), user("continue"), assistant("second part done")]
+    const evalStateNote = user(reminder("eval kernel state: x = 1"))
+    const prompt = userBlocks(reminder("Today: 2026-11-07"), "polish, fix and create PR")
+    const stretchNote = user("Reply in stretchtext.")
+    const work = [assistant("checked the diff"), user("go on"), assistant("PR opened")]
+    const sideTail: Message[] = [user(`${reminder("probe context")}\n`), { role: "system", content: [] }, user("SIDE_MARKER Is the task complete?")]
+    const nextPrompt = userBlocks(reminder("Today: 2026-11-07"), "NEXT_MARKER update the changelog")
+
+    await seed(key, [...head, evalStateNote, prompt, stretchNote, ...work, ...sideTail])
+    await send(key, [...head, prompt, stretchNote, ...work, nextPrompt, stretchNote])
+
+    // Stored index 9 ("PR opened") sits at incoming index 8 after the regroup.
+    expectFork("uuid-9")
+    const delivered = JSON.stringify(await promptOf(captured[0]!))
+    expect(delivered).toContain("NEXT_MARKER")
+    expect(delivered).not.toContain("HEAD_MARKER")
+    expect(delivered).not.toContain("SIDE_MARKER")
+    expect(diagnostics()).toContain("1 run, stored 10 -> incoming 9")
+    expect(diagnostics()).toContain("lineage=rollback-tail session=sdk-sour rollback=uuid-9 from=undo-gap prefix=9 tail=2")
+    expect(lastLineage()).toBe("rollback-tail")
+  })
+
   it("keeps today's full replay with the setting off", async () => {
     delete process.env.MERIDIAN_PARTIAL_REPLAY
     await seed(key, history)

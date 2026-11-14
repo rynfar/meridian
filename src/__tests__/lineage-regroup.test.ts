@@ -132,6 +132,24 @@ describe("incident: a reminder-only user message disappeared (2026-11-07)", () =
     })
   })
 
+  it("with partialReplay, forks the undone side request at the final answer's SDK UUID", () => {
+    const result = verifyLineage(stored(storedIncident, incidentUuids), incomingIncident, { partialReplay: true })
+
+    // The regroup and the rollback-tail compose: the fork point is chosen in
+    // incoming positions on the realigned session, so the moved final answer
+    // keeps its stored UUID and only the new prompt and stretch note follow.
+    expect(result).toMatchObject({
+      type: "diverged",
+      reason: "undo-gap",
+      prefixOverlap: incomingFinal + 1,
+      regrouped: { runs: 1 },
+      rollbackTail: { rollbackIndex: incomingFinal, rollbackUuid: `uuid-${storedFinal}`, settledToolIds: [] },
+    })
+    if (result.type !== "diverged" || !result.rollbackTail) throw new Error("expected a rollback-tail candidate")
+    expect(result.rollbackTail.session.claudeSessionId).toBe("sdk-source")
+    expect(incomingIncident.length - 1 - result.rollbackTail.rollbackIndex).toBe(2)
+  })
+
   it("resumes the main turn when no side request intervened", () => {
     const storedTurn = [...head, evalStateNote, prompt, stretchNote, ...toolLoop]
     const uuids = uuidsFrom(storedTurn, firstNativeTurn)
