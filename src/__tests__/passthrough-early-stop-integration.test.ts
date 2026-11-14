@@ -3942,6 +3942,70 @@ describe("Integration: passthrough early stop", () => {
     })
   }
 
+  for (const shape of ["captured", "mixed", "uncaptured", "latched-metadata", "latched-stream", "latched-stream-only", "latched-error"] as const) {
+    it(`publication guard replays SSE ${shape} completion`, async () => {
+      const sessionKey = `publication-${shape}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const latched = shape.startsWith("latched")
+      const calls = Array.from({ length: shape === "uncaptured" ? 1 : 2 }, (_, index) => ({
+        type: "tool_use", id: `publication-${index}`, name: "mcp__oc__read", input: { file_path: `/file-${index}` },
+      }))
+      const tools = [READ_TOOL, { name: "lsp_diagnostics", defer_loading: true, input_schema: { type: "object" } }]
+      const hook = (index: number) => ({ type: "test_pre_tool_hook", tool_name: calls[index]!.name,
+        tool_use_id: calls[index]!.id, tool_input: calls[index]!.input })
+      mockMessages = latched ? [
+        messageStart("publication-latched"), toolUseBlockStart(0, calls[0]!.name, calls[0]!.id),
+        inputJsonDelta(0, JSON.stringify(calls[0]!.input)), blockStop(0), messageDelta("tool_use"), messageStop(),
+        assistantMessage([calls[0]!]), userDenyMessage(calls[0]!.id),
+        ...(shape.startsWith("latched-stream") ? [toolUseBlockStart(1, calls[1]!.name, calls[1]!.id),
+          inputJsonDelta(1, JSON.stringify(calls[1]!.input)), blockStop(1)] : []),
+        ...(shape === "latched-stream-only" ? [] : [{ ...assistantMessage([calls[1]!]), test_skip_pre_tool_hook: true }]),
+        unavailableToolMessage(calls[1]!.id, "read"),
+        { type: "result", subtype: shape === "latched-error" ? "error_max_turns" : "success", is_error: shape === "latched-error" },
+      ] : [
+        { ...assistantMessage(calls), test_skip_pre_tool_hook: true },
+        ...(shape === "captured" ? [hook(0), hook(1)] : shape === "mixed" ? [hook(0)] : []),
+        ...calls.map((call, index) => shape === "captured" || (shape === "mixed" && index === 0)
+          ? userDenyMessage(call.id) : unavailableToolMessage(call.id, "read")),
+        { type: "result", subtype: "success", is_error: false },
+      ]
+      mockTerminalError = shape === "latched-error"
+        ? new Error("Claude Code returned an error result: Reached maximum number of turns (1)") : undefined
+      const messages = [{ role: "user", content: "read every file" }]
+      const first = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true, tools, messages }, "unused", headers)
+      const body = await first.text()
+      expect(first.status).toBe(200)
+      expect(body).not.toContain("event: error")
+      const visibleCalls = parseSSE(body).filter(frame => frame.event === "content_block_start")
+        .map(frame => frame.data.content_block)
+        .filter((block): block is { type: "tool_use"; id: string; name: string; input: unknown } =>
+          typeof block === "object" && block !== null && "type" in block && block.type === "tool_use" &&
+          "id" in block && typeof block.id === "string")
+      expect(visibleCalls.map(call => call.id)).toEqual(shape === "captured" ? calls.map(call => call.id)
+        : shape === "uncaptured" ? [] : [calls[0]!.id])
+      if (visibleCalls.length > 0) expect(body).toContain('"stop_reason":"tool_use"')
+      // Do not stop at the mapping assertion: on RED the follow-up itself must
+      // demonstrate that a null checkpoint bypasses the read-side tool guard.
+      const stored = lookupSharedSession(sessionKey)
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "all results received" }])]
+      const next = await post(app, { model: "opus[1m]", max_tokens: 400, stream: false, tools,
+        messages: [...messages,
+          { role: "assistant", content: visibleCalls.length ? visibleCalls : [{ type: "text", text: "continue" }] },
+          { role: "user", content: visibleCalls.length ? visibleCalls.map(call => ({ type: "tool_result",
+            tool_use_id: call.id, content: `REAL_CLIENT_RESULT_${call.id}` })) : "continue" },
+        ],
+      }, "unused", headers)
+      expect((await next.json()).content).toContainEqual({ type: "text", text: "all results received" })
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+      expect(stored).toBeUndefined()
+      const replay = await serializedPrompt(capturedQueryParamsAll[1].prompt)
+      for (const call of visibleCalls) expect(replay.split(`REAL_CLIENT_RESULT_${call.id}`)).toHaveLength(2)
+    })
+  }
+
   for (const stream of [true, false]) for (const capped of [true, false]) for (const count of [1, 2, 3]) {
     it(`all-captured checkpoint ${count === 1 ? "retains" : "replays"} (${JSON.stringify({ stream, capped, count })})`, async () => {
       const sessionKey = `all-captured-${stream}-${capped}-${count}-${TEST_RUN_ID}`

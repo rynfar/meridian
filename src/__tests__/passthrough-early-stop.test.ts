@@ -13,6 +13,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   checkpointHasUncapturedCalls,
+  checkpointPublicationRequiresReplay,
   checkpointRequiresReplay,
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
@@ -39,6 +40,28 @@ const sdkAssistant = (uuid: unknown, content: unknown) => ({
   type: "assistant",
   uuid,
   message: { role: "assistant", content },
+})
+
+describe("checkpoint publication invariant", () => {
+  for (const [label, visible, checkpoint, observed, captured, ready, replay] of [
+    ["plain text", [], [], [], [], false, false],
+    ["captured single", ["a"], ["a"], ["a"], ["a"], true, false],
+    ["captured parallel", ["a", "b"], ["a", "b"], ["a", "b"], ["a", "b"], true, true],
+    ["missing boundary", ["a"], [], ["a"], ["a"], false, true],
+    ["missing canonical result", ["a"], ["a"], ["a"], ["a"], false, true],
+    ["wrong candidate", ["b"], ["a"], ["a", "b"], ["a", "b"], true, true],
+    ["late uncaptured metadata", ["a"], ["a"], ["a", "b"], ["a"], true, true],
+    ["late uncaptured stream", ["a", "b"], ["a"], ["a"], ["a"], true, true],
+    ["uncaptured only", [], [], ["a"], [], false, true],
+    ["hidden captured digest", ["a"], ["a"], ["a", "b"], ["a", "b"], true, false],
+  ] as const) {
+    it(label, () => {
+      expect(checkpointPublicationRequiresReplay({
+        clientToolCallIds: visible, checkpointToolCallIds: checkpoint,
+        observedToolCallIds: observed, forwardedToolUseIds: new Set(captured), checkpointReady: ready,
+      })).toBe(replay)
+    })
+  }
 })
 
 describe("prefix cross-check", () => {

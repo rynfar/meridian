@@ -14,7 +14,7 @@
 // A single name-dispatch rejection at maxTurns=1 retains and resumes. Other
 // uncaptured calls and every multi-call checkpoint evict and replay all results.
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const executable = process.argv.find(arg => arg.startsWith("--claude="))?.slice(9)
@@ -27,6 +27,10 @@ const transientTail = process.argv.includes("--transient-tail")
 const mixed = process.argv.includes("--mixed")
 const deferred = process.argv.includes("--deferred")
 const nonStream = process.argv.includes("--non-stream")
+// Exercise real CLI assistant-only output while keeping Meridian's SSE path.
+// The isolated launcher removes only the CLI's partial-event output flag.
+const unstreamed = process.argv.includes("--unstreamed")
+assert(!unstreamed || !nonStream, "--unstreamed requires Meridian SSE")
 const captured = process.argv.includes("--captured")
 const capturedLast = process.argv.includes("--captured-last")
 const inputValidation = process.argv.includes("--input-validation")
@@ -37,7 +41,8 @@ assert(!distinctTools || captured, "--distinct-tools requires --captured")
 assert(!capturedLast || mixed, "--captured-last requires --mixed")
 assert(!mixed || callCount > 1, "--mixed requires at least two calls")
 assert(!(mixed && captured), "choose --mixed or --captured")
-const extended = mixed || deferred || nonStream || captured || inputValidation
+assert(!unstreamed || captured || mixed, "--unstreamed requires --captured or --mixed")
+const extended = mixed || deferred || nonStream || captured || inputValidation || unstreamed
 const digestExpected = deferred && !mixed && !captured
 const calls = Array.from({ length: callCount }, (_, index) => ({
   type: "tool_use", id: index === 0 ? "toolu_offline" : "toolu_offline_" + index,
@@ -52,6 +57,17 @@ const capturedCall = index => captured || (mixed && index === (capturedLast ? ca
 const rawInput = (block, index) => inputValidation && !capturedCall(index)
   ? JSON.stringify(block.input).replaceAll("\\t", "\t") : JSON.stringify(block.input)
 const root = mkdtempSync(join(process.cwd(), ".fresh-checkpoint-e2e-"))
+const launcher = join(root, "claude-unstreamed")
+const launcherWitness = join(root, "partial-flag-removed")
+const shellQuote = value => "'" + value.replaceAll("'", "'\\''") + "'"
+if (unstreamed) writeFileSync(launcher, [
+  "#!/bin/bash", "set -eu", "args=()",
+  'for arg in "$@"; do',
+  '  if [[ "$arg" == --include-partial-messages ]]; then',
+  "    printf 'removed\\n' >> " + shellQuote(launcherWitness),
+  '  else args+=("$arg"); fi', "done",
+  "exec " + shellQuote(cli) + ' "${args[@]}"', "",
+].join("\n"), { mode: 0o755 })
 // Start without inherited provider credentials or operational overrides.
 for (const key of Object.keys(process.env)) {
   if (/^(ANTHROPIC_|CLAUDE_|CLAUDECODE$|MERIDIAN_)/.test(key)) delete process.env[key]
@@ -64,10 +80,20 @@ Object.assign(process.env, {
   MERIDIAN_CONFIG_DIR: join(root, "config"),
   MERIDIAN_SESSION_DIR: join(root, "sessions"),
   MERIDIAN_WORKDIR: root,
-  MERIDIAN_CLAUDE_PATH: cli,
+  MERIDIAN_CLAUDE_PATH: unstreamed ? launcher : cli,
   MERIDIAN_PASSTHROUGH: "1",
   MERIDIAN_TELEMETRY_PERSIST: "0",
 })
+const debugEvents = []
+const originalDebug = console.debug
+if (unstreamed) {
+  process.env.OPENCODE_CLAUDE_PROVIDER_DEBUG = "1"
+  console.debug = (...args) => {
+    const prefix = "[opencode-claude-code-provider] "
+    if (typeof args[0] === "string" && args[0].startsWith(prefix)) debugEvents.push(JSON.parse(args[0].slice(prefix.length)))
+    else originalDebug(...args)
+  }
+}
 const wire = []
 let followUp = false
 let firstRequestCalls = 0
@@ -179,7 +205,14 @@ try {
       else assert(results.some(block => JSON.stringify(block.content).includes(PASSTHROUGH_DENY_REASON)), "registered call must reach PreToolUse deny")
     }
     if (digestExpected) assert(rows.some(row => row.message?.content?.some?.(block => block.type === "text" && block.text === "hidden digest")), "CLI must commit hidden second-turn completion")
-    console.log("SHAPE " + JSON.stringify({ mixed, deferred, nonStream, captured, capturedLast, inputValidation, checkpointRetained: Boolean(mapping), firstRequestCalls }))
+    if (unstreamed) {
+      assert(readFileSync(launcherWitness, "utf8").includes("removed"), "real CLI launcher must suppress partial events")
+      const completion = debugEvents.find(event => event.event === "upstream.completed" && event.mode === "stream")
+      assert.equal(completion?.streamEventsSeen, 0, "real SDK iterator must emit no partial frames")
+      assert(debugEvents.some(event => event.event === "response.unstreamed_turn_forwarded"), "must exercise the unstreamed SSE envelope")
+      console.log("UNSTREAMED " + JSON.stringify({ streamEventsSeen: completion.streamEventsSeen, envelopeForwarded: true }))
+    }
+    console.log("SHAPE " + JSON.stringify({ mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, checkpointRetained: Boolean(mapping), firstRequestCalls }))
   } else if (retainCheckpoint) {
     assert(mapping, "fresh canonical rejection lost its mapping")
     assert.deepEqual(mapping.messageHashes, computeMessageHashes(firstHistory))
@@ -220,13 +253,17 @@ try {
     content[index].input = inputValidation ? parseToolInputObject(value) : JSON.parse(value)
     assert(content[index].input, "client must be able to repair the complete tool input")
   }
-  assert.deepEqual(content.filter(block => block.type === "tool_use"), calls)
-  console.log("CLIENT_CALLS " + JSON.stringify({ expected: calls.length,
+  // Assistant-only fallback currently emits captured calls, not rejected ones.
+  // Keep the full-call assertion for every ordinary matrix row; these explicit
+  // unstreamed rows prove delivery of every result the real client can return.
+  const clientCalls = unstreamed ? calls.filter((_, index) => capturedCall(index)) : calls
+  assert.deepEqual(content.filter(block => block.type === "tool_use"), clientCalls)
+  console.log("CLIENT_CALLS " + JSON.stringify({ upstream: calls.length, expected: clientCalls.length,
     received: content.filter(block => block.type === "tool_use").length }))
   if (thinking) assert.equal(content[0].type, "thinking")
   const nextHistory = [...history,
     { role: "assistant", content },
-    { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) },
+    { role: "user", content: clientCalls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) },
     ...suffix,
   ]
   if (mapping) {
@@ -262,13 +299,13 @@ try {
     const results = followUpWire.messages.flatMap(message => Array.isArray(message.content)
       ? message.content.filter(block => block.type === "tool_result") : [])
     console.log("RESUME_RESULTS " + JSON.stringify({
-      real: calls.filter(call => results.some(block => block.tool_use_id === call.id &&
+      real: clientCalls.filter(call => results.some(block => block.tool_use_id === call.id &&
         block.content === realResult(call))).map(call => call.id),
       internalError: results.filter(block => block.content === "[Tool result missing due to internal error]")
         .map(block => block.tool_use_id),
     }))
   }
-  if (expectResume) for (const call of calls) {
+  if (expectResume) for (const call of clientCalls) {
     assert(followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)))
     assert(followUpWire.messages.some(message => message.content?.some?.(block =>
@@ -278,9 +315,9 @@ try {
   if (!expectResume) {
     // A fresh SDK query cannot carry native assistant tool blocks. The replay
     // renders each client result as history text attributed to its call id.
-    assert.equal(replayText.split("REAL_CLIENT_RESULT").length - 1, calls.length,
+    assert.equal(replayText.split("REAL_CLIENT_RESULT").length - 1, clientCalls.length,
       "fresh replay must contain one real client result per call")
-    for (const call of calls) {
+    for (const call of clientCalls) {
       assert(replayText.includes(`"tool_use_id":"${call.id}"`) && replayText.includes(realResult(call)),
         "fresh replay lacks real client result for " + call.id)
     }
@@ -304,8 +341,9 @@ try {
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
     : "PASS continuation: native assistant and real client result for every call; rejection rewound")
   const sdkVersion = JSON.parse(readFileSync(new URL("../node_modules/@anthropic-ai/claude-agent-sdk/package.json", import.meta.url), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, upstreamCalls: wire.length, liveModelCalls: 0 }))
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
+  console.debug = originalDebug
   await proxy?.closeBackend?.()
   upstream.stop(true)
   rmSync(root, { recursive: true, force: true })

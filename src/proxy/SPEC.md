@@ -122,13 +122,28 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   one SDK input contains every native result. Order/grouping, hook-delay and
   earlier-fragment probes did not establish a safe resume shape; the internal
   CLI cause remains unproven. A durable assistant boundary and capture proof
-  therefore do not prove result delivery. JSON completion, SSE completion and
-  captured-error recovery must evict multi-call checkpoints; a previously
-  retained multi-call checkpoint also takes fresh full replay on read.
-  Cardinality applies to the client-visible batch, not hidden captured digest
-  metadata pruned from that batch. Independent emitted-ID capture proof stays
-  in force. Single-call capture retention and the canonical single-call
-  name-dispatch exception are unchanged. Fresh replay preserves all real
+  therefore do not prove result delivery. JSON completion, SSE completion
+  (including assistant-only/unstreamed output), captured-error recovery and
+  silent-turn recovery must evict multi-call checkpoints; a previously retained
+  multi-call checkpoint also takes fresh full replay on read.
+  Publication uses the shared `checkpointPublicationRequiresReplay` invariant:
+  a tool turn requires a canonical settled assistant UUID and an exact match
+  between its checkpoint IDs and the client-visible batch, with exactly one
+  captured call. SSE computes that batch from both streamed IDs and captured
+  calls queued for the final envelope, not only partial stream events. An
+  assistant-only batch can settle at publication after canonical drain; a
+  captured single call still retains its rewind checkpoint. Any uncaptured
+  assistant or wire call observed during drain invalidates publication even
+  after the candidate latches, including suppressed wire-only fragments without
+  assistant metadata. Cardinality applies to the client-visible batch, not
+  hidden captured digest metadata pruned from that batch. JSON uses the same
+  rule with its completed response blocks. Silent recovery must win either
+  publication of its eligible fork or exact-generation mapping invalidation
+  before releasing buffered recovery content; invalidated forks are abandoned,
+  and a CAS loser withholds its calls. Plain text and captured single-call
+  retention remain unchanged, as does the canonical single-call name-dispatch
+  exception (which supplies only that call's otherwise missing capture proof).
+  Fresh replay preserves all real
   client results at the cost of rebuilding the SDK prefix/cache and losing
   SDK-only context not present in client history. See
   `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md` for red/green evidence and

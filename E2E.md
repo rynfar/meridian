@@ -40,14 +40,21 @@ Rejected parallel checkpoint controls (all use the same `--claude=...`):
   rejected call's JSON string. The real CLI must record InputValidationError
   before PreToolUse; the checkpoint evicts and both real results replay.
   `--deferred --calls=1 --input-validation` is the single-call deferred control.
-- **Separate pre-existing defect:** `--captured --calls=3` delivers all three
-  calls but loses the second/third real results on native resume on both
-  production-baseline e1c37ba4 and dd5badbc. `firstRequestCalls` counts upstream
-  HTTP requests, not client-visible calls. Add `--sse-delay-ms=25 --distinct-tools`
-  for the paced, three-distinct-registered-tool reproduction: it also fails on
-  both implementations, with CLI internal-error placeholders for two results.
-  Do not weaken its assertions or change all-captured retention to make it pass.
-  See the mixed-checkpoint record for the diagnosis and completed guard gates.
+- **Approved multi-call fallback:** `--captured --calls=2` and `--captured
+  --calls=3` must now evict and replay every real result. Native resume loses
+  later results on production-baseline e1c37ba4 and dd5badbc; the operator
+  approved fresh replay after diagnosis did not establish a safe resume shape.
+  Add `--sse-delay-ms=25 --distinct-tools` for paced three-distinct-tool coverage.
+- `--unstreamed --deferred --captured --calls=1|2|3` exercises SSE completion
+  with no SDK partial events. Its disposable launcher execs the named real CLI
+  with only `--include-partial-messages` removed. Runtime diagnostics must
+  report zero stream events and the unstreamed envelope. Single-call capture
+  retains a rewind checkpoint; two/three calls replay fresh. `--unstreamed
+  --deferred --mixed --calls=2`, with or without `--captured-last`, must also
+  replay. The existing assistant-only envelope forwards captured calls only:
+  these mixed rows assert the exact one-call client subset of two upstream
+  calls, then delivery of its real result, not forwarding of the rejected call.
+  See the mixed-checkpoint record for red/green evidence and remaining limits.
 
 Each control inspects the real transcript to distinguish hook capture from
 name-dispatch rejection, assembles the follow-up from the actual client

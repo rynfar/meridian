@@ -302,26 +302,42 @@ describe("silent-turn recovery", () => {
     expect(lookupSharedSession("silent-partial-throw")?.claudeSessionId).toBe(initialManagedSessionId())
   })
 
-  it("publishes and emits only a complete parallel recovery tool checkpoint", async () => {
-    const toolIds = ["recovery-parallel-a", "recovery-parallel-b"]
+  for (const count of [1, 2, 3]) it(`publication guard ${count === 1 ? "retains" : "replays"} complete ${count}-call silent recovery`, async () => {
+    const toolIds = Array.from({ length: count }, (_, index) => `recovery-parallel-${index}`)
     const assistantUuid = crypto.randomUUID()
     const terminal = forkMsgEnd()
     scripted = [
       [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
       [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } }),
-       ...recoveryToolBlock(0, toolIds[0]!, "a.txt"),
-       { __preTool: true, id: toolIds[0], name: "read", input: { file_path: "a.txt" } },
-       ...recoveryToolBlock(1, toolIds[1]!, "b.txt"),
-       { __preTool: true, id: toolIds[1], name: "read", input: { file_path: "b.txt" } },
+       ...toolIds.flatMap((id, index) => [...recoveryToolBlock(index, id, `${index}.txt`),
+         { __preTool: true, id, name: "read", input: { file_path: `${index}.txt` } }]),
        terminal[0], terminal[1], recoveryAssistantTools(toolIds, assistantUuid), recoveryDeny(toolIds), terminal[2]],
     ]
-    const body = await read(await post(app, REQUEST, "silent-recovery-parallel"))
-    expect(body).toContain(toolIds[0]!)
-    expect(body).toContain(toolIds[1]!)
-    const stored = lookupSharedSession("silent-recovery-parallel")
-    expect(stored?.claudeSessionId).toBe(queryCalls[1].options.sessionId)
-    expect(stored?.passthroughToolCallAssistantUuid).toBe(assistantUuid)
-    expect(stored?.passthroughToolCallIds?.toSorted()).toEqual([...toolIds].sort())
+    const session = `silent-recovery-parallel-${count}`
+    const body = await read(await post(app, REQUEST, session))
+    expect(body).toContain('"stop_reason":"tool_use"')
+    for (const id of toolIds) expect(body).toContain(id)
+    const stored = lookupSharedSession(session)
+    scripted = [[msgStart(), ...textBlock(0, "all results received"), ...msgEnd()]]
+    await read(await post(app, { ...REQUEST, messages: [...REQUEST.messages,
+      { role: "assistant", content: toolIds.map((id, index) => ({ type: "tool_use", id, name: "read", input: { file_path: `${index}.txt` } })) },
+      { role: "user", content: toolIds.map(id => ({ type: "tool_result", tool_use_id: id, content: `REAL_CLIENT_RESULT_${id}` })) },
+    ] }, session))
+    expect(queryCalls).toHaveLength(3)
+    if (count === 1) {
+      expect(stored?.claudeSessionId).toBe(queryCalls[1].options.sessionId)
+      expect(stored?.passthroughToolCallAssistantUuid).toBe(assistantUuid)
+      expect(stored?.passthroughToolCallIds).toEqual(toolIds)
+      expect(queryCalls[2].options.resume).toBe(queryCalls[1].options.sessionId)
+      expect(queryCalls[2].options.resumeSessionAt).toBe(assistantUuid)
+    } else {
+      expect(queryCalls[2].options.resume).toBeUndefined()
+      expect(stored).toBeUndefined()
+    }
+    const prompt: unknown[] = []
+    if (typeof queryCalls[2].prompt === "string") prompt.push(queryCalls[2].prompt)
+    else for await (const row of queryCalls[2].prompt) prompt.push(row)
+    for (const id of toolIds) expect(JSON.stringify(prompt).split(`REAL_CLIENT_RESULT_${id}`)).toHaveLength(2)
   })
 
   it("does not emit or publish recovery tool calls when the recovery throws", async () => {
@@ -338,6 +354,31 @@ describe("silent-turn recovery", () => {
     const body = await read(await post(app, REQUEST, "silent-recovery-tool-throw"))
     expect(body).not.toContain(toolId)
     expect(lookupSharedSession("silent-recovery-tool-throw")?.claudeSessionId).toBe(initialManagedSessionId())
+  })
+
+  it("withholds parallel recovery calls when replay invalidation loses the exact CAS", async () => {
+    const sessionKey = `silent-replay-cas-${crypto.randomUUID()}`
+    const ids = ["replay-cas-a", "replay-cas-b"]
+    const terminal = forkMsgEnd()
+    scripted = [
+      [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
+      [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [] } }),
+       ...ids.flatMap((id, index) => [...recoveryToolBlock(index, id, `${index}.txt`),
+         { __preTool: true, id, name: "read", input: { file_path: `${index}.txt` } }]),
+       terminal[0], terminal[1], recoveryAssistantTools(ids), recoveryDeny(ids), terminal[2]],
+    ]
+    queryMutation = async () => {
+      if (queryCalls.length !== 2) return
+      queryMutation = undefined
+      const current = lookupSharedSession(sessionKey)
+      if (!current) throw new Error("missing mapping before recovery invalidation race")
+      await storeSharedSession(sessionKey, current.claudeSessionId)
+    }
+    const body = await read(await post(app, REQUEST, sessionKey))
+    expect(queryCalls).toHaveLength(2)
+    for (const id of ids) expect(body).not.toContain(id)
+    expect(lookupSharedSession(sessionKey)?.claudeSessionId).toBe(initialManagedSessionId())
+    expect(loggedEvents.some(entry => entry.data?.error === "Shared session mapping changed before silent recovery invalidation")).toBe(true)
   })
 
   it("withholds recovery output when its durable publication loses the exact CAS", async () => {

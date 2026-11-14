@@ -94,7 +94,7 @@ export { runTransformHook, runObserveHook, buildPipeline, createRequestContext }
 import { claudeLog } from "../logger"
 import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
 import { haikuThinkingCompatibilityError } from "./haikuCompatibility"
-import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
+import { PASSTHROUGH_DENY_REASON, PASSTHROUGH_HANDLED_REASON, PASSTHROUGH_NOT_FORWARDED_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
@@ -105,7 +105,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { isSdkToolSearchCall, checkpointHasUncapturedCalls, checkpointRequiresReplay, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { isSdkToolSearchCall, checkpointPublicationRequiresReplay, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -4529,6 +4529,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
       }
       const pendingDenyReleases: Array<() => void> = []
+      // Streaming SDK attempts own the capture state above (see
+      // runStreamSdkAttempt). Each attempt binds fresh passthrough PreToolUse
+      // callbacks to its own immutable token; only the token named here may
+      // touch request state. Host callbacks can outlive their SDK writer, so a
+      // callback from a retired attempt is answered NOT_FORWARDED before it
+      // can capture, mark priority exposure, abort or hold. Non-stream and
+      // silent-recovery queries use the unbound callbacks (no token).
+      type StreamAttemptToken = Readonly<{ mode: string }>
+      let activeStreamAttempt: StreamAttemptToken | undefined
       // True while a model turn is actively generating (message_start seen,
       // no message_delta/message_stop yet). Hooks dispatched AFTER generation
       // completes (the CLI runs tool dispatch semi-sequentially, so later
@@ -4719,11 +4728,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }],
           }
         : undefined
-      const sdkHooks = passthrough
+      const sdkHooksFor = (attemptToken?: StreamAttemptToken) => passthrough
         ? {
             PreToolUse: [{
               matcher: "",  // Match ALL tools
               hooks: [async (input: any) => {
+                // Attempt fence: a retired streaming attempt's callback must
+                // not mutate capture, discovery, priority or hold state, and
+                // must not promise the model a client result.
+                const attemptRetired = (): boolean =>
+                  attemptToken !== undefined && activeStreamAttempt !== attemptToken
+                if (attemptRetired()) {
+                  claudeLog("passthrough.retired_attempt_hook", { mode: attemptToken?.mode, phase: "entry" })
+                  return {
+                    decision: "block" as const,
+                    reason: PASSTHROUGH_NOT_FORWARDED_REASON,
+                  }
+                }
                 // Let the SDK handle ToolSearch internally for deferred tool loading.
                 // ToolSearch is filtered from the response stream below.
                 // Return {} — NOT undefined. SDK validates hook returns with Zod and
@@ -4874,23 +4895,26 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 // only delay until the timeout).
                 if (earlyStopEnabled && turnGenerating && !requestAbort.controller.signal.aborted) {
                   await holdDenyUntilTurnEnd()
+                  // Teardown retires the token before it releases this hold;
+                  // the attempt's captures died with it.
+                  if (attemptRetired()) {
+                    claudeLog("passthrough.retired_attempt_hook", { mode: attemptToken?.mode, phase: "held" })
+                    return {
+                      decision: "block" as const,
+                      reason: PASSTHROUGH_NOT_FORWARDED_REASON,
+                    }
+                  }
                 }
                 if (isExactDuplicate || isPostCheckpointCall) {
                   return {
                     decision: "block" as const,
-                    reason:
-                      "This tool call has already been handled by the client-facing turn — do not repeat it. " +
-                      "Do not call additional tools and do not generate further text — end your turn now.",
+                    reason: PASSTHROUGH_HANDLED_REASON,
                   }
                 }
                 if (isSameToolRepeat || exceedsForcedSingle) {
                   return {
                     decision: "block" as const,
-                    reason:
-                      "This tool call was NOT executed and was not forwarded. Your earlier tool call(s) " +
-                      "are being returned to the client now; their results arrive next turn. Re-issue this " +
-                      "call after that if it is still needed. Do not call additional tools and do not " +
-                      "generate further text — end your turn now.",
+                    reason: PASSTHROUGH_NOT_FORWARDED_REASON,
                   }
                 }
                 return {
@@ -4912,6 +4936,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               : {}),
             ...(fileChangeHook ? { PostToolUse: [fileChangeHook] } : {}),
           }
+      // Unbound callbacks: non-stream attempts and silent-turn recovery.
+      const sdkHooks = sdkHooksFor()
 
         // Capture subprocess stderr for all paths — used to surface the real
         // failure message when the Claude subprocess exits with a non-zero code.
@@ -5877,13 +5903,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // this store only after the iterator drains to its canonical terminal
           // result, which gives the CLI time to persist the assistant boundary.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                const checkpointTurn = passthrough && contentBlocks.some((b) => b.type === "tool_use")
-                if (checkpointTurn && (
-                  !earlyStopFired || !sawCanonicalResult ||
-                  checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds) ||
-                  checkpointHasUncapturedCalls(emittedToolUseIds, forwardedToolUseIds) ||
-                  checkpointHasUncapturedCalls(streamedToolUseIds, forwardedToolUseIds)
-                )) {
+                if (passthrough && checkpointPublicationRequiresReplay({
+                  clientToolCallIds: contentBlocks.flatMap(block => block.type === "tool_use" && typeof block.id === "string" ? [block.id] : []),
+                  checkpointToolCallIds: nextPassthroughToolCallIds,
+                  observedToolCallIds: [...emittedToolUseIds, ...streamedToolUseIds],
+                  forwardedToolUseIds,
+                  checkpointReady: earlyStopFired && sawCanonicalResult && Boolean(nextPassthroughToolCallAssistantUuid),
+                })) {
                   // Iterator visibility is not durability. Never publish a
                   // resumeSessionAt UUID unless the CLI reached its terminal
                   // result and had a chance to commit the transcript.
@@ -6143,6 +6169,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             let currentClientAssistantUuid: string | null = null
 
             let messageStartEmitted = false
+            const observedToolUseIds = new Set<string>()
             // Claude Code re-sends a turn without streaming when its stream fails
             // before message_start (a burst rate_limit_error does this). Such a
             // turn arrives only as assistant messages, never as stream events, so
@@ -6474,6 +6501,58 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const MAX_RATE_LIMIT_RETRIES = 2
               const RATE_LIMIT_BASE_DELAY_MS = envInt("RATE_LIMIT_BASE_DELAY_MS", 1000)
 
+              // One primary streaming SDK attempt: the retry loop, the refused-
+              // resume fresh replay and the configured-model fallback each
+              // enter here exactly once per query. Silent-turn recovery is a
+              // separate post-delivery query with its own capture window
+              // (capturedBeforeRecovery) and is not a primary attempt.
+              //
+              // Attempt-owned state is reset on entry, so a retried attempt's
+              // capture, dedupe signatures, forwarded ids, checkpoint tracker
+              // and unstreamed metadata cannot become the next attempt's client
+              // tool call. Request-owned state is never touched here: the
+              // cached input resume anchor, prior history and sdkUuidMap
+              // prefix, retry budgets, abort controller, priority exposure, and
+              // anything already emitted. A transparent retry is admitted only
+              // when no raw stream event and no committed priority exposure
+              // exists, so there is no emitted output to rewind.
+              //
+              // Teardown retires the token synchronously before releasing the
+              // attempt's held denies, and before control reaches the retry
+              // loop's catch, backoff or token refresh.
+              const runStreamSdkAttempt = async function* (
+                mode: string,
+                buildAttempt: (attemptHooks: ReturnType<typeof sdkHooksFor>) => ReturnType<typeof buildQueryOptions>,
+              ) {
+                releaseHeldDenies(`${mode}_attempt_start`)
+                sawTurnBoundarySignal = false
+                capturedToolUses.length = 0
+                capturedSignatures.clear()
+                capturedToolNames.clear()
+                droppedToolUseIds.clear()
+                forwardedToolUseIds.clear()
+                observedToolUseIds.clear()
+                sawDuplicateToolUse = false
+                earlyStop.expected.clear()
+                earlyStop.resolved.clear()
+                earlyStop.toolCallAssistantUuid = undefined
+                earlyStop.fired = false
+                earlyStopFired = false
+                unstreamedAssistants.length = 0
+                nextPassthroughToolCallAssistantUuid = undefined
+                nextPassthroughToolCallIds = undefined
+                sawCanonicalResult = false
+                const token: StreamAttemptToken = Object.freeze({ mode })
+                activeStreamAttempt = token
+                try {
+                  const attemptQuery = buildAttempt(sdkHooksFor(token))
+                  yield* runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, mode, managedSdkAttemptLocators())
+                } finally {
+                  if (activeStreamAttempt === token) activeStreamAttempt = undefined
+                  releaseHeldDenies(`${mode}_attempt_end`)
+                }
+              }
+
               const response = (async function* () {
                 let rateLimitRetries = 0
 
@@ -6512,25 +6591,27 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   let attemptMaxTurns: number | undefined
                   try {
                     if (resumeSessionId) resumedMappingMayBeAdvanced = true
-                    const attemptQuery = buildQueryOptions({
-                      prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse, liftSingleTurnCap: singleTurnCapLifted,
-                      resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
-                      effort, thinking, taskBudget, outputFormat, betas, settingSources,
-                      codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
-                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
-                    webFetchPreflight: sdkFeatures.webFetchPreflight, transcriptRetentionDays,
-                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
-                      sdkDebug: sdkFeatures.sdkDebug,
-                      additionalDirectories: sdkFeatures.additionalDirectories
-                        ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
-                        : undefined,
-                      advisorModel,
-                    }, requestAbort.controller)
-                    attemptMaxTurns = attemptQuery.options.maxTurns
-                    lastAttemptMaxTurns = attemptMaxTurns
-                    for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
+                    for await (const event of runStreamSdkAttempt("stream", (attemptHooks) => {
+                      const attemptQuery = buildQueryOptions({
+                        prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
+                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse, liftSingleTurnCap: singleTurnCapLifted,
+                        resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks: attemptHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        effort, thinking, taskBudget, outputFormat, betas, settingSources,
+                        codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                      memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                      webFetchPreflight: sdkFeatures.webFetchPreflight, transcriptRetentionDays,
+                      claudeAiConnectors: sdkFeatures.claudeAiConnectors,
+                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
+                        sdkDebug: sdkFeatures.sdkDebug,
+                        additionalDirectories: sdkFeatures.additionalDirectories
+                          ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                          : undefined,
+                        advisorModel,
+                      }, requestAbort.controller)
+                      attemptMaxTurns = attemptQuery.options.maxTurns
+                      lastAttemptMaxTurns = attemptMaxTurns
+                      return attemptQuery
+                    })) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
                         rateLimitStore.record(profile.id, (event as any).rate_limit_info)
@@ -6599,11 +6680,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* runSdkQueryAttempt(buildQueryOptions({
+                      yield* runStreamSdkAttempt("stream_fresh", (attemptHooks) => buildQueryOptions({
                         prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
-                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks: attemptHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, outputFormat, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -6615,7 +6696,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators())
+                      }, requestAbort.controller))
                       return
                     }
 
@@ -6656,11 +6737,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* runSdkQueryAttempt(buildQueryOptions({
+                      yield* runStreamSdkAttempt("stream_fresh", (attemptHooks) => buildQueryOptions({
                         prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, isForwardedToolUse,
-                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks: attemptHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, outputFormat, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                         memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -6672,7 +6753,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators())
+                      }, requestAbort.controller))
                       return
                     }
 
@@ -6832,6 +6913,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       : returnedSessionId
                     validateManagedForkResult(returnedSessionId)
                   }
+                  if (passthrough && message.type === "assistant") {
+                    for (const block of message.message.content) {
+                      if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch)) observedToolUseIds.add(block.id)
+                    }
+                  }
                   let assistantAddedForwardedCall = false
                   if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
                     const expectedBefore = earlyStop.expected.size
@@ -6895,6 +6981,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   }
 
                   if (message.type === "stream_event") {
+                    if (passthrough && message.event.type === "content_block_start" &&
+                      isClientForwardedToolUse(message.event.content_block, clientToolPrefix, clientToolSearch)) {
+                      observedToolUseIds.add(message.event.content_block.id)
+                    }
                     // Once turn 1 is closed to the client, all later wire events
                     // belong to the hidden digest. Ignore them wholesale so a
                     // closed-controller enqueue cannot break the durability
@@ -7346,13 +7436,24 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // yielded before their durable transcript records are committed, so a tool turn
               // also requires both a valid assistant checkpoint and SDK result.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                const checkpointTurn = passthrough && streamedToolUseIds.size > 0
+                const clientToolCallIds = new Set([
+                  ...streamedToolUseIds,
+                  ...capturedToolUses.map(tool => tool.id),
+                ])
+                if (passthrough && earlyStopEnabled && !earlyStopFired &&
+                  streamEventsSeen === 0 && unstreamedAssistants.length > 0 &&
+                  trackerCoversStreamedCalls(earlyStop, clientToolCallIds) && shouldEarlyStop(earlyStop)) {
+                  freezeEarlyStopCheckpoint()
+                }
                 if (
                   exitedBeforeCanonicalTerminal ||
-                  (checkpointTurn && (
-                    !earlyStopFired || !sawCanonicalResult ||
-                    checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds)
-                  ))
+                  (passthrough && checkpointPublicationRequiresReplay({
+                    clientToolCallIds,
+                    checkpointToolCallIds: nextPassthroughToolCallIds,
+                    observedToolCallIds: [...observedToolUseIds, ...streamedToolUseIds],
+                    forwardedToolUseIds,
+                    checkpointReady: earlyStopFired && sawCanonicalResult && Boolean(nextPassthroughToolCallAssistantUuid),
+                  }))
                 ) {
                   const evicted = await evictSession(
                     profileSessionId,
@@ -7522,10 +7623,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   sdkSessionId: currentSessionId || resumeSessionId,
                 })
                 const recoveryLifter = createRecoveryLifter(() => nextClientBlockIndex++)
-                // Recovery output is provisional until its exact fork wins the
-                // durable mapping CAS. Buffer it so a losing or failed
-                // publication cannot expose an answer that no later turn can
-                // resume.
+                // Buffer recovery output until publication or replay invalidation
+                // wins its exact mapping CAS; a losing attempt exposes nothing.
                 const recoveryLiftedFrames: Array<NonNullable<ReturnType<typeof recoveryLifter.lift>>> = []
                 // The fork's identity. Without capturing it the recovered answer
                 // lives only in a session nothing points at: storeSession has
@@ -7543,6 +7642,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 let recoveryForkSource: TranscriptLocator | undefined
                 let recoveryForkTarget: TranscriptLocator | undefined
                 let recoveryForkPublished = false
+                let recoveryReplayReady = false
                 let recoveryCompleted = false
                 let releaseRecoveryForkPins: (() => void) | undefined
                 let unexpectedRecoveryFork: TranscriptLocator | undefined
@@ -7717,8 +7817,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 if (!silentTurnRecovered && recoveryCapturedToolUses.length > 0) {
                   capturedToolUses.splice(capturedBeforeRecovery)
                 }
-                // Point the client's session at the fork, so the turn that
-                // actually answered is the one the next request resumes. The
+                // Retain eligible single-call/text forks; otherwise invalidate
+                // before emitting recovery calls so the next turn replays. The
                 // uuid map is reset rather than carried: those uuids belong to
                 // the pre-fork session and would not resolve against the fork,
                 // so undo falls back to a full replay — correct, just less
@@ -7727,82 +7827,96 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   recoveryCompleted && silentTurnRecovered && recoverySessionId &&
                   !isIndependentSession && !sawDuplicateToolUse
                 ) {
-                  const recoverySdkUuidMap = allMessages.map(() => null)
-                  if (!bookkeepingHandle) await commitFork(recoveryForkTarget, admissionLifecycleOptions)
-                  assertDurableWritesAllowed()
-                  const recoveryMappingStored = await publishPinnedTranscript(
-                    recoveryForkTarget,
-                    () => {
-                      assertDurableWritesAllowed()
-                      return mapStoreMutation(storeSession(
-                        profileSessionId,
-                        lineageMessages,
-                        recoverySessionId!,
-                        profileScopedCwd,
-                        recoverySdkUuidMap,
-                        lastUsage,
-                        recoveryToolCallAssistantUuid ?? null,
-                        recoveryToolCallAssistantUuid ? [...recoveryEarlyStop.expected] : null,
-                        recoveryForkTarget,
-                        recoveryForkSource,
-                        mappingExpectedGeneration,
-                        options.priorityPublication,
-                        !executionHistory.changed,
-                        resumeContextHash,
-                        assertDurableWritesAllowed,
-                      ), stored => {
-                        // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
-                        if (stored && !bookkeepingHandle) {
-                          mappingExpectedGeneration = stored
-                          recoveryForkPublished = true
-                          recoveryPublishedTarget = recoveryForkTarget
-                        }
-                        return stored
-                      })
-                    },
-                    admissionLifecycleOptions,
-                  )
-                  if (recoveryMappingStored) {
-                    mappingExpectedGeneration = recoveryMappingStored
-                    recoveryForkPublished = true
-                    recoveryPublishedTarget = recoveryForkTarget
-                  }
-                  if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
-                    if (
-                      recoveryMappingStored && !isIndependentSession &&
-                      !(await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration))
-                    ) {
-                      throw new Error("Shared session mapping changed after canceled silent-recovery publication")
+                  const recoveryRequiresReplay = checkpointPublicationRequiresReplay({
+                    clientToolCallIds: recoveryCapturedToolUses.map(tool => tool.id),
+                    checkpointToolCallIds: recoveryEarlyStop.expected,
+                    observedToolCallIds: [...recoveryEarlyStop.expected, ...recoveryStreamedToolUseIds],
+                    forwardedToolUseIds,
+                    checkpointReady: recoveryDurable && Boolean(recoveryToolCallAssistantUuid),
+                  })
+                  if (recoveryRequiresReplay) {
+                    if (!(await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration))) {
+                      throw new Error("Shared session mapping changed before silent recovery invalidation")
                     }
-                    throw new Error("Request canceled after silent-recovery publication")
-                  }
-                  if (!recoveryMappingStored) {
-                    // Recovery tool calls are withheld until their exact fork is
-                    // durably addressable. A fingerprint CAS loser must not emit
-                    // calls from the fork that cleanup is about to retire.
-                    silentTurnRecovered = false
-                    recoveryToolCallAssistantUuid = undefined
-                    capturedToolUses.splice(capturedBeforeRecovery)
-                    if (profileSessionId) {
-                      throw new Error("Shared session mapping changed before silent recovery publication")
-                    }
-                    claudeLog("session.fingerprint_publication_lost", { mode: "silent_recovery" })
-                    void sweepSessionGc()
+                    recoveryReplayReady = true
                   } else {
-                    currentSessionId = recoverySessionId
-                    nextPassthroughToolCallAssistantUuid = recoveryToolCallAssistantUuid
-                    nextPassthroughToolCallIds = recoveryToolCallAssistantUuid
-                      ? [...recoveryEarlyStop.expected]
-                      : undefined
-                    sdkUuidMap.length = 0
-                    sdkUuidMap.push(...recoverySdkUuidMap)
-                    mappingExpectedGeneration = recoveryMappingStored
-                    recoveryForkPublished = true
-                    void sweepSessionGc()
-                    commitSessionTurn(recoverySessionId)
+                    const recoverySdkUuidMap = allMessages.map(() => null)
+                    if (!bookkeepingHandle) await commitFork(recoveryForkTarget, admissionLifecycleOptions)
+                    assertDurableWritesAllowed()
+                    const recoveryMappingStored = await publishPinnedTranscript(
+                      recoveryForkTarget,
+                      () => {
+                        assertDurableWritesAllowed()
+                        return mapStoreMutation(storeSession(
+                          profileSessionId,
+                          lineageMessages,
+                          recoverySessionId!,
+                          profileScopedCwd,
+                          recoverySdkUuidMap,
+                          lastUsage,
+                          recoveryToolCallAssistantUuid ?? null,
+                          recoveryToolCallAssistantUuid ? [...recoveryEarlyStop.expected] : null,
+                          recoveryForkTarget,
+                          recoveryForkSource,
+                          mappingExpectedGeneration,
+                          options.priorityPublication,
+                          !executionHistory.changed,
+                          resumeContextHash,
+                          assertDurableWritesAllowed,
+                        ), stored => {
+                          // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
+                          if (stored && !bookkeepingHandle) {
+                            mappingExpectedGeneration = stored
+                            recoveryForkPublished = true
+                            recoveryPublishedTarget = recoveryForkTarget
+                          }
+                          return stored
+                        })
+                      },
+                      admissionLifecycleOptions,
+                    )
+                    if (recoveryMappingStored) {
+                      mappingExpectedGeneration = recoveryMappingStored
+                      recoveryForkPublished = true
+                      recoveryPublishedTarget = recoveryForkTarget
+                    }
+                    if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
+                      if (
+                        recoveryMappingStored && !isIndependentSession &&
+                        !(await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration))
+                      ) {
+                        throw new Error("Shared session mapping changed after canceled silent-recovery publication")
+                      }
+                      throw new Error("Request canceled after silent-recovery publication")
+                    }
+                    if (!recoveryMappingStored) {
+                      // Recovery tool calls are withheld until their exact fork is
+                      // durably addressable. A fingerprint CAS loser must not emit
+                      // calls from the fork that cleanup is about to retire.
+                      silentTurnRecovered = false
+                      recoveryToolCallAssistantUuid = undefined
+                      capturedToolUses.splice(capturedBeforeRecovery)
+                      if (profileSessionId) {
+                        throw new Error("Shared session mapping changed before silent recovery publication")
+                      }
+                      claudeLog("session.fingerprint_publication_lost", { mode: "silent_recovery" })
+                      void sweepSessionGc()
+                    } else {
+                      currentSessionId = recoverySessionId
+                      nextPassthroughToolCallAssistantUuid = recoveryToolCallAssistantUuid
+                      nextPassthroughToolCallIds = recoveryToolCallAssistantUuid
+                        ? [...recoveryEarlyStop.expected]
+                        : undefined
+                      sdkUuidMap.length = 0
+                      sdkUuidMap.push(...recoverySdkUuidMap)
+                      mappingExpectedGeneration = recoveryMappingStored
+                      recoveryForkPublished = true
+                      void sweepSessionGc()
+                      commitSessionTurn(recoverySessionId)
+                    }
                   }
                 }
-                if (!recoveryForkPublished) {
+                if (!recoveryForkPublished && !recoveryReplayReady) {
                   silentTurnRecovered = false
                   recoveryToolCallAssistantUuid = undefined
                   capturedToolUses.splice(capturedBeforeRecovery)
@@ -7840,6 +7954,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   )
                 }
                 } catch (recoveryError) {
+                  if (!recoveryForkPublished && !recoveryReplayReady) {
+                    silentTurnRecovered = false
+                    capturedToolUses.splice(capturedBeforeRecovery)
+                  }
                   claudeLog("response.silent_turn_recovery_failed", {
                     mode: "stream_lifecycle",
                     error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
@@ -8359,8 +8477,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   requestTools.some((tool: { name: string }) => tool.name === record.name))
               const recoverableCheckpoint =
                 (canRecoverAsToolUse || canonicalRejectedCheckpoint) &&
-                (canonicalRejectedCheckpoint ||
-                  !checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds)) &&
+                !checkpointPublicationRequiresReplay({
+                  clientToolCallIds: [...streamedToolUseIds, ...capturedToolUses.map(tool => tool.id)],
+                  checkpointToolCallIds: nextPassthroughToolCallIds,
+                  observedToolCallIds: [...observedToolUseIds, ...streamedToolUseIds],
+                  forwardedToolUseIds: canonicalRejectedCheckpoint
+                    ? new Set([...forwardedToolUseIds, ...streamedToolUseIds])
+                    : forwardedToolUseIds,
+                  checkpointReady: true,
+                }) &&
                 sdkTerm.reason === "max_turns" &&
                 Boolean(currentSessionId) &&
                 Boolean(nextPassthroughToolCallAssistantUuid) &&

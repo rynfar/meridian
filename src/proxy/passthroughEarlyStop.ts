@@ -234,6 +234,30 @@ export function checkpointRequiresReplay(
   return ids.size > 1 || checkpointHasUncapturedCalls(ids, forwardedToolUseIds)
 }
 
+export function checkpointPublicationRequiresReplay({
+  clientToolCallIds,
+  checkpointToolCallIds,
+  observedToolCallIds,
+  forwardedToolUseIds,
+  checkpointReady,
+}: {
+  clientToolCallIds: Iterable<string>
+  checkpointToolCallIds: Iterable<string> | undefined
+  observedToolCallIds: Iterable<string>
+  forwardedToolUseIds: ReadonlySet<string>
+  checkpointReady: boolean
+}): boolean {
+  const visible = new Set(clientToolCallIds)
+  const observed = new Set(observedToolCallIds)
+  if (visible.size === 0 && observed.size === 0) return false
+  const checkpoint = new Set(checkpointToolCallIds)
+  return !checkpointReady ||
+    visible.size !== checkpoint.size ||
+    [...visible].some(id => !checkpoint.has(id)) ||
+    checkpointRequiresReplay(visible, forwardedToolUseIds) ||
+    checkpointHasUncapturedCalls(observed, forwardedToolUseIds)
+}
+
 /**
  * Opt-in flags for the checkpoint continuation validators.
  */
