@@ -7,9 +7,10 @@
 // --deferred lifts maxTurns to 4: rejected-only calls run a hidden digest;
 // captured batches stop via PostToolBatch. Both complete normally with success.
 // --non-stream exercises JSON completion; --captured emits only registered calls.
+// --input-validation sends raw-tab JSON to registered names, refused before hooks.
 // --captured-last puts the captured call last in a mixed batch (JSON backfill).
-// --calls=1 retains the rejection checkpoint and resumes. --calls=2|3 evicts it
-// and the follow-up is a fresh replay carrying every real client result.
+// A single name-dispatch rejection at maxTurns=1 retains and resumes. Other
+// uncaptured calls evict and replay every real client result.
 import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -26,19 +27,23 @@ const deferred = process.argv.includes("--deferred")
 const nonStream = process.argv.includes("--non-stream")
 const captured = process.argv.includes("--captured")
 const capturedLast = process.argv.includes("--captured-last")
+const inputValidation = process.argv.includes("--input-validation")
 assert(!capturedLast || mixed, "--captured-last requires --mixed")
 assert(!mixed || callCount > 1, "--mixed requires at least two calls")
 assert(!(mixed && captured), "choose --mixed or --captured")
-const extended = mixed || deferred || nonStream || captured
+const extended = mixed || deferred || nonStream || captured || inputValidation
 const digestExpected = deferred && !mixed && !captured
 const calls = Array.from({ length: callCount }, (_, index) => ({
   type: "tool_use", id: index === 0 ? "toolu_offline" : "toolu_offline_" + index,
-  name: "read", input: { file_path: "new-" + index },
+  name: "read", input: { file_path: "new-" + (inputValidation ? "\t" : "") + index },
 }))
 const realResult = call => "REAL_CLIENT_RESULT_" + call.id
 const upstreamCalls = calls.map((call, index) => ({ ...call,
-  name: captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__read" : call.name,
+  name: inputValidation || captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__read" : call.name,
 }))
+const capturedCall = index => captured || (mixed && index === (capturedLast ? callCount - 1 : 0))
+const rawInput = (block, index) => inputValidation && !capturedCall(index)
+  ? JSON.stringify(block.input).replaceAll("\\t", "\t") : JSON.stringify(block.input)
 const root = mkdtempSync(join(process.cwd(), ".fresh-checkpoint-e2e-"))
 // Start without inherited provider credentials or operational overrides.
 for (const key of Object.keys(process.env)) {
@@ -86,7 +91,7 @@ const upstream = Bun.serve({
           ["content_block_delta", { type: "content_block_delta", index, delta: { type: "thinking_delta", thinking: block.thinking } }],
           ["content_block_delta", { type: "content_block_delta", index, delta: { type: "signature_delta", signature: block.signature } }],
         ] : [["content_block_delta", { type: "content_block_delta", index, delta: block.type === "tool_use"
-          ? { type: "input_json_delta", partial_json: JSON.stringify(block.input) }
+          ? { type: "input_json_delta", partial_json: rawInput(block, index - (thinking ? 1 : 0)) }
           : { type: "text_delta", text: block.text } }]]),
         ["content_block_stop", { type: "content_block_stop", index }],
       ]),
@@ -140,7 +145,7 @@ try {
   assert(!firstBody.includes("event: error"), firstBody)
   assert(firstBody.includes('"stop_reason":"tool_use"'), firstBody)
   assert.equal(firstRequestCalls, digestExpected ? 2 : 1, "deferred flow must complete its hidden second model turn")
-  const retainCheckpoint = captured || (!nonStream && !mixed && callCount === 1)
+  const retainCheckpoint = captured || (!nonStream && !mixed && !deferred && !inputValidation && callCount === 1)
   const mapping = lookupSharedSession("offline:" + session)
   const rejectionText = "<tool_use_error>Error: No such tool available: read</tool_use_error>"
   if (extended) {
@@ -150,11 +155,15 @@ try {
       const results = rows.flatMap(row => Array.isArray(row.message?.content) ? row.message.content : [])
         .filter(block => block.type === "tool_result" && block.tool_use_id === call.id)
       assert(results.length > 0, "CLI transcript lacks result for " + call.id)
-      if (upstreamCalls[index].name === "read") assert(results.some(block => block.content === rejectionText), "bare call must be name-dispatch rejected")
+      if (inputValidation && !capturedCall(index)) assert(results.some(block =>
+        block.is_error === true && typeof block.content === "string" &&
+        block.content.startsWith("<tool_use_error>InputValidationError: mcp__oc__read was called with input that could not be parsed as JSON.\n")),
+        "malformed registered call must be rejected before PreToolUse")
+      else if (upstreamCalls[index].name === "read") assert(results.some(block => block.content === rejectionText), "bare call must be name-dispatch rejected")
       else assert(results.some(block => JSON.stringify(block.content).includes(PASSTHROUGH_DENY_REASON)), "registered call must reach PreToolUse deny")
     }
     if (digestExpected) assert(rows.some(row => row.message?.content?.some?.(block => block.type === "text" && block.text === "hidden digest")), "CLI must commit hidden second-turn completion")
-    console.log("SHAPE " + JSON.stringify({ mixed, deferred, nonStream, captured, capturedLast, checkpointRetained: Boolean(mapping), firstRequestCalls }))
+    console.log("SHAPE " + JSON.stringify({ mixed, deferred, nonStream, captured, capturedLast, inputValidation, checkpointRetained: Boolean(mapping), firstRequestCalls }))
   } else if (retainCheckpoint) {
     assert(mapping, "fresh canonical rejection lost its mapping")
     assert.deepEqual(mapping.messageHashes, computeMessageHashes(firstHistory))
@@ -190,7 +199,11 @@ try {
     if (delta.type === "signature_delta") content[index].signature += delta.signature
     if (delta.type === "input_json_delta") json.set(index, (json.get(index) ?? "") + delta.partial_json)
   }
-  for (const [index, value] of json) content[index].input = JSON.parse(value)
+  const { parseToolInputObject } = await import("../src/proxy/toolInputJson.ts")
+  for (const [index, value] of json) {
+    content[index].input = inputValidation ? parseToolInputObject(value) : JSON.parse(value)
+    assert(content[index].input, "client must be able to repair the complete tool input")
+  }
   assert.deepEqual(content.filter(block => block.type === "tool_use"), calls)
   if (thinking) assert.equal(content[0].type, "thinking")
   const nextHistory = [...history,
@@ -248,9 +261,10 @@ try {
       message.content?.some?.(block => block.type === "tool_use")),
       "fresh replay must not resume a native assistant tool turn")
   }
+  assert(!replayText.includes("InputValidationError"), "follow-up must not carry the CLI input rejection")
   assert(!replayText.includes("No such tool available"),
     expectResume ? "resume must rewind before the rejection" : "fresh replay must not carry the CLI rejection")
-  if (extended) assert.equal(Boolean(mapping), retainCheckpoint, "unsafe checkpoint must be evicted; single-call retention must remain unchanged")
+  if (extended) assert.equal(Boolean(mapping), retainCheckpoint, "uncaptured checkpoint must be evicted except the canonical single-call name-dispatch control")
   const turns = telemetryStore.getRecent({ limit: 10 })
   assert.equal(turns.some(turn => turn.isResume === true), expectResume,
     retainCheckpoint ? "only an unchanged request prefix can resume" : "multi-call follow-up must be a fresh replay, not a resumed continuation")
@@ -260,7 +274,7 @@ try {
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
     : "PASS continuation: native assistant and real client result for every call; rejection rewound")
   const sdkVersion = JSON.parse(readFileSync(new URL("../node_modules/@anthropic-ai/claude-agent-sdk/package.json", import.meta.url), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, upstreamCalls: wire.length, liveModelCalls: 0 }))
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, inputValidation, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
   await proxy?.closeBackend?.()
   upstream.stop(true)

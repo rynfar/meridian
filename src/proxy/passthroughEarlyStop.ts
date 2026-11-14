@@ -216,12 +216,14 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
   return true
 }
 
-export function checkpointHasRejectedParallelCalls(
-  toolCallIds: readonly string[] | undefined,
-  cliUnavailableToolIds: ReadonlySet<string>,
+export function checkpointHasUncapturedCalls(
+  toolCallIds: Iterable<string> | undefined,
+  forwardedToolUseIds: ReadonlySet<string>,
 ): boolean {
-  return toolCallIds !== undefined && toolCallIds.length > 1 &&
-    toolCallIds.some(id => cliUnavailableToolIds.has(id))
+  for (const id of toolCallIds ?? []) {
+    if (!forwardedToolUseIds.has(id)) return true
+  }
+  return false
 }
 
 /**

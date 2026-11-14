@@ -105,7 +105,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { isSdkToolSearchCall, checkpointHasRejectedParallelCalls, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { isSdkToolSearchCall, checkpointHasUncapturedCalls, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -4953,6 +4953,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // checkpoint can freeze on the fragments consumed so far and silently
           // drop the rest from the client-facing set.
           const streamedToolUseIds = new Set<string>()
+          const emittedToolUseIds = new Set<string>()
           let nextPassthroughToolCallAssistantUuid: string | undefined
           let nextPassthroughToolCallIds: string[] | undefined
           let sawCanonicalResult = false
@@ -5345,6 +5346,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // Checkpoint settlement: the deny tool_results identify when all
               // visible calls have been handled. Freeze that assistant boundary,
               // then keep draining; iterator observation alone is not durable.
+              if (passthrough && message.type === "assistant") {
+                for (const block of message.message.content) {
+                  if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch)) emittedToolUseIds.add(block.id)
+                }
+              }
               let assistantAddedForwardedCall = false
               if (
                 passthrough &&
@@ -5863,7 +5869,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const checkpointTurn = passthrough && contentBlocks.some((b) => b.type === "tool_use")
                 if (checkpointTurn && (
                   !earlyStopFired || !sawCanonicalResult ||
-                  checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds)
+                  checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds) ||
+                  checkpointHasUncapturedCalls(emittedToolUseIds, forwardedToolUseIds) ||
+                  checkpointHasUncapturedCalls(streamedToolUseIds, forwardedToolUseIds)
                 )) {
                   // Iterator visibility is not durability. Never publish a
                   // resumeSessionAt UUID unless the CLI reached its terminal
@@ -7332,7 +7340,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   exitedBeforeCanonicalTerminal ||
                   (checkpointTurn && (
                     !earlyStopFired || !sawCanonicalResult ||
-                    checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds)
+                    checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds)
                   ))
                 ) {
                   const evicted = await evictSession(
@@ -8340,7 +8348,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   requestTools.some((tool: { name: string }) => tool.name === record.name))
               const recoverableCheckpoint =
                 (canRecoverAsToolUse || canonicalRejectedCheckpoint) &&
-                !checkpointHasRejectedParallelCalls(nextPassthroughToolCallIds, cliUnavailableToolIds) &&
+                (canonicalRejectedCheckpoint ||
+                  !checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds)) &&
                 sdkTerm.reason === "max_turns" &&
                 Boolean(currentSessionId) &&
                 Boolean(nextPassthroughToolCallAssistantUuid) &&

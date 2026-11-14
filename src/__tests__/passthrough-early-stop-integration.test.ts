@@ -3798,6 +3798,116 @@ describe("Integration: passthrough early stop", () => {
     })
   }
 
+  // Uncaptured calls must fail closed regardless of the CLI refusal wording.
+  for (const shape of [
+    { stream: true, deferred: false, mixed: true, inputRejected: true, single: false },
+    { stream: false, deferred: false, mixed: true, inputRejected: true, single: false },
+    { stream: false, deferred: false, mixed: true, inputRejected: false, single: false },
+    ...[true, false].flatMap(stream => [
+      { stream, deferred: true, mixed: true, inputRejected: true, single: false },
+      { stream, deferred: true, mixed: false, inputRejected: true, single: false },
+      { stream, deferred: true, mixed: false, inputRejected: true, single: true },
+    ]),
+  ]) {
+    it(`capture proof evicts before ${shape.stream ? "SSE" : "JSON"} terminal (${JSON.stringify(shape)})`, async () => {
+      delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+      const sessionKey = `capture-proof-${JSON.stringify(shape)}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = [
+        { type: "tool_use", id: "rejected-parallel-a", name: shape.inputRejected ? "mcp__oc__read" : "read", input: { file_path: "/a" } },
+        { type: "tool_use", id: "rejected-parallel-b", name: shape.mixed || shape.inputRejected ? "mcp__oc__read" : "read", input: { file_path: "/b" } },
+      ].slice(0, shape.single ? 1 : 2)
+      const reject = (call: typeof calls[number]) => shape.inputRejected
+        ? { ...userDenyMessage(call.id), message: { role: "user", content: [{ type: "tool_result",
+          tool_use_id: call.id, is_error: true,
+          content: `<tool_use_error>InputValidationError: ${call.name} was called with input that could not be parsed as JSON.\nInvalid JSON.</tool_use_error>` }] } }
+        : unavailableToolMessage(call.id, call.name)
+      const tools = [READ_TOOL, ...(shape.deferred ? [{ name: "lsp_diagnostics", defer_loading: true,
+        input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])]
+      mockMessages = [
+        messageStart("msg_rejected_parallel"),
+        ...calls.flatMap((call, index) => [toolUseBlockStart(index, call.name, call.id),
+          inputJsonDelta(index, JSON.stringify(call.input)), blockStop(index)]),
+        messageDelta("tool_use"), messageStop(),
+        { ...assistantMessage(calls), test_skip_pre_tool_hook: true },
+        ...(shape.mixed ? [{ type: "test_pre_tool_hook", tool_name: calls[1]!.name,
+          tool_use_id: calls[1]!.id, tool_input: calls[1]!.input }] : []),
+        reject(calls[0]!),
+        ...(!shape.single ? [shape.mixed ? userDenyMessage(calls[1]!.id) : reject(calls[1]!)] : []),
+        ...(shape.deferred ? [
+          messageStart("msg_hidden_digest"), textBlockStart(0), textDelta(0, "hidden digest"), blockStop(0),
+          messageDelta("end_turn"), messageStop(), assistantMessage([{ type: "text", text: "hidden digest" }]),
+          { type: "result", subtype: "success", is_error: false },
+        ] : [{ type: "result", subtype: "error_max_turns", is_error: true }]),
+      ]
+      mockTerminalError = shape.deferred ? undefined
+        : new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+      const messages = [{ role: "user", content: "read both files" }]
+      const response = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: shape.stream, tools, messages,
+      }, "unused", headers)
+      const body = await response.text()
+      expect(response.status).toBe(200)
+      expect(body).not.toContain("event: error")
+      expect(body).not.toContain("hidden digest")
+      expect(body).toContain('"stop_reason":"tool_use"')
+      for (const call of calls) expect(body).toContain(call.id)
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(shape.deferred ? 4 : 1)
+      expect(lookupSharedSession(sessionKey)).toBeUndefined()
+
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "both files read" }])]
+      const next = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: false, tools,
+        messages: [...messages,
+          { role: "assistant", content: calls.map(call => ({ ...call, name: "read" })) },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: `REAL_CLIENT_RESULT_${call.id}` })) },
+        ],
+      }, "unused", headers)
+      expect((await next.json()).content).toContainEqual({ type: "text", text: "both files read" })
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      const followUp = capturedQueryParamsAll[1]
+      expect(followUp.options.resume).toBeUndefined()
+      const prompt: unknown[] = []
+      if (typeof followUp.prompt === "string") prompt.push(followUp.prompt)
+      else for await (const row of followUp.prompt) prompt.push(row)
+      const replay = JSON.stringify(prompt)
+      for (const call of calls) {
+        expect(replay).toContain(call.id)
+        expect(replay).toContain(`REAL_CLIENT_RESULT_${call.id}`)
+      }
+      expect(replay).not.toContain("No such tool available")
+    })
+  }
+
+  it("non-stream: late uncaptured assistant fragments cannot hide behind a captured checkpoint without boundary events", async () => {
+    const sessionKey = `capture-proof-no-boundaries-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+    const captured = { type: "tool_use", id: "first-captured", name: "mcp__oc__read", input: { file_path: "/a" } }
+    const rejected = { type: "tool_use", id: "late-uncaptured", name: "read", input: { file_path: "/b" } }
+    mockMessages = [
+      assistantMessage([captured]), userDenyMessage(captured.id),
+      { ...assistantMessage([rejected]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage(rejected.id, rejected.name),
+      { type: "result", subtype: "success", is_error: false },
+    ]
+    const response = await post(app, {
+      model: "opus[1m]", max_tokens: 400, stream: false,
+      tools: [READ_TOOL, { name: "lsp_diagnostics", defer_loading: true, input_schema: { type: "object" } }],
+      messages: [{ role: "user", content: "read both files" }],
+    }, "unused", headers)
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.stop_reason).toBe("tool_use")
+    expect(body.content).toContainEqual({ ...captured, name: "read" })
+    expect(capturedQueryParamsAll[0].options.includePartialMessages).toBe(true)
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(4)
+    expect(lookupSharedSession(sessionKey)).toBeUndefined()
+  })
+
   it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }

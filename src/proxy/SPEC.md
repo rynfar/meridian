@@ -107,12 +107,21 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   client, an id/name-matched CLI name-dispatch refusal for that call, no
   dropped calls, and the ordinary settled assistant UUID/full-call-set and
   publication guards. Resume rewinds before the rejection and appends the
-  real client result. Any parallel checkpoint containing a CLI name-dispatch
-  rejection is evicted, including mixed captured/rejected batches and normal
-  canonical completion at larger turn budgets, on both response paths. A
-  durable assistant boundary alone does not prove that resume will carry every
-  real client result; full replay is the safe fallback. Single-call captured
-  and rejected retention is unchanged. Delivering all results on a rejected
+  real client result. All other checkpoint retention requires positive
+  PreToolUse capture proof for every call ID, on JSON completion, SSE
+  completion and captured-error recovery. An uncaptured call evicts the
+  checkpoint regardless of the CLI refusal wording or call count, including
+  InputValidationError and single-call deferred completion. The canonical
+  single-call name-dispatch exception above is unchanged. JSON also checks
+  all emitted assistant and streamed call IDs independently of its frozen
+  candidate: without boundary events, a later fragment must not hide an
+  uncaptured call behind an earlier captured call. Single-call captured and
+  all-captured multi-call retention eligibility are unchanged; this is not
+  proof of all-captured multi-call result delivery (the offline three-captured
+  control currently fails; see the mixed/completion evidence below).
+  A durable assistant boundary alone does not prove that resume will carry
+  every real client result; full replay is the safe fallback for uncaptured
+  calls outside the exception. Delivering all results on a rejected
   multi-call resume remains an open item
   (`docs/maintenance/FRESH_REPLAY_CHECKPOINT.md`; mixed/completion evidence in
   `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md`). Abort-window calls without

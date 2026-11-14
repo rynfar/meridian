@@ -33,8 +33,17 @@ Rejected parallel checkpoint controls (all use the same `--claude=...`):
   real CLI with success before a digest. The capture backfills the second
   client-visible call; both real results must replay on the follow-up.
 - `--captured --calls=1` preserves captured-call retention. `--deferred
-  --calls=1` preserves safe single-rejection streaming retention; adding
-  `--non-stream` preserves the existing JSON eviction/replay behavior.
+  --calls=1`, with or without `--non-stream`, must evict: positive capture
+  proof has exactly one uncaptured exception, the canonical single-call
+  name-dispatch rejection at the one-turn cap, not deferred completion.
+- `--mixed --calls=2 --input-validation` sends a literal tab in the registered
+  rejected call's JSON string. The real CLI must record InputValidationError
+  before PreToolUse; the checkpoint evicts and both real results replay.
+  `--deferred --calls=1 --input-validation` is the single-call deferred control.
+- **Open blocker:** the additional `--captured --calls=3` control currently
+  retains its checkpoint but loses the second real client result on native
+  resume. Do not weaken its result assertions or claim multi-call captured
+  delivery is qualified. See the mixed-checkpoint record for the stopped run.
 
 Each control inspects the real transcript to distinguish hook capture from
 name-dispatch rejection, assembles the follow-up from the actual client

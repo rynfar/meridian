@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import {
+  checkpointHasUncapturedCalls,
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
   settlesCheckpointThenContinues,
@@ -776,5 +777,28 @@ describe("pi 0.85+ mid-conversation effort system messages (#1047)", () => {
     expect(res).toEqual([
       { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
     ])
+  })
+})
+
+
+describe("checkpoint capture proof", () => {
+  it("retains single and parallel call sets only when every ID was captured", () => {
+    const captured = new Set(["a", "b"])
+    expect(checkpointHasUncapturedCalls(["a"], captured)).toBe(false)
+    expect(checkpointHasUncapturedCalls(["a", "b"], captured)).toBe(false)
+    expect(checkpointHasUncapturedCalls(["a", "uncaptured"], captured)).toBe(true)
+    expect(checkpointHasUncapturedCalls(["uncaptured"], captured)).toBe(true)
+    expect(checkpointHasUncapturedCalls(["a", "b"], new Set())).toBe(true)
+  })
+
+  it("checks emitted IDs independently of a prematurely latched checkpoint", () => {
+    const captured = new Set(["a"])
+    expect(checkpointHasUncapturedCalls(["a"], captured)).toBe(false)
+    expect(checkpointHasUncapturedCalls(new Set(["a", "later-fragment"]), captured)).toBe(true)
+  })
+
+  it("does not turn an absent or empty call set into a checkpoint", () => {
+    expect(checkpointHasUncapturedCalls(undefined, new Set())).toBe(false)
+    expect(checkpointHasUncapturedCalls([], new Set())).toBe(false)
   })
 })
