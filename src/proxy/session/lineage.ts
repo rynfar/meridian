@@ -164,8 +164,12 @@ export function inheritSdkUuids(
 /**
  * Result of lineage verification — classifies the mutation and provides
  * the information needed to take the correct SDK action.
+ *
+ * `regrouped` is set when the verdict was reached on the stored history
+ * realigned to the client's regrouped user messages; `session` and every index
+ * are then in incoming positions (see alignRegroupedUserRuns).
  */
-export type LineageResult =
+export type LineageResult = (
   | { type: "continuation"; session: SessionState; resumeFrom: number; resumeContentFrom?: number }
   | { type: "compaction";   session: SessionState; resumeFrom: number; suffixOverlap: number }
   | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
@@ -176,6 +180,17 @@ export type LineageResult =
       /** A fixed identifier refining the reason for the log line, never
        *  content (the interrupted-turn check's verdict, for one). */
       detail?: string }
+) & { regrouped?: RegroupedUserRuns }
+
+/** How a stored history was realigned to regrouped client user messages. */
+export interface RegroupedUserRuns {
+  /** Places where user message boundaries or reminder-only messages differ. */
+  readonly runs: number
+  /** Leading stored messages the realignment covers... */
+  readonly storedMessages: number
+  /** ...and the incoming messages that hold the same content. */
+  readonly incomingMessages: number
+}
 
 export type LineageDivergenceReason =
   | "unverifiable"
@@ -650,6 +665,7 @@ function findSuffixAnchorStart(
  *
  * Decision matrix:
  *   Full prefix match (fast-path)          → continuation (resume from stored count)
+ *   User messages regrouped                → the verdict on the realigned history
  *   Suffix overlap, shortened head          → diverged     (replay client summary)
  *   Suffix overlap, unchanged-length head   → compaction   (resume after matched suffix)
  *   Trailing user slot gained blocks       → continuation (resume mid-message)
@@ -666,6 +682,15 @@ export function verifyLineage(
   cached: SessionState,
   messages: Array<{ role: string; content: any }>,
   options: { compactionSurvival?: boolean } = {},
+): LineageResult {
+  return classifyHistory(cached, messages, options, true)
+}
+
+function classifyHistory(
+  cached: SessionState,
+  messages: Array<{ role: string; content: any }>,
+  options: { compactionSurvival?: boolean },
+  mayRegroup: boolean,
 ): LineageResult {
   // A legacy entry cannot prove which client history its SDK session contains.
   // Partial/legacy writers may preserve an unknown optional raw-only field.
@@ -697,6 +722,16 @@ export function verifyLineage(
   const incomingHashes = computeMessageHashes(messages)
 
   const prefixOverlap = measurePrefixOverlap(cached.messageHashes, incomingHashes)
+
+  // Before any suffix-based verdict: a regroup near the end of the history
+  // would otherwise read as a client compaction.
+  const regroup = mayRegroup
+    ? alignRegroupedUserRuns(cached, messages, incomingHashes, prefixOverlap)
+    : undefined
+  if (regroup) {
+    return { ...classifyHistory(regroup.session, messages, options, false), regrouped: regroup.summary }
+  }
+
   const suffixOverlap = measureSuffixOverlap(cached.messageHashes, incomingHashes)
 
   // Compaction: suffix preserved, long enough conversation.
@@ -859,5 +894,159 @@ export function verifyLineage(
 
   // No meaningful overlap — completely different conversation.
   return { type: "diverged", reason: "unrelated-history", prefixOverlap }
+}
+
+// --- Regrouped user messages ---
+
+/** Digest of a user text block that is empty once system reminders are
+ *  stripped: the block held nothing but reminders. semanticBlock already
+ *  drops reminder text from identity, so such a block proves nothing. */
+const REMINDER_ONLY_USER_BLOCK = lineageDigest("block", ["user", ["text", ""]])
+
+function isReminderOnly(blocks: readonly string[]): boolean {
+  return blocks.length > 0 && blocks.every(hash => hash === REMINDER_ONLY_USER_BLOCK)
+}
+
+/**
+ * Realign a stored history to a client that regrouped its user messages.
+ *
+ * Between requests a client may split one user message into two, merge two
+ * into one, or drop or add a user message that holds only system reminders
+ * (Oh My Pi drops an eval-state note it never wrote to its session file).
+ * The SDK transcript never held those boundaries: consecutive user messages
+ * reach it as one turn (getLastUserMessage, coalesceStructuredUserMessages).
+ * Yet every later message shifts, so the positional prefix stops at the
+ * regroup and the whole history replays.
+ *
+ * From the first mismatch, matched messages are walked one to one. At a
+ * mismatch the incoming run of consecutive user messages must carry exactly
+ * the stored messages' blocks, in order, skipping reminder-only blocks on
+ * either side; a stored reminder-only message before a non-user message may
+ * also be dropped. Both sides must then sit on a message boundary. Anything
+ * else ends the walk: a changed, reordered or moved block, a block the hash
+ * ignores (thinking), a message without blocks, or text appended to the
+ * stored history's last user message. A run that ends the request is never
+ * realigned, so a resent turn keeps its verdict.
+ *
+ * The result is the stored session in incoming positions: hashes from the
+ * request across the realigned span and the stored ones after it, SDK UUIDs
+ * moved with their messages (null inside a run, where only user messages
+ * sit). The lineage proof is rebuilt only when the realignment covers the
+ * whole stored history; otherwise the stored hash stays, which no request
+ * prefix can match, and only an undo or divergence can follow.
+ */
+function alignRegroupedUserRuns(
+  cached: SessionState,
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+  incomingHashes: readonly string[],
+  from: number,
+): { session: SessionState; summary: RegroupedUserRuns } | undefined {
+  const count = cached.messageCount
+  const storedHashes = cached.messageHashes
+  const storedBlocks = cached.messageBlockHashes
+  if (storedHashes?.length !== count || storedBlocks?.length !== count) return undefined
+
+  // The stored index each realigned incoming message came from; -1 inside a run.
+  const source = Array.from({ length: from }, (_, index) => index)
+  const blocks = storedBlocks.slice(0, from)
+  let storedIndex = from
+  let incomingIndex = from
+  let runs = 0
+  while (storedIndex < count && incomingIndex < messages.length) {
+    if (storedHashes[storedIndex] === incomingHashes[incomingIndex]) {
+      source.push(storedIndex)
+      blocks.push(storedBlocks[storedIndex]!)
+      storedIndex++
+      incomingIndex++
+      continue
+    }
+    const run = messages[incomingIndex]!.role === "user"
+      ? alignUserRun(storedBlocks, storedIndex, messages, incomingIndex)
+      : isReminderOnly(storedBlocks[storedIndex]!)
+        ? { storedEnd: storedIndex + 1, incomingEnd: incomingIndex, incomingBlocks: [] }
+        : undefined
+    if (!run) break
+    for (const hashes of run.incomingBlocks) {
+      source.push(-1)
+      blocks.push(hashes)
+    }
+    storedIndex = run.storedEnd
+    incomingIndex = run.incomingEnd
+    runs++
+  }
+  if (runs === 0 || incomingIndex >= messages.length) return undefined
+
+  const storedUuids = cached.sdkMessageUuids ?? []
+  const sdkMessageUuids = source.map(index => index < 0 ? null : storedUuids[index] ?? null)
+  for (let index = storedIndex; index < storedUuids.length; index++) sdkMessageUuids.push(storedUuids[index] ?? null)
+  const proof = storedIndex === count ? computeLineageHash(messages.slice(0, incomingIndex)) : undefined
+  const session: SessionState = {
+    ...cached,
+    messageCount: incomingIndex + count - storedIndex,
+    messageHashes: [...incomingHashes.slice(0, incomingIndex), ...storedHashes.slice(storedIndex)],
+    messageBlockHashes: [...blocks, ...storedBlocks.slice(storedIndex)],
+    sdkMessageUuids,
+    // An interrupted mapping withholds its SDK proof (empty lineageHash); keep that encoding.
+    ...(proof ? cached.lineageHash ? { lineageHash: proof } : { clientLineageHash: proof } : {}),
+  }
+  return { session, summary: { runs, storedMessages: storedIndex, incomingMessages: incomingIndex } }
+}
+
+/**
+ * Match the incoming run of user messages at `incomingStart` against the
+ * stored messages from `storedStart`, block by block, ignoring reminder-only
+ * blocks. Undefined when the run is the request's last or carries anything
+ * the stored messages do not, in the same order.
+ */
+function alignUserRun(
+  storedBlocks: readonly string[][],
+  storedStart: number,
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+  incomingStart: number,
+): { storedEnd: number; incomingEnd: number; incomingBlocks: string[][] } | undefined {
+  let runEnd = incomingStart
+  while (runEnd < messages.length && messages[runEnd]!.role === "user") runEnd++
+  if (runEnd === messages.length) return undefined
+
+  const incomingBlocks: string[][] = []
+  const content: string[] = []
+  // content.length after each incoming message: its possible sync points.
+  const boundaries: number[] = []
+  for (let index = incomingStart; index < runEnd; index++) {
+    const message = messages[index]!
+    // Same guard as the appended-blocks continuation: a block the hash
+    // ignores cannot be proved to be in the stored session.
+    if (Array.isArray(message.content) && hashableContentBlocks(message.content).length !== message.content.length) {
+      return undefined
+    }
+    const hashes = computeMessageBlockHashes([message])[0]!
+    if (hashes.length === 0) return undefined
+    incomingBlocks.push(hashes)
+    for (const hash of hashes) if (hash !== REMINDER_ONLY_USER_BLOCK) content.push(hash)
+    boundaries.push(content.length)
+  }
+
+  let matched = 0
+  let storedEnd = storedStart
+  for (; storedEnd < storedBlocks.length; storedEnd++) {
+    const stored = storedBlocks[storedEnd]!
+    if (matched === content.length) {
+      // Trailing reminder-only messages belong to this run; anything else is the next turn.
+      if (isReminderOnly(stored)) continue
+      break
+    }
+    if (stored.length === 0) return undefined
+    for (const hash of stored) {
+      if (hash === REMINDER_ONLY_USER_BLOCK) continue
+      if (content[matched] !== hash) return undefined
+      matched++
+    }
+  }
+  if (matched === content.length) return { storedEnd, incomingEnd: runEnd, incomingBlocks }
+  // The stored history ended inside the run. Only an incoming message
+  // boundary syncs; text appended to its last user message does not.
+  const at = boundaries.indexOf(matched)
+  if (at < 0) return undefined
+  return { storedEnd, incomingEnd: incomingStart + at + 1, incomingBlocks: incomingBlocks.slice(0, at + 1) }
 }
 
