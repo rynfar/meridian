@@ -268,7 +268,7 @@ export interface OpenAiStreamChunk {
       tool_calls?: OpenAiStreamingToolCallDelta[]
       reasoning_content?: string
     }
-    finish_reason: "stop" | "length" | "tool_calls" | null
+    finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | null
   }>
   usage?: {
     prompt_tokens: number
@@ -317,7 +317,7 @@ export interface OpenAiCompletion {
       reasoning_content?: string
       tool_calls?: OpenAiCompletionToolCall[]
     }
-    finish_reason: "stop" | "length" | "tool_calls"
+    finish_reason: "stop" | "length" | "tool_calls" | "content_filter"
   }>
   usage: {
     prompt_tokens: number
@@ -756,9 +756,10 @@ export function translateOpenAiToAnthropic(
 /**
  * Map an Anthropic stop_reason to an OpenAI finish_reason.
  */
-function toFinishReason(stopReason: string | undefined): "stop" | "length" | "tool_calls" {
+function toFinishReason(stopReason: string | undefined): "stop" | "length" | "tool_calls" | "content_filter" {
   if (stopReason === "max_tokens") return "length"
   else if (stopReason === "tool_use") return "tool_calls"
+  else if (stopReason === "refusal") return "content_filter"
   return "stop"
 }
 
@@ -1272,6 +1273,18 @@ export function buildModelList(extendedContextIncluded: boolean, now = Math.floo
       display_name: "Claude Opus 4.8",
       context_window: disable1mContext ? 200_000 : 1_000_000,
       capabilities: FULL_CAPABILITIES,
+    },
+    {
+      id: "claude-fable-5-2",
+      object: "model",
+      created: now,
+      owned_by: "anthropic",
+      display_name: "Claude Fable 5.2",
+      context_window: disable1mContext ? 200_000 : 1_000_000,
+      capabilities: {
+        ...FULL_CAPABILITIES,
+        thinking: { supported: true, types: { adaptive: { supported: true }, enabled: { supported: false } } },
+      },
     },
     {
       id: "claude-fable-5-1",

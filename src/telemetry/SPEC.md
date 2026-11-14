@@ -58,9 +58,20 @@ Record what Meridian did and show it to the operator:
   line. The page remembers a sign-in it finished, so an answer requested
   before it cannot clear the updating state; `/profiles` polls every 1.5s
   while a card updates, drops an answer older than one already drawn, and
-  exempts an updating card from the search (not from the provider chips). An
+  exempts an updating card from the search and the login-state chips (not
+  from the provider chips), because a sign-in changes both under it. An
   updating card dims only its figures; its name row and active border never
   dim.
+- **Login-state chips use the pages' own rules** (`profileLoginStates.ts`).
+  Each account is in exactly one state: *Needs auth* is `isUnusable()`
+  (`profileSpent.ts`, the rule behind the red needs-login border), *Expires
+  soon* is a logged-in account with `renewalRequiredSoon` from
+  `/profiles/list`, and every other account is *Authenticated*. A spent or
+  unreachable account is not in *Needs auth*, and a ChatGPT seat, which states
+  no login deadline, never expires soon. `?login=` names the chips that are on
+  exactly as `?provider=` does (`profileFilterUrl.ts`): an absent or
+  unknown-only parameter keeps the remembered choice, an empty one turns
+  every chip off, and opening a link never saves a preference.
 - **`/`, `/profiles` and `/providers` stop polling while their tab is
   hidden.** All three read `/v1/usage/quota/all` (`/providers` through
   `/providers/view`, whose Claude card re-reads it at most every 10 s), and

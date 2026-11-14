@@ -35,6 +35,11 @@ Own the operator's **Claude accounts** and decide which one serves a request:
 - Rate-limit facts are **keyed per profile**, and `profileId` is a required
   argument, so no call site can read one account's window for another. A
   profile switch clears nothing; `/auth/refresh` clears only its own profile.
+  The one fact scoped wider is a priority exhaustion mark from a quota
+  refusal, which also lands on the profiles verified at that moment to hold
+  the same account (see *A quota refusal speaks for every profile signed in
+  to that account*); the windows, spent records and usage snapshots behind it
+  stay per profile.
 - The `x-meridian-profile` pin always wins over any routing mode.
 - Claude profiles never hold ChatGPT credentials (those live in
   [`chatgpt-backend`](chatgpt/SPEC.md)); routing never crosses providers.
@@ -108,15 +113,30 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   `claude auth status` and contributes nothing to duplicate detection, so a
   profile re-logged into another account with `claude login` is never flagged
   from its previous account's record.
-- **Duplicate detection is informational only.** `duplicateOf` /
+- **Duplicate badges are informational.** `duplicateOf` /
   `duplicateBasis` on `/profiles/list` name profiles holding one account: a
   Claude account is account UUID **and** organization UUID (email **and**
   organization name only while the UUIDs are unknown); a ChatGPT seat is its
   seat id, or the same email in the same workspace; email alone never matches,
   and providers never match each other. Nothing is removed, renamed or
-  excluded, and routing, cooldowns and failover treat every profile as its own
-  account. Cooling down detected twins on a quota refusal was split out of
-  #1446 to be proposed separately.
+  excluded because of a badge.
+- **A quota refusal speaks for every profile signed in to that account.**
+  Profiles holding one Claude account hold one quota, so under pool routing a
+  quota refusal on one marks every other such profile exhausted until the same
+  reset (and the OAuth-usage refinement extends them with it), and the
+  request's remaining candidates skip them instead of spending an attempt each
+  to hear the same answer. The proof is stricter than the badge's: the account
+  UUID **and** organization UUID only, never email and organization name, and
+  only from records read for the access token each profile stores at the
+  moment of the refusal, the refused profile's own included
+  (`organizationRecordCurrent`). A profile re-logged into another account with
+  `claude login` still carries its previous account's record until the
+  background re-read lands, and benching it on that record would park a
+  healthy account until someone else's reset. Credentials are read only for
+  profiles whose saved record already names the refused account, so a fleet
+  without twins pays no read. A failed lookup benches no one beyond the
+  refused profile. Billing and other refusals stay per profile: only a quota
+  refusal carries a reset that is the account's own.
 - **A finished sign-in reports its re-read.** Every completed sign-in marks the
   profile `factsRefresh: updating` before the route answers, re-reads account,
   usage and auth status, then clears it or reports `failed` with the reason for
@@ -193,6 +213,15 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
 ## Known limitations
 
 - Exhaustion and cooldown state is in memory; a restart forgets it.
+- A twin benched by a shared-quota refusal and then signed in to another
+  account with `claude login` stays benched until that reset, exactly as the
+  refused profile itself would; a Meridian sign-in or `/auth/refresh` clears
+  it.
+- A twin whose access token was renewed after its account was last read is not
+  recognized until that record is read again, which happens when something
+  polls `/profiles/list` (any open Meridian page does). On an instance with no
+  page open, the busy twin has usually renewed, so the request still tries it
+  once and hears the same refusal, as it did before.
 - **No failover after content streams.** A rate limit arriving after the first
   real SSE frame is relayed to the client instead of failing over —
   deliberately, so a stream the client is consuming is never yanked.

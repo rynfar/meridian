@@ -1203,6 +1203,14 @@ describe("translateAnthropicSseEvent", () => {
     expect(chunk!.choices[0]!.finish_reason).toBe("length")
   })
 
+  it("message_delta refusal → finish chunk with content_filter", () => {
+    const chunk = translateAnthropicSseEvent(
+      { type: "message_delta", delta: { stop_reason: "refusal" } },
+      ID, MODEL, CREATED, NO_TOOL
+    )
+    expect(chunk!.choices[0]!.finish_reason).toBe("content_filter")
+  })
+
   it("ping → null", () => {
     expect(translateAnthropicSseEvent({ type: "ping" }, ID, MODEL, CREATED, NO_TOOL)).toBeNull()
   })
@@ -1671,15 +1679,26 @@ describe("buildModelList", () => {
       expect(model.capabilities!.thinking.types.enabled.supported).toBe(true)
     }
   })
-  it("returns 12 models", () => {
-    expect(buildModelList(true).length).toBe(12)
-    expect(buildModelList(false).length).toBe(12)
+  it("advertises Fable 5.2 adaptive thinking and native 1M context", () => {
+    for (const extended of [false, true]) {
+      const model = buildModelList(extended).find(m => m.id === "claude-fable-5-2")!
+      expect(model.display_name).toBe("Claude Fable 5.2")
+      expect(model.context_window).toBe(1_000_000)
+      expect(model.capabilities!.thinking.types.adaptive.supported).toBe(true)
+      expect(model.capabilities!.thinking.types.enabled.supported).toBe(false)
+    }
+    expect(buildModelList(true, 0, true).find(m => m.id === "claude-fable-5-2")!.context_window).toBe(200_000)
+  })
+  it("returns 13 models", () => {
+    expect(buildModelList(true).length).toBe(13)
+    expect(buildModelList(false).length).toBe(13)
   })
 
   it("includes current and legacy Fable plus the supported Sonnet and Opus models for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
     expect(ids).toContain("claude-sonnet-5-5")
     expect(ids).toContain("claude-sonnet-5")
+    expect(ids).toContain("claude-fable-5-2")
     expect(ids).toContain("claude-fable-5-1")
     expect(ids).toContain("claude-fable-5")
     expect(ids).toContain("claude-opus-5-5")
@@ -1689,8 +1708,8 @@ describe("buildModelList", () => {
     expect(ids).toContain("claude-opus-4-8")
   })
 
-  it("every subscription gets the native 1M window for both Fable versions", () => {
-    for (const id of ["claude-fable-5-1", "claude-fable-5"]) {
+  it("every subscription gets the native 1M window for every Fable version", () => {
+    for (const id of ["claude-fable-5-2", "claude-fable-5-1", "claude-fable-5"]) {
       const fableMax = buildModelList(true).find(m => m.id === id)!
       const fableFree = buildModelList(false).find(m => m.id === id)!
       expect(fableMax.context_window).toBe(1_000_000)

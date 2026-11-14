@@ -223,5 +223,12 @@ function applyProfileRenameLocked(from: string, to: string, options: ApplyProfil
   // the instance is left pointing at a profile that no longer exists.
   if (getSetting("activeProfile") === from) setSetting("activeProfile", to)
 
+  // So is the pool order, and the alias does not save it: resolvePriorityOrder
+  // matches ids exactly, drops what it cannot match, then appends the
+  // unmatched profiles at the END. A renamed profile that was first silently
+  // becomes last - a demotion nobody asked for and nothing reports.
+  const order = getSetting("profileOrder")
+  if (order?.includes(from)) setSetting("profileOrder", order.map(id => (id === from ? to : id)))
+
   return { ok: true, from, to, aliases: plan.aliases, profiles: plan.profiles }
 }

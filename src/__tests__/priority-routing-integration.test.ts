@@ -11,7 +11,8 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test"
 import { createAdaptorServer } from "@hono/node-server"
 import type { AddressInfo } from "node:net"
-import { mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fetchOAuthUsage, fetchOAuthUsageResult, peekOAuthUsage, resetOAuthUsageCache } from "../proxy/oauthUsage"
 import { installSdkMock } from "./sdkMock"
@@ -275,6 +276,7 @@ const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 const { loadSettings, saveSettings } = await import("../settings")
+const { rememberOrganization } = await import("../proxy/organizationName")
 const {
   evictSharedSession,
   lookupPriorityAssignmentResult,
@@ -674,6 +676,140 @@ describe("priority routing", () => {
     const recovered = await post(app, { "x-opencode-session": "incidental-usage-credit" }, "try again")
     expect(recovered.status).toBe(200)
     expect(capturedEnvs[0]).toContain("prof-work")
+  })
+
+  describe("profiles signed in to one account", () => {
+    // work and twin hold ONE account (same account and organization UUIDs);
+    // personal is the same person in another organization, its own quota.
+    const sameAccount = { name: "Acme", accountUuid: "acct-1", organizationUuid: "org-1", email: null }
+    let tempDir = ""
+    let savedOrganizations: string | null = null
+    let storeOverride: ReturnType<typeof spyOn>
+    const tokenMarks: Record<string, number> = {}
+
+    function organizationsFile(): string {
+      return join(process.env.MERIDIAN_CONFIG_DIR!, "organizations.json")
+    }
+
+    function createTwinApp(): TestApp {
+      const { app } = createProxyServer({
+        port: 0,
+        host: "127.0.0.1",
+        profiles: ["work", "twin", "personal"].map(id => ({
+          id,
+          claudeConfigDir: join(tempDir, id === "twin" ? "twin-of-w" : `prof-${id}`),
+        })),
+        defaultProfile: "work",
+      })
+      return app
+    }
+
+    beforeEach(async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meridian-shared-quota-"))
+      savedOrganizations = existsSync(organizationsFile()) ? readFileSync(organizationsFile(), "utf-8") : null
+      const tokens = await import("../proxy/tokenRefresh")
+      tokens.setCredentialStorePlatformForTests("linux")
+      storeOverride = spyOn(tokens, "createPlatformCredentialStore").mockImplementation(options =>
+        createOwnedCredentialStore(tempDir, options?.claudeConfigDir ?? join(tempDir, "prof-default")))
+      // Each profile's stored token, far from expiry so nothing refreshes it.
+      const base = Date.now() + 6 * 3_600_000
+      for (const [index, dir] of ["prof-work", "twin-of-w", "prof-personal"].entries()) {
+        const expiresAt = base + index * 1_000
+        tokenMarks[dir] = expiresAt
+        mkdirSync(join(tempDir, dir), { recursive: true })
+        writeFileSync(join(tempDir, dir, ".credentials.json"), JSON.stringify({
+          claudeAiOauth: { accessToken: `fake-${dir}`, refreshToken: "fake-refresh", expiresAt, subscriptionType: "max" },
+        }))
+      }
+      rememberOrganization("work", sameAccount, tokenMarks["prof-work"]!)
+      rememberOrganization("twin", sameAccount, tokenMarks["twin-of-w"]!)
+      rememberOrganization("personal", { ...sameAccount, organizationUuid: "org-personal" }, tokenMarks["prof-personal"]!)
+      process.env.MERIDIAN_PROFILE_ORDER = "work,twin,personal"
+      failingDirs.add("prof-work")
+    })
+
+    afterEach(async () => {
+      storeOverride.mockRestore()
+      const tokens = await import("../proxy/tokenRefresh")
+      tokens.setCredentialStorePlatformForTests(null)
+      if (savedOrganizations === null) rmSync(organizationsFile(), { force: true })
+      else writeFileSync(organizationsFile(), savedOrganizations)
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it("a quota refusal cools down every profile signed in to the same account", async () => {
+      const app = createTwinApp()
+      const res = await post(app, {}, "shared quota unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs[capturedEnvs.length - 1]).toContain("prof-personal")
+      // The twin is never asked: its answer is the refusal work just gave.
+      expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(false)
+      expect((await exhaustedMarks(app)).map(mark => mark.id).sort()).toEqual(["twin", "work"])
+    }, 20_000)
+
+    it("a streamed quota refusal skips the twin too", async () => {
+      const app = createTwinApp()
+      const res = await postMessages(app, { stream: true, content: "shared quota streamed unique message" })
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain("prof-personal")
+      expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(false)
+      expect((await exhaustedMarks(app)).map(mark => mark.id).sort()).toEqual(["twin", "work"])
+    }, 20_000)
+
+    it("a twin whose stored token now belongs to another account is not cooled down", async () => {
+      // twin was signed in to another account with `claude login`: its stored
+      // token changed, and its saved record, read for the earlier token, still
+      // names work's account.
+      rememberOrganization("twin", sameAccount, tokenMarks["twin-of-w"]! - 60_000)
+      const app = createTwinApp()
+      const res = await post(app, {}, "relogged twin unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs[capturedEnvs.length - 1]).toContain("twin-of-w")
+      expect((await exhaustedMarks(app)).map(mark => mark.id)).toEqual(["work"])
+    }, 20_000)
+
+    it("cools down no twin when the refused profile's own record predates its token", async () => {
+      // Nothing proves which account refused, so nothing else is benched.
+      rememberOrganization("work", sameAccount, tokenMarks["prof-work"]! - 60_000)
+      const app = createTwinApp()
+      const res = await post(app, {}, "stale refuser unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs[capturedEnvs.length - 1]).toContain("twin-of-w")
+      expect((await exhaustedMarks(app)).map(mark => mark.id)).toEqual(["work"])
+    }, 20_000)
+
+    it("the OAuth refinement extends the twin's cooldown too", async () => {
+      const WORK_RESET = Date.now() + 4 * 60 * 60_000
+      __setFetchOAuthUsageOverride(async (opts) => {
+        if (opts?.profileId !== "work") return null
+        return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, bankedResets: null, fetchedAt: Date.now() }
+      })
+      const app = createTwinApp()
+      await post(app, {}, "refined twin unique message")
+      await Bun.sleep(50)
+      const marks = await exhaustedMarks(app)
+      expect(marks.map(m => [m.id, m.until]).sort()).toEqual([["twin", WORK_RESET], ["work", WORK_RESET]])
+    }, 20_000)
+
+    it("a twin whose token renewed since its account was read is still tried", async () => {
+      // Same account, but the twin's access token was renewed after its record
+      // was read and no /profiles/list poll has re-read it yet (headless use).
+      rememberOrganization("twin", sameAccount, tokenMarks["twin-of-w"]! - 8 * 3_600_000)
+      failingDirs.add("twin-of-w")
+      const app = createTwinApp()
+      const res = await post(app, {}, "renewed twin unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs.some((e) => e.includes("twin-of-w"))).toBe(true)
+    }, 20_000)
+
+    it("a billing refusal benches only the refused profile", async () => {
+      failureMessage = SUBSCRIPTION_REFUSAL
+      const app = createTwinApp()
+      const res = await post(app, {}, "billing twin unique message")
+      expect(res.status).toBe(200)
+      expect(capturedEnvs[capturedEnvs.length - 1]).toContain("twin-of-w")
+      expect((await exhaustedMarks(app)).map(mark => mark.id)).toEqual(["work"])
+    }, 20_000)
   })
 
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {

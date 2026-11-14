@@ -185,7 +185,7 @@ Signing a profile in from a browser that is still signed in to another account l
 
 One person legitimately holds several subscriptions - a personal plan and seats in several Team organizations - so an email alone never makes a duplicate. A Claude account is its account UUID **and** organization UUID, as `GET /api/oauth/profile` reports them. When a read for the current credential did not report them for one of the two profiles, the email **and** organization name stand in, and `duplicateBasis` says `email-organization`. A ChatGPT seat is its seat id, or the same email in the same workspace. Profiles of different providers never match.
 
-The account is read again whenever the stored credential changes - a login, a re-login or a token renewal - instead of waiting for the daily refresh, so a re-login into the right account clears the flag on the next poll. Until that read lands, the account recorded for the previous credential is not used: the profile is not flagged from it, and its email comes from `claude auth status`. Once it lands, the email shown is the one Anthropic reported for the credential the profile holds now. The badge is informational: routing treats each profile as its own account, as it always has.
+The account is read again whenever the stored credential changes - a login, a re-login or a token renewal - instead of waiting for the daily refresh, so a re-login into the right account clears the flag on the next poll. Until that read lands, the account recorded for the previous credential is not used: the profile is not flagged from it, and its email comes from `claude auth status`. Once it lands, the email shown is the one Anthropic reported for the credential the profile holds now. The badge itself changes nothing; priority routing acts only on the stricter proof described under [Priority failover routing](#priority-failover-routing).
 
 ### After a sign-in
 
@@ -212,6 +212,20 @@ curl -H "x-meridian-profile: work" ...
 ```
 
 You can also switch profiles from the web UI — click an account card on the home page (`http://127.0.0.1:3456/`) or use the Profiles page at `/profiles`. The site header on every page shows which profile is active.
+
+### Filter accounts by login state
+
+With two or more accounts, `/` and `/profiles` show login-state chips beside the provider chips: **Authenticated**, **Expires soon** and **Needs auth**, each with its count. Every account is in exactly one state. **Needs auth** is an account with the red needs-login border (logged out, or no token); **Expires soon** is a logged-in Claude account whose refresh deadline is within `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` (3 days by default); every other account is **Authenticated**. All chips start on; turn one off to hide its accounts. The browser remembers the choice for both pages, and **Show all states** turns every chip back on.
+
+A link can open either page on given states without changing that remembered choice, alone or with `?provider=`:
+
+```
+/profiles?login=needs-auth
+/profiles?login=needs-auth&provider=claude
+/?login=expires-soon,needs-auth
+```
+
+An empty `?login=` turns every state chip off. A card that is updating after a sign-in stays on screen until its new state is known.
 
 ### Sticky session routing
 
@@ -246,6 +260,7 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 - **One-time setup for `next-user-turn`**: rerun `meridian setup` after upgrading. Setup creates `~/.config/meridian/opencode-turn.key` as a 32-byte key with mode `0600` and configures the matching V1 or V2 plugin; `meridian setup --client pi` uses the same key for the Pi extension. Missing or invalid keys fail closed: requests still work, but they cannot promote. If OpenCode or Pi and Meridian run in separate hosts or config homes, set the same 32-byte base64url `MERIDIAN_OPENCODE_ATTESTATION_KEY` in both environments instead of relying on the shared file. Attestations bind the immutable creation time of the client's user message and are accepted only for the short freshness window; an old A-B-A replay keeps A's old time even after a restart and cannot cross B's durable high-water mark.
 - **Exposed turns are replay-fenced durably.** Meridian records an exact attempt claim before SDK work starts and clears it only with terminal route/session finalization or a proven pre-exposure account failure. A crash, cancellation, assistant output, structured output, or tool execution leaves the claim fail-closed. Retrying the same, older, missing, or invalid attestation then returns `503` before any SDK call; only a strictly newer trusted human turn can supersede the uncertain attempt.
 - **Exhaustion is tracked in-memory.** A quota refusal uses that account's own reported reset time (conservative 10-minute default when unknown), refined shortly after by an authoritative check against the usage API that can extend — never shorten — the cooldown once that account's five-hour window is confirmed exhausted. A billing refusal has no reset to wait for, so it takes the conservative default unrefined — the account is simply re-probed later, since only a human can fix a subscription. The home page shows `#n in pool` and `exhausted · resets in …` badges per account.
+- **A quota refusal speaks for the whole account.** Profiles signed in to one Claude account share its quota, so a quota refusal on one also cools down every other profile signed in to that account at that moment, and the request moves on to a different account without trying them. Only the account and organization UUIDs read for the token each profile stores now count: a profile re-logged into another account is not affected, and the email and organization name that can raise a duplicate badge never steer routing. A billing refusal still benches only its own profile. A token renewal makes a profile's account record stale until the next read, and records are re-read when a Meridian page polls the profile list. With no page open, a twin whose token renewed is still tried once.
 - When **every** account is exhausted, the last-tried account's error is surfaced unchanged, with its own status — a pool that ran out of billing is not reported as a rate limit.
 - An explicit `x-meridian-profile` header always bypasses the pool (per-session pinning keeps working).
 - **Weekly reserve (opt-in).** Hold back part of an account's weekly allowance, for example for someone who uses that account directly outside Meridian. Once its weekly usage reaches 100% minus the reserve, the pool skips it until the weekly window resets:

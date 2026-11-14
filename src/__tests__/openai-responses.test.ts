@@ -616,6 +616,17 @@ describe("createResponsesSseTranslator (stream)", () => {
     expect(resp.incomplete_details).toEqual({ reason: "max_output_tokens" })
   })
 
+  it("emits response.incomplete with content_filter on a refusal", () => {
+    const out = run([
+      { type: "message_start", message: { id: "m1", usage: { input_tokens: 3 } } },
+      { type: "message_delta", delta: { stop_reason: "refusal" }, usage: { output_tokens: 0 } },
+      { type: "message_stop" },
+    ])
+    const incomplete = out.find((e) => e.event === "response.incomplete")!
+    expect((incomplete.data as any).response.incomplete_details).toEqual({ reason: "content_filter" })
+    expect(out.map((e) => e.event)).not.toContain("response.completed")
+  })
+
   it("embeds a `type` field in every data payload matching the event name", () => {
     // The Responses SSE format is self-describing; Codex's deserializer is
     // #[serde(tag = "type")]. A payload without `type` fails to parse and

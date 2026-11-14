@@ -114,7 +114,7 @@ import { LRUMap } from "../utils/lruMap"
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics, resolveTelemetryConfig, telemetryEnvSources, diagnosticLogCapacity } from "../telemetry"
 import { detectSupervision } from "./supervision"
 import type { RequestMetric } from "../telemetry"
-import { canRecoverCapturedToolUses, uncapturedRecoveryVeto, streamedToolBlockVeto, cliRejectedToolResults, type StreamedToolBlockRecord, type UncapturedDeliveryVeto, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
+import { assistantRefusalOf, type AssistantRefusal, canRecoverCapturedToolUses, uncapturedRecoveryVeto, streamedToolBlockVeto, cliRejectedToolResults, type StreamedToolBlockRecord, type UncapturedDeliveryVeto, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
 import { createSseRelayStream, relayStreamAttempt } from "./sseFailureSniff"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialSnapshot, getAuthRenewalStatus, getStoredPlanFields, renewalStatusFor, resolveRenewalWarnDays, type CredentialStore, type StoredPlanFields } from "./tokenRefresh"
 import { planAllowance } from "./planAllowance"
@@ -1699,8 +1699,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    *  `stale: true` snapshot (served when a fresh fetch
    *  failed transiently) is not authoritative about the current window, so
    *  it's skipped too — the conservative default is the safer thing to
-   *  leave standing. */
-  function refinePriorityCooldown(profileId: string): void {
+   *  leave standing. `sharedWith` are the profiles the refusal also benched
+   *  (`quotaSharedWith`): one account, so the refined reset is theirs too. */
+  function refinePriorityCooldown(profileId: string, sharedWith: readonly string[] = []): void {
     const profiles = getEffectiveProfiles(finalConfig.profiles)
     const target = profiles.find(p => p.id === profileId)
     // Only `claude-max` profiles have credentials this can consult. `api`
@@ -1733,7 +1734,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const until = resolveCooldownUntil(windows, now, 0)
         if (until <= now) return
         priorityExhaustion.mark(profileId, until, "rate_limit_error")
-        claudeLog("priority.cooldown_refined", { profile: profileId, until, source: "oauth_usage" })
+        for (const twin of sharedWith) priorityExhaustion.mark(twin, until, "rate_limit_error")
+        claudeLog("priority.cooldown_refined", { profile: profileId, until, source: "oauth_usage", ...(sharedWith.length > 0 ? { sharedWith } : {}) })
       })
       .catch(err => {
         claudeLog("priority.cooldown_refine_failed", {
@@ -1803,14 +1805,62 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return { inner, exposure }
   }
 
-  function markPriorityFailure(candidate: string, reason: string): number {
+  /**
+   * Other Claude profiles signed in to `profileId`'s account right now: one
+   * quota under several names (profiles-routing spec, "A quota refusal speaks
+   * for every profile signed in to that account"). Only the account UUID AND
+   * organization UUID count, and only from records read for the access token
+   * each profile stores now, the refused profile's own included. Credentials
+   * are read only for profiles whose saved record already names that account,
+   * so a fleet without twins pays no read.
+   */
+  async function quotaSharedWith(profileId: string): Promise<string[]> {
+    const records = organizationNames()
+    const own = records[profileId]
+    if (!own?.accountUuid || !own.organizationUuid) return []
+    const suspects = getEffectiveProfiles(finalConfig.profiles).filter(p => {
+      const record = records[p.id]
+      return p.id === profileId
+        || (record?.accountUuid === own.accountUuid && record?.organizationUuid === own.organizationUuid)
+    })
+    if (suspects.length < 2) return []
+    const current = await Promise.all(suspects.map(async (p) => {
+      const resolved = resolveProfile([p], p.id, p.id)
+      if (resolved.type !== "claude-max") return null
+      const configDir = resolved.env.CLAUDE_CONFIG_DIR
+      const stored = await readStoredCredentialSnapshot(
+        createPlatformCredentialStore(configDir ? { claudeConfigDir: configDir } : undefined),
+      )
+      return organizationRecordCurrent(records[p.id], stored.accessTokenExpiresAt ?? null) ? p.id : null
+    }))
+    if (!current.includes(profileId)) return []
+    return current.filter((id): id is string => id !== null && id !== profileId)
+  }
+
+  /** `sharedQuota` collects the profiles this refusal also spoke for, so the
+   *  request's remaining candidates can skip them. */
+  async function markPriorityFailure(candidate: string, reason: string, sharedQuota: Set<string>): Promise<number> {
     const quotaRefusal = isQuotaRefusal(reason)
     const until = quotaRefusal
       ? priorityCooldownUntil(candidate, Date.now())
       : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
     priorityExhaustion.mark(candidate, until, reason)
     claudeLog("priority.exhausted", { profile: candidate, until, reason })
-    if (quotaRefusal) refinePriorityCooldown(candidate)
+    if (!quotaRefusal) return until
+    // A failed lookup costs only the attempts it would have saved.
+    const twins = await quotaSharedWith(candidate).catch((error: unknown) => {
+      claudeLog("priority.shared_quota_failed", {
+        profile: candidate,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return []
+    })
+    for (const twin of twins) {
+      priorityExhaustion.mark(twin, until, reason)
+      sharedQuota.add(twin)
+      claudeLog("priority.exhausted", { profile: twin, until, reason, sharedWith: candidate })
+    }
+    refinePriorityCooldown(candidate, twins)
     return until
   }
 
@@ -1842,6 +1892,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       previous: string | null
       previousReason: string
       earliestPoolReset: number | null
+      sharedQuota: Set<string>
     },
   ): Promise<Response> {
     const encoder = new TextEncoder()
@@ -1875,6 +1926,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           for (let attempt = start.attempt; attempt < options.candidateIds.length; attempt++) {
             const candidate = options.candidateIds[attempt]!
             const handed = attempt === start.attempt
+            if (!handed && start.sharedQuota.has(candidate)) continue
             // The handed attempt is always relayed: its reader owns the cancel.
             if (!handed && isCancelled()) break
             activeExposure = handed ? start.exposure : { committed: false }
@@ -1890,7 +1942,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               await verdict.discard()
               await responseCompletions.get(inner)?.catch(() => {})
               const reason = verdict.errorType
-              const cooldownUntil = markPriorityFailure(candidate, reason)
+              const cooldownUntil = await markPriorityFailure(candidate, reason, start.sharedQuota)
               if (isCancelled()) break
               earliestPoolReset = Math.min(earliestPoolReset ?? cooldownUntil, cooldownUntil)
               lastError = verdict.errorPayload
@@ -2081,14 +2133,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // frees up, not the last one tried. Tracked across the loop so the caller's
     // Retry-After names the pool's earliest opening (#901).
     let earliestPoolReset: number | null = null
+    // Profiles a refusal in THIS request already spoke for: one account under
+    // another name, so asking it again only repeats the answer.
+    const sharedQuota = new Set<string>()
     for (const [attempt, candidate] of options.candidateIds.entries()) {
+      if (sharedQuota.has(candidate)) continue
       const { inner, exposure } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
       // A non-SSE answer is decided here and keeps its HTTP status. Once an
       // account streams, headers go out and the remaining candidates are
       // tried inside the stream.
       if (options.wantsStream && isEventStream(inner)) {
         return streamPriorityDispatch(options, attemptOwnerToken, settleAttempt, {
-          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset,
+          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset, sharedQuota,
         })
       }
       const sniffed = await sniffAccountFailure(inner)
@@ -2127,7 +2183,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement.
-      const cooldownUntil = markPriorityFailure(candidate, reason)
+      const cooldownUntil = await markPriorityFailure(candidate, reason, sharedQuota)
       if (earliestPoolReset === null || cooldownUntil < earliestPoolReset) {
         earliestPoolReset = cooldownUntil
       }
@@ -6031,6 +6087,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             let nextPassthroughToolCallAssistantUuid: string | undefined
             let nextPassthroughToolCallIds: string[] | undefined
             let sawCanonicalResult = false
+            let assistantRefusal: AssistantRefusal | null = null
             // The CLI sometimes refuses a client call before the PreToolUse
             // hook runs: a bare tool name, or arguments it cannot parse. A
             // complete streamed call with an explicit, id-matched rejection
@@ -6740,6 +6797,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     )
                     currentClientAssistantUuid = sdkUuidMap[allMessages.length] ?? null
                   }
+                  if (message.type === "assistant") assistantRefusal = assistantRefusalOf(message)
                   if (message.type === "assistant" && !messageStartEmitted) {
                     const unstreamed = (message as { message?: (typeof unstreamedAssistants)[number] }).message
                     if (unstreamed) {
@@ -8711,12 +8769,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // is still a truncation. Emitting "end_turn" there was the one
               // value that actively lies, and it lies in the direction that
               // makes an autonomous loop stop.
+              //
+              // A safeguard refusal is the one exception: it was not cut off,
+              // and "max_tokens" tells the client to continue, which resends
+              // the refused conversation (#1511).
               if (messageStartEmitted) {
                 // An upstream failure can cut a block between its start and
                 // stop. Close every forwarded block before any terminal or
                 // error frame so the client never commits a dangling envelope.
                 flushOpenClientBlocks("error")
-                const errorStopReason = "max_tokens"
+                const errorStopReason = assistantRefusal ? "refusal" : "max_tokens"
                 claudeLog("response.error_envelope", {
                   mode: "stream",
                   stopReason: errorStopReason,
@@ -8726,7 +8788,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 enqueueTerminalDelta(encoder.encode(
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
-                    delta: { stop_reason: errorStopReason, stop_sequence: null },
+                    delta: {
+                      stop_reason: errorStopReason,
+                      stop_sequence: null,
+                      ...(assistantRefusal ? { stop_details: assistantRefusal.stopDetails } : {}),
+                    },
                     usage: { output_tokens: 0 }
                   })}\n\n`
                 ), "error_message_delta")
