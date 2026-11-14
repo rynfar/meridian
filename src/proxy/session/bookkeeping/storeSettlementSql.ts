@@ -61,8 +61,10 @@ export function rollbackSharedSessionAndPriorityAssignment(directory: string,
         currentTranscript: current ? persistedCanonicalLocator(current) : undefined,
         previousTranscript: prior ? persistedCanonicalLocator(prior) : undefined }
       writeMappingRow(tx, options.key, restoredMapping, true)
-    } else tx.run("DELETE FROM mappings WHERE key=?", options.key)
-    advanceStoreSlot(tx, options.key)
+    } else {
+      tx.run("DELETE FROM mappings WHERE key=?", options.key)
+      advanceStoreSlot(tx, options.key)
+    }
     const mappingGeneration = readMappingGeneration(tx, options.key)
     let restoredAssignment: DurablePriorityAssignment | null = null
     if (options.previousAssignment) {
