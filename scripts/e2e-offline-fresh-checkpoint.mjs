@@ -9,6 +9,8 @@
 // --non-stream exercises JSON completion; --captured emits only registered calls.
 // --input-validation sends raw-tab JSON to registered names, refused before hooks.
 // --captured-last puts the captured call last in a mixed batch (JSON backfill).
+// --sse-delay-ms=25 paces individual upstream frames; --distinct-tools with
+// --captured uses a different registered tool for each parallel call.
 // A single name-dispatch rejection at maxTurns=1 retains and resumes. Other
 // uncaptured calls evict and replay every real client result.
 import assert from "node:assert/strict"
@@ -28,6 +30,10 @@ const nonStream = process.argv.includes("--non-stream")
 const captured = process.argv.includes("--captured")
 const capturedLast = process.argv.includes("--captured-last")
 const inputValidation = process.argv.includes("--input-validation")
+const distinctTools = process.argv.includes("--distinct-tools")
+const sseDelayMs = Number(process.argv.find(arg => arg.startsWith("--sse-delay-ms="))?.slice(15) ?? 0)
+assert(Number.isFinite(sseDelayMs) && sseDelayMs >= 0, "--sse-delay-ms must be nonnegative")
+assert(!distinctTools || captured, "--distinct-tools requires --captured")
 assert(!capturedLast || mixed, "--captured-last requires --mixed")
 assert(!mixed || callCount > 1, "--mixed requires at least two calls")
 assert(!(mixed && captured), "choose --mixed or --captured")
@@ -35,11 +41,12 @@ const extended = mixed || deferred || nonStream || captured || inputValidation
 const digestExpected = deferred && !mixed && !captured
 const calls = Array.from({ length: callCount }, (_, index) => ({
   type: "tool_use", id: index === 0 ? "toolu_offline" : "toolu_offline_" + index,
-  name: "read", input: { file_path: "new-" + (inputValidation ? "\t" : "") + index },
+  name: distinctTools && index > 0 ? "read_" + index : "read",
+  input: { file_path: "new-" + (inputValidation ? "\t" : "") + index },
 }))
 const realResult = call => "REAL_CLIENT_RESULT_" + call.id
 const upstreamCalls = calls.map((call, index) => ({ ...call,
-  name: inputValidation || captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__read" : call.name,
+  name: inputValidation || captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__" + call.name : call.name,
 }))
 const capturedCall = index => captured || (mixed && index === (capturedLast ? callCount - 1 : 0))
 const rawInput = (block, index) => inputValidation && !capturedCall(index)
@@ -100,9 +107,18 @@ const upstream = Bun.serve({
       }, usage: { output_tokens: 10 } }],
       ["message_stop", { type: "message_stop" }],
     ]
-    return new Response(events.map(([event, data]) =>
-      "event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n").join(""),
-    { headers: { "content-type": "text/event-stream" } })
+    const frames = events.map(([event, data]) =>
+      "event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n")
+    const responseBody = sseDelayMs === 0 ? frames.join("") : new ReadableStream({
+      async start(controller) {
+        for (const frame of frames) {
+          controller.enqueue(new TextEncoder().encode(frame))
+          await Bun.sleep(sseDelayMs)
+        }
+        controller.close()
+      },
+    })
+    return new Response(responseBody, { headers: { "content-type": "text/event-stream" } })
   },
 })
 let proxy
@@ -118,10 +134,10 @@ try {
     { id: "offline", type: "api", apiKey: "offline-test-key", baseUrl: upstream.url.origin },
   ], defaultProfile: "offline" })
   const session = "offline-fresh-checkpoint"
-  const tools = [{ name: "read", input_schema: {
+  const tools = [...new Set(calls.map(call => call.name))].map(name => ({ name, input_schema: {
     type: "object", properties: { file_path: { type: "string" } }, required: ["file_path"],
-  } }, ...(deferred ? [{ name: "lsp_diagnostics", defer_loading: true,
-    input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])]
+  } })).concat(deferred ? [{ name: "lsp_diagnostics", defer_loading: true,
+    input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])
   const history = [
     { role: "user", content: "read old file" },
     { role: "assistant", content: [{ type: "tool_use", id: "old-call", name: "read", input: { file_path: "old" } }] },
@@ -205,6 +221,8 @@ try {
     assert(content[index].input, "client must be able to repair the complete tool input")
   }
   assert.deepEqual(content.filter(block => block.type === "tool_use"), calls)
+  console.log("CLIENT_CALLS " + JSON.stringify({ expected: calls.length,
+    received: content.filter(block => block.type === "tool_use").length }))
   if (thinking) assert.equal(content[0].type, "thinking")
   const nextHistory = [...history,
     { role: "assistant", content },
@@ -240,6 +258,16 @@ try {
   }
   collectReplayText(followUpWire.messages)
   const replayText = replayParts.join("\n")
+  if (expectResume) {
+    const results = followUpWire.messages.flatMap(message => Array.isArray(message.content)
+      ? message.content.filter(block => block.type === "tool_result") : [])
+    console.log("RESUME_RESULTS " + JSON.stringify({
+      real: calls.filter(call => results.some(block => block.tool_use_id === call.id &&
+        block.content === realResult(call))).map(call => call.id),
+      internalError: results.filter(block => block.content === "[Tool result missing due to internal error]")
+        .map(block => block.tool_use_id),
+    }))
+  }
   if (expectResume) for (const call of calls) {
     assert(followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)))
@@ -274,7 +302,7 @@ try {
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
     : "PASS continuation: native assistant and real client result for every call; rejection rewound")
   const sdkVersion = JSON.parse(readFileSync(new URL("../node_modules/@anthropic-ai/claude-agent-sdk/package.json", import.meta.url), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, inputValidation, upstreamCalls: wire.length, liveModelCalls: 0 }))
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
   await proxy?.closeBackend?.()
   upstream.stop(true)

@@ -118,7 +118,9 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   uncaptured call behind an earlier captured call. Single-call captured and
   all-captured multi-call retention eligibility are unchanged; this is not
   proof of all-captured multi-call result delivery (the offline three-captured
-  control currently fails; see the mixed/completion evidence below).
+  control fails on both production-baseline e1c37ba4 and the capture-proof
+  implementation, including paced SSE with distinct registered tools; see the
+  mixed/completion evidence below).
   A durable assistant boundary alone does not prove that resume will carry
   every real client result; full replay is the safe fallback for uncaptured
   calls outside the exception. Delivering all results on a rejected

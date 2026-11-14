@@ -40,10 +40,14 @@ Rejected parallel checkpoint controls (all use the same `--claude=...`):
   rejected call's JSON string. The real CLI must record InputValidationError
   before PreToolUse; the checkpoint evicts and both real results replay.
   `--deferred --calls=1 --input-validation` is the single-call deferred control.
-- **Open blocker:** the additional `--captured --calls=3` control currently
-  retains its checkpoint but loses the second real client result on native
-  resume. Do not weaken its result assertions or claim multi-call captured
-  delivery is qualified. See the mixed-checkpoint record for the stopped run.
+- **Separate pre-existing defect:** `--captured --calls=3` delivers all three
+  calls but loses the second/third real results on native resume on both
+  production-baseline e1c37ba4 and dd5badbc. `firstRequestCalls` counts upstream
+  HTTP requests, not client-visible calls. Add `--sse-delay-ms=25 --distinct-tools`
+  for the paced, three-distinct-registered-tool reproduction: it also fails on
+  both implementations, with CLI internal-error placeholders for two results.
+  Do not weaken its assertions or change all-captured retention to make it pass.
+  See the mixed-checkpoint record for the diagnosis and completed guard gates.
 
 Each control inspects the real transcript to distinguish hook capture from
 name-dispatch rejection, assembles the follow-up from the actual client
