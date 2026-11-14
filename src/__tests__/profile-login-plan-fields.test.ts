@@ -109,10 +109,10 @@ describe("extractPlanFields", () => {
     })
   })
 
-  it("omits the seat tier a personal account does not have", () => {
+  it("distinguishes an omitted seat from a personal account explicitly clearing it", () => {
     expect(extractPlanFields(MAX_PROFILE)).not.toHaveProperty("seatTier")
     expect(extractPlanFields({ organization: { organization_type: "claude_max", seat_tier: null } }))
-      .toEqual({ subscriptionType: "max" })
+      .toEqual({ subscriptionType: "max", seatTier: null })
   })
 
   it("keeps the tier when only the plan is unrecognized", () => {
@@ -228,6 +228,13 @@ describe("buildLoginCredentials", () => {
 
     expect(creds.claudeAiOauth.subscriptionType).toBe("team")
     expect("rateLimitTier" in creds.claudeAiOauth).toBe(false)
+  })
+
+  it("does not write the null seat a personal account reports", () => {
+    const creds = buildLoginCredentials(TOKEN_DATA, { subscriptionType: "max", seatTier: null })
+
+    expect(creds.claudeAiOauth.subscriptionType).toBe("max")
+    expect("seatTier" in creds.claudeAiOauth).toBe(false)
   })
 
   it("still carries the tokens, scopes and expiry", () => {
