@@ -12,7 +12,7 @@
 // --sse-delay-ms=25 paces individual upstream frames; --distinct-tools with
 // --captured uses a different registered tool for each parallel call.
 // A single name-dispatch rejection at maxTurns=1 retains and resumes. Other
-// uncaptured calls evict and replay every real client result.
+// uncaptured calls and every multi-call checkpoint evict and replay all results.
 import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -161,7 +161,7 @@ try {
   assert(!firstBody.includes("event: error"), firstBody)
   assert(firstBody.includes('"stop_reason":"tool_use"'), firstBody)
   assert.equal(firstRequestCalls, digestExpected ? 2 : 1, "deferred flow must complete its hidden second model turn")
-  const retainCheckpoint = captured || (!nonStream && !mixed && !deferred && !inputValidation && callCount === 1)
+  const retainCheckpoint = (captured && callCount === 1) || (!nonStream && !mixed && !deferred && !inputValidation && callCount === 1)
   const mapping = lookupSharedSession("offline:" + session)
   const rejectionText = "<tool_use_error>Error: No such tool available: read</tool_use_error>"
   if (extended) {
@@ -289,10 +289,12 @@ try {
       message.content?.some?.(block => block.type === "tool_use")),
       "fresh replay must not resume a native assistant tool turn")
   }
+  assert(!replayText.includes("[Tool result missing due to internal error]"),
+    "follow-up must not substitute CLI placeholders for real results")
   assert(!replayText.includes("InputValidationError"), "follow-up must not carry the CLI input rejection")
   assert(!replayText.includes("No such tool available"),
     expectResume ? "resume must rewind before the rejection" : "fresh replay must not carry the CLI rejection")
-  if (extended) assert.equal(Boolean(mapping), retainCheckpoint, "uncaptured checkpoint must be evicted except the canonical single-call name-dispatch control")
+  if (extended) assert.equal(Boolean(mapping), retainCheckpoint, "multi-call or uncaptured checkpoint must be evicted except the canonical single-call name-dispatch control")
   const turns = telemetryStore.getRecent({ limit: 10 })
   assert.equal(turns.some(turn => turn.isResume === true), expectResume,
     retainCheckpoint ? "only an unchanged request prefix can resume" : "multi-call follow-up must be a fresh replay, not a resumed continuation")

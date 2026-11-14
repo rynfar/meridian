@@ -45,6 +45,7 @@ const PASSTHROUGH_PREFIX = "mcp__oc__"
 let mockTurns: any[] = []
 let capturedController: AbortController | undefined
 let capturedResume: string | undefined
+let capturedPrompt: unknown
 let abortCompletesNormally = false
 
 function toolTurn(toolId: string, toolName: string, input: Record<string, unknown>) {
@@ -118,6 +119,7 @@ installSdkMock(() => ({
   query: (opts: any) => {
     capturedController = opts?.options?.abortController
     capturedResume = opts?.options?.resume
+    capturedPrompt = opts?.prompt
     return (async function* () {
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       const sessionId = resolveMockSdkSessionId(opts?.options, "test-session")
@@ -497,7 +499,7 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     expect(capturedController!.signal.aborted).toBe(false)
   })
 
-  it("the parallel-capture session is stored — the follow-up RESUMES instead of fresh-replaying", async () => {
+  it("the parallel-capture session is evicted — the follow-up replays every real result", async () => {
     mockTurns = [
       parallelReadTurn(),
       denyUser(["toolu_pa", "toolu_pb"]),
@@ -536,11 +538,11 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
       ]},
     ])
     expect(second.status).toBe(200)
-    // The stored session is resumed — this is what kills the fresh-replay
-    // '[your read ...]: Tool execution aborted' confusion loop.
-    // (?? guard defeats TS narrowing from the `= undefined` reset above —
-    // the mock closure reassigns it during the request.)
-    expect(capturedResume ?? "(not resumed)").toBe(firstSessionId)
+    expect(capturedResume).toBeUndefined()
+    expect(typeof capturedPrompt).toBe("string")
+    expect(capturedPrompt).toContain("contents of a")
+    expect(capturedPrompt).toContain("contents of b")
+    expect(capturedPrompt).not.toContain("hidden digest")
   })
 
   it("stream: both parallel read blocks reach the client fully terminated, no error", async () => {
@@ -826,7 +828,7 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
   }
 
   for (const stream of [false, true]) {
-  it(`checkpoint matches the visible calls and resumes (stream=${stream})`, async () => {
+  it(`checkpoint with a dropped duplicate replays visible results (stream=${stream})`, async () => {
     // First turn: model emits two reads, second is an exact duplicate.
     // The hook drops toolu_d2 (isExactDuplicate) → added to droppedToolUseIds.
     // Non-stream hides d2; streaming already delivered both. Match that set.
@@ -859,11 +861,10 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
     expect(visibleIds).toEqual(stream ? ["toolu_d1", "toolu_d2"] : ["toolu_d1"])
     const { lookupSharedSession } = await import("../proxy/sessionStore")
     const stored = lookupSharedSession("deny-abort-session")
-    expect(stored?.passthroughToolCallIds).toEqual(visibleIds)
+    expect(stored).toBeUndefined()
 
-    // Follow-up: client sends back the real result for toolu_d1 only.
-    // If the checkpoint incorrectly included toolu_d2, isCompleteToolResultContinuation
-    // would fail (expected size 2, actual size 1) and the request would fresh-replay.
+    // JSON lacks capture proof for the dropped ID; SSE delivered multiple IDs.
+    // Both cases replay, but only the visible results belong to that replay.
     mockTurns = [
       { type: "assistant", message: {
         id: "msg_final", type: "message", role: "assistant",
@@ -880,9 +881,11 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
     ])
     expect(second.status).toBe(200)
     await second.text()
-    // Must resume — if the checkpoint included toolu_d2, this would fresh-replay
-    expect(stored?.claudeSessionId).toBeDefined()
-    expect(capturedResume ?? "(not resumed)").toBe(stored?.claudeSessionId ?? "(missing mapping)")
+    expect(capturedResume).toBeUndefined()
+    expect(typeof capturedPrompt).toBe("string")
+    for (const id of visibleIds) expect(capturedPrompt).toContain(id)
+    expect(capturedPrompt).toContain("contents of a.txt")
+    if (!stream) expect(capturedPrompt).not.toContain("toolu_d2")
   })
   }
 })

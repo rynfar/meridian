@@ -105,7 +105,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { isSdkToolSearchCall, checkpointHasUncapturedCalls, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { isSdkToolSearchCall, checkpointHasUncapturedCalls, checkpointRequiresReplay, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -4024,6 +4024,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         messagesToConvert = executionMessages
       }
 
+      if (passthroughToolCallAssistantUuid && (passthroughToolCallIds?.length ?? 0) > 1) {
+        claudeLog("passthrough.checkpoint_replay", {
+          expectedToolIds: passthroughToolCallIds?.length,
+          reason: "multi_call_results_unproved",
+        })
+        isResume = false
+        resumeSessionId = undefined
+        passthroughToolCallAssistantUuid = undefined
+        messagesToConvert = executionMessages
+      }
+
       if (passthroughToolCallAssistantUuid) {
         // Rewinding to a tool-use checkpoint is valid only when the immediate
         // delta settles that exact batch. Coalesce any subsequent queued user
@@ -5869,7 +5880,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const checkpointTurn = passthrough && contentBlocks.some((b) => b.type === "tool_use")
                 if (checkpointTurn && (
                   !earlyStopFired || !sawCanonicalResult ||
-                  checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds) ||
+                  checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds) ||
                   checkpointHasUncapturedCalls(emittedToolUseIds, forwardedToolUseIds) ||
                   checkpointHasUncapturedCalls(streamedToolUseIds, forwardedToolUseIds)
                 )) {
@@ -7340,7 +7351,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   exitedBeforeCanonicalTerminal ||
                   (checkpointTurn && (
                     !earlyStopFired || !sawCanonicalResult ||
-                    checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds)
+                    checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds)
                   ))
                 ) {
                   const evicted = await evictSession(
@@ -8326,14 +8337,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // declared calls, and no dropped calls before retaining its
               // settled assistant checkpoint (see proxy-core SPEC).
               //
-              // Keeping the captured checkpoint lets the next request rewind
+              // Keeping a captured single-call checkpoint lets the next request rewind
               // to the tool-use boundary and append the client's real
               // tool_result, instead of replaying the conversation against a
               // cold cache. Other drain failures remain unsafe and are
               // evicted.
               //
-              // Exactly one streamed call. Resuming two or more rejected calls
-              // drops the client's real tool results; those turns are evicted
+              // Exactly one streamed call. Multi-call checkpoints, captured or
+              // rejected, cannot prove delivery of all real results and are evicted
               // and the next request is a full replay.
               const canonicalRejectedCheckpoint =
                 uncapturedRecoveryActive &&
@@ -8349,7 +8360,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const recoverableCheckpoint =
                 (canRecoverAsToolUse || canonicalRejectedCheckpoint) &&
                 (canonicalRejectedCheckpoint ||
-                  !checkpointHasUncapturedCalls(nextPassthroughToolCallIds, forwardedToolUseIds)) &&
+                  !checkpointRequiresReplay(nextPassthroughToolCallIds, forwardedToolUseIds)) &&
                 sdkTerm.reason === "max_turns" &&
                 Boolean(currentSessionId) &&
                 Boolean(nextPassthroughToolCallAssistantUuid) &&

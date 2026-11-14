@@ -115,19 +115,25 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   single-call name-dispatch exception above is unchanged. JSON also checks
   all emitted assistant and streamed call IDs independently of its frozen
   candidate: without boundary events, a later fragment must not hide an
-  uncaptured call behind an earlier captured call. Single-call captured and
-  all-captured multi-call retention eligibility are unchanged; this is not
-  proof of all-captured multi-call result delivery (the offline three-captured
-  control fails on both production-baseline e1c37ba4 and the capture-proof
-  implementation, including paced SSE with distinct registered tools; see the
-  mixed/completion evidence below).
-  A durable assistant boundary alone does not prove that resume will carry
-  every real client result; full replay is the safe fallback for uncaptured
-  calls outside the exception. Delivering all results on a rejected
-  multi-call resume remains an open item
-  (`docs/maintenance/FRESH_REPLAY_CHECKPOINT.md`; mixed/completion evidence in
-  `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md`). Abort-window calls without
-  a result, malformed-input refusals, undeclared names, unkeyed requests and
+  uncaptured call behind an earlier captured call.
+  **Multi-call checkpoints always replay, including all-captured batches**
+  (operator-approved fallback, 2026-11-14). Real SDK 0.2.141 / CLI 2.1.322
+  resumes lose later real results even when every call reached PreToolUse and
+  one SDK input contains every native result. Order/grouping, hook-delay and
+  earlier-fragment probes did not establish a safe resume shape; the internal
+  CLI cause remains unproven. A durable assistant boundary and capture proof
+  therefore do not prove result delivery. JSON completion, SSE completion and
+  captured-error recovery must evict multi-call checkpoints; a previously
+  retained multi-call checkpoint also takes fresh full replay on read.
+  Cardinality applies to the client-visible batch, not hidden captured digest
+  metadata pruned from that batch. Independent emitted-ID capture proof stays
+  in force. Single-call capture retention and the canonical single-call
+  name-dispatch exception are unchanged. Fresh replay preserves all real
+  client results at the cost of rebuilding the SDK prefix/cache and losing
+  SDK-only context not present in client history. See
+  `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md` for red/green evidence and
+  cache-cost bounds; native multi-call resume remains unqualified. Abort-window
+  calls without a result, malformed-input refusals, undeclared names, unkeyed requests and
   larger turn budgets remain ineligible for this rejection-only recovery
   retention. Retained checkpoints use ordinary continuation tool caching; the
   one-shot recovery tool grant remains only for evicted checkpoints.

@@ -206,6 +206,13 @@ async function post(app: any, body: any, sessionHeader = "es-session", extraHead
   }))
 }
 
+async function serializedPrompt(prompt: string | AsyncIterable<unknown>): Promise<string> {
+  if (typeof prompt === "string") return prompt
+  const messages: unknown[] = []
+  for await (const message of prompt) messages.push(message)
+  return JSON.stringify(messages)
+}
+
 async function readNaturallyClosedStream(response: Response): Promise<string> {
   const reader = response.body!.getReader()
   const chunks: Uint8Array[] = []
@@ -373,6 +380,129 @@ describe("Integration: passthrough early stop", () => {
       expect(capturedQueryParamsAll).toHaveLength(2)
       expect(capturedQueryParamsAll[1].options.resume).toBe(query.options.sessionId)
       expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(metadata.uuid)
+    })
+  }
+
+  for (const count of [1, 3]) for (const transientTail of [false, true]) {
+    it(`stream: client-visible thinking + ${count} calls ${count > 1 ? "replays every batch" : transientTail ? "with a transient user suffix diverges" : "keeps fresh replay lineage"} over three turns`, async () => {
+      const sessionKey = `modified-history-${count}-${transientTail}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const history: Array<{ role: string; content: unknown }> = [
+        { role: "user", content: "read old file" },
+        { role: "assistant", content: [{ type: "thinking", thinking: "old thought", signature: "old-signature" },
+          { type: "tool_use", id: "old-call", name: "read", input: { file_path: "old" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "old-call", content: "old data" }] },
+      ]
+      const { computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
+      const events: Array<{ event: string; fields?: Record<string, unknown> }> = []
+      mockLogObserver = (event, fields) => { events.push({ event, fields }) }
+      const suffix = transientTail ? [
+        { role: "user", content: "request-only context" },
+        { role: "user", content: [{ type: "text", text: "request-only notice" }] },
+      ] : []
+      let previousSession: string | undefined
+      let previousSuffixDigest: string | undefined
+      for (let turn = 0; turn < 3; turn++) {
+        const calls = Array.from({ length: count }, (_, index) => ({
+          type: "tool_use", id: `call-${turn}-${index}`, name: "mcp__oc__read", input: { file_path: `file-${turn}-${index}` },
+        }))
+        mockMessages = [
+          messageStart(`turn-${turn}`),
+          streamEvent({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } }),
+          streamEvent({ type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: `thought-${turn}` } }),
+          streamEvent({ type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: `signature-${turn}` } }),
+          blockStop(0),
+          ...calls.flatMap((call, index) => [toolUseBlockStart(index + 1, call.name, call.id),
+            inputJsonDelta(index + 1, JSON.stringify(call.input)), blockStop(index + 1)]),
+          messageDelta("tool_use"), messageStop(),
+          ...calls.map(call => assistantMessage([call])),
+          ...calls.map(call => userDenyMessage(call.id)),
+          { type: "result", subtype: "error_max_turns", is_error: true },
+        ]
+        mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+        const requestHistory = [...history, ...suffix]
+        const response = await post(app, {
+          model: "opus[1m]", max_tokens: 400, stream: true, tools: [READ_TOOL], messages: requestHistory,
+        }, "unused", headers)
+        const body = await response.text()
+        expect(body).not.toContain("event: error")
+        expect(parseSSE(body).some(({ event, data }) => event === "message_delta" &&
+          (data.delta as Record<string, unknown>)?.stop_reason === "tool_use")).toBe(true)
+        const mapping = lookupSharedSession(sessionKey)
+        if (count > 1) {
+          expect(mapping).toBeUndefined()
+          expect(capturedQueryParams.options.resume).toBeUndefined()
+          const prompt = await serializedPrompt(capturedQueryParams.prompt)
+          for (let previousTurn = 0; previousTurn < turn; previousTurn++) for (let index = 0; index < count; index++) {
+            expect(prompt).toContain(`client-result-call-${previousTurn}-${index}`)
+          }
+        } else {
+          expect(mapping).toBeDefined()
+          if (!mapping) throw new Error("missing single-call checkpoint")
+          // The response is not in the stored request prefix. Its UUID and tool
+          // IDs are a separate checkpoint, not assistant-content lineage hashes.
+          expect(mapping.messageCount).toBe(requestHistory.length)
+          expect(mapping.messageHashes).toEqual(computeMessageHashes(requestHistory))
+          if (turn === 0 || transientTail) expect(capturedQueryParams.options.resume).toBeUndefined()
+          else expect(capturedQueryParams.options.resume).toBe(previousSession)
+          if (transientTail) {
+            const digest = mapping.messageHashes![requestHistory.length - 2]
+            if (turn > 0) expect(digest).toBe(previousSuffixDigest)
+            previousSuffixDigest = digest
+          }
+          previousSession = mapping.claudeSessionId
+        }
+
+        // Reconstruct exactly the assistant that an Anthropic streaming client received.
+        const blocks: Array<Record<string, unknown>> = []
+        const json = new Map<number, string>()
+        for (const { event, data } of parseSSE(body)) {
+          const index = data.index as number
+          if (event === "content_block_start") blocks[index] = { ...(data.content_block as Record<string, unknown>) }
+          if (event !== "content_block_delta") continue
+          const delta = data.delta as Record<string, string>
+          if (delta.type === "thinking_delta") blocks[index]!.thinking = String(blocks[index]!.thinking ?? "") + delta.thinking
+          if (delta.type === "signature_delta") blocks[index]!.signature = String(blocks[index]!.signature ?? "") + delta.signature
+          if (delta.type === "input_json_delta") json.set(index, (json.get(index) ?? "") + delta.partial_json)
+        }
+        for (const [index, value] of json) blocks[index]!.input = JSON.parse(value)
+        expect(blocks.map(block => block.type)).toEqual(["thinking", ...calls.map(() => "tool_use")])
+        expect(blocks.filter(block => block.type === "tool_use").map(block => block.name)).toEqual(calls.map(() => "read"))
+        history.push({ role: "assistant", content: blocks }, { role: "user", content: calls.map(call => ({
+          type: "tool_result", tool_use_id: call.id, content: `client-result-${call.id}`,
+        })) })
+        if (!mapping) continue
+        const state = { ...mapping, lineageHash: mapping.lineageHash ?? "", lastAccess: 0 }
+        const nextHistory = [...history, ...suffix]
+        const lineage = verifyLineage(state, nextHistory)
+        if (transientTail) {
+          // The incoming assistant replaced a stored USER slot, not a stored
+          // assistant. Repeating the suffix repeats its digest at a new index.
+          expect(lineage.type).toBe("diverged")
+          if (lineage.type !== "diverged") throw new Error("expected transient-suffix divergence")
+          expect(lineage.reason).toBe("modified-history")
+          expect(lineage.prefixOverlap).toBe(requestHistory.length - 2)
+          expect(lineage.mismatch?.storedDigest).toBe(previousSuffixDigest)
+          expect(lineage.mismatch?.storedBlockCount).toBe(1)
+          expect(lineage.mismatch?.incomingBlockCount).toBe(count)
+          expect(lineage.mismatch?.incomingShape?.role).toBe("assistant")
+          expect(requestHistory[lineage.mismatch!.index]!.role).toBe("user")
+        } else {
+          expect(lineage.type).toBe("continuation")
+        }
+        if (!transientTail) {
+          const editedHistory = structuredClone(nextHistory)
+          const earlierAssistant = requestHistory.findLastIndex(message => message.role === "assistant")
+          editedHistory[earlierAssistant]!.content = [{ type: "tool_use", id: "edited-call", name: "read", input: { file_path: "EDITED" } }]
+          const edited = verifyLineage(state, editedHistory)
+          expect(edited.type).toBe("diverged")
+          if (edited.type !== "diverged") throw new Error("expected genuine-edit divergence")
+          expect(edited.reason).toBe("modified-history")
+          expect(edited.prefixOverlap).toBe(earlierAssistant)
+        }
+      }
+      expect(events.filter(row => row.event === "passthrough.checkpoint_persisted")).toHaveLength(count === 1 ? 3 : 0)
     })
   }
 
@@ -1153,7 +1283,7 @@ describe("Integration: passthrough early stop", () => {
 
   it("non-stream: drops copied rollback UUIDs after a checkpoint fork", async () => {
     const firstFragment = assistantMessage([
-      { type: "tool_use", id: "undo-parallel-1", name: "read", input: { file_path: "a" } },
+      { type: "text", text: "reading the file" },
     ])
     const finalFragment = assistantMessage([
       { type: "tool_use", id: "undo-parallel-2", name: "read", input: { file_path: "b" } },
@@ -1162,7 +1292,6 @@ describe("Integration: passthrough early stop", () => {
     mockMessages = [
       firstFragment,
       finalFragment,
-      userDenyMessage("undo-parallel-1"),
       userDenyMessage("undo-parallel-2"),
     ]
     expect((await post(app, {
@@ -1184,7 +1313,6 @@ describe("Integration: passthrough early stop", () => {
         { role: "user", content: "read both for undo" },
         { role: "assistant", content: combinedToolTurn },
         { role: "user", content: [
-          { type: "tool_result", tool_use_id: "undo-parallel-1", content: "A" },
           { type: "tool_result", tool_use_id: "undo-parallel-2", content: "B" },
         ] },
       ],
@@ -1204,7 +1332,6 @@ describe("Integration: passthrough early stop", () => {
         { role: "user", content: "read both for undo" },
         { role: "assistant", content: combinedToolTurn },
         { role: "user", content: [
-          { type: "tool_result", tool_use_id: "undo-parallel-1", content: "A" },
           { type: "tool_result", tool_use_id: "undo-parallel-2", content: "B" },
         ] },
         { role: "assistant", content: forkOutput.message.content },
@@ -1892,8 +2019,13 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-late-parallel")
     expect(second.status).toBe(200)
-    expect(capturedQueryParamsAll[1].options.resume).toBe(initialManagedSessionId())
-    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(finalFragment.uuid)
+    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+    const replay = await serializedPrompt(capturedQueryParamsAll[1].prompt)
+    expect(replay).toContain("late-tu-1")
+    expect(replay).toContain("late-tu-2")
+    expect(replay).toContain("A")
+    expect(replay).toContain("B")
   })
 
   // The non-stream counterpart of the late-parallel-metadata case above.
@@ -1957,8 +2089,14 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-ns-late-parallel")
     expect(second.status).toBe(200)
-    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(finalFragment.uuid)
-    expect(capturedQueryParamsAll[1].options.forkSession).toBe(true)
+    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.forkSession).toBeUndefined()
+    const replay = await serializedPrompt(capturedQueryParamsAll[1].prompt)
+    expect(replay).toContain("ns-late-1")
+    expect(replay).toContain("ns-late-2")
+    expect(replay).toContain("A")
+    expect(replay).toContain("B")
   })
 
   // The other half of the same gate. Above, the tracker lags the wire; here it
@@ -2426,7 +2564,13 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-unstreamed-parallel")
     expect(second.status).toBe(200)
-    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+    const replay = await serializedPrompt(capturedQueryParamsAll[1].prompt)
+    expect(replay).toContain("unstreamed-parallel-a")
+    expect(replay).toContain("unstreamed-parallel-b")
+    expect(replay).toContain("A")
+    expect(replay).toContain("B")
   })
 
   it("stream: recovers a non-streamed capped call without a checkpoint when no result was delivered", async () => {
@@ -3798,6 +3942,105 @@ describe("Integration: passthrough early stop", () => {
     })
   }
 
+  for (const stream of [true, false]) for (const capped of [true, false]) for (const count of [1, 2, 3]) {
+    it(`all-captured checkpoint ${count === 1 ? "retains" : "replays"} (${JSON.stringify({ stream, capped, count })})`, async () => {
+      const sessionKey = `all-captured-${stream}-${capped}-${count}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = Array.from({ length: count }, (_, index) => ({
+        type: "tool_use", id: `captured-${index}`, name: "mcp__oc__read", input: { file_path: `/file-${index}` },
+      }))
+      const tools = [READ_TOOL, ...(!capped ? [{ name: "lsp_diagnostics", defer_loading: true,
+        input_schema: { type: "object", properties: { file: { type: "string" } } } }] : [])]
+      const boundary = assistantMessage(calls)
+      mockMessages = [
+        messageStart("msg_all_captured"),
+        ...calls.flatMap((call, index) => [toolUseBlockStart(index, call.name, call.id),
+          inputJsonDelta(index, JSON.stringify(call.input)), blockStop(index)]),
+        messageDelta("tool_use"), messageStop(), boundary,
+        ...calls.map(call => userDenyMessage(call.id)),
+        { type: "result", subtype: capped ? "error_max_turns" : "success", is_error: capped },
+      ]
+      mockTerminalError = capped
+        ? new Error("Claude Code returned an error result: Reached maximum number of turns (1)") : undefined
+      const messages = [{ role: "user", content: "read every file" }]
+      const first = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream, tools, messages,
+      }, "unused", headers)
+      const body = await first.text()
+      expect(first.status).toBe(200)
+      expect(body).not.toContain("event: error")
+      expect(body).toContain('"stop_reason":"tool_use"')
+      for (const call of calls) expect(body).toContain(call.id)
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(capped ? 1 : 4)
+      if (count === 1) expect(lookupSharedSession(sessionKey)?.passthroughToolCallIds).toEqual([calls[0]!.id])
+      else expect(lookupSharedSession(sessionKey)).toBeUndefined()
+
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "all files read" }])]
+      const next = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: false, tools,
+        messages: [...messages,
+          { role: "assistant", content: calls.map(call => ({ ...call, name: "read" })) },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: `REAL_CLIENT_RESULT_${call.id}` })) },
+        ],
+      }, "unused", headers)
+      expect((await next.json()).content).toContainEqual({ type: "text", text: "all files read" })
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      const followUp = capturedQueryParamsAll[1]
+      if (count === 1) {
+        expect(followUp.options.resume).toBe(initialManagedSessionId())
+        expect(followUp.options.resumeSessionAt).toBe(boundary.uuid)
+      } else {
+        expect(followUp.options.resume).toBeUndefined()
+        expect(followUp.options.resumeSessionAt).toBeUndefined()
+      }
+      const prompt: unknown[] = []
+      if (typeof followUp.prompt === "string") prompt.push(followUp.prompt)
+      else for await (const row of followUp.prompt) prompt.push(row)
+      const replay = JSON.stringify(prompt)
+      for (const call of calls) {
+        expect(replay).toContain(call.id)
+        expect(replay.split(`REAL_CLIENT_RESULT_${call.id}`)).toHaveLength(2)
+      }
+      expect(replay).not.toContain("forwarded to client")
+      expect(replay).not.toContain("Tool result missing due to internal error")
+    })
+  }
+
+  for (const count of [2, 3]) {
+    it(`replays a legacy retained ${count}-call checkpoint instead of resuming it`, async () => {
+      const sessionKey = `legacy-captured-${count}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const { computeLineageHash, computeMessageHashes } = await import("../proxy/session/lineage")
+      const history = [{ role: "user", content: "read all legacy files" }]
+      const calls = Array.from({ length: count }, (_, index) => ({
+        type: "tool_use", id: `legacy-${index}`, name: "read", input: { file_path: `/file-${index}` },
+      }))
+      expect(await storeSharedSession(sessionKey, "legacy-captured-session", history.length,
+        computeLineageHash(history), computeMessageHashes(history), undefined, undefined, undefined,
+        "legacy-assistant-uuid", calls.map(call => call.id))).toBeTruthy()
+      mockMessages = [assistantMessage([{ type: "text", text: "legacy results read" }])]
+      const response = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream: false, tools: [READ_TOOL],
+        messages: [...history, { role: "assistant", content: calls },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: `REAL_CLIENT_RESULT_${call.id}` })) }],
+      }, "unused", headers)
+      expect(response.status).toBe(200)
+      expect((await response.json()).content).toContainEqual({ type: "text", text: "legacy results read" })
+      expect(capturedQueryParams.options.resume).toBeUndefined()
+      expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+      const replay = await serializedPrompt(capturedQueryParams.prompt)
+      for (const call of calls) {
+        expect(replay).toContain(call.id)
+        expect(replay.split(`REAL_CLIENT_RESULT_${call.id}`)).toHaveLength(2)
+      }
+    })
+  }
+
   // Uncaptured calls must fail closed regardless of the CLI refusal wording.
   for (const shape of [
     { stream: true, deferred: false, mixed: true, inputRejected: true, single: false },
@@ -4989,7 +5232,7 @@ describe("Integration: passthrough early stop", () => {
     expect(promptMessages[0].message.content.map((b: any) => [b.type, b.tool_use_id])).toEqual([["tool_result", "tu1"]])
   })
 
-  it("non-stream: a session-keyed chat completions turn answering two parallel tool calls resumes at the checkpoint", async () => {
+  it("non-stream: a session-keyed chat completions turn answering two parallel tool calls replays every result", async () => {
     const sessionKey = `es-openai-keyed-parallel-${TEST_RUN_ID}`
     usedSessionKeys.add(sessionKey)
     const headers = {
@@ -5017,10 +5260,9 @@ describe("Integration: passthrough early stop", () => {
     const firstBody = await first.json() as any
     expect(firstBody.choices[0].finish_reason).toBe("tool_calls")
     expect(firstBody.choices[0].message.tool_calls).toHaveLength(2)
-    expect(lookupSharedSession(sessionKey)?.claudeSessionId).toBe(initialManagedSessionId())
+    expect(lookupSharedSession(sessionKey)).toBeUndefined()
 
-    // OpenAI carries one `tool` message per call; both must land in one
-    // user turn or the checkpoint continuation refuses the split batch.
+    // OpenAI carries one `tool` message per call; replay must preserve both.
     mockMessages = [assistantMessage([{ type: "text", text: "x says hi, y says ho" }])]
     const second = await postChat({
       messages: [
@@ -5034,14 +5276,13 @@ describe("Integration: passthrough early stop", () => {
       ],
     })
     expect(second.status).toBe(200)
-    expect(capturedQueryParams.options.resume).toBe(initialManagedSessionId())
-    expect(capturedQueryParams.options.resumeSessionAt).toBe(assistantToolTurn.uuid)
-    const promptMessages: any[] = []
-    for await (const message of capturedQueryParams.prompt) promptMessages.push(message)
-    expect(promptMessages).toHaveLength(1)
-    expect(promptMessages[0].type).toBe("user")
-    expect(promptMessages[0].message.content.map((b: any) => [b.type, b.tool_use_id]))
-      .toEqual([["tool_result", "tu1"], ["tool_result", "tu2"]])
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    const replay = await serializedPrompt(capturedQueryParams.prompt)
+    expect(replay).toContain("tu1")
+    expect(replay).toContain("tu2")
+    expect(replay).toContain("hi")
+    expect(replay).toContain("ho")
   })
 
   it("stream: a session-keyed chat completions tool turn stores the checkpoint and the next turn resumes it", async () => {

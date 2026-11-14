@@ -13,6 +13,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   checkpointHasUncapturedCalls,
+  checkpointRequiresReplay,
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
   settlesCheckpointThenContinues,
@@ -781,24 +782,28 @@ describe("pi 0.85+ mid-conversation effort system messages (#1047)", () => {
 })
 
 
-describe("checkpoint capture proof", () => {
-  it("retains single and parallel call sets only when every ID was captured", () => {
+describe("checkpoint replay safety", () => {
+  it("retains captured single calls but replays every multi-call checkpoint", () => {
     const captured = new Set(["a", "b"])
-    expect(checkpointHasUncapturedCalls(["a"], captured)).toBe(false)
-    expect(checkpointHasUncapturedCalls(["a", "b"], captured)).toBe(false)
-    expect(checkpointHasUncapturedCalls(["a", "uncaptured"], captured)).toBe(true)
-    expect(checkpointHasUncapturedCalls(["uncaptured"], captured)).toBe(true)
-    expect(checkpointHasUncapturedCalls(["a", "b"], new Set())).toBe(true)
+    expect(checkpointRequiresReplay(["a"], captured)).toBe(false)
+    expect(checkpointRequiresReplay(["a", "b"], captured)).toBe(true)
+    expect(checkpointRequiresReplay(new Set(["a", "b"]), captured)).toBe(true)
+    expect(checkpointRequiresReplay(["a", "b", "c"], new Set(["a", "b", "c"]))).toBe(true)
+    expect(checkpointRequiresReplay(["a", "a"], captured)).toBe(false)
+    expect(checkpointRequiresReplay(["a", "uncaptured"], captured)).toBe(true)
+    expect(checkpointRequiresReplay(["uncaptured"], captured)).toBe(true)
+    expect(checkpointRequiresReplay(["a", "b"], new Set())).toBe(true)
   })
 
   it("checks emitted IDs independently of a prematurely latched checkpoint", () => {
     const captured = new Set(["a"])
-    expect(checkpointHasUncapturedCalls(["a"], captured)).toBe(false)
+    expect(checkpointRequiresReplay(["a"], captured)).toBe(false)
     expect(checkpointHasUncapturedCalls(new Set(["a", "later-fragment"]), captured)).toBe(true)
+    expect(checkpointHasUncapturedCalls(["a", "hidden-captured"], new Set(["a", "hidden-captured"]))).toBe(false)
   })
 
   it("does not turn an absent or empty call set into a checkpoint", () => {
-    expect(checkpointHasUncapturedCalls(undefined, new Set())).toBe(false)
-    expect(checkpointHasUncapturedCalls([], new Set())).toBe(false)
+    expect(checkpointRequiresReplay(undefined, new Set())).toBe(false)
+    expect(checkpointRequiresReplay([], new Set())).toBe(false)
   })
 })

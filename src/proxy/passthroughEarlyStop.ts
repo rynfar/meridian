@@ -226,6 +226,14 @@ export function checkpointHasUncapturedCalls(
   return false
 }
 
+export function checkpointRequiresReplay(
+  toolCallIds: Iterable<string> | undefined,
+  forwardedToolUseIds: ReadonlySet<string>,
+): boolean {
+  const ids = new Set(toolCallIds)
+  return ids.size > 1 || checkpointHasUncapturedCalls(ids, forwardedToolUseIds)
+}
+
 /**
  * Opt-in flags for the checkpoint continuation validators.
  */

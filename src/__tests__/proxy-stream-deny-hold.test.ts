@@ -20,7 +20,7 @@
  *   2. Kill switch: without the hold the mock takes its cancel path — and the
  *      flush guard still closes the beheaded block (no unterminated block).
  *   3. Pending-store: the background drain finishes AFTER the client response;
- *      an instant follow-up awaits the in-flight store and RESUMES.
+ *      an instant follow-up awaits settlement, then replays every parallel result.
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
@@ -49,6 +49,7 @@ const PREFIX = "mcp__oc__"
 let capturedController: AbortController | undefined
 let capturedSessionId: string | undefined
 let capturedResume: string | undefined
+let capturedPrompt: unknown
 let capturedResumeSessionAt: string | undefined
 let capturedForkSession: boolean | undefined
 let denyUuids: string[] = []
@@ -100,6 +101,7 @@ installSdkMock(() => ({
     capturedController = opts?.options?.abortController
     capturedSessionId = opts?.options?.sessionId
     capturedResume = opts?.options?.resume
+    capturedPrompt = opts?.prompt
     capturedResumeSessionAt = opts?.options?.resumeSessionAt
     capturedForkSession = opts?.options?.forkSession
     const sessionId = resolveMockSdkSessionId(opts?.options, "test-session")
@@ -275,7 +277,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     expect(dangling).toEqual([])
   })
 
-  it("fast follow-up awaits the in-flight background store and RESUMES", async () => {
+  it("fast follow-up awaits the in-flight drain and replays every real result", async () => {
     denyDelayMs = 150 // denies (and thus the store) land after the client response
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     await postStream(app, "hold-3", [{ role: "user", content: "test tools" }])
@@ -296,16 +298,19 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
         { type: "tool_result", tool_use_id: "tg1", content: "ok" },
       ]},
     ])
-    const resumeBoundary = assistantToolUuids[1]
-    expect(capturedResume ?? "(fresh)").toBe(initialSessionId)
-    expect(capturedResumeSessionAt).toBe(resumeBoundary)
-    expect(denyUuids).not.toContain(capturedResumeSessionAt!)
-    expect(capturedForkSession).toBe(true)
+    expect(capturedResume).toBeUndefined()
+    expect(capturedResumeSessionAt).toBeUndefined()
+    expect(capturedForkSession).toBeUndefined()
+    expect(typeof capturedPrompt).toBe("string")
+    expect(capturedPrompt).toContain("tb1")
+    expect(capturedPrompt).toContain("tg1")
+    expect(capturedPrompt).toContain("ok")
+    expect(capturedPrompt).not.toContain("denied")
   })
-  it("RESUMES when the client returns the batch as one echo/result pair per call", async () => {
+  it("replays every result when the client returns one echo/result pair per call", async () => {
     // A Responses-API client that records each output right after its own call
     // arrives here as [assistant tb1, user tb1, assistant tg1, user tg1]. It
-    // settles the same checkpoint, so it must not cost a full uncached replay.
+    // settles the same batch, but native multi-call result delivery is unproved.
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     await postStream(app, "hold-4", [{ role: "user", content: "test tools" }])
     const initialSessionId = capturedSessionId
@@ -321,9 +326,13 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
       { role: "assistant", content: [{ type: "tool_use", id: "tg1", name: "glob", input: { pattern: "*.md" } }] },
       { role: "user", content: [{ type: "tool_result", tool_use_id: "tg1", content: "ok" }] },
     ])
-    expect(capturedResume ?? "(fresh)").toBe(initialSessionId)
-    expect(capturedResumeSessionAt).toBe(assistantToolUuids[1])
-    expect(timeline).not.toContain("log:passthrough.checkpoint_replay")
+    expect(capturedResume).toBeUndefined()
+    expect(capturedResumeSessionAt).toBeUndefined()
+    expect(typeof capturedPrompt).toBe("string")
+    expect(capturedPrompt).toContain("tb1")
+    expect(capturedPrompt).toContain("tg1")
+    expect(capturedPrompt).toContain("ok")
+    expect(capturedPrompt).not.toContain("denied")
   })
 })
 
