@@ -72,6 +72,21 @@ Management*, *Lineage Verification*, *SQLite bookkeeping boundary*, *Transcript
 publication lifetime*, *Session store write cost*, *Lineage hash encoding* and
 *Appended content and transient hooks*.
 
+## Hybrid passthrough checkpoint metadata
+
+`passthroughNativeToolCallId` is optional internal mapping history. With a
+multi-call checkpoint it certifies that the existing assistant UUID names the
+first single-tool fragment, not the last parallel fragment. The complete
+`passthroughToolCallIds` still validates the client's full result set. Both
+JSON and SQLite persist it (SQLite uses `mapping_history`, without a schema
+change), including priority publication and cache reconstruction. A full
+mapping store clears it with the checkpoint; legacy mappings without it
+remain replay-only for multi-call turns. It does not alter client-lineage
+hashes or public headers. The consolidated hybrid assistant has no complete
+native rollback boundary, so its undo UUID slot is null; undo to that slot
+replays instead of naming a discarded later fragment. Ordinary single-call
+and earlier unchanged undo boundaries are unaffected.
+
 ## Interrupted turns
 
 A client that stops a streaming turn after output reached it (Stop, Esc, a

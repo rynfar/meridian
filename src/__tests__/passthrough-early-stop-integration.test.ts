@@ -384,7 +384,7 @@ describe("Integration: passthrough early stop", () => {
   }
 
   for (const count of [1, 3]) for (const transientTail of [false, true]) {
-    it(`stream: client-visible thinking + ${count} calls ${count > 1 ? "replays every batch" : transientTail ? "with a transient user suffix diverges" : "keeps fresh replay lineage"} over three turns`, async () => {
+    it(`stream: client-visible thinking + ${count} calls ${transientTail ? "with a transient user suffix diverges" : "keeps fresh replay lineage"} over three turns`, async () => {
       const sessionKey = `modified-history-${count}-${transientTail}-${TEST_RUN_ID}`
       usedSessionKeys.add(sessionKey)
       const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
@@ -430,29 +430,20 @@ describe("Integration: passthrough early stop", () => {
         expect(parseSSE(body).some(({ event, data }) => event === "message_delta" &&
           (data.delta as Record<string, unknown>)?.stop_reason === "tool_use")).toBe(true)
         const mapping = lookupSharedSession(sessionKey)
-        if (count > 1) {
-          expect(mapping).toBeUndefined()
-          expect(capturedQueryParams.options.resume).toBeUndefined()
-          const prompt = await serializedPrompt(capturedQueryParams.prompt)
-          for (let previousTurn = 0; previousTurn < turn; previousTurn++) for (let index = 0; index < count; index++) {
-            expect(prompt).toContain(`client-result-call-${previousTurn}-${index}`)
-          }
-        } else {
-          expect(mapping).toBeDefined()
-          if (!mapping) throw new Error("missing single-call checkpoint")
-          // The response is not in the stored request prefix. Its UUID and tool
-          // IDs are a separate checkpoint, not assistant-content lineage hashes.
-          expect(mapping.messageCount).toBe(requestHistory.length)
-          expect(mapping.messageHashes).toEqual(computeMessageHashes(requestHistory))
-          if (turn === 0 || transientTail) expect(capturedQueryParams.options.resume).toBeUndefined()
-          else expect(capturedQueryParams.options.resume).toBe(previousSession)
-          if (transientTail) {
-            const digest = mapping.messageHashes![requestHistory.length - 2]
-            if (turn > 0) expect(digest).toBe(previousSuffixDigest)
-            previousSuffixDigest = digest
-          }
-          previousSession = mapping.claudeSessionId
+        expect(mapping).toBeDefined()
+        if (!mapping) throw new Error("missing checkpoint")
+        // The response is not in the stored request prefix. Its UUID and tool
+        // IDs are a separate checkpoint, not assistant-content lineage hashes.
+        expect(mapping.messageCount).toBe(requestHistory.length)
+        expect(mapping.messageHashes).toEqual(computeMessageHashes(requestHistory))
+        if (turn === 0 || transientTail) expect(capturedQueryParams.options.resume).toBeUndefined()
+        else expect(capturedQueryParams.options.resume).toBe(previousSession)
+        if (transientTail) {
+          const digest = mapping.messageHashes![requestHistory.length - 2]
+          if (turn > 0) expect(digest).toBe(previousSuffixDigest)
+          previousSuffixDigest = digest
         }
+        previousSession = mapping.claudeSessionId
 
         // Reconstruct exactly the assistant that an Anthropic streaming client received.
         const blocks: Array<Record<string, unknown>> = []
@@ -502,7 +493,7 @@ describe("Integration: passthrough early stop", () => {
           expect(edited.prefixOverlap).toBe(earlierAssistant)
         }
       }
-      expect(events.filter(row => row.event === "passthrough.checkpoint_persisted")).toHaveLength(count === 1 ? 3 : 0)
+      expect(events.filter(row => row.event === "passthrough.checkpoint_persisted")).toHaveLength(3)
     })
   }
 
@@ -2019,8 +2010,8 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-late-parallel")
     expect(second.status).toBe(200)
-    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
-    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resume).toBe(initialManagedSessionId())
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(firstFragment.uuid)
     const replay = await serializedPrompt(capturedQueryParamsAll[1].prompt)
     expect(replay).toContain("late-tu-1")
     expect(replay).toContain("late-tu-2")
@@ -4070,6 +4061,72 @@ describe("Integration: passthrough early stop", () => {
       }
       expect(replay).not.toContain("forwarded to client")
       expect(replay).not.toContain("Tool result missing due to internal error")
+    })
+  }
+
+  for (const count of [2, 3]) {
+    it(`stream: hybrid ${count}-call checkpoint resumes first fragment with each real result once`, async () => {
+      const key = `hybrid-${count}`
+      const messages = [{ role: "user", content: "read every file" }]
+      const calls = Array.from({ length: count }, (_, index) => ({ type: "tool_use",
+        id: `hybrid-${index}`, name: "read", input: { file_path: `/file-${index}` } }))
+      const fragments = calls.map(call => assistantMessage([{ ...call, name: "mcp__oc__read" }]))
+      mockMessages = [messageStart("msg_hybrid"),
+        ...calls.flatMap((call, index) => [toolUseBlockStart(index, "mcp__oc__read", call.id),
+          inputJsonDelta(index, JSON.stringify(call.input)), blockStop(index)]),
+        messageDelta("tool_use"), messageStop(),
+        ...fragments.flatMap((fragment, index) => [fragment, userDenyMessage(calls[index]!.id)]),
+        { type: "result", subtype: "error_max_turns", is_error: true },
+      ]
+      mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+      const first = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true,
+        tools: [READ_TOOL], messages }, key)
+      const body = await first.text()
+      expect(first.status).toBe(200)
+      expect(body).not.toContain("event: error")
+      expect(parseSSE(body).filter(row => row.event === "content_block_start")
+        .map(row => row.data.content_block).filter((block): block is { type: "tool_use"; id: string } =>
+          typeof block === "object" && block !== null && "type" in block && block.type === "tool_use" &&
+          "id" in block && typeof block.id === "string")
+        .map(block => block.id)).toEqual(calls.map(call => call.id))
+      expect(lookupSharedSession(key + "-" + TEST_RUN_ID)?.sdkMessageUuids?.[messages.length]).toBeNull()
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "all results received" }])]
+      const next = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true,
+        tools: [READ_TOOL], messages: [...messages, { role: "assistant", content: calls },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: `REAL_CLIENT_RESULT_${call.id}` })) }],
+      }, key)
+      expect(await next.text()).toContain("all results received")
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      expect(capturedQueryParams.options.resume).toBe(initialManagedSessionId())
+      expect(capturedQueryParams.options.resumeSessionAt).toBe(fragments[0]!.uuid)
+      const prompt = []
+      for await (const row of capturedQueryParams.prompt) prompt.push(row)
+      expect(prompt).toHaveLength(1)
+      expect(prompt[0].message.content[0]).toEqual({ type: "tool_result", tool_use_id: calls[0]!.id,
+        content: `REAL_CLIENT_RESULT_${calls[0]!.id}` })
+      const rendered = JSON.stringify(prompt)
+      for (const call of calls) expect(rendered.split(`REAL_CLIENT_RESULT_${call.id}`)).toHaveLength(2)
+      expect(rendered).not.toContain("Tool result missing due to internal error")
+      for (const call of calls.slice(1)) {
+        expect(rendered).toContain("Previously called tool:")
+        expect(rendered).toContain(`Recorded tool result:`)
+        expect(rendered).toContain(call.id)
+      }
+      // The later native fragments were cut off by the hybrid rewind. Their
+      // UUIDs cannot address this consolidated client assistant on undo.
+      expect(lookupSharedSession(key + "-" + TEST_RUN_ID)?.sdkMessageUuids?.[messages.length]).toBeNull()
+      const undo = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true,
+        tools: [READ_TOOL], messages: [...messages, { role: "assistant", content: calls },
+          { role: "user", content: calls.map(call => ({ type: "tool_result", tool_use_id: call.id,
+            content: "EDITED_RESULT_" + call.id })) }],
+      }, key)
+      expect(await undo.text()).toContain("all results received")
+      expect(capturedQueryParams.options.resume).toBeUndefined()
+      expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+      const undoPrompt = await serializedPrompt(capturedQueryParams.prompt)
+      for (const call of calls) expect(undoPrompt).toContain("EDITED_RESULT_" + call.id)
     })
   }
 

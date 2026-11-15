@@ -12,7 +12,7 @@
 // --sse-delay-ms=25 paces individual upstream frames; --distinct-tools with
 // --captured uses a different registered tool for each parallel call.
 // A single name-dispatch rejection at maxTurns=1 retains and resumes. Other
-// uncaptured calls and every multi-call checkpoint evict and replay all results.
+// uncaptured calls evict and replay; captured streamed batches use hybrid resume.
 import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -20,6 +20,9 @@ import { join, resolve } from "node:path"
 const executable = process.argv.find(arg => arg.startsWith("--claude="))?.slice(9)
 assert(executable, "pass --claude=/absolute/path/to/claude")
 const cli = resolve(executable)
+const sourceRoot = resolve(process.argv.find(arg => arg.startsWith("--source-root="))?.slice(14)
+  ?? new URL("..", import.meta.url).pathname)
+const loadSource = path => import(join(sourceRoot, path))
 const callCount = Number(process.argv.find(arg => arg.startsWith("--calls="))?.slice(8) ?? 1)
 assert(Number.isInteger(callCount) && callCount > 0 && callCount <= 3, "--calls must be 1, 2, or 3")
 const thinking = process.argv.includes("--thinking")
@@ -32,6 +35,8 @@ const nonStream = process.argv.includes("--non-stream")
 const unstreamed = process.argv.includes("--unstreamed")
 assert(!unstreamed || !nonStream, "--unstreamed requires Meridian SSE")
 const captured = process.argv.includes("--captured")
+const followOn = process.argv.includes("--follow-on")
+assert(!followOn || (captured && !nonStream && !unstreamed), "--follow-on needs captured streamed calls")
 const capturedLast = process.argv.includes("--captured-last")
 const inputValidation = process.argv.includes("--input-validation")
 const distinctTools = process.argv.includes("--distinct-tools")
@@ -49,14 +54,16 @@ const calls = Array.from({ length: callCount }, (_, index) => ({
   name: distinctTools && index > 0 ? "read_" + index : "read",
   input: { file_path: "new-" + (inputValidation ? "\t" : "") + index },
 }))
-const realResult = call => "REAL_CLIENT_RESULT_" + call.id
+const secondCalls = calls.map((call, index) => ({ ...call, id: "toolu_followon_" + index }))
+const singleCalls = [{ ...calls[0], id: "toolu_final_single" }]
+const realResult = call => "REAL_CLIENT_RESULT[" + call.id + "]"
 const upstreamCalls = calls.map((call, index) => ({ ...call,
   name: inputValidation || captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__" + call.name : call.name,
 }))
 const capturedCall = index => captured || (mixed && index === (capturedLast ? callCount - 1 : 0))
 const rawInput = (block, index) => inputValidation && !capturedCall(index)
   ? JSON.stringify(block.input).replaceAll("\\t", "\t") : JSON.stringify(block.input)
-const root = mkdtempSync(join(process.cwd(), ".fresh-checkpoint-e2e-"))
+const root = mkdtempSync(join(process.env.MERIDIAN_E2E_SCRATCH ?? process.cwd(), ".fresh-checkpoint-e2e-"))
 const launcher = join(root, "claude-unstreamed")
 const launcherWitness = join(root, "partial-flag-removed")
 const shellQuote = value => "'" + value.replaceAll("'", "'\\''") + "'"
@@ -108,10 +115,12 @@ const upstream = Bun.serve({
     const first = wire.length === 1
     if (!followUp) firstRequestCalls++
     assert(firstRequestCalls <= (digestExpected ? 2 : 1), "no retry or extra digest is permitted")
-    assert(wire.length <= (digestExpected ? 3 : 2), "no retry is permitted")
+    assert(wire.length <= (followOn ? 4 : digestExpected ? 3 : 2), "no retry is permitted")
     const blocks = first
       ? [...(thinking ? [{ type: "thinking", thinking: "offline thought", signature: "offline-signature" }] : []), ...upstreamCalls]
-      : [{ type: "text", text: followUp ? "read complete" : "hidden digest" }]
+      : [{ type: "text", text: followUp ? "read complete" : "hidden digest" },
+        ...(followOn && wire.length === 2 ? secondCalls : followOn && wire.length === 3 ? singleCalls : [])
+          .map(call => ({ ...call, name: "mcp__oc__" + call.name }))]
     const events = [
       ["message_start", { type: "message_start", message: {
         id: "msg_offline_" + wire.length, type: "message", role: "assistant", model: body.model,
@@ -129,7 +138,7 @@ const upstream = Bun.serve({
         ["content_block_stop", { type: "content_block_stop", index }],
       ]),
       ["message_delta", { type: "message_delta", delta: {
-        stop_reason: first ? "tool_use" : "end_turn", stop_sequence: null,
+        stop_reason: blocks.some(block => block.type === "tool_use") ? "tool_use" : "end_turn", stop_sequence: null,
       }, usage: { output_tokens: 10 } }],
       ["message_stop", { type: "message_stop" }],
     ]
@@ -150,12 +159,12 @@ const upstream = Bun.serve({
 let proxy
 try {
   const version = Bun.spawnSync([cli, "--version"], { env: process.env }).stdout.toString().trim()
-  const { createProxyServer } = await import("../src/proxy/server.ts")
-  const { PASSTHROUGH_DENY_REASON } = await import("../src/proxy/passthroughDenial.ts")
-  const { lookupSharedSession } = await import("../src/proxy/sessionStore.ts")
-  const { telemetryStore } = await import("../src/telemetry/index.ts")
-  const { computeMessageHashes, verifyLineage } = await import("../src/proxy/session/lineage.ts")
-  const { parseSSE } = await import("../src/__tests__/helpers.ts")
+  const { createProxyServer } = await loadSource("src/proxy/server.ts")
+  const { PASSTHROUGH_DENY_REASON } = await loadSource("src/proxy/passthroughDenial.ts")
+  const { lookupSharedSession } = await loadSource("src/proxy/sessionStore.ts")
+  const { telemetryStore } = await loadSource("src/telemetry/index.ts")
+  const { computeMessageHashes, verifyLineage } = await loadSource("src/proxy/session/lineage.ts")
+  const { parseSSE } = await loadSource("src/__tests__/helpers.ts")
   proxy = createProxyServer({ silent: true, profiles: [
     { id: "offline", type: "api", apiKey: "offline-test-key", baseUrl: upstream.url.origin },
   ], defaultProfile: "offline" })
@@ -187,7 +196,8 @@ try {
   assert(!firstBody.includes("event: error"), firstBody)
   assert(firstBody.includes('"stop_reason":"tool_use"'), firstBody)
   assert.equal(firstRequestCalls, digestExpected ? 2 : 1, "deferred flow must complete its hidden second model turn")
-  const retainCheckpoint = (captured && callCount === 1) || (!nonStream && !mixed && !deferred && !inputValidation && callCount === 1)
+  const hybrid = captured && callCount > 1 && !nonStream && !unstreamed
+  const retainCheckpoint = (captured && (callCount === 1 || hybrid)) || (!nonStream && !mixed && !deferred && !inputValidation && callCount === 1)
   const mapping = lookupSharedSession("offline:" + session)
   const rejectionText = "<tool_use_error>Error: No such tool available: read</tool_use_error>"
   if (extended) {
@@ -248,7 +258,7 @@ try {
     if (delta.type === "signature_delta") content[index].signature += delta.signature
     if (delta.type === "input_json_delta") json.set(index, (json.get(index) ?? "") + delta.partial_json)
   }
-  const { parseToolInputObject } = await import("../src/proxy/toolInputJson.ts")
+  const { parseToolInputObject } = await loadSource("src/proxy/toolInputJson.ts")
   for (const [index, value] of json) {
     content[index].input = inputValidation ? parseToolInputObject(value) : JSON.parse(value)
     assert(content[index].input, "client must be able to repair the complete tool input")
@@ -286,7 +296,26 @@ try {
   assert(nextBody.includes("read complete"), nextBody)
   assert.equal(wire.length, digestExpected ? 3 : 2)
   const followUpWire = wire.at(-1)
-  const expectResume = Boolean(mapping) && !transientTail
+  const expectResume = retainCheckpoint && !transientTail
+  // CLI 2.1.322 serializes the identical environment system message as a
+  // singleton text-block array when marked, and a string when unmarked.
+  // Canonicalize only that equivalent text representation; never alter text.
+  const stripCache = value => Array.isArray(value) ? value.map(stripCache)
+    : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
+      .filter(([key]) => key !== "cache_control").map(([key, item]) => [key,
+        key === "content" && typeof item === "string" ? [{ type: "text", text: item }] : stripCache(item)])) : value
+  if (expectResume) {
+    assert.deepEqual(stripCache(followUpWire.system), stripCache(wire[0].system), "R1: system prefix changed")
+    assert.deepEqual(stripCache(followUpWire.tools), stripCache(wire[0].tools), "R1: tools prefix changed")
+    assert.deepEqual(stripCache(followUpWire.messages.slice(0, wire[0].messages.length)),
+      stripCache(wire[0].messages), "R1: upstream message prefix changed")
+    assert(mapping, "R1: all-captured streamed checkpoint must retain the existing SDK session")
+    if (hybrid) {
+      assert.equal(mapping.passthroughNativeToolCallId, calls[0].id)
+      assert.deepEqual(mapping.passthroughToolCallIds, calls.map(call => call.id))
+    }
+    console.log("PASS R1: system, tools and messages retain the complete upstream prefix")
+  }
   const replayParts = []
   const collectReplayText = (value) => {
     if (typeof value === "string") replayParts.push(value)
@@ -305,13 +334,24 @@ try {
         .map(block => block.tool_use_id),
     }))
   }
-  if (expectResume) for (const call of clientCalls) {
+  if (expectResume) for (const call of hybrid ? clientCalls.slice(0, 1) : clientCalls) {
     assert(followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)))
     assert(followUpWire.messages.some(message => message.content?.some?.(block =>
       block.type === "tool_result" && block.tool_use_id === call.id && block.content === realResult(call))),
       "resumed upstream lacks real client result for " + call.id)
   }
+  if (hybrid && expectResume) {
+    for (const call of clientCalls.slice(1)) {
+      assert(replayText.includes(`"tool_use_id":"${call.id}"`) && replayText.includes(realResult(call)),
+        "R2: hybrid record lacks real client result for " + call.id)
+      assert(!followUpWire.messages.some(message => message.role === "assistant" &&
+        message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)),
+        "hybrid must rewind before later native calls")
+    }
+  }
+  for (const call of clientCalls) assert.equal(replayText.split(realResult(call)).length - 1, 1,
+    "R2: real result must occur verbatim exactly once for " + call.id)
   if (!expectResume) {
     // A fresh SDK query cannot carry native assistant tool blocks. The replay
     // renders each client result as history text attributed to its call id.
@@ -339,10 +379,55 @@ try {
     ? "PASS follow-up: fresh replay, not a resumed continuation; real client result for every call; no CLI rejection"
     : transientTail
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
-    : "PASS continuation: native assistant and real client result for every call; rejection rewound")
-  const sdkVersion = JSON.parse(readFileSync(new URL("../node_modules/@anthropic-ai/claude-agent-sdk/package.json", import.meta.url), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, upstreamCalls: wire.length, liveModelCalls: 0 }))
+    : (hybrid ? "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once" : "PASS continuation: native assistant and real client result for every call; rejection rewound"))
+  if (followOn) {
+    let currentHistory = nextHistory
+    let responseBody = nextBody
+    for (const settledCalls of [secondCalls, singleCalls]) {
+      const visible = []
+      const pending = new Map()
+      for (const { event, data } of parseSSE(responseBody)) {
+        if (event === "content_block_start") visible[data.index] = { ...data.content_block }
+        if (event === "content_block_delta" && data.delta.type === "text_delta") visible[data.index].text += data.delta.text
+        if (event === "content_block_delta" && data.delta.type === "input_json_delta")
+          pending.set(data.index, (pending.get(data.index) ?? "") + data.delta.partial_json)
+      }
+      for (const [index, input] of pending) visible[index].input = JSON.parse(input)
+      assert.deepEqual(visible.filter(block => block.type === "tool_use"), settledCalls)
+      assert(lookupSharedSession("offline:" + session), "follow-on checkpoint must remain published")
+      currentHistory = [...currentHistory, { role: "assistant", content: visible },
+        { role: "user", content: settledCalls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) }]
+      const previous = wire.at(-1)
+      const response = await post(currentHistory)
+      responseBody = await response.text()
+      assert.equal(response.status, 200)
+      assert(!responseBody.includes("event: error"), responseBody)
+      const current = wire.at(-1)
+      assert.deepEqual(stripCache(current.system), stripCache(previous.system), "follow-on R1: system")
+      assert.deepEqual(stripCache(current.tools), stripCache(previous.tools), "follow-on R1: tools")
+      assert.deepEqual(stripCache(current.messages.slice(0, previous.messages.length)),
+        stripCache(previous.messages), "follow-on R1: messages")
+      const values = []
+      const collect = value => {
+        if (typeof value === "string") values.push(value)
+        else if (Array.isArray(value)) value.forEach(collect)
+        else if (value && typeof value === "object") Object.values(value).forEach(collect)
+      }
+      collect(current.messages)
+      for (const call of [...calls, ...settledCalls, ...(settledCalls === singleCalls ? secondCalls : [])])
+        assert.equal(values.join("\n").split(realResult(call)).length - 1, 1, "follow-on R2: " + call.id)
+      assert(!values.join("\n").includes("[Tool result missing due to internal error]"))
+      const latest = telemetryStore.getRecent({ limit: 1 })[0]
+      assert.equal(latest.isResume, true, "follow-on must continue existing SDK session")
+      console.log("PASS follow-on R1/R2: settled " + settledCalls.length + " calls; existing prefix unchanged; every real result exactly once")
+    }
+    assert.equal(wire.length, 4)
+  }
+  const sdkVersion = JSON.parse(readFileSync(join(sourceRoot, "node_modules/@anthropic-ai/claude-agent-sdk/package.json"), "utf8")).version
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, followOn, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
+  const evidence = process.argv.find(arg => arg.startsWith("--wire="))?.slice(7)
+  if (evidence) writeFileSync(evidence, JSON.stringify(wire, null, 2) + "\n")
   console.debug = originalDebug
   await proxy?.closeBackend?.()
   upstream.stop(true)

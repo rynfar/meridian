@@ -217,6 +217,41 @@ export function flattenAssistantContent(content: unknown, renderToolName?: (name
   }).filter(Boolean).join("\n")
 }
 
+/** Continue a first-fragment checkpoint without orphan native parallel results.
+ * The caller has already validated the complete result set and client lineage. */
+export function hybridToolResultContinuation(
+  content: unknown[],
+  echoedMessages: readonly ReplayMessage[],
+  expectedIds: readonly string[],
+  nativeToolCallId: string,
+  renderToolName?: (name: string) => string,
+): unknown[] | undefined {
+  if (expectedIds.length < 2 || !expectedIds.includes(nativeToolCallId)) return undefined
+  const calls = new Map<string, Record<string, unknown>>()
+  for (const message of echoedMessages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue
+    for (const block of message.content) {
+      if (!record(block) || block.type !== "tool_use" || typeof block.id !== "string" || !expectedIds.includes(block.id)) continue
+      if (calls.has(block.id)) return undefined
+      calls.set(block.id, block)
+    }
+  }
+  if (calls.size !== expectedIds.length) return undefined
+  const native = content.find(block => record(block) && block.type === "tool_result" && block.tool_use_id === nativeToolCallId)
+  if (!native) return undefined
+  const records: unknown[] = []
+  for (const id of expectedIds) {
+    if (id === nativeToolCallId) continue
+    const result = content.find(block => record(block) && block.type === "tool_result" && block.tool_use_id === id)
+    if (!result) return undefined
+    records.push({ type: "text", text: `[Assistant: ${flattenAssistantContent([calls.get(id)], renderToolName)}]` })
+    const rendered = normalizeStructuredUserContent([result], false, undefined, renderToolName)
+    if (!Array.isArray(rendered)) return undefined
+    records.push(...rendered)
+  }
+  return [native, ...records, ...content.filter(block => !record(block) || block.type !== "tool_result")]
+}
+
 /** Identity and success/error are semantic even when the output text matches. */
 export function replayToolResultHeader(block: Record<string, unknown>, info?: ToolCallInfo): string {
   const attribution = info ? `${describeToolCall(info)}\n` : ""

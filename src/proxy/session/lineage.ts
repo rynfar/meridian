@@ -66,6 +66,8 @@ export interface SessionState {
   passthroughToolCallAssistantUuid?: string
   /** Forwarded tool IDs that must be settled together at the checkpoint. */
   passthroughToolCallIds?: string[]
+  /** Hybrid checkpoint: only this first call exists natively at the stored UUID. */
+  passthroughNativeToolCallId?: string
   /** Last observed token usage for this session (from SDK message_start / message_delta events) */
   contextUsage?: TokenUsage
   /** Exact SDK transcript roots for cross-process lifecycle retention. */

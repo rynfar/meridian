@@ -20,7 +20,7 @@
  *   2. Kill switch: without the hold the mock takes its cancel path — and the
  *      flush guard still closes the beheaded block (no unterminated block).
  *   3. Pending-store: the background drain finishes AFTER the client response;
- *      an instant follow-up awaits settlement, then replays every parallel result.
+ *      an instant follow-up awaits settlement, then resumes the first fragment with every result.
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
@@ -277,7 +277,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     expect(dangling).toEqual([])
   })
 
-  it("fast follow-up awaits the in-flight drain and replays every real result", async () => {
+  it("fast follow-up awaits the in-flight drain and hybrid-resumes every real result", async () => {
     denyDelayMs = 150 // denies (and thus the store) land after the client response
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     await postStream(app, "hold-3", [{ role: "user", content: "test tools" }])
@@ -298,19 +298,22 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
         { type: "tool_result", tool_use_id: "tg1", content: "ok" },
       ]},
     ])
-    expect(capturedResume).toBeUndefined()
-    expect(capturedResumeSessionAt).toBeUndefined()
-    expect(capturedForkSession).toBeUndefined()
-    expect(typeof capturedPrompt).toBe("string")
-    expect(capturedPrompt).toContain("tb1")
-    expect(capturedPrompt).toContain("tg1")
-    expect(capturedPrompt).toContain("ok")
-    expect(capturedPrompt).not.toContain("denied")
+    expect(capturedResume as string | undefined).toBe(initialSessionId)
+    expect(capturedResumeSessionAt).toBe(assistantToolUuids[0])
+    expect(capturedForkSession).toBe(true)
+    const prompt = []
+    for await (const row of capturedPrompt as AsyncIterable<{ message: { content: unknown[] } }>) prompt.push(row)
+    expect(prompt).toHaveLength(1)
+    expect(prompt[0]!.message.content[0]).toEqual({ type: "tool_result", tool_use_id: "tb1", content: "ok" })
+    const rendered = JSON.stringify(prompt)
+    expect(rendered).toContain("tg1")
+    expect(rendered).toContain("Recorded tool result:")
+    expect(rendered).not.toContain("denied")
   })
-  it("replays every result when the client returns one echo/result pair per call", async () => {
+  it("hybrid-resumes every result when the client returns one echo/result pair per call", async () => {
     // A Responses-API client that records each output right after its own call
     // arrives here as [assistant tb1, user tb1, assistant tg1, user tg1]. It
-    // settles the same batch, but native multi-call result delivery is unproved.
+    // settles the same batch and uses the same first-fragment hybrid input.
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     await postStream(app, "hold-4", [{ role: "user", content: "test tools" }])
     const initialSessionId = capturedSessionId
@@ -326,13 +329,16 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
       { role: "assistant", content: [{ type: "tool_use", id: "tg1", name: "glob", input: { pattern: "*.md" } }] },
       { role: "user", content: [{ type: "tool_result", tool_use_id: "tg1", content: "ok" }] },
     ])
-    expect(capturedResume).toBeUndefined()
-    expect(capturedResumeSessionAt).toBeUndefined()
-    expect(typeof capturedPrompt).toBe("string")
-    expect(capturedPrompt).toContain("tb1")
-    expect(capturedPrompt).toContain("tg1")
-    expect(capturedPrompt).toContain("ok")
-    expect(capturedPrompt).not.toContain("denied")
+    expect(capturedResume as string | undefined).toBe(initialSessionId)
+    expect(capturedResumeSessionAt).toBe(assistantToolUuids[0])
+    const prompt = []
+    for await (const row of capturedPrompt as AsyncIterable<{ message: { content: unknown[] } }>) prompt.push(row)
+    expect(prompt).toHaveLength(1)
+    expect(prompt[0]!.message.content[0]).toEqual({ type: "tool_result", tool_use_id: "tb1", content: "ok" })
+    const rendered = JSON.stringify(prompt)
+    expect(rendered).toContain("tg1")
+    expect(rendered).toContain("Recorded tool result:")
+    expect(rendered).not.toContain("denied")
   })
 })
 

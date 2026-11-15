@@ -38,6 +38,7 @@ export interface SharedSessionAndPriorityAssignmentOptions {
   messageBlockHashes: string[][]
   passthroughToolCallAssistantUuid?: string | null
   passthroughToolCallIds?: string[] | null
+  passthroughNativeToolCallId?: string | null
   currentTranscript?: TranscriptLocator
   sourceTranscript?: TranscriptLocator
   expectedMappingGeneration: StoredSessionGeneration
@@ -90,4 +91,5 @@ export type StoreSessionArguments = [
   passthroughToolCallIds?: string[] | null, currentTranscript?: TranscriptLocator,
   sourceTranscript?: TranscriptLocator, expectedGeneration?: StoredSessionGeneration | null,
   clientLineageHash?: string | null, resumeContextHash?: string | null,
+  passthroughNativeToolCallId?: string | null,
 ]

@@ -1142,13 +1142,14 @@ export function storeSharedSession(
   clientLineageHash?: string | null,
   resumeContextHash?: string | null,
   beforePublish?: () => void,
+  passthroughNativeToolCallId?: string | null,
 ): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
   const backend = activeStoreBackend()
   if (backend) {
     beforePublish?.()
     return backend.storeSharedSession(getSessionStoreDir(), key, claudeSessionId, messageCount,
     lineageHash, messageHashes, sdkMessageUuids, contextUsage, messageBlockHashes, passthroughToolCallAssistantUuid,
-    passthroughToolCallIds, currentTranscript, sourceTranscript, expectedGeneration, clientLineageHash, resumeContextHash)
+    passthroughToolCallIds, currentTranscript, sourceTranscript, expectedGeneration, clientLineageHash, resumeContextHash, passthroughNativeToolCallId)
   }
   // Capture caller-owned history before the queue or disk yields. Validation
   // and publication must refer to the same values even if the caller reuses
@@ -1227,6 +1228,8 @@ export function storeSharedSession(
           ? existing?.passthroughToolCallIds
           : passthroughToolCallIds ?? undefined,
         contextUsage: contextUsage ?? existing?.contextUsage,
+        passthroughNativeToolCallId: passthroughNativeToolCallId === undefined
+          ? existing?.passthroughNativeToolCallId : passthroughNativeToolCallId ?? undefined,
         // Copy, never alias: the document is republished as the read cache, so a
         // later mutation of the caller's locator would diverge it from the file.
         ...(resolvedCurrentTranscript ? { currentTranscript: { ...resolvedCurrentTranscript } } : {}),
@@ -1525,6 +1528,7 @@ export function storeSharedSessionAndPriorityAssignment(
         sdkMessageUuids: options.sdkMessageUuids,
         passthroughToolCallAssistantUuid: options.passthroughToolCallAssistantUuid ?? undefined,
         passthroughToolCallIds: options.passthroughToolCallIds ?? undefined,
+        passthroughNativeToolCallId: options.passthroughNativeToolCallId ?? undefined,
         contextUsage: options.contextUsage,
         ...(resolvedCurrentTranscript ? { currentTranscript: { ...resolvedCurrentTranscript } } : {}),
         ...(previousTranscript ? { previousTranscript: { ...previousTranscript } } : {}),

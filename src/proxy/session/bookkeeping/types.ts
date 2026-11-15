@@ -64,6 +64,8 @@ export interface StoredSession {
   passthroughToolCallAssistantUuid?: string
   /** Forwarded tool IDs pending at the stored assistant checkpoint. */
   passthroughToolCallIds?: string[]
+  /** Hybrid checkpoint: only this first call exists natively at the stored UUID. */
+  passthroughNativeToolCallId?: string
   /** Last observed token usage for this Claude session. */
   contextUsage?: TokenUsage
   /** Previous Claude session ID preserved when the session mapping is replaced.

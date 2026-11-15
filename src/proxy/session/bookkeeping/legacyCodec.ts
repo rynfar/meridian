@@ -197,6 +197,11 @@ export function validateStoredSession(key: string, value: unknown): asserts valu
   if (entry.resumeContextHash !== undefined && (
     typeof entry.resumeContextHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.resumeContextHash)
   )) throw new Error(`session store entry ${JSON.stringify(key)} has invalid resumeContextHash`)
+  if (entry.passthroughNativeToolCallId !== undefined &&
+    (typeof entry.passthroughNativeToolCallId !== "string" ||
+      !Array.isArray(entry.passthroughToolCallIds) ||
+      !entry.passthroughToolCallIds.includes(entry.passthroughNativeToolCallId)))
+    throw new Error("invalid passthroughNativeToolCallId")
   const stringArrays = ["messageHashes", "passthroughToolCallIds"] as const
   for (const field of stringArrays) {
     const item = entry[field]

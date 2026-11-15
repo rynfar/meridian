@@ -52,6 +52,27 @@ async function cli(command: string) {
   return { code: result.status, output: JSON.parse(result.stdout) }
 }
 
+for (const sqlite of [false, true]) it(`hybrid metadata round-trips and clears (${sqlite ? "SQLite" : "JSON"})`, async () => {
+  const publish = (native: string | null) => store.storeSharedSession("hybrid", "id", 1,
+    undefined, undefined, undefined, undefined, undefined, native ? "first-uuid" : null,
+    native ? ["a", "b"] : null, undefined, undefined, undefined, undefined, undefined, undefined, native)
+  await publish("a")
+  if (sqlite) await migrate()
+  expect(store.lookupSharedSession("hybrid")?.passthroughNativeToolCallId).toBe("a")
+  await publish(null)
+  expect(store.lookupSharedSession("hybrid")?.passthroughNativeToolCallId).toBeUndefined()
+  expect(store.lookupSharedSession("hybrid")?.passthroughToolCallAssistantUuid).toBeUndefined()
+  await publish("a")
+  expect(store.lookupSharedSession("hybrid")?.passthroughNativeToolCallId).toBe("a")
+  if (sqlite) {
+    handle!.close()
+    handle = undefined
+    expect((await cli("export-json")).code).toBe(0)
+  }
+  const document = JSON.parse(readFileSync(join(directory, "sessions.json"), "utf8"))
+  expect(document.hybrid.passthroughNativeToolCallId).toBe("a")
+})
+
 it("rejects scalar NUL before SQL writes, including owner tokens and locator paths", async () => {
   await migrate()
   const db = connectionFor(directory).db!

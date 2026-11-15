@@ -116,20 +116,45 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   all emitted assistant and streamed call IDs independently of its frozen
   candidate: without boundary events, a later fragment must not hide an
   uncaptured call behind an earlier captured call.
-  **Multi-call checkpoints always replay, including all-captured batches**
-  (operator-approved fallback, 2026-11-14). Real SDK 0.2.141 / CLI 2.1.322
-  resumes lose later real results even when every call reached PreToolUse and
-  one SDK input contains every native result. Order/grouping, hook-delay and
-  earlier-fragment probes did not establish a safe resume shape; the internal
-  CLI cause remains unproven. A durable assistant boundary and capture proof
-  therefore do not prove result delivery. JSON completion, SSE completion
-  (including assistant-only/unstreamed output), captured-error recovery and
-  silent-turn recovery must evict multi-call checkpoints; a previously retained
-  multi-call checkpoint also takes fresh full replay on read.
+  **All-captured streamed multi-call batches use first-fragment hybrid
+  continuation** (operator-approved Design A, 2026-11-14). Retain only a
+  canonical settled checkpoint covering every streamed/client-visible call,
+  with positive PreToolUse capture for every observed call and a first
+  assistant fragment containing exactly one tool use. Store that first UUID,
+  all pending client IDs and `passthroughNativeToolCallId` identifying the
+  first call. On the next exact complete-result continuation, send one SDK
+  user input: that call's native real result, then completed-call/result
+  records for the remaining calls, then any queued user content. Reuse
+  `flattenAssistantContent` and `normalizeStructuredUserContent` from fresh
+  replay; preserve result payloads, error attribution and media. Call records
+  name the registered MCP tools. The existing system note already explains
+  that these records describe completed client-side work; do not change the
+  system/tool prefix or ask the client to execute those calls again.
+  Real SDK 0.2.141 / CLI 2.1.322 proves two-/three-call retention, every real
+  result exactly once without placeholders, and unchanged upstream content
+  prefixes through a second multi-call turn followed by a single-call turn.
+  Only cache markers and the CLI's equivalent string/singleton-text-block
+  environment representation are canonicalized for prefix comparison; no
+  text, message order, tool definition or system content is ignored.
+  Last-fragment native multi-call resume remains unqualified: four earlier
+  probes lost later real results, and its CLI-internal cause remains unknown.
+  The consolidated hybrid assistant has no complete native undo boundary;
+  its rollback UUID slot is null, so editing its results replays instead of
+  trying a discarded later-fragment UUID. Ordinary undo remains unchanged.
+  Legacy multi-call checkpoints without the explicit hybrid marker replay.
+  Mixed/uncaptured batches, JSON completion, assistant-only/unstreamed SSE,
+  silent-turn recovery, missing/ambiguous first-fragment boundaries, and
+  incomplete/mismatched results retain their existing replay policy. Both
+  canonical turn-cap drain-error recovery and normal streamed completion
+  (including deferred PostToolBatch) are covered by the hybrid proof.
+  The production motivation was 81/81 captured multi-call evictions in 8.5 h,
+  139/143 new-lineage requests writing >=100k tokens (37.3M total), versus
+  99.4% cache hits over 2269 continuation requests. These are observed token
+  costs, not a measured post-fix production saving or a dollar estimate.
   Publication uses the shared `checkpointPublicationRequiresReplay` invariant:
   a tool turn requires a canonical settled assistant UUID and an exact match
   between its checkpoint IDs and the client-visible batch, with exactly one
-  captured call. SSE computes that batch from both streamed IDs and captured
+  captured call or the explicit first-fragment hybrid proof above. SSE computes that batch from both streamed IDs and captured
   calls queued for the final envelope, not only partial stream events. An
   assistant-only batch can settle at publication after canonical drain; a
   captured single call still retains its rewind checkpoint. Any uncaptured
@@ -147,7 +172,8 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   client results at the cost of rebuilding the SDK prefix/cache and losing
   SDK-only context not present in client history. See
   `docs/maintenance/MIXED_REJECTION_CHECKPOINT.md` for red/green evidence and
-  cache-cost bounds; native multi-call resume remains unqualified. Abort-window
+  measured cache costs and exact hybrid input; last-fragment native multi-call
+  resume remains unqualified. Abort-window
   calls without a result, malformed-input refusals, undeclared names, unkeyed requests and
   larger turn budgets remain ineligible for this rejection-only recovery
   retention. Retained checkpoints use ordinary continuation tool caching; the
