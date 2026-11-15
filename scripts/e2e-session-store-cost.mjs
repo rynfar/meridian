@@ -44,7 +44,7 @@ assert(first)
 const coldReadMs = performance.now() - coldStarted
 const coldFreeze = { calls: freezeCalls, ms: freezeMs }
 Object.freeze = realFreeze
-storeSharedSession('fixture-0', first.claudeSessionId, count)
+await storeSharedSession('fixture-0', first.claudeSessionId, count)
 const samples = []
 for (let i = 0; i < 30; i++) {
   await new Promise(resolve => setImmediate(resolve))
@@ -53,8 +53,9 @@ for (let i = 0; i < 30; i++) {
   assert(session)
   const started = performance.now()
   const timer = new Promise(resolve => setTimeout(() => resolve(performance.now() - started), 0))
-  storeSharedSession(key, session.claudeSessionId, count)
+  const write = storeSharedSession(key, session.claudeSessionId, count)
   samples.push(await timer)
+  await write
 }
 assert.equal(Object.keys(readSessionStoreSnapshot()).length, entries)
 const final = JSON.parse(readFileSync(path, 'utf8'))

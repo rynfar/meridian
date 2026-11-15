@@ -45,33 +45,33 @@ describe("copyElsewhereHoldingMore", () => {
   const history = [user("q1"), assistant("a1"), user("q2"), assistant("a2"), user("q3")]
   const others = [{ profileId: "backup", key: "backup:conversation" }]
 
-  it("finds the copy that went on elsewhere, used since this account's", () => {
-    expect(storeSession("backup:conversation", history.slice(0, 3), "sdk-backup")).not.toBe(false)
+  it("finds the copy that went on elsewhere, used since this account's", async () => {
+    expect((await storeSession("backup:conversation", history.slice(0, 3), "sdk-backup"))).not.toBe(false)
     const found = copyElsewhereHoldingMore(others, history, { lastUsedAt: 0, held: 2 })
     expect(found).toMatchObject({ profileId: "backup", key: "backup:conversation", lineage: { type: "continuation", resumeFrom: 3 } })
   })
 
-  it("ignores a copy elsewhere not used since this account's", () => {
-    expect(storeSession("backup:conversation", history.slice(0, 3), "sdk-backup")).not.toBe(false)
+  it("ignores a copy elsewhere not used since this account's", async () => {
+    expect((await storeSession("backup:conversation", history.slice(0, 3), "sdk-backup"))).not.toBe(false)
     expect(copyElsewhereHoldingMore(others, history, { lastUsedAt: Date.now() + 60_000, held: 2 })).toBeUndefined()
   })
 
-  it("ignores a copy elsewhere that holds no more than this account's", () => {
-    expect(storeSession("backup:conversation", history.slice(0, 1), "sdk-backup")).not.toBe(false)
+  it("ignores a copy elsewhere that holds no more than this account's", async () => {
+    expect((await storeSession("backup:conversation", history.slice(0, 1), "sdk-backup"))).not.toBe(false)
     expect(copyElsewhereHoldingMore(others, history, { lastUsedAt: 0, held: 2 })).toBeUndefined()
   })
 
-  it("counts a copy published from a plugin-rewritten execution by its raw client lineage", () => {
+  it("counts a copy published from a plugin-rewritten execution by its raw client lineage", async () => {
     // No SDK-prefix proof (lineageHash empty); the raw ancestry is kept apart.
-    expect(storeSession("backup:conversation", history.slice(0, 3), "sdk-transformed", undefined, undefined, undefined,
-      undefined, undefined, undefined, undefined, undefined, undefined, false)).not.toBe(false)
+    expect((await storeSession("backup:conversation", history.slice(0, 3), "sdk-transformed", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined, false))).not.toBe(false)
     const found = copyElsewhereHoldingMore(others, history, { lastUsedAt: 0, held: 2 })
     expect(found?.session).toMatchObject({ lineageHash: "", clientLineageHash: expect.any(String) })
     expect(found?.lineage.type).toBe("continuation")
   })
 
-  it("does not count a legacy copy elsewhere that proves no lineage", () => {
-    expect(storeSharedSession("backup:conversation", "sdk-legacy", 3, "")).not.toBe(false)
+  it("does not count a legacy copy elsewhere that proves no lineage", async () => {
+    expect((await storeSharedSession("backup:conversation", "sdk-legacy", 3, ""))).not.toBe(false)
     expect(copyElsewhereHoldingMore(others, history, { lastUsedAt: 0, held: 2 })).toBeUndefined()
   })
 
@@ -85,8 +85,8 @@ describe("copyElsewhereHoldingMore", () => {
     } finally { read.mockRestore() }
   })
 
-  it("rejects a later read error even after finding a newer readable copy", () => {
-    expect(storeSession("backup:conversation", history.slice(0, 3), "sdk-backup")).not.toBe(false)
+  it("rejects a later read error even after finding a newer readable copy", async () => {
+    expect((await storeSession("backup:conversation", history.slice(0, 3), "sdk-backup"))).not.toBe(false)
     const realRead = sessionStore.lookupSharedSessionResult
     const read = spyOn(sessionStore, "lookupSharedSessionResult").mockImplementation(key =>
       key === "unreadable:conversation"

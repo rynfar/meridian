@@ -59,6 +59,7 @@ const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride, resetOAuthUsageCache } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 
+const proxies: ReturnType<typeof createProxyServer>[] = []
 const savedEnv: Record<string, string | undefined> = {}
 let root = ""
 
@@ -78,7 +79,14 @@ beforeEach(async () => {
   process.env.MERIDIAN_PROFILE_ORDER = "work,spare"
 })
 
-afterEach(() => {
+afterEach(async () => {
+  // Consuming a response does not join its background GC. Close every proxy
+  // before another fixture can change the process-wide session directory.
+  for (const proxy of proxies) {
+    if (!proxy.closeBackend) throw new Error("Cancellation fixture requires backend cleanup")
+    await proxy.closeBackend()
+  }
+  proxies.length = 0
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
@@ -100,7 +108,9 @@ async function until(condition: () => boolean, timeoutMs = 1000): Promise<void> 
 /** A fresh proxy with two accounts, `work` first. */
 function startProxy(): ReturnType<typeof createProxyServer> {
   const profiles = ["work", "spare"].map(id => ({ id, claudeConfigDir: join(root, id) }))
-  return createProxyServer({ port: 0, host: "127.0.0.1", profiles, defaultProfile: "work" })
+  const proxy = createProxyServer({ port: 0, host: "127.0.0.1", profiles, defaultProfile: "work" })
+  proxies.push(proxy)
+  return proxy
 }
 
 /** Send one request to a fresh proxy. */

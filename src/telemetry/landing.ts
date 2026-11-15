@@ -13,10 +13,12 @@ import { profileFactsJs } from "./profileFacts"
 import { profileFindJs } from "./profileFind"
 import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 import { profileProvidersCss, profileProvidersJs } from "./profileProviders"
+import { profileLoginStatesCss, profileLoginStatesJs } from "./profileLoginStates"
 import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "./profileSort"
 import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "./profileSpent"
 import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
+import { textSelectionJs } from "./textSelection"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -39,6 +41,13 @@ export const landingHtml = `<!DOCTYPE html>
   .intro code { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
     padding: 1px 6px; color: var(--accent2); white-space: nowrap; }
+  /* The address chips carry this instance's own host, which can be longer
+     than a phone's column: a 37-character host was 348px in a 272px column at
+     320px and scrolled the page sideways. A desktop keeps each chip unbroken;
+     a phone lets it wrap. */
+  @media (max-width: 720px) {
+    .intro code { white-space: normal; overflow-wrap: anywhere; }
+  }
   .intro a { color: var(--accent); text-decoration: none; }
   .intro a:hover { text-decoration: underline; }
   .intro-meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
@@ -95,6 +104,7 @@ export const landingHtml = `<!DOCTYPE html>
   a.spend-pill:hover { border-color: var(--red); }
   ${reorderCss}
   ${profileProvidersCss}
+  ${profileLoginStatesCss}
   ${profileCardStatusCss}
   /* The name row carries every badge the card can earn - Active, the plan
      chip, pool position, exhausted/refused, needs login, spent - and on a
@@ -123,8 +133,16 @@ export const landingHtml = `<!DOCTYPE html>
 
   /* Account details on hover. Drawn rather than a title attribute: the native
      tooltip cannot show a label/value list, and this one has to match the grid
-     on /profiles row for row. */
-  .prof-info { position: relative; display: inline-flex; }
+     on /profiles row for row.
+
+     It hangs from the header row and spans the card, 6px in from each edge,
+     rather than hanging off the icon: at a 256px minimum the values (an
+     email, the allowance) wrapped onto two lines each. The row spans the
+     card's content box, so the popup reaches out past it by the card's
+     padding less those 6px; that keeps it inside a phone's viewport too,
+     where the card is the full width. */
+  .profile-head { position: relative; }
+  .prof-info { display: inline-flex; }
   .prof-info-dot { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
     border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
     font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 10px;
@@ -132,8 +150,8 @@ export const landingHtml = `<!DOCTYPE html>
   .prof-info:hover .prof-info-dot, .prof-info:focus-within .prof-info-dot {
     border-color: var(--accent); color: var(--accent); }
   .prof-info-dot:focus-visible { outline: none; border-color: var(--accent); color: var(--accent); }
-  .prof-pop { position: absolute; top: calc(100% + 8px); left: -8px; z-index: 20;
-    min-width: 256px; padding: 12px 14px; background: var(--surface2);
+  .prof-pop { position: absolute; top: calc(100% + 8px); left: -14px; right: -14px; z-index: 20;
+    padding: 12px 14px; background: var(--surface2);
     border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     opacity: 0; visibility: hidden; transition: opacity 0.12s;
@@ -154,13 +172,8 @@ export const landingHtml = `<!DOCTYPE html>
   .prof-pop-value .cached-tag { color: var(--muted); font-size: 10px; font-style: italic; white-space: nowrap; }
   .prof-pop-value .fact-explanation { display: none; margin-top: 4px; color: var(--muted); font-family: inherit; line-height: 1.4; }
   .prof-pop-value:focus > .fact-explanation { display: block; }
-  /* A hidden overlay still counts toward the page's scroll width, and one
-     hung off the icon at 256px or more reaches past a phone's right edge.
-     On a narrow screen it spans the card's header row instead. */
   @media (max-width: 720px) {
-    .profile-head { position: relative; }
-    .prof-info { position: static; }
-    .prof-pop { left: 0; right: 0; min-width: 0; }
+    .prof-pop { left: -4px; right: -4px; }
   }
   /* A phone shows one card per row, each packed with usage rows and chips,
      so the page edge and the card's own padding give that room back. */
@@ -363,20 +376,43 @@ function setViewSort(mode){
 
 ${reorderClientJs}
 ${profileProvidersJs}
+${profileLoginStatesJs}
 ${domPatchJs}
 ${profileCardStatusJs}
+${textSelectionJs}
 
 var providersPresent=[];
+// How many cards the login-state chips count; below two they are not drawn.
+var loginTotal=0;
 
-// A chip hides or shows its provider's cards where they stand. Hidden cards
-// stay in the page, so a drag still saves their place in the order.
+// A card shows when its provider's chip is on AND its login state's chip is
+// on. A card updating after a sign-in is about to change state, so the
+// login-state chips leave it on screen until the new state is known.
+function cardShown(group,state,updating){
+  return meridianProviders.visible(group,providersPresent)&&(updating||meridianLoginStates.visible(state,loginTotal));
+}
+
+// The chips hide or show cards where they stand. Hidden cards stay in the
+// page, so a drag still saves their place in the order. A heading shows while
+// any card of its provider does.
 function applyProviderFilter(){
   var root=document.getElementById('content');
-  var grouped=root.querySelectorAll('[data-group]');
-  for(var i=0;i<grouped.length;i++)grouped[i].hidden=!meridianProviders.visible(grouped[i].getAttribute('data-group'),providersPresent);
+  var cards=root.querySelectorAll('.profile-card[data-group]');
+  var groupShown={};var shown=0;
+  for(var i=0;i<cards.length;i++){
+    var group=cards[i].getAttribute('data-group');
+    var on=cardShown(group,cards[i].getAttribute('data-login-state'),cards[i].classList.contains('updating'));
+    cards[i].hidden=!on;
+    if(on){shown++;groupShown[group]=true}
+  }
+  var heads=root.querySelectorAll('.provider-group-head');
+  for(var h=0;h<heads.length;h++)heads[h].hidden=!groupShown[heads[h].getAttribute('data-group')];
   meridianProviders.syncChips(root);
-  var none=root.querySelector('.provider-none');
+  meridianLoginStates.syncChips(root);
+  var none=root.querySelector('.provider-none:not(.login-none)');
   if(none)none.hidden=meridianProviders.anyShown(providersPresent);
+  var loginNone=root.querySelector('.login-none');
+  if(loginNone)loginNone.hidden=!(meridianProviders.anyShown(providersPresent)&&cards.length>0&&shown===0);
 }
 // Whether this instance serves Claude at all. An instance that serves ChatGPT
 // and has neither a Claude login nor a Claude profile does not, and its page
@@ -516,16 +552,28 @@ function profileSection(q,s,pl,h){
   var slots=meridianProviders.slots(groups);
   var grouped=groups.length>1;
   providersPresent=groups.map(function(g){return g.provider});
+  function updateOf(p){return p.entry?meridianCardStatus.updateOf(p.entry,null):null}
+  function updatingOf(p){
+    var update=updateOf(p);
+    return !!(update&&update.state==='updating');
+  }
+  var loginStates=slots.map(function(s){
+    var p=s.item;
+    return meridianLoginStates.stateOf({loggedIn:p.loggedIn,error:(quotaByProfile[p.id]||{}).error,renewalRequiredSoon:!!(p.entry&&p.entry.renewalRequiredSoon)});
+  });
+  loginTotal=slots.length;
+  var groupShown={};var anyCardShown=false;
+  for(var g=0;g<slots.length;g++)if(cardShown(slots[g].provider,loginStates[g],updatingOf(slots[g].item))){groupShown[slots[g].provider]=true;anyCardShown=true}
   var reorderable=multi&&!meridianReorder.envPinned()&&viewSort==='configured';
   var cards='';
   var shown=[];
   var pos=0;
   for(var i=0;i<slots.length;i++){
     var slot=slots[i];
-    var update=slot.item.entry?meridianCardStatus.updateOf(slot.item.entry,null):null;
+    var update=updateOf(slot.item);
     var updating=!!(update&&update.state==='updating');
-    var providerHidden=!meridianProviders.visible(slot.provider,providersPresent);
-    if(grouped&&slot.place===0)cards+=meridianProviders.headingHtml(slot.group,providerHidden);
+    var cardHidden=!cardShown(slot.provider,loginStates[i],updating);
+    if(grouped&&slot.place===0)cards+=meridianProviders.headingHtml(slot.group,!groupShown[slot.provider]);
     var p=slot.item;var cost=profileCost(byProfile,p);
     var chat=isChatGptProfile(p.entry);
     var quota=quotaByProfile[p.id]||{};
@@ -632,7 +680,7 @@ function profileSection(q,s,pl,h){
     var draggable=reorderable&&p.configured&&slot.size>1;
     cards+='<div class="profile-card provider-'+esc(slot.provider)+(p.isActive?' active':'')+(switchable?' switchable':'')+spendClass+(updating?' updating" aria-busy="true':'')+'"'+spendStyle+spendTip
       +' data-key="card:'+esc(p.id)+'"'
-      +' data-group="'+esc(slot.provider)+'"'+(providerHidden?' hidden':'')
+      +' data-group="'+esc(slot.provider)+'" data-login-state="'+esc(loginStates[i])+'"'+(cardHidden?' hidden':'')
       +(p.configured?' data-id="'+esc(p.id)+'" data-index="'+pos+'"':'')
       +(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,slot.place,slot.size):'')+'<span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+''+esc(p.label||p.id)+' '+meridianProviders.badgeHtml(slot.provider,'provider-pill')+badge+'</span>'
@@ -643,9 +691,10 @@ function profileSection(q,s,pl,h){
   }
   if(!cards)return {html:'',shown:shown};
   return {shown:shown,html:'<div class="section"><div class="section-head"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div>'+sortTabs(profs.length)+'</div>'
-    +meridianProviders.chipsHtml(groups)
+    +'<div class="chip-row">'+meridianProviders.chipsHtml(groups)+meridianLoginStates.chipsHtml(meridianLoginStates.counts(loginStates),loginTotal)+'</div>'
     +(multi?meridianReorder.noteHtml(reorderable,configured.some(isChatGptProfile),grouped):'')
     +(grouped?meridianProviders.noneShownHtml(meridianProviders.anyShown(providersPresent)):'')
+    +(loginTotal>1?meridianLoginStates.noneShownHtml(!meridianProviders.anyShown(providersPresent)||anyCardShown):'')
     +'<div class="profile-grid">'+cards+'</div></div>'};
 }
 
@@ -680,6 +729,7 @@ function render(h,s,q,pl){
   var refocusId=meridianReorder.focusAnchor();
   var focused=document.activeElement;
   var refocusChip=focused&&focused.getAttribute?focused.getAttribute('data-provider-chip'):null;
+  var refocusLoginChip=focused&&focused.getAttribute?focused.getAttribute('data-login-chip'):null;
   let o='';
   o+=introSection(h,pl);
 
@@ -708,6 +758,7 @@ function render(h,s,q,pl){
   meridianPatch.html(document.getElementById('content'),o);
   meridianReorder.restoreFocus(refocusId);
   if(refocusChip){var chip=document.querySelector('.provider-chip[data-provider-chip="'+refocusChip+'"]');if(chip)chip.focus()}
+  if(refocusLoginChip){var loginChip=document.querySelector('.provider-chip[data-login-chip="'+refocusLoginChip+'"]');if(loginChip)loginChip.focus()}
 }
 
 function switchProfile(id){
@@ -720,15 +771,21 @@ function switchProfile(id){
 // this every grab of the handle would also change the active account.
 function onHandle(e){return !!(e.target.closest&&e.target.closest('.drag-handle'))}
 // A chip click rewrites only the current history entry, so going back to an
-// earlier one can bring a different ?provider= with it.
-window.addEventListener('popstate',function(){meridianProviders.fromLocation();applyProviderFilter()});
+// earlier one can bring a different ?provider= or ?login= with it.
+window.addEventListener('popstate',function(){meridianProviders.fromLocation();meridianLoginStates.fromLocation();applyProviderFilter()});
 document.getElementById('content').addEventListener('click',function(e){
   // Before the selection check: pressing a button leaves a selection standing,
   // and a chip that does nothing while some text is selected looks broken.
   var chip=meridianProviders.onClick(e.target);
   if(chip){
     applyProviderFilter();
-    if(chip==='*'){var first=document.querySelector('.provider-chip');if(first)first.focus()}
+    if(chip==='*'){var first=document.querySelector('.provider-chip[data-provider-chip]');if(first)first.focus()}
+    return;
+  }
+  var loginChip=meridianLoginStates.onClick(e.target);
+  if(loginChip){
+    applyProviderFilter();
+    if(loginChip==='*'){var firstState=document.querySelector('.provider-chip[data-login-chip]');if(firstState)firstState.focus()}
     return;
   }
   if(onHandle(e))return;
@@ -739,6 +796,9 @@ document.getElementById('content').addEventListener('click',function(e){
   if(e.target.closest('a'))return;
   var tab=e.target.closest('.sort-tab');
   if(tab&&tab.dataset.sort){setViewSort(tab.dataset.sort);return}
+  // Releasing a drag-select over a card dispatches a click on it too; that
+  // click finished a copy, so it is not a request to switch account.
+  if(meridianSelection.live())return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile)switchProfile(card.dataset.profile);
 });

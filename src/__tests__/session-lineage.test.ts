@@ -120,7 +120,7 @@ beforeEach(async () => {
   queuedSessionLabels = []
   callerSelectedSessionIds = new Map()
   await clearSessionCache()
-  clearSharedSessions()
+  await clearSharedSessions()
 })
 
 // ---------------------------------------------------------------------------

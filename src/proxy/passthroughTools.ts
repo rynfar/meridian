@@ -286,6 +286,20 @@ export function clientOwnsToolSearch(
     && tools.some(tool => tool.defer_loading !== true && tool.name === "ToolSearch")
 }
 
+/** NOTE: agent-specific (OpenCode-motivated). Whether the SDK owns the search
+ *  tool under the client prefix (`mcp__oc__ToolSearch`): the request defers
+ *  tools, so the SDK has a real ToolSearch, and no client tool is named
+ *  `ToolSearch` or registered under that alias. See isSdkToolSearchCall. */
+export function sdkOwnsPrefixedToolSearch(
+  tools: ReadonlyArray<{ name?: unknown }>,
+  hasDeferredTools: boolean,
+  clientNameByAlias: ReadonlyMap<string, string> | undefined,
+): boolean {
+  return hasDeferredTools
+    && !tools.some(tool => tool?.name === "ToolSearch")
+    && !(clientNameByAlias?.has("ToolSearch") ?? false)
+}
+
 /** The tools a client-side tool search has named through `tool_reference`
  *  blocks in user tool results. Malformed input contributes nothing. */
 export function referencedToolNames(messages: unknown): Set<string> {

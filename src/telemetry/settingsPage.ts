@@ -156,6 +156,9 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .add-btn { background: var(--accent); border: none; color: #fff; border-radius: 6px;
     padding: 5px 14px; font-size: 12px; font-weight: 500; cursor: pointer; }
   .pricing-note { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
+  /* An executable path is one long unbroken string; on a phone it would widen
+     the whole page rather than wrap. */
+  #claude-exe-card code { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>

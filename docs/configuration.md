@@ -132,6 +132,16 @@ not a reconstruction of the model actually served.
 See Anthropic's [overview](https://platform.claude.com/docs/en/models/haiku-5-5/overview)
 and [migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide).
 
+### Fable 5.2
+
+Request `claude-fable-5-2` explicitly; the bare `fable` alias still defaults to
+`claude-fable-5-1`. Use Claude Code **2.1.322 or newer** (including when
+selecting a system/custom executable); older CLIs may not recognize the model and
+fall back to a 200k context window. Fable 5.2 has a native **1M context
+window** and always-on adaptive thinking controlled by effort, so `/v1/models`
+advertises it without disabled-thinking support. `claude-mythos-5-2` rides the
+same Fable tier and pricing ($8 / $40 per MTok, $0.20 cache reads).
+
 ### Read-only credentials
 
 `MERIDIAN_CREDENTIALS_READONLY=1` makes an instance incapable of modifying
