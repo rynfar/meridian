@@ -5400,7 +5400,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // then keep draining; iterator observation alone is not durable.
               if (passthrough && message.type === "assistant") {
                 for (const block of message.message.content) {
-                  if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch)) emittedToolUseIds.add(block.id)
+                  if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) emittedToolUseIds.add(block.id)
                 }
               }
               let assistantAddedForwardedCall = false
@@ -6941,7 +6941,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   }
                   if (passthrough && message.type === "assistant") {
                     for (const block of message.message.content) {
-                      if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch)) observedToolUseIds.add(block.id)
+                      if (isClientForwardedToolUse(block, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) observedToolUseIds.add(block.id)
                     }
                   }
                   let assistantAddedForwardedCall = false
@@ -7008,7 +7008,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
                   if (message.type === "stream_event") {
                     if (passthrough && message.event.type === "content_block_start" &&
-                      isClientForwardedToolUse(message.event.content_block, clientToolPrefix, clientToolSearch)) {
+                      isClientForwardedToolUse(message.event.content_block, clientToolPrefix, clientToolSearch, sdkOwnsPrefixedSearch)) {
                       observedToolUseIds.add(message.event.content_block.id)
                     }
                     // Once turn 1 is closed to the client, all later wire events

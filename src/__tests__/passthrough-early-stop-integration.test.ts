@@ -14,7 +14,7 @@ import { progressBody, PROGRESS_WORK } from "./fixtures/claude-code-progress"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, parseSSE, resolveMockSdkSessionId } from "./helpers"
+import { streamEvent, assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, parseSSE, resolveMockSdkSessionId } from "./helpers"
 
 interface LifecycleResourceSnapshot {
   locator: { sessionId: string }
@@ -58,6 +58,12 @@ installSdkMock(() => ({
       const explicitlyHookedIds = new Set<string>()
       for (const msg of script ? script.messages : mockMessages) {
         yieldedCount++
+        // Runs a fixture step at this point in the SDK stream, e.g. a client
+        // disconnect between capture and termination. Never delivered.
+        if (msg?.type === "test_callback") {
+          await msg.run()
+          continue
+        }
         if (msg?.type === "test_post_tool_batch") {
           const toolCalls = msg.tool_use_ids.map((id: string) => ({ tool_name: "read", tool_input: {}, tool_use_id: id }))
           for (const matcher of params?.options?.hooks?.PostToolBatch ?? []) {
@@ -3174,6 +3180,421 @@ describe("Integration: passthrough early stop", () => {
     expect(res.status).toBe(200)
     const body = await res.text()
     expect(body).toContain("event: error")
+  })
+
+  const clientToolIds = (body: string): unknown[] => parseSSE(body).flatMap((event) => {
+    const block = event.data.content_block
+    if (event.event !== "content_block_start" || !block || typeof block !== "object"
+      || !("type" in block) || block.type !== "tool_use" || !("id" in block)) return []
+    return [block.id]
+  })
+  const hookOf = (attempt: number) => capturedQueryParamsAll[attempt].options.hooks.PreToolUse[0].hooks[0]
+
+  // Unstreamed assistant metadata belongs to the SDK attempt that produced it.
+  // A transparent retry abandons that attempt; its turn was never shown to the
+  // client and must not become the envelope of a later attempt's capture.
+  describe("stream: unstreamed metadata across a transparent retry", () => {
+    const ABANDONED_ID = "msg_abandoned_attempt"
+    const abandonedAttempt = () => {
+      const turn = assistantMessage([{ type: "text", text: "abandoned attempt text" }])
+      turn.message.id = ABANDONED_ID
+      return { messages: [turn], terminalError: new Error("API Error: 429 rate limit exceeded") }
+    }
+    const capped = () => ({
+      type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session",
+    })
+    let savedDelay: string | undefined
+    beforeEach(() => {
+      savedDelay = process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+      process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = "1"
+    })
+    afterEach(() => {
+      if (savedDelay === undefined) delete process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+      else process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = savedDelay
+    })
+
+    it("a capture-only capped retry does not reuse the abandoned attempt's metadata", async () => {
+      mockAttemptScripts = [
+        abandonedAttempt(),
+        {
+          messages: [
+            { type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "retry-capture-only", tool_input: { file_path: "r" } },
+            capped(),
+          ],
+          terminalError: new Error(CAPPED_TURN_ERROR),
+        },
+      ]
+
+      const res = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: true,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "retry then capture only" }],
+      }, "es-retry-stale-metadata")
+      expect(res.status).toBe(200)
+      const body = await res.text()
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      const events = parseSSE(body)
+      expect(events.map((e: any) => e.event)).toEqual(["error"])
+      expect(body).not.toContain("message_start")
+      expect(body).not.toContain(ABANDONED_ID)
+      expect(body).not.toContain("abandoned attempt text")
+      expect(body).not.toContain("retry-capture-only")
+      expect(body).not.toContain('"stop_reason":"tool_use"')
+      expect(lookupSharedSession(`es-retry-stale-metadata-${TEST_RUN_ID}`)).toBeUndefined()
+    })
+
+    it.each(["hook-only", "settled-metadata", "late-old-hook"])("a transparent retry forwards only the fresh capture with the same signature (%s)", async (scenario) => {
+      const abandoned = assistantMessage([
+        { type: "tool_use", id: "probe-sig-1", name: "read", input: { file_path: "p" } },
+      ])
+      const fresh = assistantMessage([
+        { type: "tool_use", id: "probe-sig-2", name: "read", input: { file_path: "p" } },
+      ])
+      mockAttemptScripts = [
+        {
+          messages: scenario === "settled-metadata"
+            ? [abandoned, userDenyMessage("probe-sig-1")]
+            : [{ type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "probe-sig-1", tool_input: { file_path: "p" } }],
+          terminalError: new Error("API Error: 429 rate limit exceeded"),
+        },
+        {
+          messages: [
+            ...(scenario === "late-old-hook" ? [{
+              type: "test_callback",
+              run: async () => {
+                const abandonedHook = capturedQueryParamsAll[0].options.hooks.PreToolUse[0].hooks[0]
+                await abandonedHook({ tool_name: "read", tool_use_id: "late-abandoned", tool_input: { file_path: "p" } },
+                  undefined, { signal: new AbortController().signal })
+              },
+            }] : []),
+            fresh, userDenyMessage("probe-sig-2"), capped(),
+          ],
+          terminalError: new Error(CAPPED_TURN_ERROR),
+        },
+      ]
+      const res = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+        messages: [{ role: "user", content: "retry captured tool" }],
+      }, `es-retry-fresh-capture-signature-${scenario}`)
+      expect(res.status).toBe(200)
+      const body = await res.text()
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      const toolIds = parseSSE(body).flatMap((event) => {
+        const block = event.data.content_block
+        if (event.event !== "content_block_start" || !block || typeof block !== "object"
+          || !("type" in block) || block.type !== "tool_use" || !("id" in block)) return []
+        return [block.id]
+      })
+      expect(toolIds).toEqual(["probe-sig-2"])
+      expect(body).not.toContain("probe-sig-1")
+      expect(body).toContain('"stop_reason":"tool_use"')
+    })
+
+    it("a retry with its own metadata and capture still recovers that fresh turn", async () => {
+      const fresh = assistantMessage([
+        { type: "text", text: "fresh attempt text" },
+        { type: "tool_use", id: "retry-fresh-capture", name: "read", input: { file_path: "f" } },
+      ])
+      fresh.message.id = "msg_fresh_attempt"
+      mockAttemptScripts = [
+        abandonedAttempt(),
+        {
+          messages: [fresh, userDenyMessage("retry-fresh-capture"), capped()],
+          terminalError: new Error(CAPPED_TURN_ERROR),
+        },
+      ]
+
+      const res = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: true,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "retry then fresh turn" }],
+      }, "es-retry-fresh-metadata")
+      expect(res.status).toBe(200)
+      const body = await res.text()
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      expect(body).not.toContain("event: error")
+      expect(body).not.toContain(ABANDONED_ID)
+      expect(body).not.toContain("abandoned attempt text")
+      const events = parseSSE(body)
+      const starts = events.filter((e: any) => e.event === "message_start")
+      expect(starts).toHaveLength(1)
+      expect((starts[0]!.data.message as { id?: string }).id).toBe("msg_fresh_attempt")
+      expect(body).toContain("fresh attempt text")
+      const toolStarts = events.filter((e: any) =>
+        e.event === "content_block_start" && e.data?.content_block?.type === "tool_use")
+      expect(toolStarts.map((e: any) => e.data.content_block.id)).toEqual(["retry-fresh-capture"])
+      expect(body).toContain('"stop_reason":"tool_use"')
+    })
+
+    // Attempt isolation fences the PreToolUse callbacks themselves: a host
+    // callback can outlive its SDK attempt, so the retired attempt's closure
+    // must be refused before it captures, aborts, or holds.
+    const hookOnlyRateLimited = () => ({
+      messages: [{ type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "probe-sig-1", tool_input: { file_path: "p" } }],
+      terminalError: new Error("API Error: 429 rate limit exceeded"),
+    })
+
+    it.each(["parallel", "forced-single", "generating"])("a retired attempt's different-signature callback cannot capture, abort or hold (%s)", async (scenario) => {
+      const { PASSTHROUGH_NOT_FORWARDED_REASON } = await import("../proxy/passthroughDenial")
+      let staleDecision: unknown
+      const invokeStale = {
+        type: "test_callback",
+        run: async () => {
+          const pending = hookOf(0)({ tool_name: "read", tool_use_id: "stale-other", tool_input: { file_path: "other" } },
+            undefined, { signal: new AbortController().signal })
+          // A held deny would still be pending here; a fenced callback is not.
+          staleDecision = await Promise.race([pending, Bun.sleep(50).then(() => "still-held")])
+        },
+      }
+      const fresh = assistantMessage([
+        { type: "tool_use", id: "probe-sig-2", name: "read", input: { file_path: "p" } },
+      ])
+      mockAttemptScripts = [
+        hookOnlyRateLimited(),
+        scenario === "generating"
+          ? {
+              // Raw message_start arms turnGenerating, the only state in
+              // which a current callback may hold its deny.
+              messages: [
+                messageStart("msg_fresh_generating"),
+                invokeStale,
+                toolUseBlockStart(0, "read", "probe-sig-2"),
+                inputJsonDelta(0, '{"file_path":"p"}'),
+                blockStop(0),
+                messageDelta("tool_use"),
+                fresh,
+                userDenyMessage("probe-sig-2"),
+              ],
+            }
+          : {
+              messages: [
+                { type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "probe-sig-2", tool_input: { file_path: "p" } },
+                invokeStale,
+                fresh, userDenyMessage("probe-sig-2"), capped(),
+              ],
+              terminalError: new Error(CAPPED_TURN_ERROR),
+            },
+      ]
+      const res = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+        ...(scenario === "forced-single" ? { tool_choice: { type: "tool", name: "read" } } : {}),
+        messages: [{ role: "user", content: "retired different signature" }],
+      }, `es-retired-different-signature-${scenario}`)
+      expect(res.status).toBe(200)
+      const body = await res.text()
+      expect(capturedQueryParamsAll).toHaveLength(2)
+      expect(hookOf(1)).not.toBe(hookOf(0))
+      expect(staleDecision).toEqual({ decision: "block", reason: PASSTHROUGH_NOT_FORWARDED_REASON })
+      expect(clientToolIds(body)).toEqual(["probe-sig-2"])
+      expect(body).not.toContain("stale-other")
+      expect(body).not.toContain("probe-sig-1")
+      expect(body).toContain('"stop_reason":"tool_use"')
+      // Forced-single overflow aborts the shared request controller; a retired
+      // callback must never reach that branch.
+      expect(capturedQueryParamsAll[1].options.abortController.signal.aborted).toBe(false)
+    })
+
+    it("teardown retires the attempt's callback before retry backoff and the next query", async () => {
+      const { PASSTHROUGH_NOT_FORWARDED_REASON } = await import("../proxy/passthroughDenial")
+      const BACKOFF_SENTINEL_MS = 4321
+      process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = String(BACKOFF_SENTINEL_MS)
+      const realSetTimeout = globalThis.setTimeout
+      let queriesAtBackoff: number | undefined
+      let backoffDecision: Promise<unknown> | undefined
+      const patched = ((handler: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+        if (delay !== BACKOFF_SENTINEL_MS) return realSetTimeout(handler, delay, ...args)
+        queriesAtBackoff = capturedQueryParamsAll.length
+        backoffDecision = Promise.resolve(hookOf(0)({
+          tool_name: "read", tool_use_id: "backoff-stale", tool_input: { file_path: "backoff" },
+        }, undefined, { signal: new AbortController().signal }))
+        return realSetTimeout(handler, 0, ...args)
+      }) as typeof setTimeout
+      globalThis.setTimeout = patched
+      try {
+        mockAttemptScripts = [
+          hookOnlyRateLimited(),
+          {
+            messages: [
+              { type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "probe-sig-2", tool_input: { file_path: "p" } },
+              assistantMessage([{ type: "tool_use", id: "probe-sig-2", name: "read", input: { file_path: "p" } }]),
+              userDenyMessage("probe-sig-2"), capped(),
+            ],
+            terminalError: new Error(CAPPED_TURN_ERROR),
+          },
+        ]
+        const res = await post(app, {
+          model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+          messages: [{ role: "user", content: "retired during backoff" }],
+        }, "es-retired-during-backoff")
+        expect(res.status).toBe(200)
+        const body = await res.text()
+        expect(queriesAtBackoff).toBe(1)
+        expect(await backoffDecision).toEqual({ decision: "block", reason: PASSTHROUGH_NOT_FORWARDED_REASON })
+        expect(capturedQueryParamsAll).toHaveLength(2)
+        expect(clientToolIds(body)).toEqual(["probe-sig-2"])
+        expect(body).not.toContain("backoff-stale")
+      } finally {
+        globalThis.setTimeout = realSetTimeout
+      }
+    })
+
+    // A held deny exists only after raw message_start, so its attempt already
+    // yielded a client-visible stream event and the retry wrapper rethrows
+    // (didYieldClientEvent). The held callback is then released by teardown,
+    // after its token was retired, and must not promise a client result.
+    it("a held callback released by teardown after an exposed failure is not forwarded", async () => {
+      const { PASSTHROUGH_NOT_FORWARDED_REASON } = await import("../proxy/passthroughDenial")
+      let heldDecision: Promise<unknown> | undefined
+      let parkedBeforeFailure: unknown
+      mockAttemptScripts = [{
+        messages: [
+          messageStart("msg_exposed_held"),
+          toolUseBlockStart(0, "read", "held-call"),
+          inputJsonDelta(0, '{"file_path":"h"}'),
+          blockStop(0),
+          {
+            type: "test_callback",
+            run: async () => {
+              heldDecision = Promise.resolve(hookOf(0)({
+                tool_name: "read", tool_use_id: "held-call", tool_input: { file_path: "h" },
+              }, undefined, { signal: new AbortController().signal }))
+              parkedBeforeFailure = await Promise.race([heldDecision, Bun.sleep(20).then(() => "parked")])
+            },
+          },
+        ],
+        terminalError: new Error("API Error: 429 rate limit exceeded"),
+      }]
+      const res = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+        messages: [{ role: "user", content: "held then exposed failure" }],
+      }, "es-held-exposed-failure")
+      expect(res.status).toBe(200)
+      const body = await res.text()
+      expect(parkedBeforeFailure).toBe("parked")
+      // Exposed attempts are never transparently retried.
+      expect(capturedQueryParamsAll).toHaveLength(1)
+      expect(await heldDecision).toEqual({ decision: "block", reason: PASSTHROUGH_NOT_FORWARDED_REASON })
+      expect(body).toContain("event: error")
+    })
+  })
+
+  // Every primary streaming SDK entry -- the retry loop, the refused-resume
+  // fresh replay and the configured-model fallback -- runs exactly one attempt
+  // reset with its own callback token. The retry keeps the cached input resume
+  // anchor; the fresh entries deliberately drop the refused anchor and replay
+  // the full client history.
+  describe("stream: attempt isolation at every primary SDK entry", () => {
+    let savedDelay: string | undefined
+    beforeEach(() => {
+      savedDelay = process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+      process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = "1"
+    })
+    afterEach(() => {
+      if (savedDelay === undefined) delete process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+      else process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = savedDelay
+    })
+
+    it.each([
+      ["rate-limit retry", "API Error: 429 rate limit exceeded", true],
+      ["refused-resume fresh replay", "No message found with message.uuid stale-anchor", false],
+      ["model fallback", "You're out of extra usage", false],
+    ] as const)("%s isolates the abandoned attempt and publishes only the fresh checkpoint", async (site, failure, keepsAnchor) => {
+      const { PASSTHROUGH_NOT_FORWARDED_REASON } = await import("../proxy/passthroughDenial")
+      const slug = site.replace(/[^a-z]+/g, "-")
+      const sessionHeader = `es-entry-${slug}`
+      const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
+      const toolTurn = assistantMessage([
+        { type: "tool_use", id: `${slug}-turn1`, name: "read", input: { file_path: "x" } },
+      ])
+      mockMessages = [
+        messageStart("msg_entry_turn1"),
+        toolUseBlockStart(0, "read", `${slug}-turn1`),
+        inputJsonDelta(0, '{"file_path":"x"}'),
+        blockStop(0),
+        messageDelta("tool_use"),
+        toolTurn,
+        userDenyMessage(`${slug}-turn1`),
+      ]
+      const first = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+        messages: [{ role: "user", content: `entry ${slug} first` }],
+      }, sessionHeader)
+      expect(first.status).toBe(200)
+      await first.text()
+      expect(lookupSharedSession(sessionKey)?.passthroughToolCallAssistantUuid).toBe(toolTurn.uuid)
+      const sourceSessionId = initialManagedSessionId()
+
+      let staleDecision: unknown
+      const fresh = assistantMessage([
+        { type: "tool_use", id: "probe-sig-2", name: "read", input: { file_path: "p" } },
+      ])
+      mockAttemptScripts = [
+        {
+          messages: [{ type: "test_pre_tool_hook", tool_name: "read", tool_use_id: "probe-sig-1", tool_input: { file_path: "p" } }],
+          terminalError: new Error(failure),
+        },
+        {
+          messages: [
+            {
+              type: "test_callback",
+              run: async () => {
+                staleDecision = await capturedQueryParamsAll[1].options.hooks.PreToolUse[0].hooks[0](
+                  { tool_name: "read", tool_use_id: "entry-stale", tool_input: { file_path: "stale" } },
+                  undefined, { signal: new AbortController().signal })
+              },
+            },
+            messageStart("msg_entry_fresh"),
+            toolUseBlockStart(0, "read", "probe-sig-2"),
+            inputJsonDelta(0, '{"file_path":"p"}'),
+            blockStop(0),
+            messageDelta("tool_use"),
+            fresh,
+            userDenyMessage("probe-sig-2"),
+          ],
+        },
+      ]
+      const history = [
+        { role: "user", content: `entry ${slug} first` },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: `${slug}-turn1`, content: `RESULT-${slug}` }] },
+      ]
+      const second = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL], messages: history,
+      }, sessionHeader)
+      expect(second.status).toBe(200)
+      const body = await second.text()
+
+      expect(capturedQueryParamsAll).toHaveLength(3)
+      const [, abandoned, retried] = capturedQueryParamsAll
+      expect(abandoned.options.resume).toBe(sourceSessionId)
+      expect(abandoned.options.resumeSessionAt).toBe(toolTurn.uuid)
+      // Each wrapper invocation binds its own callbacks.
+      expect(retried.options.hooks.PreToolUse[0].hooks[0]).not.toBe(abandoned.options.hooks.PreToolUse[0].hooks[0])
+      if (keepsAnchor) {
+        expect(retried.options.resume).toBe(sourceSessionId)
+        expect(retried.options.resumeSessionAt).toBe(toolTurn.uuid)
+      } else {
+        expect(retried.options.resume).toBeUndefined()
+        expect(retried.options.resumeSessionAt).toBeUndefined()
+        const prompt = typeof retried.prompt === "string"
+          ? retried.prompt
+          : JSON.stringify(await Array.fromAsync(retried.prompt))
+        expect(prompt).toContain(`entry ${slug} first`)
+        expect(prompt).toContain(`RESULT-${slug}`)
+      }
+      expect(staleDecision).toEqual({ decision: "block", reason: PASSTHROUGH_NOT_FORWARDED_REASON })
+      expect(clientToolIds(body)).toEqual(["probe-sig-2"])
+      expect(body).not.toContain("probe-sig-1")
+      expect(body).not.toContain("entry-stale")
+      expect(body).toContain('"stop_reason":"tool_use"')
+      const published = lookupSharedSession(sessionKey)
+      expect(published?.passthroughToolCallAssistantUuid).toBe(fresh.uuid)
+      expect(published?.passthroughToolCallIds).toEqual(["probe-sig-2"])
+    })
   })
 
   // An empty text block is still an empty turn: content_block_start advances

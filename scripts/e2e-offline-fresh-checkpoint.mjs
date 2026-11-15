@@ -7,6 +7,7 @@
 // --deferred lifts maxTurns to 4: rejected-only calls run a hidden digest;
 // captured batches stop via PostToolBatch. Both complete normally with success.
 // --non-stream exercises JSON completion; --captured emits only registered calls.
+// --observe-upstream checks delivery/prefix/lineage without requiring hybrid metadata.
 // --result-kind=error-first|error-later|image-first|image-later|reversed|missing-later
 // changes client results only, including subsequent --follow-on turns.
 // --input-validation sends raw-tab JSON to registered names, refused before hooks.
@@ -38,6 +39,9 @@ const unstreamed = process.argv.includes("--unstreamed")
 assert(!unstreamed || !nonStream, "--unstreamed requires Meridian SSE")
 const captured = process.argv.includes("--captured")
 const followOn = process.argv.includes("--follow-on")
+const observeUpstream = process.argv.includes("--observe-upstream")
+assert(!observeUpstream || (captured && callCount > 1 && !nonStream && !unstreamed),
+  "--observe-upstream requires captured multi-call streaming")
 assert(!followOn || (captured && !nonStream && !unstreamed), "--follow-on needs captured streamed calls")
 const resultKind = process.argv.find(arg => arg.startsWith("--result-kind="))?.slice(14) ?? "text"
 assert(["text", "error-first", "error-later", "image-first", "image-later", "reversed", "missing-later"].includes(resultKind),
@@ -322,6 +326,72 @@ try {
   assert(nextBody.includes("read complete"), nextBody)
   assert.equal(wire.length, digestExpected ? 3 : 2)
   const followUpWire = wire.at(-1)
+  if (observeUpstream) {
+  // Upstream baseline probe: inspect observable wire behavior, not fork markers.
+  const canonical = value => Array.isArray(value) ? value.map(canonical)
+    : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
+      .filter(([key]) => key !== "cache_control").map(([key, item]) => [key,
+        key === "content" && typeof item === "string" ? [{ type: "text", text: item }] : canonical(item)])) : value
+  const allSupplied = [...clientCalls]
+  const observations = []
+  const inspect = (previous, current, batch) => {
+    const values = []
+    const collect = value => {
+      if (typeof value === "string") values.push(value)
+      else if (Array.isArray(value)) value.forEach(collect)
+      else if (value && typeof value === "object") Object.values(value).forEach(collect)
+    }
+    collect(current.messages)
+    const text = values.join("\n")
+    const same = (a,b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
+    const result = {
+      settledCalls: batch.length,
+      isResume: telemetryStore.getRecent({ limit: 1 })[0].isResume,
+      prefixHolds: same(previous.system, current.system) && same(previous.tools, current.tools) &&
+        same(previous.messages, current.messages.slice(0, previous.messages.length)),
+      expectedResults: allSupplied.length,
+      resultOccurrences: allSupplied.map(call => text.split(realResult(call)).length - 1),
+      internalErrorPlaceholders: text.split("[Tool result missing due to internal error]").length - 1,
+    }
+    observations.push(result)
+    console.log("OBSERVATION " + JSON.stringify(result))
+  }
+  inspect(wire[0], followUpWire, clientCalls)
+  if (followOn) {
+    let currentHistory = nextHistory
+    let responseBody = nextBody
+    for (const settledCalls of [secondCalls, singleCalls]) {
+      const visible = []
+      const pending = new Map()
+      for (const { event, data } of parseSSE(responseBody)) {
+        if (event === "content_block_start") visible[data.index] = { ...data.content_block }
+        if (event === "content_block_delta" && data.delta.type === "text_delta") visible[data.index].text += data.delta.text
+        if (event === "content_block_delta" && data.delta.type === "input_json_delta")
+          pending.set(data.index, (pending.get(data.index) ?? "") + data.delta.partial_json)
+      }
+      for (const [index, input] of pending) visible[index].input = JSON.parse(input)
+      assert.deepEqual(visible.filter(block => block.type === "tool_use"), settledCalls)
+      const checkpoint = lookupSharedSession("offline:" + session)
+      currentHistory = [...currentHistory, { role: "assistant", content: visible },
+        { role: "user", content: clientResults(settledCalls) }]
+      const lineage = verifyLineage({ ...checkpoint, lastAccess: 0 }, currentHistory)
+      console.log("FOLLOW_ON_LINEAGE " + JSON.stringify({ settledCalls: settledCalls.length, type: lineage.type }))
+      assert.equal(lineage.type, "continuation")
+      const previous = wire.at(-1)
+      const response = await post(currentHistory)
+      responseBody = await response.text()
+      assert.equal(response.status, 200)
+      assert(!responseBody.includes("event: error"), responseBody)
+      allSupplied.push(...settledCalls)
+      inspect(previous, wire.at(-1), settledCalls)
+    }
+    assert.equal(wire.length, 4)
+  }
+  assert(observations.every(row => row.resultOccurrences.every(count => count === 1)),
+    "every supplied client result must reach the model exactly once")
+  assert(observations.every(row => row.internalErrorPlaceholders === 0), "no internal-error placeholders")
+  assert(observations.every(row => row.prefixHolds), "complete upstream request prefix must hold")
+  } else {
   const replayShape = batch => resultKind === "image-later" && batch.length > 1
   const expectResume = retainCheckpoint && !transientTail && !missingLater && !replayShape(clientCalls)
   // CLI 2.1.322 serializes the identical environment system message as a
@@ -518,6 +588,7 @@ try {
         : "PASS follow-on incomplete results: fresh replay; supplied results exactly once; nothing fabricated; no prefix claim")
     }
     assert.equal(wire.length, 4)
+  }
   }
   const sdkVersion = JSON.parse(readFileSync(join(sourceRoot, "node_modules/@anthropic-ai/claude-agent-sdk/package.json"), "utf8")).version
   console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, followOn, resultKind, upstreamCalls: wire.length, liveModelCalls: 0 }))
