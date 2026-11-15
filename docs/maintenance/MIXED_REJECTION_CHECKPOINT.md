@@ -94,7 +94,7 @@ unchanged upstream commit, using the same SDK version and unchanged lockfile.
 | Same observer on candidate | 0 each | 4 GREEN; all results once, no placeholders, prefix holds |
 | Full fork harness matrix | 0 each | 46 GREEN, including 24 original controls and 22 result-shape rows |
 | Focused HTTP/tracker/hybrid helper suites | 0 | 325 pass, 0 fail, 2648 assertions |
-| `npm test` (includes pretest typecheck) | 0 | 9110 pass, 28 skip, 0 fail; 50469 assertions, 32 isolated commands |
+| `npm test` (includes pretest typecheck) | 0 | 9110 pass, 28 skip, 0 fail; 50470 assertions, 32 isolated commands |
 | `npm run typecheck` | 0 | no diagnostics |
 | `npm run build` | 0 | bundled and checked Node entrypoints |
 | Harness syntax and whitespace checks | 0 | `node --check`, `git diff --check` |
@@ -108,8 +108,9 @@ non-native-image-later replay, reversed result order and missing-later replay.
 Missing results are not fabricated. Follow-on checks retain earlier real
 results once as well as checking the current batch.
 
-The full suite used a fresh supported-filesystem TMPDIR, peaked at 119276 KiB
-(under 1 GiB), and removed it afterward. The 28 existing skips are unavailable
+Two complete full-suite runs passed with the same 9110/28/0 test counts
+(50469 and 50470 assertions). Each used a fresh supported-filesystem TMPDIR,
+peaked below 1 GiB (119276 and 119264 KiB), and removed it afterward. The 28 existing skips are unavailable
 bookkeeping compatibility fixtures and a platform-specific control, not added
 exclusions. Three process-global-mock suites run in separate processes using
 the existing npm test convention; their assertions still run. No guard bypass.
