@@ -53,6 +53,18 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 
 ## Decisions
 
+- **Externally stopped Claude Code processes are transient.** SDK exits 143
+  (SIGTERM) and 137 (SIGKILL), including the SDK's null-code `terminated by
+  signal SIGTERM/SIGKILL` form, return 503 `api_error` with “Service temporarily
+  unavailable” and retry advice, not login advice. A null-code signal name
+  comes only from the SDK text before `Subprocess stderr:`, never quoted stderr.
+  Earlier global auth, entitlement, quota and request-error classification
+  keeps precedence. This
+  does not enable account failover (only quota/billing classes do that).
+  Shutdown still drains admitted work before its deadline; deadline expiry
+  force-closes sockets rather than promising delivery of an SSE error. See
+  [signal/drain evidence](../../docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+
 - **OpenAI Responses (`/v1/responses`) for Codex** is pure translation
   forwarded in-process to `/v1/messages`, reusing auth, model mapping, sessions
   and the tool loop.

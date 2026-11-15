@@ -496,11 +496,51 @@ describe("classifyError", () => {
   })
 
   describe("process crashes", () => {
+    for (const code of [143, 137]) {
+      for (const suffix of ["", "\nSubprocess stderr: worker stopped", "\nSubprocess stderr: oauth worker stopped"]) {
+        it(`classifies signal exit ${code} with ${JSON.stringify(suffix)} as transient`, () => {
+          const result = classifyError(`Claude Code process exited with code ${code}${suffix}`)
+          expect(result.status).toBe(503)
+          expect(result.type).toBe("api_error")
+          expect(result.message).toMatch(/service temporarily unavailable/i)
+          expect(result.message).toContain(String(code))
+          expect(result.message).not.toContain("claude login")
+          expect(isAccountFailoverError(result.type)).toBe(false)
+        })
+      }
+    }
+
+    for (const signal of ["SIGTERM", "SIGKILL"]) {
+      it(`classifies null-code termination by ${signal} as transient`, () => {
+        const result = classifyError(`Claude Code process terminated by signal ${signal}`)
+        expect(result.status).toBe(503)
+        expect(result.type).toBe("api_error")
+        expect(result.message).toMatch(/service temporarily unavailable/i)
+        expect(result.message).toContain(signal)
+        expect(result.message).not.toContain("claude login")
+      })
+    }
+
+    it("preserves global authentication precedence over a signal exit", () => {
+      expect(classifyError("Claude Code process exited with code 143: authentication failed").status).toBe(401)
+    })
+
+    it("ignores signal text quoted in appended stderr", () => {
+      const result = classifyError("Claude Code process exited with code 2\nSubprocess stderr: helper process terminated by signal SIGTERM")
+      expect(result.status).toBe(502)
+      expect(result.message).not.toMatch(/service temporarily unavailable/i)
+    })
+
+    it("leaves other signals on the generic error path", () => {
+      const result = classifyError("Claude Code process terminated by signal SIGABRT")
+      expect(result.status).toBe(500)
+    })
+
     it("detects exit code with specific number", () => {
-      const result = classifyError("exited with code 137")
+      const result = classifyError("exited with code 2")
       expect(result.status).toBe(502)
       expect(result.type).toBe("api_error")
-      expect(result.message).toContain("137")
+      expect(result.message).toContain("2")
     })
 
     it("detects 'process exited' keyword", () => {
