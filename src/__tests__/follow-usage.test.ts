@@ -11,6 +11,7 @@
 import { describe, expect, test, afterEach } from "bun:test"
 import {
   FOLLOW_USAGE_MAX_AGE_MS,
+  FOLLOW_USAGE_STALE_AFTER_MS,
   followedUsageSnapshot,
   pollFollowedUsage,
   readFollowedUsage,
@@ -183,6 +184,19 @@ describe("followedUsageSnapshot", () => {
     expect(followedUsageSnapshot("personal")).toBeUndefined()
   })
 
+  test("marks figures stale once two polls have been missed", () => {
+    process.env[FLAG] = "http://127.0.0.1:3456"
+    setFollowedUsageForTesting(new Map([["personal", snapshot(0.4)]]), Date.now() - FOLLOW_USAGE_STALE_AFTER_MS - 1)
+    const served = followedUsageSnapshot("personal")!
+    expect(served.windows[0]!.utilization).toBe(0.4)
+    expect(served.stale).toBe(true)
+  })
+
+  test("serves recently polled figures unmarked", () => {
+    process.env[FLAG] = "http://127.0.0.1:3456"
+    setFollowedUsageForTesting(new Map([["personal", snapshot(0.4)]]))
+    expect(followedUsageSnapshot("personal")!.stale).toBeUndefined()
+  })
 })
 
 describe("usage reads on a follower", () => {

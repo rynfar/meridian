@@ -63,6 +63,9 @@ export const FOLLOW_USAGE_FETCH_TIMEOUT_MS = 8_000
  */
 export const FOLLOW_USAGE_MAX_AGE_MS = 10 * 60_000
 
+/** Past two missed polls, followed figures are still served but marked stale. */
+export const FOLLOW_USAGE_STALE_AFTER_MS = 5 * 60_000
+
 interface FollowedUsage {
   byProfile: Map<string, OAuthUsageSnapshot>
   fetchedAt: number
@@ -149,8 +152,11 @@ export function readFollowedUsage(body: unknown): Map<string, OAuthUsageSnapshot
  */
 export function followedUsageSnapshot(profileId: string): OAuthUsageSnapshot | undefined {
   if (!followed || !followTarget()) return undefined
-  if (Date.now() - followed.fetchedAt > FOLLOW_USAGE_MAX_AGE_MS) return undefined
-  return followed.byProfile.get(profileId)
+  const age = Date.now() - followed.fetchedAt
+  if (age > FOLLOW_USAGE_MAX_AGE_MS) return undefined
+  const snapshot = followed.byProfile.get(profileId)
+  if (!snapshot || snapshot.stale || age <= FOLLOW_USAGE_STALE_AFTER_MS) return snapshot
+  return { ...snapshot, stale: true }
 }
 
 /** One poll of the followed instance's usage. Never throws. */
