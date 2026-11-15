@@ -49,6 +49,17 @@ function localPath() {
   return { store, fetchImpl, reads: () => reads, calls: () => calls }
 }
 
+/** A signed-in account whose own usage read answers `utilization`. */
+function signedIn(utilization: number) {
+  let calls = 0
+  const store: CredentialStore = {
+    async read() { return { claudeAiOauth: { accessToken: "tok", refreshToken: "rt", expiresAt: Date.now() + 3_600_000 } } },
+    async write() { return true },
+  }
+  const fetchImpl = async () => { calls++; return Response.json({ five_hour: { utilization } }) }
+  return { store, fetchImpl, calls: () => calls }
+}
+
 afterEach(() => {
   delete process.env[FLAG]
   delete process.env.CLAUDE_PROXY_FOLLOW_ACTIVE
@@ -171,6 +182,7 @@ describe("followedUsageSnapshot", () => {
     )
     expect(followedUsageSnapshot("personal")).toBeUndefined()
   })
+
 })
 
 describe("usage reads on a follower", () => {
@@ -179,7 +191,7 @@ describe("usage reads on a follower", () => {
     setFollowedUsageForTesting(new Map([["personal", snapshot(0.4)]]))
     const local = localPath()
 
-    const result = await fetchOAuthUsageResult({ profileId: "personal", force: true, store: local.store, fetchImpl: local.fetchImpl })
+    const result = await fetchOAuthUsageResult({ profileId: "personal", store: local.store, fetchImpl: local.fetchImpl })
 
     expect(result.snapshot!.windows[0]!.utilization).toBe(0.4)
     expect(result.error).toBeNull()
@@ -208,6 +220,31 @@ describe("usage reads on a follower", () => {
 
     expect(result.snapshot).toBeNull()
     expect(local.reads()).toBeGreaterThan(0)
+  })
+})
+
+describe("forced usage reads on a follower", () => {
+  test("ask Anthropic for the account instead of serving the followed copy", async () => {
+    process.env[FLAG] = "http://127.0.0.1:3456"
+    setFollowedUsageForTesting(new Map([["personal", snapshot(0.4)]]))
+    const own = signedIn(93)
+
+    const result = await fetchOAuthUsageResult({ profileId: "personal", force: true, store: own.store, fetchImpl: own.fetchImpl })
+
+    expect(own.calls()).toBe(1)
+    expect(result.snapshot!.windows.find(w => w.type === "five_hour")!.utilization).toBe(0.93)
+  })
+
+  test("are not overwritten by an older followed copy on the next read", async () => {
+    process.env[FLAG] = "http://127.0.0.1:3456"
+    setFollowedUsageForTesting(new Map([["personal", { ...snapshot(0.4), fetchedAt: Date.now() - 60_000 }]]))
+    const own = signedIn(93)
+    await fetchOAuthUsageResult({ profileId: "personal", force: true, store: own.store, fetchImpl: own.fetchImpl })
+
+    const next = await fetchOAuthUsageResult({ profileId: "personal", ttlMs: 0, store: own.store, fetchImpl: own.fetchImpl })
+
+    expect(own.calls()).toBe(1)
+    expect(next.snapshot!.windows.find(w => w.type === "five_hour")!.utilization).toBe(0.93)
   })
 })
 

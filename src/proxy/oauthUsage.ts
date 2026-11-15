@@ -828,8 +828,12 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
   // the one that loses it gets 429 for every account it holds. Above the
   // cooldown for the same reason: these figures cost the rate limit nothing,
   // so a 429 this instance collected earlier must not suppress them.
-  const followed = followedUsageSnapshot(opts?.profileId ?? "default")
+  // A forced read wants this account's figures now (a limit just hit, a new
+  // login), not a copy that may be minutes old.
+  const followed = opts?.force ? undefined : followedUsageSnapshot(opts?.profileId ?? "default")
   if (followed) {
+    const local = cacheByProfile.get(cacheKey)
+    if (local && local.fetchedAt > followed.fetchedAt) return { snapshot: local, error: null }
     cacheByProfile.set(cacheKey, followed)
     failureByProfile.delete(cacheKey)
     return { snapshot: followed, error: null }
