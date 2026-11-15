@@ -300,8 +300,12 @@ What it does and does not change:
   followed instance's figures. The cadence is far longer than the followed
   instance's 30s usage cache, so following it does not drive it into the same
   limit. A profile the followed instance could not read is skipped, and this
-  instance tries its own credentials for it; figures not refreshed for ten
-  minutes stop being served, and the local path decides again.
+  instance tries its own credentials for it. Figures not refreshed for five
+  minutes are marked `stale`; after ten they stop being served, and the local
+  path decides again. A forced read (an account just hit its limit, or was just
+  signed in) still asks Anthropic, because it needs the account's figures now.
+  Profiles are matched by id, so each id must name the same account on both
+  instances.
 
 The mode is announced at startup and surfaced on `/profiles/list` as a `follow`
 object (`url`, `activeProfile`, `followedValue`, `reason`, `stale`,
