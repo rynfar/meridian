@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import MeridianV2Plugin, { serializeCatalogCache } from "../../plugin/meridian-v2"
@@ -126,4 +126,15 @@ test("OpenCode 2.0.16 host loads without catalog and keeps model, title, and sig
     else process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY = savedKey
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+test("the v2 entry imports the OpenCode SDK and schema for their types only", () => {
+  // A released OpenCode 2 host shares its own Effect runtime with plugins.
+  // @opencode-ai/schema calls Schema.isStartsWith when it loads, which that
+  // runtime does not provide, so any value import of it (direct, or through
+  // the plugin SDK) fails the plugin before setup.
+  const source = readFileSync(join(import.meta.dir, "../../plugin/meridian-v2.ts"), "utf8")
+  const sdkImports = [...source.matchAll(/^import\s+(type\s+)?[^\n]*from\s+"(@opencode-ai\/[^"]+)"/gm)]
+  expect(sdkImports.length).toBeGreaterThan(0)
+  expect(sdkImports.filter(match => !match[1]).map(match => match[2])).toEqual([])
 })
