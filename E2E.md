@@ -40,11 +40,17 @@ Rejected parallel checkpoint controls (all use the same `--claude=...`):
   rejected call's JSON string. The real CLI must record InputValidationError
   before PreToolUse; the checkpoint evicts and both real results replay.
   `--deferred --calls=1 --input-validation` is the single-call deferred control.
-- **Approved multi-call fallback:** `--captured --calls=2` and `--captured
-  --calls=3` must now evict and replay every real result. Native resume loses
-  later results on production-baseline e1c37ba4 and dd5badbc; the operator
-  approved fresh replay after diagnosis did not establish a safe resume shape.
-  Add `--sse-delay-ms=25 --distinct-tools` for paced three-distinct-tool coverage.
+- `--captured --calls=2|3` qualifies first-fragment hybrid continuation: the
+  first real result stays native, and later calls/results use completed-work
+  records. Add `--follow-on` for multi → multi → single continuity, `--thinking`
+  for thinking, or `--sse-delay-ms=25 --distinct-tools` for paced tool dispatch.
+  `--result-kind=error-first|error-later|image-first|reversed` checks fidelity;
+  `image-later` and `missing-later` must fail closed to fresh replay.
+- `--observe-upstream --captured --calls=2|3`, optionally `--follow-on`, checks
+  result occurrence counts, placeholders, lineage and the complete prefix
+  independently of hybrid metadata. Use `--source-root` to probe unchanged
+  baseline code. It records every turn before asserting delivery, so a missing
+  earlier result remains visible through follow-on turns.
 - `--unstreamed --deferred --captured --calls=1|2|3` exercises SSE completion
   with no SDK partial events. Its disposable launcher execs the named real CLI
   with only `--include-partial-messages` removed. Runtime diagnostics must

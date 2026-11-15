@@ -1,0 +1,826 @@
+{
+  "baseline": "a4b0f8b592f842a135af3e4c73f09886b2b3ef57",
+  "cli": "2.1.322",
+  "sdk": "0.2.141",
+  "liveModelCalls": 0,
+  "rows": [
+    {
+      "label": "red-observer-2",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=2",
+        "--source-root=$BASELINE"
+      ],
+      "exit": 1,
+      "expectedExit": 1,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":2,\"resultOccurrences\":[1,0],\"internalErrorPlaceholders\":1}"
+      ]
+    },
+    {
+      "label": "red-observer-2-follow",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=2",
+        "--follow-on",
+        "--source-root=$BASELINE"
+      ],
+      "exit": 1,
+      "expectedExit": 1,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":2,\"resultOccurrences\":[1,0],\"internalErrorPlaceholders\":1}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":2,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":4,\"resultOccurrences\":[1,0,1,1],\"internalErrorPlaceholders\":1}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":1,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":1,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":5,\"resultOccurrences\":[1,0,1,1,1],\"internalErrorPlaceholders\":1}"
+      ]
+    },
+    {
+      "label": "red-observer-3",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=3",
+        "--source-root=$BASELINE"
+      ],
+      "exit": 1,
+      "expectedExit": 1,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":3,\"resultOccurrences\":[1,0,0],\"internalErrorPlaceholders\":2}"
+      ]
+    },
+    {
+      "label": "red-observer-3-follow",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=3",
+        "--follow-on",
+        "--source-root=$BASELINE"
+      ],
+      "exit": 1,
+      "expectedExit": 1,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":3,\"resultOccurrences\":[1,0,0],\"internalErrorPlaceholders\":2}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":3,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":6,\"resultOccurrences\":[1,0,0,1,1,1],\"internalErrorPlaceholders\":2}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":1,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":1,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":7,\"resultOccurrences\":[1,0,0,1,1,1,1],\"internalErrorPlaceholders\":2}"
+      ]
+    },
+    {
+      "label": "green-observer-2",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":2,\"resultOccurrences\":[1,1],\"internalErrorPlaceholders\":0}"
+      ]
+    },
+    {
+      "label": "green-observer-2-follow",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=2",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":2,\"resultOccurrences\":[1,1],\"internalErrorPlaceholders\":0}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":2,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":2,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":4,\"resultOccurrences\":[1,1,1,1],\"internalErrorPlaceholders\":0}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":1,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":1,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":5,\"resultOccurrences\":[1,1,1,1,1],\"internalErrorPlaceholders\":0}"
+      ]
+    },
+    {
+      "label": "green-observer-3",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=3"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":3,\"resultOccurrences\":[1,1,1],\"internalErrorPlaceholders\":0}"
+      ]
+    },
+    {
+      "label": "green-observer-3-follow",
+      "arguments": [
+        "--observe-upstream",
+        "--captured",
+        "--calls=3",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":3,\"resultOccurrences\":[1,1,1],\"internalErrorPlaceholders\":0}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":3,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":3,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":6,\"resultOccurrences\":[1,1,1,1,1,1],\"internalErrorPlaceholders\":0}",
+        "FOLLOW_ON_LINEAGE {\"settledCalls\":1,\"type\":\"continuation\"}",
+        "OBSERVATION {\"settledCalls\":1,\"isResume\":true,\"prefixHolds\":true,\"expectedResults\":7,\"resultOccurrences\":[1,1,1,1,1,1,1],\"internalErrorPlaceholders\":0}"
+      ]
+    },
+    {
+      "label": "original-01",
+      "arguments": [],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS continuation: native assistant and real client result for every call; rejection rewound"
+      ]
+    },
+    {
+      "label": "original-02",
+      "arguments": [
+        "--thinking",
+        "--calls=1"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS continuation: native assistant and real client result for every call; rejection rewound"
+      ]
+    },
+    {
+      "label": "original-03",
+      "arguments": [
+        "--thinking",
+        "--calls=3"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-04",
+      "arguments": [
+        "--mixed",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-05",
+      "arguments": [
+        "--mixed",
+        "--calls=2",
+        "--input-validation"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-06",
+      "arguments": [
+        "--deferred",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-07",
+      "arguments": [
+        "--deferred",
+        "--calls=2",
+        "--mixed",
+        "--captured-last",
+        "--non-stream"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-08",
+      "arguments": [
+        "--deferred",
+        "--calls=1"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-09",
+      "arguments": [
+        "--deferred",
+        "--calls=1",
+        "--non-stream"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-10",
+      "arguments": [
+        "--deferred",
+        "--calls=1",
+        "--input-validation"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-11",
+      "arguments": [
+        "--captured",
+        "--calls=1"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS continuation: native assistant and real client result for every call; rejection rewound"
+      ]
+    },
+    {
+      "label": "original-12",
+      "arguments": [
+        "--captured",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "original-13",
+      "arguments": [
+        "--captured",
+        "--calls=3"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "original-14",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--sse-delay-ms=25",
+        "--distinct-tools"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "original-15",
+      "arguments": [
+        "--unstreamed",
+        "--deferred",
+        "--captured",
+        "--calls=1"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS continuation: native assistant and real client result for every call; rejection rewound"
+      ]
+    },
+    {
+      "label": "original-16",
+      "arguments": [
+        "--unstreamed",
+        "--deferred",
+        "--captured",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-17",
+      "arguments": [
+        "--unstreamed",
+        "--deferred",
+        "--captured",
+        "--calls=3"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-18",
+      "arguments": [
+        "--unstreamed",
+        "--deferred",
+        "--mixed",
+        "--calls=2"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-19",
+      "arguments": [
+        "--unstreamed",
+        "--deferred",
+        "--mixed",
+        "--calls=2",
+        "--captured-last"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-20",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--non-stream"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-21",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--non-stream"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": []
+    },
+    {
+      "label": "original-22",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--deferred"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "original-23",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--thinking",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 3 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "original-24",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 2 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-first-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=error-first"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-first-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=error-first",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 2 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-first-3",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=error-first"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-first-3-follow",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=error-first",
+        "--follow-on",
+        "--thinking"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 3 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-later-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=error-later"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-later-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=error-later",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 2 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-later-3",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=error-later"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "error-later-3-follow",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=error-later",
+        "--follow-on",
+        "--thinking"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 3 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-first-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=image-first"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-first-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=image-first",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 2 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-first-3",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=image-first"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-first-3-follow",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=image-first",
+        "--follow-on",
+        "--thinking"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 3 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-later-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=image-later"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS replay control: non-native image fails closed; real results exactly once; renderer attribution and image preserved; no prefix claim"
+      ]
+    },
+    {
+      "label": "image-later-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=image-later",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS replay control: non-native image fails closed; real results exactly once; renderer attribution and image preserved; no prefix claim",
+        "PASS follow-on replay control: non-native image; fresh replay; real results exactly once; attribution/image preserved; no prefix claim",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "image-later-3",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=image-later"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS replay control: non-native image fails closed; real results exactly once; renderer attribution and image preserved; no prefix claim"
+      ]
+    },
+    {
+      "label": "image-later-3-follow",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=image-later",
+        "--follow-on",
+        "--thinking"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS replay control: non-native image fails closed; real results exactly once; renderer attribution and image preserved; no prefix claim",
+        "PASS follow-on replay control: non-native image; fresh replay; real results exactly once; attribution/image preserved; no prefix claim",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "reversed-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=reversed"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "reversed-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=reversed",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 2 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "reversed-3",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=reversed"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once"
+      ]
+    },
+    {
+      "label": "reversed-3-follow",
+      "arguments": [
+        "--captured",
+        "--calls=3",
+        "--result-kind=reversed",
+        "--follow-on",
+        "--thinking"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS R1: system, tools and messages retain the complete upstream prefix",
+        "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once",
+        "PASS follow-on R1/R2: settled 3 calls; existing prefix unchanged; every real result exactly once",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    },
+    {
+      "label": "missing-later-2",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=missing-later"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS incomplete results: fresh replay; supplied result exactly once; no fabricated missing result; no prefix claim"
+      ]
+    },
+    {
+      "label": "missing-later-2-follow",
+      "arguments": [
+        "--captured",
+        "--calls=2",
+        "--result-kind=missing-later",
+        "--follow-on"
+      ],
+      "exit": 0,
+      "expectedExit": 0,
+      "qualified": true,
+      "receipts": [
+        "PASS incomplete results: fresh replay; supplied result exactly once; no fabricated missing result; no prefix claim",
+        "PASS follow-on incomplete results: fresh replay; supplied results exactly once; nothing fabricated; no prefix claim",
+        "PASS follow-on R1/R2: settled 1 calls; existing prefix unchanged; every real result exactly once"
+      ]
+    }
+  ]
+}

@@ -175,6 +175,10 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   and a CAS loser withholds its calls. Plain text and captured single-call
   retention remain unchanged, as does the canonical single-call name-dispatch
   exception (which supplies only that call's otherwise missing capture proof).
+  Streaming retries reset attempt-owned captures and checkpoint metadata, and
+  retire old hook callbacks before releasing held denials. The publication guard
+  must not qualify a new attempt using an earlier attempt's proof. SDK-owned
+  ToolSearch calls remain excluded from all client-call observations.
   Fresh replay preserves all real
   client results at the cost of rebuilding the SDK prefix/cache and losing
   SDK-only context not present in client history. See

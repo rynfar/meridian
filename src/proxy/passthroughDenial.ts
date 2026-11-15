@@ -23,8 +23,6 @@ export const PASSTHROUGH_NOT_FORWARDED_REASON =
   "call after that if it is still needed. Do not call additional tools and do not " +
   "generate further text — end your turn now."
 
-const HOOK_BLOCK_REASONS = [PASSTHROUGH_DENY_REASON, PASSTHROUGH_HANDLED_REASON, PASSTHROUGH_NOT_FORWARDED_REASON]
-
 interface ContentTextBlock {
   text?: unknown
 }
@@ -53,14 +51,6 @@ export function isForwardedDenial(block: ToolResultLike | undefined): boolean {
   return block?.type === "tool_result" &&
     block.is_error === true &&
     blockText(block).includes(PASSTHROUGH_DENY_REASON)
-}
-
-/** True for any synthetic error result Meridian's passthrough hook writes. None of
- * them is a client tool result; the client answers those calls in a later turn. */
-export function isPassthroughHookBlock(block: ToolResultLike | undefined): boolean {
-  if (block?.type !== "tool_result" || block.is_error !== true) return false
-  const text = blockText(block)
-  return HOOK_BLOCK_REASONS.some(reason => text.includes(reason))
 }
 
 /** Reported in the CLI's result when a forwarded batch ends the query. */
