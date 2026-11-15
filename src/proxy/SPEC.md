@@ -53,6 +53,16 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 
 ## Decisions
 
+- **Streaming failure events describe unrecovered turns.** After SDK error
+  classification, a usable captured/uncaptured tool handoff or capped-turn
+  truncation logs `upstream.completed` with the normal streaming fields plus
+  `sdkTermination` and `recovery` (`tool_use`, `tool_use_uncaptured`, or
+  `max_tokens`), not `upstream.failed` / `proxy.anthropic.error`. Other exits,
+  including failed recovery publication, retain both failure events exactly
+  once with their original classification and stderr. This changes no recovery,
+  telemetry, idle-streak or wire behavior. See
+  [exit audit and live log evidence](../../docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
 - **OpenAI Responses (`/v1/responses`) for Codex** is pure translation
   forwarded in-process to `/v1/messages`, reusing auth, model mapping, sessions
   and the tool loop.

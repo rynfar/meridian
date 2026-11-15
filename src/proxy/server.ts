@@ -8106,7 +8106,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
               }
               const errMsg = error instanceof Error ? error.message : String(error)
-              claudeLog("upstream.failed", {
+              const streamFailureFields = {
                 mode: "stream",
                 model,
                 durationMs: Date.now() - upstreamStartAt,
@@ -8114,7 +8114,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 textEventsForwarded,
                 error: errMsg,
                 ...(stderrOutput ? { stderr: stderrOutput } : {})
-              })
+              }
               let streamErr: { status: number; type: string; message: string }
               if (error instanceof UpstreamIdleError) {
                 // Stop advertising retries when this request reaches the ceiling.
@@ -8136,7 +8136,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               } else {
                 streamErr = classifyBookkeepingFailure(error, errMsg, model)
               }
-              claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+              // Failure events mean the turn did not recover; recovered capped
+              // turns log upstream.completed. Finally also covers publication
+              // throws and rejected awaits before either recovered return.
+              let streamRecovery: "tool_use" | "tool_use_uncaptured" | "max_tokens" | undefined
+              const sdkTerm = extractSdkTermination(errMsg)
+              try {
 
               // This is where a spent account is actually discovered. The
               // response committed 200 + SSE headers long before the SDK
@@ -8164,10 +8169,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 resetAtMs: observedResetAtMs(profile.id, Date.now()),
               })
 
-              // Surface the SDK termination reason (max_turns / process_exit / aborted)
-              // and stderr tail to /telemetry/logs?category=error so failures are
-              // visible without trawling raw log files.
-              const sdkTerm = extractSdkTermination(errMsg)
               // A deliberate single-step abort can be intercepted by a
               // publication guard before the final-envelope guard below runs.
               // That guard reports cancellation, so use the recorded cause
@@ -8584,6 +8585,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   try { controller.close() } catch {}
                   streamClosed = true
                 }
+                streamRecovery = uncapturedRecoveryActive ? "tool_use_uncaptured" : "tool_use"
                 return
               }
 
@@ -8726,6 +8728,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   }
                   streamClosed = true
                 }
+                streamRecovery = "max_tokens"
                 return
               }
 
@@ -8867,6 +8870,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               if (!streamClosed) {
                 try { controller.close() } catch {}
                 streamClosed = true
+              }
+              } finally {
+                if (streamRecovery) {
+                  claudeLog("upstream.completed", {
+                    mode: "stream",
+                    model,
+                    durationMs: Date.now() - upstreamStartAt,
+                    streamEventsSeen,
+                    eventsForwarded,
+                    textEventsForwarded,
+                    sdkTermination: sdkTerm.reason,
+                    recovery: streamRecovery,
+                  })
+                } else {
+                  claudeLog("upstream.failed", streamFailureFields)
+                  claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+                }
               }
             } finally {
               // Guard: a marking the body's cancel() started lands before the
