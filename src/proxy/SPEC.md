@@ -133,6 +133,13 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   Real SDK 0.2.141 / CLI 2.1.322 proves two-/three-call retention, every real
   result exactly once without placeholders, and unchanged upstream content
   prefixes through a second multi-call turn followed by a single-call turn.
+  Errors, reversed client-result order and a native call-1 image are wire-proven.
+  **Images in non-native results fail closed to fresh replay.** CLI 2.1.322
+  appends an image-source annotation to top-level hybrid images followed by
+  text, changing the trailing result text (a newline is added). Two-call
+  image-last probes passed, but later-result images conservatively replay
+  regardless of position so queued content cannot introduce that unproved
+  shape. Native call-1 images remain wrapped and retain the proved prefix.
   Only cache markers and the CLI's equivalent string/singleton-text-block
   environment representation are canonicalized for prefix comparison; no
   text, message order, tool definition or system content is ignored.

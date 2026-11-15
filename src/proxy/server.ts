@@ -4091,7 +4091,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // replay rather than an invalid SDK resume.
           claudeLog("passthrough.checkpoint_replay", {
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
-            reason: "incomplete_or_mismatched_results",
+            reason: checkpointContinuation && hybridNativeId ? "hybrid_result_shape_unproved" : "incomplete_or_mismatched_results",
           })
           isResume = false
           resumeSessionId = undefined

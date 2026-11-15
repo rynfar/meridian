@@ -4131,6 +4131,55 @@ describe("Integration: passthrough early stop", () => {
   }
 
   for (const count of [2, 3]) {
+    for (const imageIndex of [0, 1]) {
+      it("stream: hybrid image result at index " + imageIndex + " of " + count + " uses only a proved checkpoint shape", async () => {
+        const key = "hybrid-image-" + count + "-" + imageIndex
+        const messages = [{ role: "user", content: "read all images" }]
+        const calls = Array.from({ length: count }, (_, index) => ({ type: "tool_use",
+          id: "image-call-" + index, name: "read", input: { file_path: "/file-" + index } }))
+        const fragments = calls.map(call => assistantMessage([{ ...call, name: "mcp__oc__read" }]))
+        mockMessages = [messageStart("msg_hybrid_image"),
+          ...calls.flatMap((call, index) => [toolUseBlockStart(index, "mcp__oc__read", call.id),
+            inputJsonDelta(index, JSON.stringify(call.input)), blockStop(index)]),
+          messageDelta("tool_use"), messageStop(),
+          ...fragments.flatMap((fragment, index) => [fragment, userDenyMessage(calls[index]!.id)]),
+          { type: "result", subtype: "error_max_turns", is_error: true },
+        ]
+        mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+        const first = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true,
+          tools: [READ_TOOL], messages }, key)
+        expect(first.status).toBe(200)
+        expect(await first.text()).not.toContain("event: error")
+        expect(lookupSharedSession(key + "-" + TEST_RUN_ID)?.passthroughNativeToolCallId).toBe(calls[0]!.id)
+        const image = { type: "image", source: { type: "base64", media_type: "image/png",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==" } }
+        const results = calls.map((call, index) => ({ type: "tool_result", tool_use_id: call.id,
+          content: index === imageIndex ? [{ type: "text", text: "REAL_" + call.id }, image] : "REAL_" + call.id }))
+        mockTerminalError = undefined
+        mockMessages = [assistantMessage([{ type: "text", text: "images received" }])]
+        const next = await post(app, { model: "opus[1m]", max_tokens: 400, stream: true,
+          tools: [READ_TOOL], messages: [...messages, { role: "assistant", content: calls },
+            { role: "user", content: results }] }, key)
+        expect(next.status).toBe(200)
+        expect(await next.text()).toContain("images received")
+        expect(capturedQueryParamsAll).toHaveLength(2)
+        expect(capturedQueryParams.options.resume).toBe(imageIndex === 0 ? initialManagedSessionId() : undefined)
+        expect(capturedQueryParams.options.resumeSessionAt).toBe(imageIndex === 0 ? fragments[0]!.uuid : undefined)
+        const prompt: Array<{ message: { content: unknown[] } }> = []
+        for await (const row of capturedQueryParams.prompt) prompt.push(row)
+        expect(prompt).toHaveLength(1)
+        const rendered = JSON.stringify(prompt)
+        for (const call of calls) expect(rendered.split("REAL_" + call.id)).toHaveLength(2)
+        expect(rendered.split(image.source.data)).toHaveLength(2)
+        expect(rendered).not.toContain("Tool result missing due to internal error")
+        if (imageIndex === 0) expect(prompt[0]!.message.content[0]).toEqual(results[0])
+        else expect(prompt[0]!.message.content.some(block => typeof block === "object" && block !== null &&
+          "type" in block && block.type === "tool_result")).toBe(false)
+      })
+    }
+  }
+
+  for (const count of [2, 3]) {
     it(`replays a legacy retained ${count}-call checkpoint instead of resuming it`, async () => {
       const sessionKey = `legacy-captured-${count}-${TEST_RUN_ID}`
       usedSessionKeys.add(sessionKey)

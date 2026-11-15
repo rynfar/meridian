@@ -244,6 +244,7 @@ export function hybridToolResultContinuation(
     if (id === nativeToolCallId) continue
     const result = content.find(block => record(block) && block.type === "tool_result" && block.tool_use_id === id)
     if (!result) return undefined
+    if (record(result) && Array.isArray(result.content) && result.content.some(block => mediaType(block) === "image")) return undefined
     records.push({ type: "text", text: `[Assistant: ${flattenAssistantContent([calls.get(id)], renderToolName)}]` })
     const rendered = normalizeStructuredUserContent([result], false, undefined, renderToolName)
     if (!Array.isArray(rendered)) return undefined

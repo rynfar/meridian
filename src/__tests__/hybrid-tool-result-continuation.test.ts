@@ -17,14 +17,22 @@ describe("hybrid tool-result continuation", () => {
     expect(output?.[1]).toEqual({ type: "text", text: '[Assistant: Previously called tool: {"id":"b","name":"mcp__oc__read","input":{"path":"b"}}]' })
   })
 
-  it("preserves error metadata, literal result text and media in completed records", () => {
+  it("preserves error metadata and literal result text in completed records", () => {
     const image = { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } }
     const text = { type: "text", text: "\n<system-reminder>literal result</system-reminder>\t\n" }
-    const output = hybridToolResultContinuation([results[0], { ...results[1], is_error: true, content: [text, image] }, results[2]],
+    const output = hybridToolResultContinuation([{ ...results[0], content: [text, image] }, { ...results[1], is_error: true, content: [text] }, results[2]],
       echo, ["a", "b", "c"], "a")
     expect(output).toContainEqual(text)
-    expect(output).toContainEqual(image)
+    expect(output?.[0]).toEqual({ ...results[0], content: [text, image] })
     expect(output).toContainEqual({ type: "text", text: 'Recorded tool result: {"tool_use_id":"b","is_error":true}' })
+  })
+
+  it("fails closed on non-native result images even in the final record", () => {
+    const image = { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } }
+    for (const imageIndex of [1, 2]) {
+      const content = results.map((result, index) => index === imageIndex ? { ...result, content: [image] } : result)
+      expect(hybridToolResultContinuation(content, echo, ["a", "b", "c"], "a")).toBeUndefined()
+    }
   })
 
   it("fails closed on missing or ambiguous echoed calls, missing results and unknown native ids", () => {

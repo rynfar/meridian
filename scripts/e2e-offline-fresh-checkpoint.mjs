@@ -7,6 +7,8 @@
 // --deferred lifts maxTurns to 4: rejected-only calls run a hidden digest;
 // captured batches stop via PostToolBatch. Both complete normally with success.
 // --non-stream exercises JSON completion; --captured emits only registered calls.
+// --result-kind=error-first|error-later|image-first|image-later|reversed|missing-later
+// changes client results only, including subsequent --follow-on turns.
 // --input-validation sends raw-tab JSON to registered names, refused before hooks.
 // --captured-last puts the captured call last in a mixed batch (JSON backfill).
 // --sse-delay-ms=25 paces individual upstream frames; --distinct-tools with
@@ -37,6 +39,13 @@ assert(!unstreamed || !nonStream, "--unstreamed requires Meridian SSE")
 const captured = process.argv.includes("--captured")
 const followOn = process.argv.includes("--follow-on")
 assert(!followOn || (captured && !nonStream && !unstreamed), "--follow-on needs captured streamed calls")
+const resultKind = process.argv.find(arg => arg.startsWith("--result-kind="))?.slice(14) ?? "text"
+assert(["text", "error-first", "error-later", "image-first", "image-later", "reversed", "missing-later"].includes(resultKind),
+  "unknown --result-kind")
+assert(resultKind === "text" || (captured && !nonStream && !unstreamed && callCount >= 2),
+  "--result-kind requires --captured streamed calls with --calls=2 or 3")
+const missingLater = resultKind === "missing-later"
+assert(!missingLater || callCount === 2, "--result-kind=missing-later requires --calls=2")
 const capturedLast = process.argv.includes("--captured-last")
 const inputValidation = process.argv.includes("--input-validation")
 const distinctTools = process.argv.includes("--distinct-tools")
@@ -57,6 +66,20 @@ const calls = Array.from({ length: callCount }, (_, index) => ({
 const secondCalls = calls.map((call, index) => ({ ...call, id: "toolu_followon_" + index }))
 const singleCalls = [{ ...calls[0], id: "toolu_final_single" }]
 const realResult = call => "REAL_CLIENT_RESULT[" + call.id + "]"
+// Valid 1x1 PNG; small enough that the CLI need not resize/re-encode it.
+const resultImage = { type: "image", source: { type: "base64", media_type: "image/png",
+  data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==" } }
+const clientResults = batch => {
+  const results = (missingLater ? batch.slice(0, 1) : batch).map((call, index) => {
+    const selected = resultKind.endsWith("-first") ? index === 0 : index === 1
+    return { type: "tool_result", tool_use_id: call.id,
+      content: selected && resultKind.startsWith("image-")
+        ? [{ type: "text", text: realResult(call) }, resultImage] : realResult(call),
+      ...(selected && resultKind.startsWith("error-") ? { is_error: true } : {}),
+    }
+  })
+  return resultKind === "reversed" ? results.reverse() : results
+}
 const upstreamCalls = calls.map((call, index) => ({ ...call,
   name: inputValidation || captured || (mixed && index === (capturedLast ? callCount - 1 : 0)) ? "mcp__oc__" + call.name : call.name,
 }))
@@ -81,6 +104,7 @@ for (const key of Object.keys(process.env)) {
 }
 Object.assign(process.env, {
   HOME: root,
+  TMPDIR: root,
   CLAUDE_CONFIG_DIR: join(root, "claude"),
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
   DISABLE_AUTOUPDATER: "1",
@@ -165,6 +189,7 @@ try {
   const { telemetryStore } = await loadSource("src/telemetry/index.ts")
   const { computeMessageHashes, verifyLineage } = await loadSource("src/proxy/session/lineage.ts")
   const { parseSSE } = await loadSource("src/__tests__/helpers.ts")
+  const { flattenAssistantContent, normalizeStructuredUserContent } = await loadSource("src/proxy/replay.ts")
   proxy = createProxyServer({ silent: true, profiles: [
     { id: "offline", type: "api", apiKey: "offline-test-key", baseUrl: upstream.url.origin },
   ], defaultProfile: "offline" })
@@ -271,9 +296,10 @@ try {
   console.log("CLIENT_CALLS " + JSON.stringify({ upstream: calls.length, expected: clientCalls.length,
     received: content.filter(block => block.type === "tool_use").length }))
   if (thinking) assert.equal(content[0].type, "thinking")
+  const firstResults = clientResults(clientCalls)
   const nextHistory = [...history,
     { role: "assistant", content },
-    { role: "user", content: clientCalls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) },
+    { role: "user", content: firstResults },
     ...suffix,
   ]
   if (mapping) {
@@ -296,7 +322,8 @@ try {
   assert(nextBody.includes("read complete"), nextBody)
   assert.equal(wire.length, digestExpected ? 3 : 2)
   const followUpWire = wire.at(-1)
-  const expectResume = retainCheckpoint && !transientTail
+  const replayShape = batch => resultKind === "image-later" && batch.length > 1
+  const expectResume = retainCheckpoint && !transientTail && !missingLater && !replayShape(clientCalls)
   // CLI 2.1.322 serializes the identical environment system message as a
   // singleton text-block array when marked, and a string when unmarked.
   // Canonicalize only that equivalent text representation; never alter text.
@@ -304,6 +331,33 @@ try {
     : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
       .filter(([key]) => key !== "cache_control").map(([key, item]) => [key,
         key === "content" && typeof item === "string" ? [{ type: "text", text: item }] : stripCache(item)])) : value
+  const withoutCache = value => Array.isArray(value) ? value.map(withoutCache)
+    : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
+      .filter(([key]) => key !== "cache_control").map(([key, item]) => [key, withoutCache(item)])) : value
+  const assertResultFidelity = (request, batch, supplied) => {
+    const blocks = request.messages.flatMap(message => Array.isArray(message.content) ? message.content : [])
+    const native = blocks.filter(block => block.type === "tool_result" && block.tool_use_id === batch[0].id)
+    assert.equal(native.length, 1, "native call-1 result must occur once")
+    assert.deepEqual(withoutCache(native[0]), supplied.find(result => result.tool_use_id === batch[0].id),
+      "native call-1 result must structurally preserve client content and is_error")
+    for (const call of batch.slice(1)) {
+      const result = supplied.find(result => result.tool_use_id === call.id)
+      assert(result, "fidelity assertion needs a complete result set")
+      // Derive the exact completed-call record from the SAME primitives used by
+      // fresh replay, independently of hybridToolResultContinuation.
+      const expected = [{ type: "text", text: "[Assistant: " + flattenAssistantContent([call], name => "mcp__oc__" + name) + "]" },
+        ...normalizeStructuredUserContent([result])]
+      const matches = request.messages.flatMap(message => Array.isArray(message.content)
+        ? message.content.flatMap((_, index) => JSON.stringify(withoutCache(message.content.slice(index, index + expected.length))) ===
+          JSON.stringify(expected) ? [index] : []) : [])
+      assert.equal(matches.length, 1, "completed-call record must preserve replay-rendered result/error/media exactly once for " + call.id)
+      assert(!blocks.some(block => block.type === "tool_use" && block.id === call.id),
+        "hybrid must rewind before later native calls")
+      assert(!blocks.some(block => block.type === "tool_result" && block.tool_use_id === call.id),
+        "later results must be records, not orphan native results")
+    }
+    console.log("PASS result fidelity: native call-1 structurally equals client result; later records equal replay renderer (" + resultKind + ")")
+  }
   if (expectResume) {
     assert.deepEqual(stripCache(followUpWire.system), stripCache(wire[0].system), "R1: system prefix changed")
     assert.deepEqual(stripCache(followUpWire.tools), stripCache(wire[0].tools), "R1: tools prefix changed")
@@ -329,7 +383,7 @@ try {
       ? message.content.filter(block => block.type === "tool_result") : [])
     console.log("RESUME_RESULTS " + JSON.stringify({
       real: clientCalls.filter(call => results.some(block => block.tool_use_id === call.id &&
-        block.content === realResult(call))).map(call => call.id),
+        JSON.stringify(withoutCache(block)) === JSON.stringify(firstResults.find(result => result.tool_use_id === call.id)))).map(call => call.id),
       internalError: results.filter(block => block.content === "[Tool result missing due to internal error]")
         .map(block => block.tool_use_id),
     }))
@@ -338,7 +392,8 @@ try {
     assert(followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use" && block.id === call.id)))
     assert(followUpWire.messages.some(message => message.content?.some?.(block =>
-      block.type === "tool_result" && block.tool_use_id === call.id && block.content === realResult(call))),
+      block.type === "tool_result" && block.tool_use_id === call.id &&
+      JSON.stringify(withoutCache(block)) === JSON.stringify(firstResults.find(result => result.tool_use_id === call.id)))),
       "resumed upstream lacks real client result for " + call.id)
   }
   if (hybrid && expectResume) {
@@ -350,14 +405,16 @@ try {
         "hybrid must rewind before later native calls")
     }
   }
-  for (const call of clientCalls) assert.equal(replayText.split(realResult(call)).length - 1, 1,
+  if (expectResume) assertResultFidelity(followUpWire, clientCalls, firstResults)
+  const suppliedCalls = clientCalls.filter(call => firstResults.some(result => result.tool_use_id === call.id))
+  for (const call of suppliedCalls) assert.equal(replayText.split(realResult(call)).length - 1, 1,
     "R2: real result must occur verbatim exactly once for " + call.id)
   if (!expectResume) {
     // A fresh SDK query cannot carry native assistant tool blocks. The replay
     // renders each client result as history text attributed to its call id.
-    assert.equal(replayText.split("REAL_CLIENT_RESULT").length - 1, clientCalls.length,
+    assert.equal(replayText.split("REAL_CLIENT_RESULT").length - 1, suppliedCalls.length,
       "fresh replay must contain one real client result per call")
-    for (const call of clientCalls) {
+    for (const call of suppliedCalls) {
       assert(replayText.includes(`"tool_use_id":"${call.id}"`) && replayText.includes(realResult(call)),
         "fresh replay lacks real client result for " + call.id)
     }
@@ -365,6 +422,18 @@ try {
     assert(!followUpWire.messages.some(message => message.role === "assistant" &&
       message.content?.some?.(block => block.type === "tool_use")),
       "fresh replay must not resume a native assistant tool turn")
+  }
+  if (replayShape(clientCalls)) {
+    for (const result of firstResults) assert(replayText.includes(normalizeStructuredUserContent([result])[0].text),
+      "replay control must preserve renderer's result identity/error attribution")
+    assert(followUpWire.messages.some(message => message.content?.some?.(block =>
+      JSON.stringify(withoutCache(block)) === JSON.stringify(resultImage))), "replay control must preserve image bytes")
+    console.log("PASS replay control: non-native image fails closed; real results exactly once; renderer attribution and image preserved; no prefix claim")
+  }
+  if (missingLater) {
+    assert(!replayText.includes(realResult(clientCalls[1])), "missing result text must not be fabricated")
+    assert(!replayText.includes('"tool_use_id":"' + clientCalls[1].id + '"'), "missing result record must not be fabricated")
+    console.log("PASS incomplete results: fresh replay; supplied result exactly once; no fabricated missing result; no prefix claim")
   }
   assert(!replayText.includes("[Tool result missing due to internal error]"),
     "follow-up must not substitute CLI placeholders for real results")
@@ -375,14 +444,15 @@ try {
   const turns = telemetryStore.getRecent({ limit: 10 })
   assert.equal(turns.some(turn => turn.isResume === true), expectResume,
     retainCheckpoint ? "only an unchanged request prefix can resume" : "multi-call follow-up must be a fresh replay, not a resumed continuation")
-  console.log(!retainCheckpoint
-    ? "PASS follow-up: fresh replay, not a resumed continuation; real client result for every call; no CLI rejection"
+  console.log(!expectResume && !transientTail
+    ? "PASS follow-up: fresh replay, not a resumed continuation; every supplied real client result; no CLI rejection"
     : transientTail
     ? "PASS diagnostic: transient suffix reproduces fresh replay; no assistant rewriting"
     : (hybrid ? "PASS hybrid continuation: first native result plus completed-call records; every real result exactly once" : "PASS continuation: native assistant and real client result for every call; rejection rewound"))
   if (followOn) {
     let currentHistory = nextHistory
     let responseBody = nextBody
+    const allSuppliedCalls = [...suppliedCalls]
     for (const settledCalls of [secondCalls, singleCalls]) {
       const visible = []
       const pending = new Map()
@@ -394,19 +464,30 @@ try {
       }
       for (const [index, input] of pending) visible[index].input = JSON.parse(input)
       assert.deepEqual(visible.filter(block => block.type === "tool_use"), settledCalls)
-      assert(lookupSharedSession("offline:" + session), "follow-on checkpoint must remain published")
+      const checkpoint = lookupSharedSession("offline:" + session)
+      assert(checkpoint, "follow-on checkpoint must remain published")
+      assert.deepEqual(checkpoint.passthroughToolCallIds, settledCalls.map(call => call.id))
+      if (settledCalls.length > 1) assert.equal(checkpoint.passthroughNativeToolCallId, settledCalls[0].id)
+      const supplied = clientResults(settledCalls)
+      const resume = (!missingLater || settledCalls.length === 1) && !replayShape(settledCalls)
       currentHistory = [...currentHistory, { role: "assistant", content: visible },
-        { role: "user", content: settledCalls.map(call => ({ type: "tool_result", tool_use_id: call.id, content: realResult(call) })) }]
+        { role: "user", content: supplied }]
       const previous = wire.at(-1)
       const response = await post(currentHistory)
       responseBody = await response.text()
       assert.equal(response.status, 200)
       assert(!responseBody.includes("event: error"), responseBody)
       const current = wire.at(-1)
-      assert.deepEqual(stripCache(current.system), stripCache(previous.system), "follow-on R1: system")
-      assert.deepEqual(stripCache(current.tools), stripCache(previous.tools), "follow-on R1: tools")
-      assert.deepEqual(stripCache(current.messages.slice(0, previous.messages.length)),
-        stripCache(previous.messages), "follow-on R1: messages")
+      if (resume) {
+        assert.deepEqual(stripCache(current.system), stripCache(previous.system), "follow-on R1: system")
+        assert.deepEqual(stripCache(current.tools), stripCache(previous.tools), "follow-on R1: tools")
+        assert.deepEqual(stripCache(current.messages.slice(0, previous.messages.length)),
+          stripCache(previous.messages), "follow-on R1: messages")
+        assertResultFidelity(current, settledCalls, supplied)
+      } else {
+        assert(!current.messages.some(message => message.role === "assistant" &&
+          message.content?.some?.(block => block.type === "tool_use")), "incomplete follow-on must replay")
+      }
       const values = []
       const collect = value => {
         if (typeof value === "string") values.push(value)
@@ -414,17 +495,32 @@ try {
         else if (value && typeof value === "object") Object.values(value).forEach(collect)
       }
       collect(current.messages)
-      for (const call of [...calls, ...settledCalls, ...(settledCalls === singleCalls ? secondCalls : [])])
+      allSuppliedCalls.push(...settledCalls.filter(call => supplied.some(result => result.tool_use_id === call.id)))
+      for (const call of allSuppliedCalls)
         assert.equal(values.join("\n").split(realResult(call)).length - 1, 1, "follow-on R2: " + call.id)
       assert(!values.join("\n").includes("[Tool result missing due to internal error]"))
+      if (replayShape(settledCalls)) {
+        for (const result of supplied) assert(values.join("\n").includes(normalizeStructuredUserContent([result])[0].text),
+          "follow-on replay control must preserve renderer attribution")
+        assert(current.messages.some(message => message.content?.some?.(block =>
+          JSON.stringify(withoutCache(block)) === JSON.stringify(resultImage))), "follow-on replay must preserve image bytes")
+      }
+      if (missingLater) for (const call of [...calls, ...secondCalls].filter(call => !allSuppliedCalls.includes(call))) {
+        assert(!values.join("\n").includes(realResult(call)), "must not fabricate missing follow-on text")
+        assert(!values.join("\n").includes('"tool_use_id":"' + call.id + '"'), "must not fabricate missing follow-on record")
+      }
       const latest = telemetryStore.getRecent({ limit: 1 })[0]
-      assert.equal(latest.isResume, true, "follow-on must continue existing SDK session")
-      console.log("PASS follow-on R1/R2: settled " + settledCalls.length + " calls; existing prefix unchanged; every real result exactly once")
+      assert.equal(latest.isResume, resume, "follow-on must obey complete-result resume policy")
+      console.log(resume
+        ? "PASS follow-on R1/R2: settled " + settledCalls.length + " calls; existing prefix unchanged; every real result exactly once"
+        : replayShape(settledCalls)
+        ? "PASS follow-on replay control: non-native image; fresh replay; real results exactly once; attribution/image preserved; no prefix claim"
+        : "PASS follow-on incomplete results: fresh replay; supplied results exactly once; nothing fabricated; no prefix claim")
     }
     assert.equal(wire.length, 4)
   }
   const sdkVersion = JSON.parse(readFileSync(join(sourceRoot, "node_modules/@anthropic-ai/claude-agent-sdk/package.json"), "utf8")).version
-  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, followOn, upstreamCalls: wire.length, liveModelCalls: 0 }))
+  console.log(JSON.stringify({ cli: version, sdk: sdkVersion, callCount, thinking, transientTail, mixed, deferred, nonStream, unstreamed, captured, capturedLast, inputValidation, distinctTools, sseDelayMs, followOn, resultKind, upstreamCalls: wire.length, liveModelCalls: 0 }))
 } finally {
   const evidence = process.argv.find(arg => arg.startsWith("--wire="))?.slice(7)
   if (evidence) writeFileSync(evidence, JSON.stringify(wire, null, 2) + "\n")
