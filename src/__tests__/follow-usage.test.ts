@@ -17,6 +17,7 @@ import {
   readFollowedUsage,
   resetFollowedUsage,
   setFollowedUsageForTesting,
+  stopFollowUsagePolling,
 } from "../proxy/followUsage"
 import { fetchOAuthUsageResult, resetOAuthUsageCache, type OAuthUsageSnapshot } from "../proxy/oauthUsage"
 import type { CredentialStore } from "../proxy/tokenRefresh"
@@ -289,5 +290,18 @@ describe("pollFollowedUsage", () => {
     await pollFollowedUsage()
 
     expect(followedUsageSnapshot("personal")!.windows[0]!.utilization).toBe(0.4)
+  })
+
+  test("discards a poll that answers after polling stopped", async () => {
+    process.env[FLAG] = "http://127.0.0.1:3456"
+    let answer!: (r: Response) => void
+    globalThis.fetch = Object.assign(() => new Promise<Response>(resolve => { answer = resolve }), { preconnect: originalFetch.preconnect })
+
+    const poll = pollFollowedUsage()
+    stopFollowUsagePolling()
+    answer(Response.json(quotaBody([{ id: "personal", windows: [{ type: "five_hour", utilization: 0.4, resetsAt: null }], error: null }])))
+    await poll
+
+    expect(followedUsageSnapshot("personal")).toBeUndefined()
   })
 })

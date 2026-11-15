@@ -73,6 +73,7 @@ interface FollowedUsage {
 
 let followed: FollowedUsage | undefined
 let timer: ReturnType<typeof setInterval> | undefined
+let generation = 0
 
 function asFiniteOrNull(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null
@@ -163,6 +164,7 @@ export function followedUsageSnapshot(profileId: string): OAuthUsageSnapshot | u
 export async function pollFollowedUsage(): Promise<void> {
   const target = followTarget()
   if (!target) return
+  const started = generation
   try {
     const res = await fetch(`${target.url}/v1/usage/quota/all`, {
       headers: { Accept: "application/json" },
@@ -173,6 +175,7 @@ export async function pollFollowedUsage(): Promise<void> {
       return
     }
     const byProfile = readFollowedUsage(await res.json())
+    if (started !== generation) return
     if (byProfile.size === 0) {
       claudeLog("follow_usage.empty", { url: target.url })
       return
@@ -196,6 +199,7 @@ export function startFollowUsagePolling(): void {
 }
 
 export function stopFollowUsagePolling(): void {
+  generation++
   if (!timer) return
   clearInterval(timer)
   timer = undefined
