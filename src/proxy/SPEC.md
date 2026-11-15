@@ -124,6 +124,24 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   early-stop tracker, so the CLI's refusal stays inside the SDK and the model
   retries with the real search. Known limit, the same as for the bare name: a
   turn whose budget runs out on repeated refusals ends as a max-turns error.
+- **JSON passthrough groups assistant fragments by model-response identity.**
+  One response can arrive as separate SDK assistant fragments for parallel
+  calls. Counting fragments as turns dropped later CLI-refused calls: those
+  calls never reached the PreToolUse hook, so the captured-call merge could
+  not restore them. Once a fragment adds a `tool_use` to the JSON response,
+  accept later content and stop reasons only when their nonempty Anthropic
+  `message.id` matches that first tool-bearing response. Missing, empty or
+  different IDs fail closed for the entire later fragment, including text,
+  thinking and new calls. Tracker growth, settlement, its kill switch and SDK
+  fragment UUIDs do not prove response membership.
+  - The client assistant UUID follows the same response once a client-forwarded
+    call is visible, including clearing it for an accepted UUID-less fragment.
+    Internal tools such as `StructuredOutput` do not freeze this map: a schema
+    retry must still record the successful attempt's UUID.
+  - Same-response refused batches preserve IDs, inputs and order, matching SSE.
+    Hidden digest content, stop reasons and UUIDs stay internal. This changes
+    neither SSE delivery, checkpoint eligibility nor max-turns error recovery.
+    HTTP regressions are in `passthrough-early-stop-integration.test.ts`.
 - **Transcript retention is opt-in and delegated to Claude Code (#1261,
   owner decision 2026-10-27).** Meridian's empty `settingSources` (#490/#634)
   also skips Claude Code's retention cleanup, so transcripts Meridian's own GC
