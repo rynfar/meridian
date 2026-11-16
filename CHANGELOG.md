@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.92.0](https://github.com/rynfar/meridian/compare/meridian-v1.91.0...meridian-v1.92.0) (2026-11-16)
+
+
+### Features
+
+* take usage figures from the followed instance, not from Anthropic ([#1499](https://github.com/rynfar/meridian/issues/1499)) ([29dbb33](https://github.com/rynfar/meridian/commit/29dbb339334fdbfa58d604aefa07fdeaf821dacd))
+
 ## [1.91.0](https://github.com/rynfar/meridian/compare/meridian-v1.90.0...meridian-v1.91.0) (2026-11-14)
 
 

@@ -28,6 +28,7 @@ import { claudeLog } from "../logger"
 import { isCredentialsReadOnly } from "./credentialsMode"
 import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
+import { followedUsageSnapshot } from "./followUsage"
 import { bundledClaudeCodeVersion } from "./models"
 
 // Policy for the query flag and User-Agent: profiles-routing.spec.md, "OAuth usage request identity".
@@ -820,6 +821,23 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
   }
   const existing = inflightByProfile.get(cacheKey)
   if (existing) return existing
+
+  // A followed instance's figures, when there is one. Taken before the
+  // credential read because the point is to make no upstream call at all:
+  // two instances polling the same account share one rate-limit budget, and
+  // the one that loses it gets 429 for every account it holds. Above the
+  // cooldown for the same reason: these figures cost the rate limit nothing,
+  // so a 429 this instance collected earlier must not suppress them.
+  // A forced read wants this account's figures now (a limit just hit, a new
+  // login), not a copy that may be minutes old.
+  const followed = opts?.force ? undefined : followedUsageSnapshot(opts?.profileId ?? "default")
+  if (followed) {
+    const local = cacheByProfile.get(cacheKey)
+    if (local && local.fetchedAt > followed.fetchedAt) return { snapshot: local, error: null }
+    cacheByProfile.set(cacheKey, followed)
+    failureByProfile.delete(cacheKey)
+    return { snapshot: followed, error: null }
+  }
 
   // A 429 must throttle forced and normal callers alike. Without a negative
   // cache, every quota poll retries immediately and can keep Anthropic's
