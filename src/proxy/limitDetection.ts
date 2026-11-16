@@ -96,6 +96,9 @@ const RESET_WORDING = /resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm)?|midnight|
 
 export interface ParsedLimitWording {
   bucket: string | null
+  /** The credits-era "reached your <tier> limit" banner, which the CLI also
+   *  sends for a zero-credit cap, so it does not prove the window is spent. */
+  tierBanner: boolean
   /** The qualifier as written, kept for the rationale so an unrecognized one
    *  ("daily", "monthly") still tells the reader what the CLI said. */
   qualifier: string | null
@@ -121,6 +124,7 @@ export function parseLimitWording(errMsg: string): ParsedLimitWording {
   const reset = RESET_WORDING.exec(errMsg)
   return {
     bucket,
+    tierBanner: wording?.[2] !== undefined,
     qualifier: words.length > 0 ? words.join(" ") : null,
     clock: reset?.[1]?.trim() ?? null,
     zone: reset?.[2]?.trim() ?? null,
@@ -247,6 +251,11 @@ function windowResetsAt(windows: readonly CachedWindow[] | undefined, bucket: st
   return hit?.resetsAt ?? null
 }
 
+function spentWindowResetsAt(windows: readonly CachedWindow[] | undefined, bucket: string): number | null {
+  const hit = windows?.find(w => w.type === bucket)
+  return hit && (hit.utilization ?? 0) >= 1 ? hit.resetsAt : null
+}
+
 /**
  * Decide which allowance was refused, and say how confident that is.
  *
@@ -279,7 +288,9 @@ export function diagnoseLimit(input: DiagnoseLimitInput): LimitDiagnosis {
       bucket: wording.bucket,
       reported: true,
       source: "error_message",
-      resetsAt: clockReset ?? windowResetsAt(windows, wording.bucket),
+      resetsAt: clockReset ?? (wording.tierBanner
+        ? spentWindowResetsAt(windows, wording.bucket)
+        : windowResetsAt(windows, wording.bucket)),
       rationale: `Anthropic named the ${wording.qualifier} limit`,
     }
   }

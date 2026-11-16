@@ -105,6 +105,25 @@ describe("resolveResetClock", () => {
 describe("diagnoseLimit", () => {
   const now = Date.UTC(2026, 7, 16, 12, 0, 0)
 
+  it("does not take a tier banner's reset from a window that is not spent", () => {
+    const d = diagnoseLimit({
+      message: "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.",
+      now,
+      windows: [{ type: "seven_day_fable", utilization: 0.3, resetsAt: now + 6 * 86_400_000 }],
+    })
+    expect(d.bucket).toBe("seven_day_fable")
+    expect(d.resetsAt).toBeNull()
+  })
+
+  it("takes a tier banner's reset from its spent window", () => {
+    const d = diagnoseLimit({
+      message: "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.",
+      now,
+      windows: [{ type: "seven_day_fable", utilization: 1, resetsAt: now + 6 * 86_400_000 }],
+    })
+    expect(d.resetsAt).toBe(now + 6 * 86_400_000)
+  })
+
   it("trusts a fresh rejected SDK event above everything else", () => {
     const d = diagnoseLimit({
       message: WEEKLY_LIMIT,
