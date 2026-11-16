@@ -1173,8 +1173,11 @@ function render(data, quotaData) {
       html += "<a class=\\"profile-name\\" href=\\"#" + esc(encodeURIComponent(p.id)) + "\\" title=\\"Link to this profile\\">" + esc(p.id) + "</a>";
       if (isActive) html += "<span class=\\"profile-badge badge-active\\">active</span>";
       html += meridianProviders.badgeHtml(slot.provider, "profile-badge");
-      // A seat's type is its provider's name, which the badge before it says.
-      if ((p.type || "claude-max") !== slot.provider) html += "<span class=\\"profile-badge badge-type\\">" + esc(p.type || "claude-max") + "</span>";
+      // The allowance (20x, 5x) tells accounts apart; the type does not, as
+      // every claude-max profile shares it. Without an allowance the type
+      // stays, except on a seat, whose type is the provider badge's name.
+      if (p.allowance) html += '<span class="profile-badge badge-type" title="' + attr([p.planLabel, p.rateLimitTier].filter(Boolean).join(' \u00b7 ')) + '">' + esc(p.allowance) + '</span>';
+      else if ((p.type || "claude-max") !== slot.provider) html += "<span class=\\"profile-badge badge-type\\">" + esc(p.type || "claude-max") + "</span>";
       // A seat's pill says what to do in the words of whoever holds its login.
       if (needsLogin && isChatGptProfile(p)) {
         var access = profileAccessHelp(p);
