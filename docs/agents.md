@@ -587,6 +587,14 @@ upstream errors and cancellation still apply. The mapping follows the last
 completed caller: if that is a side call, the next main turn may also need a
 fresh replay. Separate session identities avoid this extra replay cost.
 
+omp's idle recap and composer predictions are an exception that Meridian
+recognizes. They carry the conversation's session id in `metadata.user_id` and
+their own id, `<session>:side:<id>`, in `X-Claude-Code-Session-Id`. The Pi
+adapter treats a request with a side id of its own session key as an auxiliary
+request: it is answered from a fresh replay and leaves the conversation's
+mapping alone, so the next main turn still continues the conversation. Every
+request of a multi-turn side thread with such an id is a fresh replay too.
+
 Fresh side requests use their own tool declarations. Tool definitions omitted
 on a continuation can be inherited only from that same published SDK branch;
 a failed side request does not replace its tool cache.

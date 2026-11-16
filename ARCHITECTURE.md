@@ -458,7 +458,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
 | `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
-| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips session lookup, publication and the turn lease (Claude Code's auto-mode classifier, progress captions and tool-less side calls) |
+| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips session lookup, publication and the turn lease (Claude Code's auto-mode classifier, progress captions and tool-less side calls; Oh My Pi's idle recap and composer predictions) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
 | `getBlockedBuiltinTools()` | SDK tools replaced by agent's MCP equivalents |
