@@ -84,16 +84,45 @@ export interface ClientForwardedToolUse {
   name: string
 }
 
+/**
+ * Is this tool name the SDK's own search tool, which the SDK runs and the
+ * client never sees?
+ *
+ * The bare `ToolSearch` is the SDK's unless the client owns the search. The
+ * name under the client prefix (`mcp__oc__ToolSearch`) is the SDK's only when
+ * `sdkOwnsPrefixedSearch`: the request defers tools, so the SDK has a real
+ * ToolSearch, and the client declares none of its own. The deferred-tools
+ * note lists every deferred tool by its `mcp__oc__*` name, and a live model
+ * once called the search under that prefix too. The CLI refuses that name;
+ * taking the prefix for a client tool forwarded it as `ToolSearch` to a client
+ * that never declared one, which then failed it and paid a whole extra round.
+ * Kept inside the SDK, the refusal lets the model retry with the real tool
+ * within the same turn budget. Without deferred tools there is no SDK search
+ * to retry with, so the name stays an ordinary unknown tool.
+ */
+export function isSdkToolSearchCall(
+  name: string,
+  clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+  clientOwnsToolSearch = false,
+  sdkOwnsPrefixedSearch = false,
+): boolean {
+  if (name === "ToolSearch") return !clientOwnsToolSearch
+  return sdkOwnsPrefixedSearch && name === `${clientToolPrefix}ToolSearch`
+}
+
 export function isClientForwardedToolUse(
   block: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
   clientOwnsToolSearch = false,
+  /** See isSdkToolSearchCall. */
+  sdkOwnsPrefixedSearch = false,
 ): block is ClientForwardedToolUse {
   const b = block as { type?: unknown; id?: unknown; name?: unknown } | null | undefined
   if (!b || b.type !== "tool_use") return false
   if (typeof b.id !== "string" || b.id.length === 0) return false
   if (typeof b.name !== "string") return false
   if (INTERNAL_TOOLS.has(b.name) && !(clientOwnsToolSearch && b.name === "ToolSearch")) return false
+  if (sdkOwnsPrefixedSearch && b.name === `${clientToolPrefix}ToolSearch`) return false
   if (b.name.startsWith("mcp__") && !b.name.startsWith(clientToolPrefix)) return false
   return true
 }
@@ -106,10 +135,11 @@ export function noteAssistantContent(
   content: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
   clientOwnsToolSearch = false,
+  sdkOwnsPrefixedSearch = false,
 ): void {
   if (!Array.isArray(content)) return
   for (const block of content) {
-    if (isClientForwardedToolUse(block, clientToolPrefix, clientOwnsToolSearch)) {
+    if (isClientForwardedToolUse(block, clientToolPrefix, clientOwnsToolSearch, sdkOwnsPrefixedSearch)) {
       tracker.expected.add(block.id)
     }
   }
@@ -129,6 +159,7 @@ export function noteAssistantMessage(
   message: unknown,
   clientToolPrefix: string = CLIENT_TOOL_PREFIX,
   clientOwnsToolSearch = false,
+  sdkOwnsPrefixedSearch = false,
 ): void {
   const m = message as { type?: unknown; uuid?: unknown; message?: { content?: unknown } } | null | undefined
   if (m?.type !== "assistant") return
@@ -141,7 +172,7 @@ export function noteAssistantMessage(
   // resumed (#996). `isClientForwardedToolUse` is deliberately strict about
   // foreign `mcp__*` names, which is what makes a missed prefix silent rather
   // than noisy.
-  noteAssistantContent(tracker, content, clientToolPrefix, clientOwnsToolSearch)
+  noteAssistantContent(tracker, content, clientToolPrefix, clientOwnsToolSearch, sdkOwnsPrefixedSearch)
   if (tracker.expected.size > before) {
     // A newer tool-bearing assistant message supersedes the older checkpoint.
     // Fail closed when its UUID is absent: the older message may not contain

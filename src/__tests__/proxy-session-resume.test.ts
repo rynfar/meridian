@@ -496,7 +496,7 @@ describe("Session resume: stale cross-node history", () => {
   it("fresh-replays all 727 messages when only 514/515 cached messages match", async () => {
     const app = createTestApp()
     const { cached, incoming } = buildStaleSessionFixture()
-    storeSession("oc-stale-nonstream", cached, "sdk-stale-nonstream")
+    await storeSession("oc-stale-nonstream", cached, "sdk-stale-nonstream")
 
     const response = await post(app, {
       model: "claude-sonnet-4-5",
@@ -535,7 +535,7 @@ describe("Session resume: stale cross-node history", () => {
   it("uses the same full replay fallback for streaming requests", async () => {
     const app = createTestApp()
     const { cached, incoming } = buildStaleSessionFixture()
-    storeSession("oc-stale-stream", cached, "sdk-stale-stream")
+    await storeSession("oc-stale-stream", cached, "sdk-stale-stream")
     mockMessages = [
       messageStart(),
       textBlockStart(0),

@@ -162,8 +162,8 @@ async function idleTicks(proxy: ReturnType<typeof createProxyServer>, from: numb
 }
 
 describe("cache keepalive", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     mcpServersCreated = 0
     turnTier = "1h"

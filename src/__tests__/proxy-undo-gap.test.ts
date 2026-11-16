@@ -34,7 +34,7 @@ describe("undo gap delivery over HTTP (#817)", () => {
     for (const gap of [false, true]) {
       it(`${gap ? "replays the edited intermediate turns" : "keeps ordinary rollback tail-only"} (stream=${stream})`, async () => {
         const key = `undo-gap-${crypto.randomUUID()}`
-        storeSession(key, original, "sdk-source", undefined,
+        await storeSession(key, original, "sdk-source", undefined,
           original.map((message, index) => message.role === "assistant" ? `uuid-${index}` : null))
         const tail = { role: "user", content: "What is the marker?" }
         const messages = gap
