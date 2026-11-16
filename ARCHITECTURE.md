@@ -321,6 +321,8 @@ src/
 │   ├── profileLogin.ts        ← Browser re-authentication state, redirect/paste completion and status
 │   ├── profileAdd.ts          ← Browser profile creation and isolated credential persistence
 │   ├── profileOAuthBody.ts    ← Runtime schemas for browser OAuth request bodies (pure)
+│   ├── hooks.ts               ← Event hooks: webhook/command targets, bounded delivery, recent outcomes (leaf, I/O)
+│   ├── oauthCallbacks.ts      ← Public /callback/<id> doors to loopback OAuth listeners, announced through hooks (leaf)
 │   ├── statusProbe.ts         ← Asks a busy port whether it is Meridian, and collects what / shows
 │   ├── agentDefs.ts           ← Subagent definition extraction from tool descriptions
 │   ├── agentMatch.ts          ← Fuzzy agent name matching
@@ -410,7 +412,7 @@ server.ts (HTTP layer)
    it must not import a server, provider, Hono or session module. The Origin
    policy for settings that disclose something or choose what runs lives in
    `src/sameOrigin.ts` (standard web types only), used by the header,
-   Claude Code executable and transcript retention settings. Backend auth remains at each caller's
+   Claude Code executable, transcript retention and event hook settings. Backend auth remains at each caller's
    existing boundary. Shared same-origin browser-write policy is
    reused by the loopback reachability override; it confers no peer/key authority.
    `upstreamReachability.ts` has no imports or settings/filesystem I/O; its

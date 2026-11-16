@@ -142,7 +142,7 @@ there is no Google API-key or model-SDK fallback.
 | [Antigravity support & recovery](docs/antigravity-support.md) | Feature status, unfinished work and recovery limits |
 | [Claude client setup](docs/agents.md) | Compatibility matrix and client configuration |
 | [Desktop](apps/desktop/README.md) | Local preview, service ownership and platform status |
-| [Configuration](docs/configuration.md) | CLI, environment variables and API-key protection |
+| [Configuration](docs/configuration.md) | CLI, environment variables, API-key protection and event hooks |
 | [Accounts & profiles](docs/profiles.md) | Claude sign-in, multiple accounts and routing |
 | [Deployment](docs/deployment.md) | Docker, Nix and headless services |
 | [Plugins](docs/plugins.md) | Official packages and plugin configuration |

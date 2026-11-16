@@ -16,6 +16,9 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_API_KEY` | — | unset | Shared secret for API key authentication. When set, all API and admin routes require a matching `x-api-key` or `Authorization: Bearer` header. `/` and `/health` remain open. |
 | `MERIDIAN_PORT` | `CLAUDE_PROXY_PORT` | `3456` | Port to listen on |
 | `MERIDIAN_HOST` | `CLAUDE_PROXY_HOST` | `127.0.0.1` | Host to bind to |
+| `MERIDIAN_PUBLIC_URL` | `CLAUDE_PROXY_PUBLIC_URL` | unset | The address people reach this instance at, e.g. `https://meridian.example`. Public OAuth callback URLs are built on it. Wins over `publicUrl` saved at `/settings`; with neither, the address a sign-in was started from is used. See [Event hooks](#event-hooks) |
+| `MERIDIAN_HOOK_COMMAND` | `CLAUDE_PROXY_HOOK_COMMAND` | unset | One more [event hook](#event-hooks) command, receiving every event, beside those saved at `/settings` |
+| `MERIDIAN_HOOK_URL` | `CLAUDE_PROXY_HOOK_URL` | unset | One more [event hook](#event-hooks) webhook, receiving every event, beside those saved at `/settings` |
 | `MERIDIAN_PASSTHROUGH` | `CLAUDE_PROXY_PASSTHROUGH` | unset | Forward tool calls to client instead of executing |
 | `MERIDIAN_MAX_CONCURRENT` | `CLAUDE_PROXY_MAX_CONCURRENT` | `10` | Maximum SDK queries running concurrently within one Meridian process. The budget is shared by every proxy instance in the process, and is re-read whenever an instance starts — so raising or lowering it takes effect for a later instance without a restart. Embedders that need a distinct budget can pass `maxConcurrent` in `ProxyConfig`, which opts that instance out of the shared pool. |
 | `MERIDIAN_MAX_SESSIONS` | `CLAUDE_PROXY_MAX_SESSIONS` | `1000` | In-memory LRU session cache size |
@@ -374,6 +377,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET/PUT /settings/api/updates` | Read or set `checkForUpdates` (JSON `{"checkForUpdates": true}`); takes effect on the running proxy. Also reports each loaded plugin's installed and latest version in `plugins`; turning it on also sends loaded plugins' npm package names to the registry |
 | `GET/PUT /settings/api/header` | Read or set `showHostname` (JSON `{"showHostname": true}`): name the machine beside the header's status; takes effect on the running proxy |
 | `GET/PUT /settings/api/layout` | Read or set the web pages' `layout`: `contained` (default, a centered column) or `wide` (spans the window, more cards per row). JSON `{"layout": "wide"}`, `null` to unset; applies on the next page load |
+| `GET/PUT /settings/api/hooks`, `POST /settings/api/hooks/test` | [Event hooks](#event-hooks) and the public URL (JSON); `test` sends a `hooks.test` event. Same-origin browser requests only |
+| `GET /callback/<id>/<path>` | A loopback OAuth redirect, relayed from another machine (see [Signing in from another machine](#signing-in-from-another-machine)). No API key; unknown ids are 404 |
 | `GET /plugins` | Plugin management page (`/plugins/list`, `POST /plugins/reload` for JSON/actions) |
 
 Illustrative health response excerpt (versions and status vary by installation):
@@ -1367,6 +1372,56 @@ Clients just set their `ANTHROPIC_API_KEY` to the shared secret — since most t
 ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 opencode
 ```
 
+## Event hooks
+
+Meridian can tell other programs when something happens. Configure targets on `/settings` -> **Event Hooks** (saved as `hooks` in `settings.json`), or add one of each kind with `MERIDIAN_HOOK_URL` and `MERIDIAN_HOOK_COMMAND`. Targets are re-read for every event; no restart is needed.
+
+| Target | Delivery |
+| --- | --- |
+| Webhook | `POST <url>`, `Content-Type: application/json`, headers `X-Meridian-Event` and `X-Meridian-Delivery`. Any 2xx is success. Redirects are not followed. 5s limit |
+| Command | Run through the system shell with the event as JSON on **stdin**, never in argv; `MERIDIAN_HOOK_EVENT` and `MERIDIAN_HOOK_DELIVERY` are set. Exit 0 is success. 10s limit, then its process group is stopped |
+
+Each delivery is tried once. At most 16 run at once; past that an event is dropped for that target. The last 25 deliveries, with the command's first line of output (or the webhook's status), are shown on `/settings` and in `[hooks]` log lines, so a command must not print secrets. Logs name a webhook by host and a command by program name only, and `/settings` shows the environment's targets the same way.
+
+The hook settings routes answer only requests from Meridian's own pages (or without an `Origin`, such as the CLI), behind `MERIDIAN_API_KEY` when it is set: a saved webhook URL can carry a token, and a command runs as the user Meridian runs as.
+
+Every event is one JSON object:
+
+```json
+{
+  "version": 1,
+  "event": "oauth.callback.listening",
+  "id": "8b0c…",
+  "at": "2026-10-02T23:59:00.000Z",
+  "instance": { "host": "meridian-host", "pid": 1234, "port": 3456, "version": "1.91.0" },
+  "callback": {
+    "id": "Q3x…",
+    "provider": "chatgpt",
+    "redirect": { "host": "127.0.0.1", "port": 1455, "path": "/auth/callback", "url": "http://127.0.0.1:1455/auth/callback" },
+    "url": "https://meridian.example/callback/Q3x…",
+    "expiresAt": "2026-10-03T00:09:00.000Z",
+    "expiresAtMs": 1790985540000,
+    "localListener": true
+  }
+}
+```
+
+| Event | When | `callback` adds |
+| --- | --- | --- |
+| `oauth.callback.listening` | A sign-in waits for a loopback redirect. Sent again, with a later expiry, when another sign-in joins the same listener | `expiresAt`, `expiresAtMs`, `localListener` (whether Meridian holds the port on its own machine) |
+| `oauth.callback.closed` | No sign-in waits any more | `reason`: `completed`, `failed`, `cancelled`, `expired`, `replaced` or `shutdown` |
+| `hooks.test` | **Send test event** on `/settings` | none (`test: true`) |
+
+No event carries an authorization code, `state`, verifier, token or API key.
+
+### Signing in from another machine
+
+ChatGPT's sign-in only accepts the redirect `http://127.0.0.1:1455/auth/callback`, so it lands on whatever listens on port 1455 of the **browser's** machine. While a sign-in waits, Meridian also serves that listener at `<public URL>/callback/<id>/auth/callback`. A relay on the browser's machine that hears `oauth.callback.listening` can listen on `callback.redirect.host:port` there and forward each request (path and query) to `callback.url` + path, returning Meridian's response. Close it on `oauth.callback.closed` or at `expiresAt`. The sign-in start waits up to 3 seconds for hooks to answer, so the relay is up before the sign-in tab opens, and the sign-in panel shows each hook's answer.
+
+- `<id>` is 128 random bits, one per open listener, and exists only while a sign-in waits. Treat it as a short-lived secret.
+- The route needs no API key, because a browser redirect carries none. Unknown, closed or expired ids answer 404 and change nothing. Behind a valid id, the provider's `state` must still match a waiting sign-in, and the code is useless without the PKCE verifier, which never leaves the Meridian process.
+- `callback.url` is `null` when Meridian does not know its public address: set `MERIDIAN_PUBLIC_URL` or **Public URL** on `/settings`, or start the sign-in from the public address (a reverse proxy's `X-Forwarded-Proto`/`X-Forwarded-Host` are honoured; a loopback address is never announced).
+
 ## Session bookkeeping maintenance
 
 Node 22: `meridian-bookkeeping <command> --session-dir /absolute/private/session-directory [--json]`.
@@ -1507,7 +1562,9 @@ otherwise, so an instance nobody configured for ChatGPT is unchanged.
 **Connect with ChatGPT**, or run `meridian profile add <name> --chatgpt`
 (`--headless` for a device code). ChatGPT redirects the browser to
 `http://127.0.0.1:1455/auth/callback`; from another machine, paste the address
-the tab ended on into the panel, or use the device code. Seats already signed
+the tab ended on into the panel, use the device code, or run a relay there
+that finishes the sign-in by itself (see
+[Signing in from another machine](#signing-in-from-another-machine)). Seats already signed
 in to oc-codex-multi-auth move over with [`meridian chatgpt-migrate`](#chatgpt-migration).
 
 **Seats are profiles.** `/profiles/list`, `/v1/usage/quota/all`,
