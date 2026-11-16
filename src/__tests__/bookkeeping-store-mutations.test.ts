@@ -108,6 +108,23 @@ it("store: absent/null, exact/stale/present CAS, export invalidation, copies and
     .toThrow("sourceTranscript.sessionId")
 })
 
+it("store: a slot neighbor's writes leave an absent key's generation alone; its removal does not", async () => {
+  await migrate()
+  const slot = (key: string) => mappingDigest(key).slice(0, 4)
+  let neighbor = ""
+  for (let index = 0; !neighbor; index++) {
+    if (slot(`neighbor-${index}`) === slot("fresh")) neighbor = `neighbor-${index}`
+  }
+  const absent = generation("fresh")
+  expect(storeSharedSession(directory, neighbor, "id", 1)).not.toBe(false)
+  expect(storeSharedSession(directory, neighbor, "id", 3)).not.toBe(false)
+  expect(generation("fresh")).toBe(absent)
+  expect(evictSharedSession(directory, neighbor, generation(neighbor))).toBe(true)
+  expect(generation("fresh")).not.toBe(absent)
+  expect(storeSharedSession(directory, "fresh", "id", 1, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, absent)).toBe(false)
+})
+
 it("store: rollback protection and protected capacity reject atomically; route generations refresh", async () => {
   await legacy.storeSharedSession("protected", "id")
   const prior = legacy.lookupSharedSessionResult("protected")
@@ -499,7 +516,7 @@ it("evict: absent no-op, stale/protected false; cascades mapping dependants but 
   expect(evictSharedSession(directory, "key", "stale")).toBe(false)
   expect(snapshotForExport(handle!.reader)).toEqual(before)
   const slot = mappingDigest("key").slice(0, 4)
-  const counter = Number(handle!.reader.get("SELECT counter FROM fence_slots WHERE namespace='store' AND slot=?", slot)?.counter)
+  const counter = Number(handle!.reader.get("SELECT counter FROM fence_slots WHERE namespace='store' AND slot=?", slot)?.counter ?? 0)
   expect(evictSharedSession(directory, "key", result.mappingGeneration)).toBe(true)
   expect(mapping("key")).toBeUndefined()
   expect(priority()).toEqual(routeBefore)
