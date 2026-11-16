@@ -1203,7 +1203,9 @@ function render(data, quotaData) {
       html += '</div></div>';
     } else if (removingProfile === p.id) {
       html += '<div class="remove-confirm">';
-      html += '<div class="remove-confirm-text">Remove <strong>' + esc(p.id) + '</strong>? Its stored credentials are deleted with it, so putting it back means logging in again.</div>';
+      html += '<div class="remove-confirm-text">Remove <strong>' + esc(p.id) + '</strong>? ' + (isChatGptProfile(p)
+        ? 'Its stored credentials are deleted with it, so putting it back means logging in again.'
+        : 'Credentials Meridian stored for it are deleted with it; a login it shares with another profile or with your own Claude Code stays. Requests that name it with <code>x-meridian-profile</code> are refused afterwards.') + '</div>';
       if (removeError) html += '<div class="rename-error">' + esc(removeError) + '</div>';
       html += '<div class="remove-confirm-actions">';
       html += '<button class="confirm-btn danger" onclick="commitRemove(&quot;'+esc(p.id)+'&quot;)">Remove</button>';
