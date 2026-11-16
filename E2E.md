@@ -1857,6 +1857,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 | E80 | [Claude Code in-process teammate session isolation](#e80-claude-code-in-process-teammate-session-isolation) | **Automated, needs the `claude` CLI and `tmux`**: `bun scripts/e2e-claude-code-teammate-session.mjs` — real proxy + SDK, the REAL interactive Claude Code CLI (agent teams on) spawning two named teammates. Asserts the teammates' `name@team` agent ids each get their own session key, every teammate and parent turn after the first resumes, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys or Claude Code detection** | 2026-11-10 |
 | E81 | [Abandoned turn lock after a failed release](#e81-abandoned-turn-lock-after-a-failed-release) | **Automated, needs the `claude` CLI, non-root**: `bash scripts/e2e-abandoned-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Makes the turn-lock directory read-only while turn 1 streams so the lock release fails, restores it, then asserts turn 2 continues the conversation promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-13 |
+| E82 | [Torn turn lock after a host crash](#e82-torn-turn-lock-after-a-host-crash) | **Automated, needs the `claude` CLI, Linux**: `bash scripts/e2e-torn-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Leaves the conversation's turn lock as a host crash left it (an `owner.json` of NUL bytes, dated before the current boot) between turn 1 and turn 2, then asserts turn 2 continues promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-15 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7439,6 +7440,31 @@ Baseline `main` (`663311e`): FAIL. The release failed, turn 2 (`claude -p
 --continue`) queued behind the lock until its 120s client timeout and the lock
 remained. Branch: PASS. Turn 2 continued the conversation in 3s
 (`lineage=continuation`, session wait 25–62ms) and the lock was gone.
+
+## E82: Torn turn lock after a host crash
+
+**What it proves:** a conversation whose cross-process turn lock a host crash
+tore no longer wedges. After a crash on 2026-09-29 one conversation's lock was
+left with an `owner.json` of 338 NUL bytes, and every later turn of it waited
+out the acquire timeout and failed (38 times in 3 hours) until the directory
+was deleted by hand. The proxy now reclaims an ownerless lock whose last
+activity predates the current boot.
+
+```bash
+bash scripts/e2e-torn-turn-lock.sh   # E2E_MODEL, CLAUDE_BIN, E2E_PORT, TURN2_LIMIT, E2E_REPO optional
+```
+
+A host crash cannot be staged on demand, so the harness stages what it leaves:
+turn 1 runs and its lock's name is recorded, the proxy stops, and the lock is
+recreated with an all-NUL `owner.json` and every mtime an hour before the
+current boot (read from `/proc/uptime`). The proxy starts again and turn 2
+(`claude -p --continue`) follows.
+
+**Before/after (2026-11-15, Linux x86_64, Claude Code 2.1.322, `haiku`).**
+Baseline `main` (`3a48b0d`, same coordinator as 1.91.0): FAIL. Turn 2 hung until
+its 120s client timeout and the lock remained. Branch: PASS. The proxy logged
+the reclaim, turn 2 continued the conversation in 8s (`lineage=continuation`)
+and no lock was left.
 
 ## Concurrent transcript publication
 
