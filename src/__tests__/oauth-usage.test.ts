@@ -1134,4 +1134,21 @@ describe("MERIDIAN_USAGE_CACHE_TTL_MS", () => {
     await fetchOAuthUsageResult(opts)
     expect(getCalls()).toBe(2)
   })
+
+  test("a value above five minutes is capped at five minutes", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "3600000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "capped" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 299_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+
+    setSystemTime(start + 301_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
+  })
 })
