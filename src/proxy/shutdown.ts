@@ -61,8 +61,9 @@ export class ShutdownProgress {
  * Join shutdown cleanup. ChatGPT ownership is released as soon as admitted
  * work has joined, beside durable cleanup rather than after it: a session GC
  * sweep can outlast the shutdown deadline, and a process that exits holding
- * the writer lease refuses its successor's start. Every step runs even when
- * another fails; the first failure is reported once all have settled.
+ * the writer lease refuses its successor's start. Durable cleanup runs only
+ * once admitted work has joined; ChatGPT release runs either way. The first
+ * failure is reported once all have settled.
  */
 export async function joinShutdownCleanup(
   steps: ShutdownCleanupSteps,
@@ -72,7 +73,7 @@ export async function joinShutdownCleanup(
   const idle = admitted.then(() => undefined, () => undefined)
   const settled = await Promise.allSettled([
     admitted,
-    idle.then(steps.durable),
+    admitted.then(steps.durable),
     idle.then(() => progress.run("ChatGPT release", steps.chatGpt)),
   ])
   const failure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected")

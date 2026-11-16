@@ -78,6 +78,18 @@ describe("closeServerWithGracePeriod", () => {
 })
 
 describe("joinShutdownCleanup", () => {
+  test("skips durable cleanup but still releases ChatGPT when admitted work fails to join", async () => {
+    const order: string[] = []
+
+    await expect(joinShutdownCleanup({
+      idle: Promise.reject(new Error("admitted work failed")),
+      durable: async () => { order.push("durable") },
+      chatGpt: async () => { order.push("chatGpt") },
+    })).rejects.toThrow("admitted work failed")
+
+    expect(order).toEqual(["chatGpt"])
+  })
+
   test("releases ChatGPT ownership while durable cleanup is still running", async () => {
     let finishDurable = () => {}
     const durableRunning = new Promise<void>((resolve) => { finishDurable = resolve })
