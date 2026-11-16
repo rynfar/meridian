@@ -124,6 +124,18 @@ overlap 2/4, cache_write 7k), the fix resumed it (`lineage=continuation`,
 `Regrouped user messages … 1 run, stored 4 -> incoming 3; resuming.`,
 cache_read 16k, cache_write 46).
 
+## Oh My Pi side calls
+
+`node scripts/e2e-omp-side-call.mjs --omp=<omp> --agent-dir=<dir>
+--log=<meridian log> [--model=opus] [--expect=resume|replay]` drives the real
+omp client against a running Meridian set up as for the regrouped-messages
+harness above. A scratch hook runs one side call through omp's own
+`runEphemeralTurn` (the path of its idle recap and composer predictions) after
+the first turn, then `omp -c` sends the second turn. It asserts the side call
+is served as `independent-request:auxiliary-request` and the second turn
+resumes. `--expect=replay` asserts the pre-fix behaviour for a before run: the
+side call resumes the conversation's own SDK session.
+
 ## Claude Code's own tool search in passthrough (#1478)
 
 `node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
