@@ -40,6 +40,15 @@ describe("adaptResponsesBody", () => {
     expect(input.max_output_tokens).toBe(32000)
   })
 
+  it("removes the sampling parameters the backend refuses on every model", () => {
+    const input = { model: "gpt-6-luna", store: false, stream: true, include: ["reasoning.encrypted_content"], input: [], temperature: 0.5, top_p: 0.9 }
+    const { body, applied } = adaptResponsesBody(input)
+    expect(applied).toEqual(["-temperature", "-top_p"])
+    const { temperature: _t, top_p: _p, ...expected } = input
+    expect(body).toEqual(expected)
+    expect(input.temperature).toBe(0.5)
+  })
+
   it("passes a body that already satisfies the backend with nothing applied", () => {
     const input = { model: "gpt-5.4", store: false, stream: true, include: ["reasoning.encrypted_content"], instructions: "codex", input: [] }
     expect(adaptResponsesBody(input)).toEqual({ body: input, applied: [], clientWantsStream: true })

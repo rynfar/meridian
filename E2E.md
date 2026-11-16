@@ -1,3 +1,15 @@
+## Signal-stopped Claude Code requests
+
+After building unchanged main and the candidate separately, run
+`scripts/e2e-signal-exit.mjs` with the explicit paths and private read-only
+credential source documented in [the signal-exit evidence](docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+It drives the actual Pi provider, Meridian CLI, SDK and live Haiku 5.5 on Linux,
+without starting a Pi session. Require the baseline streamed signal exit to be
+non-retryable, the candidate's to be retryable, and the candidate's normal drain
+to finish admitted work while refusing new turns with 503. This qualifies the
+provider/error policy, not Pi's outer automatic retry loop or interactive UI.
+Review all state-root isolation before starting; never target a managed service.
+
 ## Pi extension (#1408)
 
 Three harnesses use the actual Pi CLI with the extension that

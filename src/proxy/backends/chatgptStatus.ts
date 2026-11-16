@@ -70,7 +70,7 @@ export function chatGptProvider(input: {
       { name: 'Credentials', status: source.mode, detail: source.mode === 'follow-external'
         ? 'Follows the oc-codex-multi-auth store read-only. Meridian never refreshes or writes it.'
         : 'Meridian owns these accounts and holds the single refresh lease.' },
-      { name: 'Pass-through', status: 'on', detail: 'No Claude prompt, no scrubbing, no request plugins. Only store=false, stream=true, the encrypted-reasoning include and removing max_output_tokens are adapted, as the backend requires.' },
+      { name: 'Pass-through', status: 'on', detail: 'No Claude prompt, no scrubbing, no request plugins. Only store=false, stream=true, the encrypted-reasoning include and removing max_output_tokens, temperature and top_p are adapted, as the backend requires.' },
       modelsCapability(input.models),
       { name: 'Thinking', status: 'summaries', detail: 'ChatGPT exposes only short reasoning summaries and encrypted reasoning; both pass through untouched.' },
     ],
