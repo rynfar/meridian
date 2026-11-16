@@ -376,9 +376,16 @@ async function recheckStoredPlan(store: CredentialStore): Promise<boolean> {
   if (!credentials?.claudeAiOauth.accessToken) return false
   const update = await readPlanUpdate(credentials.claudeAiOauth, store)
   if (!update) return true
-  credentials.claudeAiOauth = { ...credentials.claudeAiOauth, ...update.fields, planCheckedAt: update.checkedAt }
-  if (update.fields.seatTier === null) delete credentials.claudeAiOauth.seatTier
-  if (!(await store.write(credentials))) return false
+  // The slot does not cover the CLI, a re-login or another instance, any of
+  // which may rotate the tokens during the lookup. Lay the plan over what is
+  // on disk now, and only while it is still the token the plan was read with:
+  // writing back the tokens read before the lookup could restore a spent
+  // refresh token.
+  const current = await store.read()
+  if (current?.claudeAiOauth.accessToken !== credentials.claudeAiOauth.accessToken) return true
+  current.claudeAiOauth = { ...current.claudeAiOauth, ...update.fields, planCheckedAt: update.checkedAt }
+  if (update.fields.seatTier === null) delete current.claudeAiOauth.seatTier
+  if (!(await store.write(current))) return false
   invalidateCredentialFacts(store.refreshKey)
   claudeLog("auth.plan_rechecked", { fields: update.fields, checkedAt: update.checkedAt })
   return true

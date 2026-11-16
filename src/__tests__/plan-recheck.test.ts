@@ -58,6 +58,22 @@ afterEach(() => {
 })
 
 describe("periodic plan recheck", () => {
+  it("never writes back tokens another writer rotated during the plan lookup", async () => {
+    const f = fixture({ subscriptionType: "max", rateLimitTier: "default_claude_max_5x" })
+    await getStoredPlanFields(f.store)
+    stubFetch(async (url) => {
+      if (String(url) !== PROFILE_URL) throw new Error("Plan recheck must not rotate a valid token")
+      // The CLI, a re-login or another instance rotates the tokens meanwhile.
+      await f.store.write({ claudeAiOauth: { ...f.credentials().claudeAiOauth, accessToken: "rotated-access", refreshToken: "rotated-refresh" } })
+      return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_20x" } })
+    })
+
+    await ensureFreshToken(f.store)
+
+    expect(f.credentials().claudeAiOauth.accessToken).toBe("rotated-access")
+    expect(f.credentials().claudeAiOauth.refreshToken).toBe("rotated-refresh")
+  })
+
   it("does not put optional plan lookup on the valid-token foreground path", async () => {
     const f = fixture({ subscriptionType: "max", rateLimitTier: "default_claude_max_5x" })
     f.source({ organization_type: "claude_max", rate_limit_tier: "default_claude_max_20x" })
