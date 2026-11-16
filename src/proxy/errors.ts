@@ -468,7 +468,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       return {
         status: 503,
         type: "api_error",
-        message: `Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (${reason}), as happens when Meridian restarts. Retry the request.`
+        message: `Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (${reason}), as happens when Meridian restarts or the process is killed for memory. Retry the request.`
       }
     }
 

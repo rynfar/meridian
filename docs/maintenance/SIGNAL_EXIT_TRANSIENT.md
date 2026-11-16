@@ -13,7 +13,7 @@ a stopped process.
 `classifyError` now returns 503 `api_error` with this message for numeric signal
 exits (the parenthesis names the actual code or signal):
 
-> Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (exit code 143), as happens when Meridian restarts. Retry the request.
+> Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (exit code 143), as happens when Meridian restarts or the process is killed for memory. Retry the request.
 
 Only the text before `Subprocess stderr:` can supply the SDK's null-code signal
 name; quoted signal text in appended stderr is not termination evidence.
@@ -75,7 +75,7 @@ children before disposing of state. Do not use it against a managed instance.
 
 Baseline: upstream `a4b0f8b592f842a135af3e4c73f09886b2b3ef57` (1.91.0).
 Candidate: that baseline plus the signal classifier and regression tests in
-this contribution, ported from the author's `66be8a4d` and `ce5bc25a`.
+this contribution.
 Tested tuple: Node 22.23.4, Bun 1.3.14 for local gates, Agent SDK 0.2.141,
 Claude Code 2.1.322, Pi AI 1.5.2, requested/pinned `claude-haiku-5-5`.
 This does not claim an independent provider-served-model receipt.
@@ -89,6 +89,15 @@ requests were rejected before model admission.
 | Unchanged upstream crash | owned request child, SIGTERM | HTTP 200 stream; code-143 login advice; retryable **false**; first text 2149 ms, error 2575 ms | exit 0; zero observed residual descendants |
 | Candidate crash | owned request child, SIGTERM | HTTP 200 stream; transient `api_error`, `retry_after: 5`; retryable **true**; first text 6050 ms, error 6120 ms | exit 0; zero observed residual descendants |
 | Candidate drain, 30 s grace | scratch server only, SIGTERM | admitted turn completes with `message_stop` and Pi `stop`; new turns get retryable 503 `overloaded_error`; completion 8632 ms after signal | exit 0; zero observed residual descendants |
+
+Maintainer rerun (2026-11-16, Linux x86_64, Bun 1.4.3, Agent SDK 0.2.141,
+Claude Code 2.1.322, `claude-sonnet-5`): a real streaming `/v1/messages`
+request whose Claude Code child was signalled after the first text delta.
+
+| Signal | Unchanged main | Candidate |
+|---|---|---|
+| SIGTERM | `api_error`: "exited unexpectedly (code 143) … try 'claude login'" | `api_error`, `retry_after: 5`, stopped by a signal (exit code 143) |
+| SIGKILL | not run | `api_error`, `retry_after: 5`, stopped by a signal (signal SIGKILL) |
 
 This proves the affected provider/error-policy surface, not the interactive Pi
 UI, its extension discovery, its outer automatic retry loop, or all supervisor

@@ -211,7 +211,7 @@ describe("Stream error recovery after message_start", () => {
     const errorIndex = events.findIndex(event => event.event === "error")
     const error = events[errorIndex]?.data as { error: { type: string; message: string } }
     expect(error.error.type).toBe("api_error")
-    expect(error.error.message).toBe("Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (exit code 143), as happens when Meridian restarts. Retry the request.")
+    expect(error.error.message).toBe("Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (exit code 143), as happens when Meridian restarts or the process is killed for memory. Retry the request.")
     expect(events.findIndex(event => event.event === "content_block_delta")).toBeLessThan(errorIndex)
     expect(events.findIndex(event => event.event === "message_stop")).toBeGreaterThan(errorIndex)
   })
