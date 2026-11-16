@@ -34,6 +34,7 @@ import {
 import { getSetting, setSetting } from "../settings"
 import { publishProfileConfig, readProfileConfigForUpdate, withProfileConfigLock, withProfileConfigLockSync } from "./profileConfigStore"
 import { createPlatformCredentialStore, type CredentialsFile } from "./tokenRefresh"
+import { noteAuthLogin } from "./authLifecycle"
 
 const OAUTH_AUTHORIZE_URL = "https://claude.com/cai/oauth/authorize"
 export const OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
@@ -431,7 +432,20 @@ export async function exchangeAuthorizationCodeForCredentials(params: OAuthExcha
     payload: describeAuthFields(credentials.claudeAiOauth),
   })
   const written = await store.write(credentials)
+  if (written) {
+    await noteAuthLogin(store.refreshKey, {
+      refreshTokenExpiresAt: credentials.claudeAiOauth.refreshTokenExpiresAt,
+      refreshToken: credentials.claudeAiOauth.refreshToken,
+    })
+  }
   return written ? { ok: true } : { ok: false, reason: "write_failed" }
+}
+
+/** `claude auth login` wrote the credential itself, so the login is read back from it. */
+async function recordCliLogin(configDir: string | undefined): Promise<void> {
+  const store = createPlatformCredentialStore(configDir ? { claudeConfigDir: configDir } : undefined)
+  const oauth = (await store.read().catch(() => null))?.claudeAiOauth
+  await noteAuthLogin(store.refreshKey, { refreshTokenExpiresAt: oauth?.refreshTokenExpiresAt, refreshToken: oauth?.refreshToken })
 }
 
 async function completeManualOAuthLogin(configDir: string): Promise<boolean> {
@@ -654,6 +668,7 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
     process.exit(1)
   }
 
+  if (!options.headless) await recordCliLogin(configDir)
   console.log()
   console.log(`\x1b[32m✓ Profile "${id}" created — logged in as ${auth.email} (${auth.subscriptionType || "unknown"})\x1b[0m`)
 
@@ -956,6 +971,7 @@ export async function profileLogin(id: string, options: AuthLoginOptions = {}): 
 
   const auth = getAuthStatus(profile.claudeConfigDir ?? "")
   if (auth.loggedIn) {
+    if (!options.headless) await recordCliLogin(profile.claudeConfigDir)
     console.log(`\x1b[32m✓ Profile "${id}" authenticated as ${auth.email}\x1b[0m`)
   }
 }

@@ -273,17 +273,45 @@ describe("qualified current credential expiry facts", () => {
     expect(facts[2]!.title).toContain("may be estimated")
   })
 
-  test("a passed refresh deadline retains future access expiry and never invents logout or login age", () => {
+  // Review finding 5 (#1260): a refused renewal while the access token works
+  // is a countdown on a serving account, never "Logged out".
+  test("a refused renewal on a serving account counts down to its access expiry and keeps every countdown", () => {
     const facts = currentFacts({ loggedIn: true, refreshTokenExpiresAt: now - hour,
       accessTokenExpiresAt: now + 3 * hour, firstUnauthedAt: now - hour,
-      unauthedReason: "refresh_rejected", authObtainedAt: now - day })
-    expect(facts[0]!.value).toBe("✓ Authenticated")
-    expect(facts[1]!.value).toBe("passed — login may need renewal")
-    expect(facts[1]!.tone).toBe("warn")
-    expect(facts[2]!.value).toBe("expires in 3h 0m")
-    expect(facts.map(f => f.label)).not.toContain("Logged out")
-    expect(facts.map(f => f.label)).not.toContain("Logged in")
-    expect(facts.some(f => /stops in|can no longer|cannot renew/.test(f.value))).toBe(false)
+      unauthedReason: "refresh_rejected", authObtainedAt: now - day, authObtainedVia: "login" })
+    expect(facts.map(f => [f.label, f.value, f.tone])).toEqual([
+      ["Status", "✓ Authenticated", "ok"],
+      ["Renewal refused", "stops in 3h 0m", "warn"],
+      ["Refresh deadline", "passed — login may need renewal", "warn"],
+      ["Stored access token", "expires in 3h 0m", ""],
+      ["Logged in", "1d 0h ago", ""],
+    ])
+    expect(facts[1]!.title).toContain(new Date(now + 3 * hour).toLocaleString())
+  })
+
+  test("once that access token has run out the account is logged out, with why and since when", () => {
+    const facts = currentFacts({ loggedIn: false, accessTokenExpiresAt: now - 1,
+      firstUnauthedAt: now - 2 * hour, unauthedReason: "refresh_rejected" })
+    expect(facts[1]).toMatchObject({ label: "Logged out", value: "2h 0m ago", tone: "err" })
+    expect(facts[1]!.title).toBe("Since " + new Date(now - 2 * hour).toLocaleString()
+      + ": Anthropic refused to renew the login, and its access token has expired.")
+    expect(facts.map(f => f.label)).not.toContain("Renewal refused")
+  })
+
+  test("a cleared credential is logged out whatever its stored access expiry says", () => {
+    const facts = currentFacts({ loggedIn: false, accessTokenExpiresAt: now + hour,
+      firstUnauthedAt: now - 5 * 60_000, unauthedReason: "credentials_cleared" })
+    expect(facts[1]).toMatchObject({ label: "Logged out", value: "5m ago", tone: "err" })
+    expect(facts[1]!.title).toContain("the stored credential has no access token")
+  })
+
+  test("the login age says how it is known and when Meridian last renewed it", () => {
+    const observed = currentFacts({ loggedIn: true, authObtainedAt: now - 6 * day, authObtainedVia: "observed", lastRefreshAt: now - hour })
+      .find(f => f.label === "Logged in")!
+    expect(observed.value).toBe("6d 0h ago")
+    expect(observed.title).toContain("when Meridian found it on disk")
+    expect(observed.title).toContain("Last renewed by Meridian " + new Date(now - hour).toLocaleString())
+    expect(currentFacts({ loggedIn: true, authObtainedAt: null }).map(f => f.label)).not.toContain("Logged in")
   })
 
   test("past access metadata stays advisory and cached auth remains qualified", () => {
@@ -298,6 +326,23 @@ describe("qualified current credential expiry facts", () => {
       accessTokenExpiresAt: null, renewalRequiredSoon: false })).toEqual([
       { label: "Status", value: "never read", tone: "err", cached: false },
     ])
+  })
+
+  // The #1260 review's landing note: the overlay must carry each fact's title,
+  // which is where a logout's reason and an observed login's qualification live.
+  test("the landing overlay carries a login-history fact's reason, from the real builder", () => {
+    const escape = (s: unknown) => String(s).replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[ch]!)
+    const source = landingHtml.slice(landingHtml.indexOf("function infoIcon(entry,type)"),
+      landingHtml.indexOf("function infoPopOpen"))
+    const infoIcon = new Function("profileFacts", "esc", "profileHref", source + "\nreturn infoIcon;")(
+      currentFacts, escape, (id: string) => "/profiles#" + id,
+    ) as (p: Record<string, unknown>) => string
+    const html = infoIcon({ id: "refused", loggedIn: true, accessTokenExpiresAt: now + 3 * hour,
+      firstUnauthedAt: now - hour, unauthedReason: "refresh_rejected", authObtainedAt: now - day, authObtainedVia: "observed" })
+    expect(html).toContain('<span class="fact-explanation" aria-hidden="true">Anthropic refused to renew the login at ')
+    expect(html).toContain(escape("(when Meridian found it on disk; the sign-in itself may be earlier)"))
   })
 
   test("both actual row renderers preserve escaped qualifiers, focus names and warning tone", () => {

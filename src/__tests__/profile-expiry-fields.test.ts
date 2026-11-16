@@ -1,6 +1,6 @@
 /**
- * Credentialless HTTP gate for the four profile-expiry fields on
- * GET /profiles/list. Credential stores and native/SDK/network boundaries are
+ * Credentialless HTTP gate for the four profile-expiry fields and the five
+ * login-history fields on GET /profiles/list. Credential stores and native/SDK/network boundaries are
  * injected; this does not prove real Keychain, file-store, provider or client
  * operation.
  */
@@ -25,6 +25,7 @@ const scenarios = [
   "replacement",
   "single-snapshot",
   "provenance",
+  "history",
 ] as const
 type Scenario = (typeof scenarios)[number]
 
@@ -85,7 +86,7 @@ if (!isScenario(arg)) {
         clearTimeout(timer)
       }
     }
-    expect(controls).toHaveLength(8)
+    expect(controls).toHaveLength(scenarios.length)
     const assertions = controls.reduce((total, control) => total + (control.result?.assertions ?? 0), 0)
     expect(assertions).toBeGreaterThan(100)
     expect(
@@ -198,11 +199,12 @@ if (!isScenario(arg)) {
       deadline: unknown = clock + 2 * DAY,
       accessExpiry: unknown = clock + HOUR,
       accessToken = "synthetic-access",
+      refreshToken = "synthetic-refresh",
     ): CredentialsFile => {
       const file: CredentialsFile = {
         claudeAiOauth: {
           accessToken,
-          refreshToken: "synthetic-refresh",
+          refreshToken,
           expiresAt: clock + HOUR,
           subscriptionType: "max",
           rateLimitTier: "default_claude_max_20x",
@@ -261,17 +263,16 @@ if (!isScenario(arg)) {
         const item = body.profiles[i]!
         const input = profiles[i]!
         for (const field of expiryFields) check(Object.hasOwn(item, field), `Four-field expiry contract missing ${field}`)
-        for (const field of historyFields) check(!Object.hasOwn(item, field), `Unapproved history field ${field} appeared`)
+        for (const field of historyFields) check(Object.hasOwn(item, field), `Login history field ${field} missing`)
         equal(
           Object.keys(item).sort(),
-          [...baseFields, ...expiryFields, ...statusFields, ...(input.aliases ? ["aliases"] : [])].sort(),
-          "Profile response changed fields beyond the approved expiry (four) and #1446 duplicate/factsRefresh (three) additions",
+          [...baseFields, ...expiryFields, ...historyFields, ...statusFields, ...(input.aliases ? ["aliases"] : [])].sort(),
+          "Profile response changed fields beyond the expiry (four), login history (five) and #1446 duplicate/factsRefresh (three) additions",
         )
         equal(item.type, input.type ?? "claude-max", "Existing profile type changed")
         equal(item.isActive, i === 0, "Existing active-profile flag changed")
         if (input.aliases) equal(item.aliases, input.aliases, "Existing aliases changed")
       }
-      check(!existsSync(join(root, "config", "auth-lifecycle.json")), "Profile polling persisted unapproved lifetime history")
       return body.profiles
     }
     const facts = (item: Record<string, unknown>, deadline: unknown, accessExpiry: unknown, warnDays = 3) => {
@@ -426,6 +427,36 @@ if (!isScenario(arg)) {
         )
         facts(item!, clock - HOUR, clock + HOUR)
       }
+    } else if (scenario === "history") {
+      const lifecycle = await import("../proxy/authLifecycle")
+      const history = (item: Record<string, unknown>) => historyFields.map(field => item[field])
+      const { dir, state } = fixture("history", credential(clock + 29 * DAY, clock + 3 * HOUR))
+      const profiles = [profile("history", dir)]
+      const app = open(profiles)
+      const [unrecorded] = await list(app, profiles)
+      equal(history(unrecorded!), [null, null, null, null, null], "A credential with no recorded login invented history")
+      check(existsSync(join(root, "config", "auth-lifecycle.json")), "The observed credential identity was not kept")
+
+      await lifecycle.noteAuthLogin(state.store.refreshKey, { at: clock - DAY, refreshToken: "synthetic-refresh", refreshTokenExpiresAt: clock + 29 * DAY })
+      const [loggedIn] = await list(app, profiles)
+      equal(history(loggedIn!), [clock - DAY, "login", null, null, null], "The recorded login was not reported")
+
+      // Finding 5: a refused renewal while the access token still works serves.
+      await lifecycle.noteRefreshRejected(state.store.refreshKey, { at: clock - HOUR, refreshToken: "synthetic-refresh", detail: "invalid_grant" })
+      const [serving] = await list(app, profiles)
+      equal(history(serving!), [clock - DAY, "login", null, clock - HOUR, "refresh_rejected"], "The refusal was not reported")
+      equal(serving!.loggedIn, true, "An account whose access token still works was reported logged out")
+      state.value = credential(clock + 29 * DAY, clock - 1)
+      const [expired] = await list(app, profiles)
+      equal(expired!.loggedIn, false, "A refused account whose access token ran out was reported logged in")
+
+      // Finding 4: a different refresh token with a nearer deadline is a new
+      // login, and nothing of the refused grant survives it.
+      state.value = credential(clock + 28 * DAY, clock + 8 * HOUR, "synthetic-access", "synthetic-refresh-relogin")
+      const [relogin] = await list(app, profiles)
+      equal(history(relogin!), [clock, "observed", null, null, null], "A replacement login kept the previous grant's state")
+      equal(relogin!.loggedIn, true, "A replacement login stayed logged out")
+      facts(relogin!, clock + 28 * DAY, clock + 8 * HOUR)
     }
     equal(nativeCalls, 0, "Mock-store HTTP gate executed a native command")
     equal(sdkCalls, 0, "Profile metadata reached the SDK/model")

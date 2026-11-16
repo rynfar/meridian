@@ -63,6 +63,40 @@ function expiryFacts(p, now) {
   return facts;
 }
 
+var LOGIN_SOURCE = {
+  login: ' (signed in through Meridian)',
+  observed: ' (when Meridian found it on disk; the sign-in itself may be earlier)'
+};
+
+// Meridian's login history for the stored credential. A refused renewal is a
+// countdown while the access token it left behind still works; only after
+// that, or when the credential has no access token, is the account logged out.
+function loginFacts(p, now) {
+  var facts = [];
+  if (p.firstUnauthedAt) {
+    var since = new Date(p.firstUnauthedAt).toLocaleString();
+    var refused = p.unauthedReason === 'refresh_rejected';
+    var accessLeft = p.accessTokenExpiresAt ? p.accessTokenExpiresAt - now : 0;
+    if (refused && accessLeft > 0) {
+      facts.push({ label: 'Renewal refused', value: 'stops in ' + expirySpan(accessLeft), tone: 'warn',
+        title: 'Anthropic refused to renew the login at ' + since + '. It keeps serving until its access token expires at '
+          + new Date(p.accessTokenExpiresAt).toLocaleString() + '; log in again before then.' });
+    } else {
+      facts.push({ label: 'Logged out', value: expirySpan(now - p.firstUnauthedAt) + ' ago', tone: 'err',
+        title: 'Since ' + since + (refused ? ': Anthropic refused to renew the login, and its access token has expired.'
+          : ': the stored credential has no access token.') });
+    }
+  }
+  return facts;
+}
+
+function loginAgeFact(p, now) {
+  if (!p.authObtainedAt) return [];
+  var renewed = p.lastRefreshAt ? '. Last renewed by Meridian ' + new Date(p.lastRefreshAt).toLocaleString() : '';
+  return [{ label: 'Logged in', value: expirySpan(now - p.authObtainedAt) + ' ago', tone: '',
+    title: new Date(p.authObtainedAt).toLocaleString() + (LOGIN_SOURCE[p.authObtainedVia] || '') + renewed }];
+}
+
 function isChatGptProfile(p) {
   return !!p && (p.provider === 'chatgpt' || p.type === 'chatgpt');
 }
@@ -125,7 +159,8 @@ function profileFacts(p) {
     tone: p.loggedIn ? 'ok' : 'err',
     cached: authStale && p.authProvenance !== 'never'
   });
-  facts = facts.concat(expiryFacts(p, Date.now()));
+  var now = Date.now();
+  facts = facts.concat(loginFacts(p, now), expiryFacts(p, now), loginAgeFact(p, now));
   if (p.email) facts.push({ label: 'Email', value: p.email, tone: '', cached: authStale });
   if (p.organizationName) facts.push({ label: 'Organization', value: p.organizationName, tone: '' });
   if (p.accountType) facts.push({ label: 'Account', value: p.accountType, tone: '' });
