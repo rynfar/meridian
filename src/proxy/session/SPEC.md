@@ -203,6 +203,29 @@ reclaim, not through a second `releaseOwned`: a bare release racing a
 same-process reclaim could move a successor's live lock between its check and
 its rename, breaking mutual exclusion.
 
+## Process-lifetime files
+
+The `session-gc.json.lock` candidate (`sessionLifecycle.ts`), SDK process gates
+(`sdkProcessGate.ts`) and deletion gates only matter while the process that
+wrote them lives, so they are not fsynced, neither the file nor its directory.
+Every process reads them through the page cache, so a process crash loses
+nothing; only an OS crash or power loss can, and that ends their writers too.
+Each fsync used to cost ~250 ms of journal wait on a loaded Linux host, about
+two a second for the lifecycle lock alone.
+
+A power loss can leave the lifecycle lock linked to an inode whose data never
+reached the disk, so its owner cannot be parsed. A live holder never leaves
+one: it writes the candidate completely before linking it. Stale recovery
+therefore reclaims an unparseable lock once its mtime predates the current
+boot (`predatesBoot` in `processIncarnation.ts`); one written during this boot
+still fails closed. A parseable lock is still recovered only from a proven
+dead owner.
+
+Kept fsynced: recovery claims, since an unreadable claim would block recovery
+of its generation even after a reboot; `session-gc.json` and the store files;
+and turn locks, whose ownerless recovery fails closed (#1223), so an owner
+record a power loss tore would wedge its conversation for good.
+
 ## Regrouped user messages
 
 A client may regroup its user messages between requests without changing
