@@ -11448,6 +11448,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   })
 
   app.post("/auth/refresh", async (c) => {
+    const unknownPin = unknownPinnedProfile(
+      c.req.header("x-meridian-profile"),
+      getEffectiveProfiles(finalConfig.profiles),
+    )
+    if (unknownPin !== undefined) return unknownProfileResponse(unknownPin)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,
@@ -12257,6 +12262,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // auth resolved by the design module (design token first, then profile
   // credentials).
   app.post("/v1/design/*", async (c) => {
+    const unknownPin = unknownPinnedProfile(
+      c.req.header("x-meridian-profile"),
+      getEffectiveProfiles(finalConfig.profiles),
+    )
+    if (unknownPin !== undefined) return unknownProfileResponse(unknownPin)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,

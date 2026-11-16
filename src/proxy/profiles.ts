@@ -393,7 +393,8 @@ export function findProfileByIdOrAlias(
  * spending an account the client never asked for. `isOtherPool` names ids
  * another pool on this instance serves (ChatGPT seats); those keep their
  * existing handling. An instance with no profiles has nothing to pin and
- * ignores the header as before.
+ * ignores the header as before, and `default` keeps resolving as it always has
+ * for clients that send it unconditionally.
  */
 export function unknownPinnedProfile(
   requested: string | undefined,
@@ -401,7 +402,7 @@ export function unknownPinnedProfile(
   isOtherPool: (id: string) => boolean = () => false,
 ): string | undefined {
   const id = requested?.trim()
-  if (!id || profiles.length === 0) return undefined
+  if (!id || profiles.length === 0 || id === DEFAULT_PROFILE_ID) return undefined
   if (findProfileByIdOrAlias(profiles, id) || isOtherPool(id)) return undefined
   return id
 }

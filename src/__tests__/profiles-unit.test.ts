@@ -485,6 +485,10 @@ describe("unknownPinnedProfile", () => {
     expect(unknownPinnedProfile("anything", [])).toBeUndefined()
   })
 
+  test("default keeps resolving for clients that send it unconditionally", () => {
+    expect(unknownPinnedProfile("default", profiles)).toBeUndefined()
+  })
+
   test("a pin naming nothing is reported rather than served from the first profile", async () => {
     expect(unknownPinnedProfile(" typo ", profiles)).toBe("typo")
     expect(resolveProfile(profiles, undefined, "typo").id).toBe("personal")

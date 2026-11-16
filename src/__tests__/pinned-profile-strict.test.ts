@@ -112,4 +112,22 @@ describe("a pinned request never reaches another account", () => {
     expect(queriedDirs.length).toBeGreaterThan(0)
     expect(queriedDirs.some(dir => dir.includes("pinstrict-personal"))).toBe(false)
   })
+
+  it("refuses a token refresh pinned to a profile that does not exist", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1", profiles: PROFILES, defaultProfile: "work" })
+    const res = await app.fetch(new Request("http://localhost/auth/refresh", {
+      method: "POST", headers: { "x-meridian-profile": "no-such-profile" },
+    }))
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: { type: string } }).error.type).toBe("unknown_profile")
+  })
+
+  it("refuses a design request pinned to a profile that does not exist", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1", profiles: PROFILES, defaultProfile: "work" })
+    const res = await app.fetch(new Request("http://localhost/v1/design/mcp", {
+      method: "POST", headers: { "Content-Type": "application/json", "x-meridian-profile": "no-such-profile" }, body: "{}",
+    }))
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: { type: string } }).error.type).toBe("unknown_profile")
+  })
 })
