@@ -73,6 +73,9 @@ const MODEL_BUCKETS: Record<string, string> = {
   opus: "seven_day_opus",
   sonnet: "seven_day_sonnet",
   fable: "seven_day_fable",
+  // Mythos rides the Fable tier (claudeModelFamily), so its weekly budget is
+  // the Fable bucket.
+  mythos: "seven_day_fable",
 }
 
 /**

@@ -46,6 +46,7 @@ describe("parseLimitWording", () => {
     expect(parseLimitWording("You've reached your Fable 5 limit. /model to switch models.").bucket).toBe("seven_day_fable")
     expect(parseLimitWording("You've reached your Claude Opus 4.6 limit").bucket).toBe("seven_day_opus")
     expect(parseLimitWording("You've reached your Sonnet 4.6 limit").bucket).toBe("seven_day_sonnet")
+    expect(parseLimitWording("You've reached your Mythos 5 limit").bucket).toBe("seven_day_fable")
     expect(parseLimitWording("You've reached your specified limit").bucket).toBeNull()
   })
 
