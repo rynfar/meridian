@@ -650,6 +650,11 @@ describe("isExpiredTokenError", () => {
     )).toBe(true)
   })
 
+  it("detects the access-token wording returned by Anthropic", async () => {
+    const { isExpiredTokenError } = await import("../proxy/errors")
+    expect(isExpiredTokenError("OAuth access token has expired")).toBe(true)
+  })
+
   it("is case-insensitive", async () => {
     const { isExpiredTokenError } = await import("../proxy/errors")
     expect(isExpiredTokenError("oauth token has expired")).toBe(true)

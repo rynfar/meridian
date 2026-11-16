@@ -228,7 +228,7 @@ describe("Session mappings across a profile switch", () => {
       { role: "assistant", content: "b" },
       { role: "user", content: "c" },
     ]
-    storeSession("personal:test-session-123", msgs, "claude-abc")
+    await storeSession("personal:test-session-123", msgs, "claude-abc")
 
     const res = await app.fetch(req("/profiles/active", {
       method: "POST",

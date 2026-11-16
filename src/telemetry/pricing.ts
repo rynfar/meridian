@@ -12,7 +12,8 @@
  * Users can override any rate, or add models missing from this table, via
  * the settings page (persisted by pricingStore.ts; overrides win in
  * resolveModelPricing). Cache rates are derived from the input rate unless
- * a model has an explicit exception (Opus 5.5 reads are 0.05×):
+ * a model has an explicit exception (Opus 5.5 reads are 0.05×, Fable 5.2
+ * reads 0.025×):
  *   - cache read  = 0.10× input
  *   - cache write = 1.25× input (5-minute TTL, the TTL the SDK uses, see
  *     MONITORING.md; 1-hour TTL writes bill at 2×, so if a client opted into
@@ -95,6 +96,7 @@ function rates(inputPerMTok: number, outputPerMTok: number): ModelPricing {
 }
 
 const FABLE = rates(10, 50)
+const FABLE_52: ModelPricing = { ...rates(8, 40), cacheReadPerMTok: 0.2 }
 const OPUS = rates(5, 25) // Opus 4.5 through 5
 // Opus 5.5 cache reads are 5% of input (official model specs, 2026-09-22).
 const OPUS_55: ModelPricing = { ...rates(4, 20), cacheReadPerMTok: 0.2 }
@@ -125,8 +127,10 @@ const HAIKU_3 = rates(0.25, 1.25)
  */
 export const BUILTIN_MODEL_PRICING: Record<string, ModelPricing> = {
   fable: FABLE,
+  "claude-fable-5-2": FABLE_52,
   "claude-fable-5-1": FABLE,
   "claude-fable-5": FABLE,
+  "claude-mythos-5-2": FABLE_52,
   "claude-mythos-5-1": FABLE,
   "claude-mythos-5": FABLE,
   opus: OPUS_55,

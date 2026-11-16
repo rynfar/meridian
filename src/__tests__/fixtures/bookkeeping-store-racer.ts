@@ -10,10 +10,10 @@ store.setSessionStoreBackendForTest(sqliteSessionStoreBackend)
 const timeout = Object.values(connectionFor(input.directory).db!.prepare("PRAGMA busy_timeout").get()!)[0]
 if (timeout !== 0) throw new Error(`native timeout must be zero, got ${timeout}`)
 Atomics.wait = () => { throw new Error("synchronous sleep forbidden") }
-process.once("message", (message) => {
+process.once("message", async (message) => {
   if (message !== "go") throw new Error("unexpected barrier signal")
   try {
-    const result = store.storeSharedSessionAndPriorityAssignment(input.publication)
+    const result = (await store.storeSharedSessionAndPriorityAssignment(input.publication))
     process.send!({ outcome: result === false ? "cas" : "won", result })
   } catch (error) {
     if (!(error instanceof BookkeepingBusyError)) throw error

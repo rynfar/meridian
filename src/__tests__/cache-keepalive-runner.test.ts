@@ -15,10 +15,10 @@ let dir = ""
 const cwd = "/tmp/keepalive-project"
 const sessionId = "11111111-1111-4111-8111-111111111111"
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "meridian-keepalive-runner-"))
   setSessionStoreDir(dir)
-  storeSharedSession("ses_runner", sessionId, 1, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+  await storeSharedSession("ses_runner", sessionId, 1, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     { sessionId, configDir: dir, projectDir: cwd })
 })
 

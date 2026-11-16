@@ -179,6 +179,20 @@ describe("landing page layout", () => {
     expect(landingHtml).toContain("ANTHROPIC_BASE_URL")
   })
 
+  test("the intro's address chips wrap on a phone instead of scrolling it sideways", () => {
+    const phone = landingHtml.indexOf("@media (max-width: 720px) {\n    .intro code {")
+    expect(phone).toBeGreaterThanOrEqual(0)
+    const rule = landingHtml.slice(phone, landingHtml.indexOf("}", phone))
+    expect(rule).toContain("white-space: normal")
+    expect(rule).toContain("overflow-wrap: anywhere")
+  })
+
+  test("a Claude Code executable path wraps inside its Settings card", () => {
+    const at = settingsPageHtml.indexOf("#claude-exe-card code {")
+    expect(at).toBeGreaterThanOrEqual(0)
+    expect(settingsPageHtml.slice(at, settingsPageHtml.indexOf("}", at))).toContain("overflow-wrap: anywhere")
+  })
+
   test("stats strip shows meaningful telemetry, not fillers", () => {
     // Token + cache signals are in; TTFB stays on the /telemetry page
     expect(landingHtml).toContain("tokenUsage")
@@ -203,6 +217,30 @@ describe("landing page layout", () => {
     expect(profilePageHtml).toContain(isUnusableJs)
     expect(landingHtml).toContain(".profile-card.needs-login { border-color: var(--red); }")
     expect(landingHtml).not.toContain("dashed")
+  })
+
+  test("the (i) popup spans its card, a few px in from each edge, on desktop and on a phone", () => {
+    // It used to hang off the icon at a 256px minimum, about half a desktop
+    // card, and wrapped every long value. Now it hangs from the header row,
+    // which spans the card's content box, and reaches out by the card's
+    // horizontal padding less a small inset - so its width follows the card.
+    const css = landingHtml.slice(0, landingHtml.indexOf("</style>"))
+    const cardPad = (rule: RegExp) => Number(css.match(rule)?.[1])
+    const popInset = (rule: RegExp) => css.match(rule)?.slice(1).map(Number)
+    const desktopPad = cardPad(/\.profile-card \{ background:[^}]*?padding: \d+px (\d+)px;/)
+    const phonePad = cardPad(/@media \(max-width: 720px\) \{[^@]*?\.profile-card \{ padding: \d+px (\d+)px; \}/)
+    const desktop = popInset(/\.prof-pop \{ position: absolute;[^}]*?left: -(\d+)px; right: -(\d+)px;/)
+    const phone = popInset(/@media \(max-width: 720px\) \{\s*\.prof-pop \{ left: -(\d+)px; right: -(\d+)px; \}/)
+    for (const [pad, inset] of [[desktopPad, desktop], [phonePad, phone]] as const) {
+      expect(inset).toHaveLength(2)
+      for (const reach of inset ?? []) {
+        expect(pad - reach).toBeGreaterThan(0)
+        expect(pad - reach).toBeLessThanOrEqual(8)
+      }
+    }
+    expect(css).toContain(".profile-head { position: relative; }")
+    expect(css).not.toMatch(/\.prof-pop \{[^}]*min-width: 256px/)
+    expect(css).not.toContain(".prof-info { position: relative;")
   })
 
   test("the fade never reaches the card itself, so the active ring survives it", () => {

@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
 import { hostname, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
+import {
+  CrossProcessTurnAcquireTimeoutError,
+  CrossProcessTurnCoordinator,
+  CrossProcessTurnOwnershipError,
+} from "../proxy/session/crossProcessTurnCoordinator"
 import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
 
 const coordinatorModule = pathToFileURL(
@@ -215,6 +220,28 @@ async function waitForEvent(path: string, name: string, timeoutMs = 5_000): Prom
   throw new Error(`Timed out waiting for worker event ${name}`)
 }
 
+function lockDirectory(locks: string, key: string): string {
+  return join(locks, `${createHash("sha256").update(key).digest("hex")}.lock`)
+}
+
+/**
+ * Fail the lease's release the way a full disk did: the rename that moves the
+ * lock away is refused, so the directory stays behind with this process's
+ * owner record. A read-only lock root refuses the rename for a non-root user.
+ */
+async function failRelease(locks: string, release: () => Promise<void>): Promise<unknown> {
+  await chmod(locks, 0o500)
+  try {
+    return await release().then(() => undefined, (error: unknown) => error)
+  } finally {
+    await chmod(locks, 0o700)
+  }
+}
+
+// Root ignores directory permissions and Windows has no POSIX modes, so the
+// refused rename cannot be staged there.
+const canStageFailedRelease = process.platform !== "win32" && process.getuid?.() !== 0
+
 async function expectSuccess(child: ReturnType<typeof Bun.spawn>): Promise<void> {
   const exitCode = await child.exited
   if (exitCode === 0) return
@@ -385,5 +412,100 @@ describe("cross-process turn coordinator", () => {
     await expectSuccess(owner)
     const hash = createHash("sha256").update("logical-session").digest("hex")
     expect(await Bun.file(join(paths.locks, `${hash}.lock`, "owner.json")).exists()).toBe(true)
+  })
+
+  test.skipIf(!canStageFailedRelease)("reclaims a lock its own failed release left behind", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 1_000,
+      // Far beyond the test: the abandoned lock is reclaimed because this
+      // process released it, not because its heartbeat aged out.
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [60_000],
+    })
+    const first = await coordinator.acquire("logical-session")
+    const failure = await failRelease(paths.locks, () => first.release())
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(CrossProcessTurnOwnershipError)
+    const lockPath = lockDirectory(paths.locks, "logical-session")
+    expect(await Bun.file(join(lockPath, "owner.json")).exists()).toBe(true)
+
+    const second = await coordinator.acquire("logical-session")
+    expect(second.waitedMs).toBeLessThan(1_000)
+    await second.release()
+    expect(await Bun.file(join(lockPath, "owner.json")).exists()).toBe(false)
+  })
+
+  test("never reclaims a lock this process still holds", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 150,
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+    })
+    const held = await coordinator.acquire("logical-session")
+    try {
+      const contender = await coordinator.acquire("logical-session").then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      expect(contender).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    } finally {
+      await held.release()
+    }
+  })
+
+  test.skipIf(!canStageFailedRelease)("retries a failed release in the background for other processes", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 1_000,
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [50, 250, 1_000],
+    })
+    const lease = await coordinator.acquire("logical-session")
+    expect(await failRelease(paths.locks, () => lease.release())).toBeInstanceOf(Error)
+
+    // No acquire in this process: only the background retry can move it.
+    const ownerFile = join(lockDirectory(paths.locks, "logical-session"), "owner.json")
+    const deadline = Date.now() + 5_000
+    while (await Bun.file(ownerFile).exists()) {
+      if (Date.now() > deadline) throw new Error("abandoned lock was never released")
+      await Bun.sleep(10)
+    }
+  })
+
+  test.skipIf(!canStageFailedRelease)("the background retry never moves a lease that re-acquired the key", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 1_000,
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [100],
+    })
+    const first = await coordinator.acquire("logical-session")
+    expect(await failRelease(paths.locks, () => first.release())).toBeInstanceOf(Error)
+    // Reclaim before the retry fires; the retry then finds a newer generation.
+    const second = await coordinator.acquire("logical-session")
+    try {
+      const ownerFile = join(lockDirectory(paths.locks, "logical-session"), "owner.json")
+      const secondToken = (JSON.parse(await readFile(ownerFile, "utf8")) as { token: string }).token
+      await Bun.sleep(400)
+      expect((JSON.parse(await readFile(ownerFile, "utf8")) as { token: string }).token).toBe(secondToken)
+      const contender = await new CrossProcessTurnCoordinator(paths.locks, {
+        acquireTimeoutMs: 150,
+        staleAfterMs: 60_000,
+        heartbeatIntervalMs: 1_000,
+        retryDelayMs: 10,
+      }).acquire("logical-session").then(() => undefined, (error: unknown) => error)
+      expect(contender).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    } finally {
+      await second.release()
+    }
   })
 })
