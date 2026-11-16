@@ -707,3 +707,98 @@ export class WeeklyReserveTracker {
     return { holds, events }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Extra Usage as a last resort (pool routing). See profiles-routing.spec.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * When pool routing may send work to an account that pays for it with Extra
+ * Usage: `reserve` (default) only once no account has plan allowance left,
+ * `never` not at all, `immediately` in normal order (no special treatment).
+ * The same three words the ChatGPT side uses for Codex credits.
+ */
+export type ClaudeExtraUsagePolicy = "never" | "reserve" | "immediately"
+
+export const CLAUDE_EXTRA_USAGE_POLICIES: readonly ClaudeExtraUsagePolicy[] = ["never", "reserve", "immediately"]
+
+/** Unknown values fall back to `reserve`: a typo must not start spending money. */
+export function getClaudeExtraUsagePolicy(raw: string | undefined): ClaudeExtraUsagePolicy {
+  const lower = raw?.trim().toLowerCase()
+  return lower === "never" || lower === "immediately" ? lower : "reserve"
+}
+
+/** Account-wide plan windows; a spent per-model bucket does not put a turn on Extra Usage. */
+const PLAN_WINDOWS: readonly string[] = ["five_hour", "seven_day"]
+
+/** What has been observed about one account, from either source. Never fetches. */
+export interface ExtraUsageEvidence {
+  /** SDK rate-limit events: `isUsingOverage` says whether the last turn drew Extra Usage. */
+  sdk: ReadonlyArray<{ isUsingOverage?: boolean; resetsAt?: number; observedAt: number }>
+  /** The cached OAuth usage snapshot, when there is one. */
+  oauth?: {
+    fetchedAt: number
+    extraUsageEnabled: boolean
+    windows: ReadonlyArray<{ type: string; utilization: number | null; resetsAt: number | null }>
+  }
+}
+
+/**
+ * Whether the account's next turn would be paid for with Extra Usage: the
+ * newest observation says so. An SDK event names it directly; an OAuth
+ * snapshot implies it when an account-wide plan window is spent and Extra
+ * Usage is on, because Anthropic then keeps serving instead of refusing.
+ * A reading past its window's reset, or one with no reset older than an hour,
+ * says nothing about now.
+ */
+export function drawsExtraUsage(evidence: ExtraUsageEvidence, now: number): boolean {
+  let newest: { at: number; drawing: boolean } | undefined
+  const consider = (at: number, drawing: boolean) => {
+    if (!newest || at > newest.at) newest = { at, drawing }
+  }
+  for (const entry of evidence.sdk) {
+    if (typeof entry.isUsingOverage !== "boolean") continue
+    const live = typeof entry.resetsAt === "number"
+      ? entry.resetsAt > now
+      : now - entry.observedAt <= WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS
+    if (live) consider(entry.observedAt, entry.isUsingOverage)
+  }
+  const oauth = evidence.oauth
+  if (oauth) {
+    const planSpent = oauth.windows.some(w => PLAN_WINDOWS.includes(w.type)
+      && typeof w.utilization === "number" && w.utilization >= 1
+      && typeof w.resetsAt === "number" && w.resetsAt > now)
+    consider(oauth.fetchedAt, oauth.extraUsageEnabled && planSpent)
+  }
+  return newest?.drawing ?? false
+}
+
+export interface ExtraUsageOrder {
+  /** The pool order to route with. */
+  order: string[]
+  /** Accounts moved behind every account with plan allowance; not a home for a session. */
+  lastResort: Set<string>
+  /** `never` left no account to route to; `order` is then the input order. */
+  refused: boolean
+}
+
+/**
+ * Apply the policy to a pool order. `available` says whether an account can
+ * take work at all (not benched); an account on Extra Usage only gives way to
+ * one that can, so a pool whose other members are benched still gets served.
+ */
+export function orderForExtraUsage(
+  order: readonly string[],
+  policy: ClaudeExtraUsagePolicy,
+  drawing: (id: string) => boolean,
+  available: (id: string) => boolean,
+): ExtraUsageOrder {
+  const onExtraUsage = policy === "immediately" ? [] : order.filter(drawing)
+  if (onExtraUsage.length === 0) return { order: [...order], lastResort: new Set(), refused: false }
+  const onPlan = order.filter(id => !onExtraUsage.includes(id))
+  // A refused pool keeps its order so the caller still reaches its refusal
+  // path; a retained route may still need to resume on its account.
+  if (policy === "never") return { order: onPlan.length > 0 ? onPlan : [...order], lastResort: new Set(), refused: onPlan.length === 0 }
+  if (!onPlan.some(available)) return { order: [...order], lastResort: new Set(), refused: false }
+  return { order: [...onPlan, ...onExtraUsage], lastResort: new Set(onExtraUsage), refused: false }
+}

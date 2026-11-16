@@ -108,6 +108,10 @@ describe("cacheKeepaliveAccountBlock", () => {
     })).toBe("overage")
   })
 
+  it("never beats an account whose cached usage says its plan is spent with Extra Usage on", () => {
+    expect(cacheKeepaliveAccountBlock({ ...healthy, drawsExtraUsage: true })).toBe("overage")
+  })
+
   it("never beats a rate-limited, cooling-down, spent or benched account", () => {
     expect(cacheKeepaliveAccountBlock({
       ...healthy,
