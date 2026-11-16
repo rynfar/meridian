@@ -7,9 +7,9 @@
  * Claude path, where the same plugin does run.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, watch, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
@@ -130,24 +130,24 @@ function snapshotPoolDir() {
   return { bytes: readFileSync(poolPath), entries: readdirSync(poolDir).sort() }
 }
 
-// Resolves with `path`'s newline-terminated lines once there are `count` of
-// them. The watcher is armed before the file is read, so no write is missed.
-function completeLines(path: string, count: number, timeoutMs = 5_000): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    const check = () => {
-      const content = existsSync(path) ? readFileSync(path, "utf8") : ""
-      const lines = content.slice(0, content.lastIndexOf("\n") + 1).split("\n").filter(Boolean)
-      if (lines.length < count) return
-      watcher.close()
-      clearTimeout(timer)
-      resolve(lines)
-    }
-    const watcher = watch(dirname(path), check)
+// Resolves once the hook dispatcher logs that `event`'s delivery finished;
+// it logs only after the target has answered or exited. Armed before the
+// action that emits the event, so the line cannot be missed.
+function hookDelivered(event: string, timeoutMs = 10_000): Promise<string> {
+  const original = console.error
+  return new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
-      watcher.close()
-      reject(new Error(`${path} did not reach ${count} lines in ${timeoutMs}ms`))
+      console.error = original
+      reject(new Error(`no ${event} delivery logged in ${timeoutMs}ms`))
     }, timeoutMs)
-    check()
+    console.error = (...args: unknown[]) => {
+      original(...args)
+      const line = args.map(String).join(" ")
+      if (!line.startsWith(`[hooks] ${event} -> `) || line.includes(": running")) return
+      console.error = original
+      clearTimeout(timer)
+      resolve(line)
+    }
   })
 }
 
@@ -1064,7 +1064,7 @@ describe("owned mode signs its own seats in", () => {
       expect(codeExchanges).toBe(0)
 
       // The closed event is delivered after the relayed redirect answers.
-      const closedWritten = completeLines(events, 2)
+      const closedDelivered = hookDelivered("oauth.callback.closed")
       const relayed = await proxy.app.fetch(new Request(`http://localhost/callback/${listening.callback.id}/auth/callback?code=one-time&state=${state}`))
       expect(relayed.status).toBe(200)
       expect(relayed.headers.get("cache-control")).toBe("no-store")
@@ -1073,7 +1073,8 @@ describe("owned mode signs its own seats in", () => {
       const status = await (await proxy.app.fetch(new Request(`http://localhost/profiles/chatgpt/connect/status?connectId=${started.connectId}`))).json()
       expect(status).toMatchObject({ status: "completed", accountUserId: "user-9__workspace-9" })
 
-      const closed = JSON.parse((await closedWritten)[1]!) as { event: string; callback: { id: string; reason: string } }
+      expect(await closedDelivered).toContain(": ok in ")
+      const closed = JSON.parse(readFileSync(events, "utf8").trim().split("\n")[1]!) as { event: string; callback: { id: string; reason: string } }
       expect(closed).toMatchObject({ event: "oauth.callback.closed", callback: { id: listening.callback.id, reason: "completed" } })
 
       const replay = await proxy.app.fetch(new Request(`http://localhost/callback/${listening.callback.id}/auth/callback?code=again&state=${state}`))
