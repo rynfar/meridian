@@ -252,7 +252,7 @@ describe("oauthUsage", () => {
     expect(withBlock.extraUsage).toEqual(without.extraUsage)
     expect(malformed.windows).toEqual(without.windows)
     expect(malformed.extraUsage).toEqual(without.extraUsage)
-    expect(without.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" })
+    expect(without.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 0, usedCredits: 236.3, utilization: null, currency: "USD", exponent: 2 })
   })
 
   test("retains cached and stale reset inventory without leaking it across profiles", async () => {
@@ -346,9 +346,30 @@ describe("oauthUsage", () => {
     const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl })
     expect(result!.extraUsage).not.toBeNull()
     expect(result!.extraUsage!.isEnabled).toBe(true)
-    expect(result!.extraUsage!.usedCredits).toBe(23630)
+    expect(result!.extraUsage!.usedCredits).toBe(236.3)
     expect(result!.extraUsage!.utilization).toBeNull()
     expect(result!.extraUsage!.currency).toBe("USD")
+  })
+
+  // Anthropic sends extra_usage amounts in minor units: claude.ai's admin API
+  // reports the same member's limit as { amount_minor: 500, exponent: 2 },
+  // i.e. $5.00, where this endpoint says monthly_limit: 500.
+  test("converts extra_usage amounts from cents to dollars, past the limit included", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: true, monthly_limit: 500, used_credits: 539, utilization: 100, currency: "USD" } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 5, usedCredits: 5.39, utilization: 1, currency: "USD", exponent: 2 })
+  })
+
+  test("uses decimal_places when the response names it", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: true, monthly_limit: 800, used_credits: 120, utilization: 15, currency: "JPY", decimal_places: 0 } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toMatchObject({ monthlyLimit: 800, usedCredits: 120, currency: "JPY", exponent: 0 })
+  })
+
+  test("reads a disabled extra_usage block with null amounts as zero", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: false, monthly_limit: null, used_credits: null, utilization: null, currency: null, decimal_places: null } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toEqual({ isEnabled: false, monthlyLimit: 0, usedCredits: 0, utilization: null, currency: "USD", exponent: 2 })
   })
 
   test("returns null on upstream error (non-401)", async () => {

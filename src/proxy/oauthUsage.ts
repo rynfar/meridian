@@ -56,10 +56,15 @@ interface RawOAuthWindow {
 
 interface RawOAuthExtraUsage {
   is_enabled?: boolean
-  monthly_limit?: number
-  used_credits?: number
+  /** Minor units (cents for USD): 500 is $5.00. */
+  monthly_limit?: number | null
+  /** Minor units, like `monthly_limit`. */
+  used_credits?: number | null
+  /** 0..100, clamped by Anthropic at 100 even when used exceeds the limit. */
   utilization?: number | null
-  currency?: string
+  currency?: string | null
+  /** Decimal places of the minor unit; absent on some responses. */
+  decimal_places?: number | null
 }
 
 interface RawOAuthLimit {
@@ -97,10 +102,19 @@ export interface OAuthUsageWindow {
 
 export interface OAuthExtraUsageInfo {
   isEnabled: boolean
+  /** Major units of `currency` (dollars for USD). */
   monthlyLimit: number
+  /** Major units; may exceed `monthlyLimit`, since a turn can overshoot it. */
   usedCredits: number
   utilization: number | null
   currency: string
+  /**
+   * Decimal places applied to Anthropic's minor-unit amounts. Its presence
+   * tells a consumer that `monthlyLimit` and `usedCredits` are major units:
+   * Meridian versions without this field served the minor units under the
+   * same names.
+   */
+  exponent: number
 }
 
 export interface OAuthBankedResetGrant {
@@ -338,6 +352,17 @@ function parseBankedResets(raw: unknown): OAuthBankedResets | null {
   }
 }
 
+/** Anthropic's minor unit is cents for USD; `decimal_places` names it when present. */
+const EXTRA_USAGE_DEFAULT_EXPONENT = 2
+
+function extraUsageExponent(raw: number | null | undefined): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 4 ? raw : EXTRA_USAGE_DEFAULT_EXPONENT
+}
+
+function minorToMajor(amount: number | null | undefined, exponent: number): number {
+  return typeof amount === "number" && Number.isFinite(amount) ? amount / 10 ** exponent : 0
+}
+
 function normalizeUtilization(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null
   // OAuth returns 0..100. Normalize to 0..1 to match SDK rate_limit_event.
@@ -384,13 +409,15 @@ function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
   }
 
   const extra = raw.extra_usage
+  const exponent = extraUsageExponent(extra?.decimal_places)
   const extraUsage: OAuthExtraUsageInfo | null = extra
     ? {
         isEnabled: !!extra.is_enabled,
-        monthlyLimit: extra.monthly_limit ?? 0,
-        usedCredits: extra.used_credits ?? 0,
+        monthlyLimit: minorToMajor(extra.monthly_limit, exponent),
+        usedCredits: minorToMajor(extra.used_credits, exponent),
         utilization: normalizeUtilization(extra.utilization ?? null),
         currency: extra.currency ?? "USD",
+        exponent,
       }
     : null
 

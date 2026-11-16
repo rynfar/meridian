@@ -111,7 +111,7 @@ describe('stale readings and refusals', () => {
 
 describe('accounts: organisation, follow mode and Extra Usage', () => {
   const input = accountsInput([
-    { id: 'personal', fetchedAt: NOW, windows: [{ type: 'five_hour', utilization: 0.1, resetsAt: NOW + HOUR }], extraUsage: { isEnabled: true, monthlyLimit: 200, usedCredits: 50, currency: 'USD' } },
+    { id: 'personal', fetchedAt: NOW, windows: [{ type: 'five_hour', utilization: 0.1, resetsAt: NOW + HOUR }], extraUsage: { isEnabled: true, monthlyLimit: 200, usedCredits: 50, currency: 'USD', exponent: 2 } },
     { id: 'work', fetchedAt: NOW, windows: [] },
   ], [{ id: 'personal', organizationName: "p@example.com's Organization", email: 'p@example.com' }, { id: 'work', organizationName: 'Centeva', email: 'w@centeva.com' }])
   test('organisation comes through for display', () => {
@@ -131,6 +131,12 @@ describe('accounts: organisation, follow mode and Extra Usage', () => {
     expect(extra.text).toContain('$50.00 of $200.00')
     expect(extra.summary).toBe('Extra Usage on · 25% of the monthly limit used')
     expect(extra.summary).not.toContain('$')
+  })
+  test('Extra Usage from a service that still serves cents reads as dollars, spend past the limit shown', () => {
+    const legacy = accountsInput([{ id: 'personal', fetchedAt: NOW, windows: [], extraUsage: { isEnabled: true, monthlyLimit: 500, usedCredits: 539, utilization: 1, currency: 'USD' } }], [{ id: 'personal' }])
+    const extra = buildAccounts(legacy, NOW).accounts.find(a => a.id === 'personal')!.extraUsage!
+    expect(extra.text).toBe('Extra Usage on · $5.39 of $5.00 this month, over by $0.39')
+    expect(extra.summary).toBe('Extra Usage on · 108% of the monthly limit used')
   })
 })
 
