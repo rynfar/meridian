@@ -139,9 +139,10 @@ session the side call forked. `auxiliary` asserts a fresh-replay side call,
 conversation as a turn).
 
 Recorded 2026-11-16 on Linux x64, Node 24.22.3, omp 18.20.3, Claude Code
-2.1.316, `opus`: the side call read 15k and wrote 121 cache tokens; the second
-turn started while the side call was still answering and resumed the first
-turn's session (`lineage=continuation`, read 15k, wrote 59).
+2.1.316, `opus`: the side call read 15k and wrote 125 cache tokens (2k as a
+fresh replay before); the second turn started while the side call was still
+answering and resumed the first turn's session (`lineage=continuation`, read
+15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
 
 ## Claude Code's own tool search in passthrough (#1478)
 
