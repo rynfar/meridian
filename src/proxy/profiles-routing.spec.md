@@ -20,7 +20,8 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   (`profileFactsRefresh.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
   hashing), `priority` (fail-over pool) and `active+priority`, plus
-  follow-another-instance mode (`followActive.ts`);
+  follow-another-instance mode (`followActive.ts`, with its usage figures in
+  `followUsage.ts`);
 - per-profile rate-limit and exhaustion tracking (`rateLimitStore.ts`,
   `limitDetection.ts`) and human-turn attestation verification for priority
   failback (`priorityAttestation.ts`).
@@ -213,6 +214,13 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   type `oauth-token` / `not_oauth` instead of reading the host's on-disk OAuth
   account under its id, and `/v1/usage/quota` returns `oauth: null` for any
   non-`claude-max` target.
+- **A follower reads usage from the instance it follows.** Under
+  `MERIDIAN_FOLLOW_ACTIVE`, unforced usage reads serve the followed
+  instance's `/v1/usage/quota/all` figures (matched by profile id, polled every
+  two minutes, marked `stale` after five, withdrawn after ten) and make no
+  Anthropic call. Forced reads, and profiles the followed instance could not
+  read, use this instance's own credentials; a forced read newer than the
+  followed copy is not replaced by it.
 - **OAuth usage request identity.** Usage, identity and reset requests send
   `User-Agent: claude-cli/<version> (external, cli)`, where `<version>` is the
   `@anthropic-ai/claude-code` package installed with Meridian
