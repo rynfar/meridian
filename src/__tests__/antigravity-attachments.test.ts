@@ -16,7 +16,7 @@ describe("Antigravity image attachments", () => {
     const script = `import {parseAgRequest} from ${JSON.stringify(moduleUrl)};
       const data=Buffer.alloc(4*1024*1024).toString('base64');
       parseAgRequest({model:'fixture',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data}}]}]});`
-    const result = spawnSync("node", ["--experimental-transform-types", "--input-type=module", "-e", script], { encoding: "utf8", timeout: 10000 })
+    const result = spawnSync("node", ["--experimental-strip-types", "--input-type=module", "-e", script], { encoding: "utf8", timeout: 10000 })
     expect(result.status, result.stderr).toBe(0)
   })
   it("deduplicates exact bytes, restricts permissions and strips bytes from prompts/results", async () => {
