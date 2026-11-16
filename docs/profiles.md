@@ -211,6 +211,8 @@ meridian profile switch work
 curl -H "x-meridian-profile: work" ...
 ```
 
+A request with the header runs on that account or fails; it is never failed over to another one. A header naming a profile this Meridian does not have is answered `400` with error type `unknown_profile` rather than served from another account.
+
 You can also switch profiles from the web UI — click an account card on the home page (`http://127.0.0.1:3456/`) or use the Profiles page at `/profiles`. The site header on every page shows which profile is active.
 
 ### Filter accounts by login state

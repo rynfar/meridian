@@ -21,7 +21,7 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `ProxyConfig` type | `types.ts` | Plugin configuration |
 | `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
 | Generic OpenAI `x-session-id` on `/v1/chat/completions` | `adapters/openai.ts`, `server.ts` | Owner-approved #1441: distinct conversation identity after the existing OpenCode/session-affinity keys and agent scoping; blank values keep the headerless path |
-| `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection |
+| `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection. A name matching no profile, alias or ChatGPT seat is answered `400 unknown_profile`; `default` keeps its old resolution (owner-approved 2026-11-16, #1529) |
 | `GET /health` response shape | `server.ts` | Plugin health checks |
 | `/health` `backend` field | `server.ts` / `backends/antigravity.ts` | Desktop provider compatibility check (#1073) |
 | Antigravity `/v1/responses` and `/v1/responses/:id` | `backends/antigravityOpenai.ts`, `backends/antigravityResponses.ts` | OpenAI clients; bounded continuation/retrieval/deletion, optional durable state, background cancellation/event replay/input listing and input-token estimates (#1073) |
