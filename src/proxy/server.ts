@@ -3541,15 +3541,22 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // to a completed turn (auxiliaryLineage). A legacy mapping without a
         // transcript locator would need a durable write to attach one first,
         // so it replays fresh instead.
-        const auxiliaryResume = independentCause === "auxiliary-request" && adapter.forksAuxiliaryRequests === true
+        const auxiliaryFork = independentCause === "auxiliary-request" && adapter.forksAuxiliaryRequests === true
           ? auxiliaryLineage(lookupSession(profileSessionId, lineageMessages, profileScopedCwd), lineageMessages)
           : undefined
-        let lineageResult: LineageResult = auxiliaryResume?.type === "continuation"
-          && auxiliaryResume.session.currentTranscript?.sessionId === auxiliaryResume.session.claudeSessionId
-          ? auxiliaryResume
-          : isIndependentSession
+        const forkLineage = auxiliaryFork?.lineage
+        const auxiliaryResume = forkLineage?.type === "continuation"
+          && forkLineage.session.currentTranscript?.sessionId === forkLineage.session.claudeSessionId
+          ? forkLineage
+          : undefined
+        // Why a forking adapter's side call replays fresh, for the request log.
+        let auxiliaryRefusal: string | undefined = auxiliaryFork && !auxiliaryResume
+          ? auxiliaryFork.refusal ?? "no-transcript-locator"
+          : undefined
+        let lineageResult: LineageResult = auxiliaryResume
+          ?? (isIndependentSession
             ? { type: "diverged", reason: "independent-request" }
-            : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
+            : lookupSession(profileSessionId, lineageMessages, profileScopedCwd))
         // The stored mapping withholds its resume proof while it is
         // interrupted. Restore it only when this request adds nothing but user
         // content to what the session holds; otherwise the client kept output
@@ -3956,6 +3963,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // other auxiliary request, and says so on its log line.
         if (independentCause === "auxiliary-request" && !isResume && lineageResult.type === "continuation") {
           lineageResult = { type: "diverged", reason: "independent-request" }
+          auxiliaryRefusal = executionReplayReason ? `replay-${executionReplayReason.replaceAll("_", "-")}` : "transcript-locator-changed"
         }
         // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
         let passthroughToolCallAssistantUuid = passthrough && isResume ? cachedSession?.passthroughToolCallAssistantUuid : undefined
@@ -3979,7 +3987,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${independentCause === "auxiliary-request" && isResume ? " auxiliary=fork" : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${auxiliaryFork ? (isResume ? " auxiliary=fork" : ` auxiliary=replay:${auxiliaryRefusal}`) : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 

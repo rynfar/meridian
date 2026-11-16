@@ -202,7 +202,7 @@ describe("Oh My Pi side calls", () => {
     const lines = requestLines()
     expect(lines).toHaveLength(3)
     expect(lines[1]).toContain("diverged=independent-request:auxiliary-request")
-    expect(lines[1]).not.toContain("auxiliary=fork")
+    expect(lines[1]).toContain("auxiliary=replay:not-side-prompt")
     expect(queries[1]?.resume).toBeUndefined()
     expect(lines[2]).toContain("lineage=continuation")
   })
@@ -212,7 +212,7 @@ describe("Oh My Pi side calls", () => {
     await post(app, turn(FIRST, ANSWER, RECAP), sideHeaders)
     const lines = requestLines()
     expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain("diverged=independent-request:auxiliary-request")
+    expect(lines[0]).toContain("diverged=independent-request:auxiliary-request auxiliary=replay:lineage-diverged:not-found")
     expect(queries[0]?.resume).toBeUndefined()
   })
 
