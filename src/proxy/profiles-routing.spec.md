@@ -20,7 +20,8 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   (`profileFactsRefresh.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
   hashing), `priority` (fail-over pool) and `active+priority`, plus
-  follow-another-instance mode (`followActive.ts`);
+  follow-another-instance mode (`followActive.ts`, with its usage figures in
+  `followUsage.ts`);
 - per-profile rate-limit and exhaustion tracking (`rateLimitStore.ts`,
   `limitDetection.ts`) and human-turn attestation verification for priority
   failback (`priorityAttestation.ts`).
@@ -97,6 +98,25 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at
   full utilization, is not awaited, and is skipped for non-`claude-max` and
   billing refusals.
+- **A per-model weekly refusal benches only that model.** When Anthropic
+  names a per-model weekly bucket (`seven_day_opus`, `seven_day_sonnet`,
+  `seven_day_fable`) for a refused request of that same model family, pool
+  routing skips the profile only for requests of that family (the tier
+  `mapModelToClaudeModel` sends the request to; Mythos is fable), until that
+  bucket's named reset, else its own exhausted window, capped like `seven_day`,
+  else the 10-minute default. Other models keep using the profile. An inferred
+  (`cached_usage`) bucket, an unknown one, or one naming another family keeps
+  the profile-wide bench: a wrong per-model guess would keep sending every
+  other request into an account that refuses them all. A confirmed reset that
+  clears the bucket lifts its model bench. `/profiles/list` (pool modes) and
+  `/profiles/health` list these as `exhaustedModels`
+  (`{id, modelFamily, until, reason}`); `exhausted` keeps profile-wide marks
+  only. The `spent` record (`/v1/usage/quota/all`, `/profiles/list`,
+  `/profiles/health`) keeps its fields and adds `modelFamily`
+  (`"opus" | "sonnet" | "fable" | null`): non-null exactly when this refusal
+  took the per-model path, so the profile is benched for that family alone.
+  `diagnosis.bucket` cannot say that on its own, because a rejected SDK event
+  from an earlier refusal can name a bucket this refusal was not benched for.
 - **Account identity is Meridian's own record, re-read per credential.**
   `GET /api/oauth/profile` supplies the organization name, account and
   organization UUIDs and email; they are kept in `organizations.json` beside
@@ -137,6 +157,8 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   without twins pays no read. A failed lookup benches no one beyond the
   refused profile. Billing and other refusals stay per profile: only a quota
   refusal carries a reset that is the account's own.
+  A per-model weekly refusal benches each such profile for that model family
+  only, the same way it benches the refused profile.
 - **A finished sign-in reports its re-read.** Every completed sign-in marks the
   profile `factsRefresh: updating` before the route answers, re-reads account,
   usage and auth status, then clears it or reports `failed` with the reason for
@@ -192,6 +214,13 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   type `oauth-token` / `not_oauth` instead of reading the host's on-disk OAuth
   account under its id, and `/v1/usage/quota` returns `oauth: null` for any
   non-`claude-max` target.
+- **A follower reads usage from the instance it follows.** Under
+  `MERIDIAN_FOLLOW_ACTIVE`, unforced usage reads serve the followed
+  instance's `/v1/usage/quota/all` figures (matched by profile id, polled every
+  two minutes, marked `stale` after five, withdrawn after ten) and make no
+  Anthropic call. Forced reads, and profiles the followed instance could not
+  read, use this instance's own credentials; a forced read newer than the
+  followed copy is not replaced by it.
 - **OAuth usage request identity.** Usage, identity and reset requests send
   `User-Agent: claude-cli/<version> (external, cli)`, where `<version>` is the
   `@anthropic-ai/claude-code` package installed with Meridian
