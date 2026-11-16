@@ -127,14 +127,21 @@ cache_read 16k, cache_write 46).
 ## Oh My Pi side calls
 
 `node scripts/e2e-omp-side-call.mjs --omp=<omp> --agent-dir=<dir>
---log=<meridian log> [--model=opus] [--expect=resume|replay]` drives the real
-omp client against a running Meridian set up as for the regrouped-messages
+--log=<meridian log> [--model=opus] [--expect=fork|auxiliary|turn]` drives the
+real omp client against a running Meridian set up as for the regrouped-messages
 harness above. A scratch hook runs one side call through omp's own
 `runEphemeralTurn` (the path of its idle recap and composer predictions) after
-the first turn, then `omp -c` sends the second turn. It asserts the side call
-is served as `independent-request:auxiliary-request` and the second turn
-resumes. `--expect=replay` asserts the pre-fix behaviour for a before run: the
-side call resumes the conversation's own SDK session.
+the first turn, then `omp -c` sends the second turn. With `fork` (the default)
+it asserts the side call is served as `lineage=continuation … auxiliary=fork`,
+reads more cache than it writes, and that the second turn resumes the same
+session the side call forked. `auxiliary` asserts a fresh-replay side call,
+`turn` the behaviour without side-call support (the side call resumes the
+conversation as a turn).
+
+Recorded 2026-11-16 on Linux x64, Node 24.22.3, omp 18.20.3, Claude Code
+2.1.316, `opus`: the side call read 15k and wrote 121 cache tokens; the second
+turn started while the side call was still answering and resumed the first
+turn's session (`lineage=continuation`, read 15k, wrote 59).
 
 ## Claude Code's own tool search in passthrough (#1478)
 

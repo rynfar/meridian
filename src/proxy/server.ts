@@ -230,6 +230,7 @@ import {
   reconcileReturnedSessionUuids,
   inheritSdkUuids,
   independentRequestCause,
+  auxiliaryLineage,
   formatDivergence,
   type LineageResult,
   type TokenUsageIteration,
@@ -2993,7 +2994,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // An auxiliary replay carries a 5-minute breakpoint of its own
         // (layoutReplayBlocks). The API rejects a longer-lived breakpoint
         // after a shorter one, and the CLI may choose 1h for its own, so pin
-        // the CLI to 5 minutes for these requests.
+        // the CLI to 5 minutes for these requests. The pin is decided before
+        // the lineage and also covers an auxiliary fork: the fork still reads
+        // the conversation's cache (TTL is not part of a cache hit), and the
+        // tail only it writes, which no later turn of the conversation reads,
+        // is written at the cheaper 5-minute rate.
         const envOverrides = requestMeta.auxiliaryRequest
           ? { ...explicitModelPin(requestedModel), FORCE_PROMPT_CACHING_5M: "1" }
           : explicitModelPin(requestedModel)
@@ -3213,8 +3218,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           projectDir: workingDirectory,
         })
         const managedSdkAttemptLocators = (): TranscriptLocator[] => {
+          // An auxiliary fork runs beside the conversation's own turn, which
+          // holds the writer lease on the same source. The fork only reads the
+          // source (the SDK copies it into the target), so it leases its target
+          // alone; this process's GC pin (prepareManagedFork) keeps the source.
           const locators = [
-            managedForkSource,
+            requestMeta.auxiliaryRequest ? undefined : managedForkSource,
             managedForkTarget,
           ].filter((locator): locator is TranscriptLocator => locator !== undefined)
           return [...new Map(
@@ -3492,6 +3501,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           }
           return refreshed.generation
         }
+        // A resumed turn that must replay fresh first evicts the mapping it
+        // could not continue. An auxiliary fork never owned that mapping, so it
+        // replays without touching it.
+        const evictBeforeFreshFallback = async (fallback: string): Promise<void> => {
+          if (independentCause === "auxiliary-request") return
+          if (!(await evictSession(
+            profileSessionId,
+            profileScopedCwd,
+            lineageMessages,
+            mappingExpectedGeneration,
+          ))) throw new Error(`Session mapping changed before ${fallback} fallback eviction`)
+          mappingExpectedGeneration = refreshGenerationAfterEviction()
+        }
         // Legacy passthrough boundaries are intentionally treated as a missing
         // resumable session, but their real durable generation still fences the
         // replay that replaces them.
@@ -3511,9 +3533,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const advancedAcrossProcesses = arrivalRevision !== undefined
           ? arrivalRevision !== currentDurableRevision && !waitedOutOwnInterruption(arrivalRevision, interruptedClaim)
           : durableMappingAtTurn.status === "found"
-        let lineageResult: LineageResult = isIndependentSession
-          ? { type: "diverged", reason: "independent-request" }
-          : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
+        // An auxiliary request is still independent: it never takes the turn
+        // lease, publishes or invalidates the mapping. An adapter whose side
+        // calls share the conversation's system prompt and tools
+        // (forksAuxiliaryRequests) has it read the conversation's lineage, to
+        // fork the conversation's session when it adds nothing but user text
+        // to a completed turn (auxiliaryLineage). A legacy mapping without a
+        // transcript locator would need a durable write to attach one first,
+        // so it replays fresh instead.
+        const auxiliaryResume = independentCause === "auxiliary-request" && adapter.forksAuxiliaryRequests === true
+          ? auxiliaryLineage(lookupSession(profileSessionId, lineageMessages, profileScopedCwd), lineageMessages)
+          : undefined
+        let lineageResult: LineageResult = auxiliaryResume?.type === "continuation"
+          && auxiliaryResume.session.currentTranscript?.sessionId === auxiliaryResume.session.claudeSessionId
+          ? auxiliaryResume
+          : isIndependentSession
+            ? { type: "diverged", reason: "independent-request" }
+            : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
         // The stored mapping withholds its resume proof while it is
         // interrupted. Restore it only when this request adds nothing but user
         // content to what the session holds; otherwise the client kept output
@@ -3916,6 +3952,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           undoRollbackUuid = undefined
           resumeSessionId = undefined
         }
+        // A side call whose fork was cancelled above replays fresh like any
+        // other auxiliary request, and says so on its log line.
+        if (independentCause === "auxiliary-request" && !isResume && lineageResult.type === "continuation") {
+          lineageResult = { type: "diverged", reason: "independent-request" }
+        }
         // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
         let passthroughToolCallAssistantUuid = passthrough && isResume ? cachedSession?.passthroughToolCallAssistantUuid : undefined
         const passthroughToolCallIds = passthrough && isResume ? cachedSession?.passthroughToolCallIds : undefined
@@ -3938,7 +3979,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${independentCause === "auxiliary-request" && isResume ? " auxiliary=fork" : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -4149,30 +4190,40 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // with the exact durable generation and ID before registering it for GC; otherwise a
         // crash before target publication could leave the still-current source
         // unpinned and eligible for deletion.
-        const attachedGeneration = lifecycleMappingKey
-          ? await inDurableOrder(() => attachPinnedTranscript(
-            managedForkSource!,
-            () => {
-              assertDurableWritesAllowed()
-              return attachSharedTranscriptLocator(
-                lifecycleMappingKey,
-                sourceSessionId,
-                managedForkSource!,
-                mappingExpectedGeneration ?? undefined,
-                assertDurableWritesAllowed,
-              )
-            },
-            admissionLifecycleOptions,
-          ))
-          : false
-        if (!attachedGeneration) {
-          throw new Error("Session mapping changed before managed fork preparation; retry the turn")
+        //
+        // An auxiliary fork neither attaches nor registers its source: it
+        // resumes only a source the mapping already names (see the
+        // auxiliaryResume lineage) and holds no turn lease, so the
+        // conversation's own turn may publish and retire that source
+        // meanwhile. Registering it would revive a retired transcript; a
+        // source that is gone is refused by the SDK, and the side call then
+        // replays fresh.
+        if (independentCause !== "auxiliary-request") {
+          const attachedGeneration = lifecycleMappingKey
+            ? await inDurableOrder(() => attachPinnedTranscript(
+              managedForkSource!,
+              () => {
+                assertDurableWritesAllowed()
+                return attachSharedTranscriptLocator(
+                  lifecycleMappingKey,
+                  sourceSessionId,
+                  managedForkSource!,
+                  mappingExpectedGeneration ?? undefined,
+                  assertDurableWritesAllowed,
+                )
+              },
+              admissionLifecycleOptions,
+            ))
+            : false
+          if (!attachedGeneration) {
+            throw new Error("Session mapping changed before managed fork preparation; retry the turn")
+          }
+          mappingExpectedGeneration = attachedGeneration
+          // Journal both ownership and the chosen target before query() can create
+          // a fork file. This closes the crash window where the SDK file exists
+          // but no emitted event or shared mapping names it yet.
+          managedForkSource = await registerLiveTranscript(managedForkSource, admissionLifecycleOptions)
         }
-        mappingExpectedGeneration = attachedGeneration
-        // Journal both ownership and the chosen target before query() can create
-        // a fork file. This closes the crash window where the SDK file exists
-        // but no emitted event or shared mapping names it yet.
-        managedForkSource = await registerLiveTranscript(managedForkSource, admissionLifecycleOptions)
         managedForkTarget = await prepareForkForPublication(managedForkTarget, admissionLifecycleOptions)
         claudeLog("session.fork_prepared", {
           sourceSessionId: managedForkSource.sessionId,
@@ -4410,8 +4461,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // Resume deltas are tail-only and stay bare.
           const resumeDelta = promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
           textPrompt = isResume ? resumeDelta : frameReplayTurns(promptTurns)
-          // An auxiliary request always replays fresh, often every few
-          // seconds over the same growing history. The same text split into
+          // An auxiliary request that is not forked replays fresh, often every
+          // few seconds over the same growing history. The same text split into
           // blocks, with one breakpoint at the client's reusable prefix, lets
           // the next one read that prefix from cache instead of rewriting it.
           // One SDK input: several would be answered as several turns.
@@ -5128,25 +5179,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   // is gone whatever the last attempt was refused with, so a
                   // wording that alternates cannot escape to the client. Evict
                   // and replay the history as a fresh session (one-shot).
-                  // An auxiliary request never resumed the session, so it has no
-                  // mapping to evict or history to replay.
-                  if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal)) {
+                  // An auxiliary fork never owned the mapping: it replays
+                  // fresh without evicting it.
+                  if (refusal === "missing-message" || sawUnresumableRefusal) {
                     claudeLog("session.resume_replay", {
                       mode: "non_stream",
                       refusal,
                       rollbackUuid: undoRollbackUuid,
                       resumeSessionId,
                     })
-                    plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
+                    plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), ${independentCause === "auxiliary-request" ? "replaying" : "evicting and replaying"} as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("resume_replay")
-                    if (!(await evictSession(
-                      profileSessionId,
-                      profileScopedCwd,
-                      lineageMessages,
-                      mappingExpectedGeneration,
-                    ))) throw new Error("Session mapping changed before resume fallback eviction")
-                    mappingExpectedGeneration = refreshGenerationAfterEviction()
+                    await evictBeforeFreshFallback("resume")
                     await replaceWithFreshTarget("non_stream_resume_replay")
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
@@ -5201,13 +5246,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("fresh_model_fallback")
-                    if (!(await evictSession(
-                      profileSessionId,
-                      profileScopedCwd,
-                      lineageMessages,
-                      mappingExpectedGeneration,
-                    ))) throw new Error("Session mapping changed before model fallback eviction")
-                    mappingExpectedGeneration = refreshGenerationAfterEviction()
+                    await evictBeforeFreshFallback("model")
                     await replaceWithFreshTarget("non_stream_model_fallback")
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
@@ -6555,25 +6594,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     // The session cannot serve this turn — evict and replay
                     // the history as a fresh session (one-shot). See the
                     // non-stream branch above for the full rationale.
-                    // An auxiliary request never resumed the session, so it has no
-                    // mapping to evict or history to replay.
-                    if (independentCause !== "auxiliary-request" && (refusal === "missing-message" || sawUnresumableRefusal)) {
+                    // An auxiliary fork never owned the mapping: it replays
+                    // fresh without evicting it.
+                    if (refusal === "missing-message" || sawUnresumableRefusal) {
                       claudeLog("session.resume_replay", {
                         mode: "stream",
                         refusal,
                         rollbackUuid: undoRollbackUuid,
                         resumeSessionId,
                       })
-                      plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
+                      plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), ${independentCause === "auxiliary-request" ? "replaying" : "evicting and replaying"} as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("resume_replay")
-                      if (!(await evictSession(
-                        profileSessionId,
-                        profileScopedCwd,
-                        lineageMessages,
-                        mappingExpectedGeneration,
-                      ))) throw new Error("Session mapping changed before resume fallback eviction")
-                      mappingExpectedGeneration = refreshGenerationAfterEviction()
+                      await evictBeforeFreshFallback("resume")
                       await replaceWithFreshTarget("stream_resume_replay")
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
@@ -6624,13 +6657,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("fresh_model_fallback")
-                      if (!(await evictSession(
-                        profileSessionId,
-                        profileScopedCwd,
-                        lineageMessages,
-                        mappingExpectedGeneration,
-                      ))) throw new Error("Session mapping changed before model fallback eviction")
-                      mappingExpectedGeneration = refreshGenerationAfterEviction()
+                      await evictBeforeFreshFallback("model")
                       await replaceWithFreshTarget("stream_model_fallback")
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0

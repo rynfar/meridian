@@ -522,6 +522,39 @@ export function independentRequestCause(input: {
 }
 
 /**
+ * The lineage an auxiliary request is served from, given the conversation's
+ * own lineage for its body.
+ *
+ * A side call that only adds user text after a completed turn of the
+ * conversation is resumed as an unpublished fork of the conversation's SDK
+ * session: it reads the conversation's prompt cache and writes only its own
+ * prompt. After the stored prefix the client's copy of the session's last
+ * reply comes first, as on every continuation; it must not call a tool. Any
+ * other shape (a pending tool checkpoint, a snapshot of a reply the session
+ * never received after a later user message, tool results, a regrouped or
+ * partial-message resume, or no matching stored history) is answered from a
+ * fresh replay, as every auxiliary request was before. Either way the request
+ * never publishes, so the conversation's mapping is untouched.
+ */
+export function auxiliaryLineage(
+  result: LineageResult,
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+): LineageResult {
+  const independent: LineageResult = { type: "diverged", reason: "independent-request" }
+  if (result.type !== "continuation" || result.regrouped || result.resumeContentFrom !== undefined) return independent
+  if (result.session.passthroughToolCallIds?.length) return independent
+  const blocks = (content: unknown): Array<{ type?: unknown } | null> => Array.isArray(content) ? content : []
+  let next = result.resumeFrom
+  while (messages[next]?.role === "assistant" && !blocks(messages[next]!.content).some(block => block?.type === "tool_use")) next++
+  const added = messages.slice(next)
+  const userTextOnly = added.length > 0 && added.every(message => message.role === "user" && (
+    typeof message.content === "string"
+    || (Array.isArray(message.content) && message.content.length > 0 && blocks(message.content).every(block => block?.type === "text"))
+  ))
+  return userTextOnly ? result : independent
+}
+
+/**
  * The `diverged=` field for the request log line.
  *
  * The line renders `lineage=new` for every divergence without a cached

@@ -15,15 +15,19 @@
  * MERIDIAN_CONFIG_DIR / MERIDIAN_SESSION_DIR) whose stdout+stderr go to
  * --log, and an omp agent dir whose models.yml points the anthropic provider
  * at it with `x-meridian-agent: pi`. Uses real credentials and the model you
- * name; asserts on Meridian's request lines, never on model wording alone.
+ * name; asserts on Meridian's request and usage lines, never on model wording
+ * alone.
  *
  * Run: node scripts/e2e-omp-side-call.mjs --omp=<omp> --agent-dir=<dir>
- *        --log=<meridian log> [--model=opus] [--expect=resume|replay]
- * `--expect=replay` asserts the pre-fix behaviour, for a before run on main.
+ *        --log=<meridian log> [--model=opus] [--expect=fork|auxiliary|turn]
+ * `fork` (default): the side call forks the conversation's session without
+ * publishing it and reads most of its input from the conversation's cache.
+ * `auxiliary`: the side call is answered from a fresh replay. `turn`: the
+ * side call is served as a turn of the conversation (no side-call support).
  */
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { randomBytes } from "node:crypto"
@@ -36,7 +40,8 @@ const omp = arg("omp", "omp")
 const agentDir = arg("agent-dir")
 const logPath = arg("log")
 const model = arg("model", "opus")
-const expectation = arg("expect", "resume")
+const expectation = arg("expect", "fork")
+assert.ok(["fork", "auxiliary", "turn"].includes(expectation), `unknown --expect=${expectation}`)
 assert.ok(agentDir && logPath, "--agent-dir and --log are required")
 
 const root = mkdtempSync(join(tmpdir(), "meridian-omp-side-call-"))
@@ -66,32 +71,59 @@ function turn(prompt, { resume, withHook }) {
   }).trim()
 }
 
+// This run's Meridian log lines, from `offset` on.
+const logLines = offset => readFileSync(logPath, "utf8").slice(offset).split("\n")
 // The conversation's requests, and its side calls, carry omp's tools; omp's
 // tool-less one-message requests (titles, probes) are other conversations.
-const conversationLines = offset => readFileSync(logPath, "utf8").slice(offset).split("\n")
-  .filter(line => line.includes("[PROXY]") && / adapter=pi .* tools=[1-9]\d* /.test(line) && line.includes("msgCount="))
+const isConversationRequest = line => line.includes("[PROXY]") && / adapter=pi .* tools=[1-9]\d* /.test(line) && line.includes("msgCount=")
+const requestId = line => line.match(/\[PROXY\] (\S+) /)?.[1]
 
-const start = readFileSync(logPath, "utf8").length
-turn(`The marker is ${marker}. Remember it and reply only ACK1.`, { resume: false, withHook: true })
-const firstTurn = conversationLines(start)
-assert.equal(firstTurn.length, 2, "expected the first turn and one side call")
-const side = firstTurn[1]
+try {
+  const start = readFileSync(logPath, "utf8").length
+  turn(`The marker is ${marker}. Remember it and reply only ACK1.`, { resume: false, withHook: true })
+  const firstTurn = logLines(start).filter(isConversationRequest)
+  assert.equal(firstTurn.length, 2, "expected the first turn and one side call")
+  const side = firstTurn[1]
 
-const before = readFileSync(logPath, "utf8").length
-const answer = turn("What is the marker? Reply with the marker only.", { resume: true, withHook: false })
-const main = conversationLines(before).at(-1)
-assert.ok(main, "no main omp request reached Meridian on the second turn")
-const brief = line => line.replace(/ sdkActive=\S+ sdkQueued=\S+/, "").replace(/ msgs=.*/, "")
-console.log(JSON.stringify({ answer, firstTurn: brief(firstTurn[0]), side: brief(side), main: brief(main) }, null, 2))
+  const before = readFileSync(logPath, "utf8").length
+  const answer = turn("What is the marker? Reply with the marker only.", { resume: true, withHook: false })
+  const main = logLines(before).filter(isConversationRequest).at(-1)
+  assert.ok(main, "no main omp request reached Meridian on the second turn")
 
-assert.match(answer, new RegExp(marker))
-const sessionOf = line => line.match(/ session=(\S+)/)?.[1]
-if (expectation === "resume") {
-  assert.match(side, / diverged=independent-request:auxiliary-request /)
-  assert.match(main, / lineage=continuation /)
-} else {
-  // The pre-fix side call resumes the conversation's own SDK session.
-  assert.match(side, / lineage=continuation /)
-  assert.equal(sessionOf(side), sessionOf(main))
+  const run = logLines(start)
+  const sideLines = run.filter(line => line.includes(`[PROXY] ${requestId(side)} `))
+  // `[PROXY] <request id> usage: ... cache_read=<n>[k] cache_write=<n>[k] ...`
+  const usage = sideLines.find(line => line.includes(" usage:"))
+  const tokens = name => {
+    const hit = usage?.match(new RegExp(` ${name}=([\\d.]+)(k?)`))
+    return hit ? Number(hit[1]) * (hit[2] ? 1000 : 1) : undefined
+  }
+  const sideCache = { read: tokens("cache_read"), write: tokens("cache_write") }
+  const brief = line => line.replace(/ sdkActive=\S+ sdkQueued=\S+/, "").replace(/ msgs=.*/, "")
+  console.log(JSON.stringify({ answer, firstTurn: brief(firstTurn[0]), side: brief(side), sideCache, main: brief(main) }, null, 2))
+
+  assert.match(answer, new RegExp(marker))
+  const sessionOf = line => line.match(/ session=(\S+)/)?.[1]
+  if (expectation === "fork") {
+    assert.match(side, / lineage=continuation .*auxiliary=fork /)
+    // The request line is logged before the SDK runs: a refused fork would
+    // still replay fresh under it, so it must not have been refused.
+    assert.ok(!sideLines.some(line => / resume refused | session unusable /.test(line)), "the side call's fork was refused and replayed fresh")
+    assert.match(main, / lineage=continuation /)
+    // The side call resumed the session the first turn published, and did not
+    // publish its fork: the second turn resumes that same session.
+    assert.equal(sessionOf(side), sessionOf(main))
+    assert.ok(sideCache.read !== undefined && sideCache.write !== undefined, "no usage line for the side call")
+    assert.ok(sideCache.read > sideCache.write, `side call wrote more cache than it read: ${JSON.stringify(sideCache)}`)
+  } else if (expectation === "auxiliary") {
+    assert.match(side, / diverged=independent-request:auxiliary-request /)
+    assert.match(main, / lineage=continuation /)
+  } else {
+    // Without side-call support it resumes the conversation's own SDK session.
+    assert.match(side, / lineage=continuation /)
+    assert.doesNotMatch(side, /auxiliary/)
+  }
+  console.log(`PASS (${expectation})`)
+} finally {
+  rmSync(root, { recursive: true, force: true })
 }
-console.log(`PASS (${expectation})`)

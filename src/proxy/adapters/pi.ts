@@ -158,6 +158,14 @@ export const piAdapter: AgentAdapter = {
   },
 
   /**
+   * NOTE: agent-specific (pi) — omp runs a side call (`runEphemeralTurn`) on
+   * the conversation's own context: same system prompt, and the same tool
+   * catalog, which it sends only to keep the prompt cache warm. A fork of the
+   * conversation's session therefore reads that cache.
+   */
+  forksAuxiliaryRequests: true,
+
+  /**
    * NOTE: agent-specific (pi) — only the Meridian Pi extension's final-hook
    * HMAC assertion can authorize a user-turn routing change. It must name the
    * request's own session key, and a request marked as a side call or child
