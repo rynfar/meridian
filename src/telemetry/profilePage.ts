@@ -481,20 +481,24 @@ function formatResetCountdown(resetsAt) {
   return remHr > 0 ? 'in ' + days + 'd ' + remHr + 'h' : 'in ' + days + 'd';
 }
 
+function formatExtraUsageAmount(amount, currency) {
+  var code = currency || '';
+  var prefix = code === 'USD' ? '$' : /^[A-Z]{3}$/.test(code) ? code + ' ' : code;
+  return prefix + amount.toFixed(2);
+}
+
 function formatExtraUsage(eu) {
   if (!eu || !eu.isEnabled) return null;
   var monthlyLimit = isFinite(eu.monthlyLimit) ? eu.monthlyLimit : 0;
   if (monthlyLimit <= 0) return null;
-  var used = isFinite(eu.usedCredits) ? eu.usedCredits : 0;
-  var utilization = (eu.utilization != null && isFinite(eu.utilization))
-    ? Math.max(0, Math.min(1, eu.utilization))
-    : (monthlyLimit > 0 ? Math.max(0, Math.min(1, used / monthlyLimit)) : 0);
-  var currency = eu.currency || '';
+  var used = isFinite(eu.usedCredits) ? Math.max(0, eu.usedCredits) : 0;
+  var share = used / monthlyLimit;
   return {
-    used: (currency + used.toFixed(2)).trim(),
-    limit: (currency + monthlyLimit.toFixed(2)).trim(),
-    utilizationPct: Math.round(utilization * 100),
-    status: classifyUtilization(utilization),
+    used: formatExtraUsageAmount(used, eu.currency),
+    limit: formatExtraUsageAmount(monthlyLimit, eu.currency),
+    over: used > monthlyLimit ? formatExtraUsageAmount(used - monthlyLimit, eu.currency) : null,
+    utilizationPct: Math.round(share * 100),
+    status: classifyUtilization(share),
   };
 }
 
@@ -1064,9 +1068,10 @@ function renderUsageSection(profileQuota, p) {
       +     '<span class="usage-label">Extra usage</span>'
       +     '<span class="usage-pct">' + extra.utilizationPct + '%' + usageTag + '</span>'
       +   '</div>'
-      +   '<div class="usage-bar"><div class="usage-fill" style="width:' + extra.utilizationPct + '%"></div></div>'
+      +   '<div class="usage-bar"><div class="usage-fill" style="width:' + Math.min(100, extra.utilizationPct) + '%"></div></div>'
       +   '<div class="usage-extra-row" style="margin-top:4px">'
-      +     '<span class="usage-reset">' + esc(extra.used) + ' / ' + esc(extra.limit) + '</span>'
+      +     '<span class="usage-reset">' + esc(extra.used) + ' / ' + esc(extra.limit)
+      +       (extra.over ? ', over by ' + esc(extra.over) : '') + '</span>'
       +   '</div>'
       + '</div>';
   } else if (credits) {

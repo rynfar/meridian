@@ -234,6 +234,17 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   per-profile snapshot cache, and it only adds the `cedar_ember` block —
   windows and `extraUsage` parse identically with or without it. The identity
   and reset requests carry no query flags.
+- **Extra Usage amounts are served in major units.** The usage endpoint's
+  `extra_usage.monthly_limit` / `used_credits` are minor units (cents):
+  claude.ai's admin API reports the same member's limit as
+  `{amount_minor: 500, exponent: 2}` where this endpoint says `500`.
+  `extraUsage.monthlyLimit` / `usedCredits` are divided by
+  `10^decimal_places` (2 when absent) and carry that as `exponent`, whose
+  presence tells a consumer the amounts are dollars; a followed instance or
+  service without it still serves cents and is converted. Used may exceed the
+  limit (a turn that starts under it can finish past it), and Anthropic clamps
+  `utilization` at 100, so displays take the share from the amounts and show
+  the overshoot.
 - **Grant-selection fields are passed through, not computed.** `bankedResets`
   exposes the provider's `nextGrantId` (null unless it names a listed grant)
   and `ineligibleReason`, and per grant `startsAt`, `paused` and `usableNow`;
