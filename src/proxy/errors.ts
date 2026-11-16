@@ -455,9 +455,22 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // SDK process crash
-  if (lower.includes("exited with code") || lower.includes("process exited")) {
+  // Only the SDK's own termination line names the signal, never text quoted in
+  // appended subprocess stderr.
+  const stoppedSignal = (errMsg.split(/subprocess stderr:/i)[0] ?? "").match(/process terminated by signal (SIGTERM|SIGKILL)\b/)?.[1]
+  if (lower.includes("exited with code") || lower.includes("process exited") || stoppedSignal) {
     const codeMatch = errMsg.match(/exited with code (\d+)/)
     const code = codeMatch ? codeMatch[1] : "unknown"
+
+    // External stops (restart or OOM kill) are transient, not expired logins.
+    if (code === "143" || code === "137" || stoppedSignal) {
+      const reason = stoppedSignal ? `signal ${stoppedSignal}` : `exit code ${code}`
+      return {
+        status: 503,
+        type: "api_error",
+        message: `Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (${reason}), as happens when Meridian restarts or the process is killed for memory. Retry the request.`
+      }
+    }
 
     // If stderr was captured it will be appended to the message — use it for classification
     const hasStderr = lower.includes("subprocess stderr:")
