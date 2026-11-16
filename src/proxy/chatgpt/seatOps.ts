@@ -28,6 +28,7 @@ export function storedChatGptSurface(source: ChatGptCredentialSource, reserved: 
     order: () => getSetting("profileOrder"),
     spent: () => undefined,
     freeSeatOrder: () => getChatGptFeatures().freeSeatOrder,
+    renewalHours: (seat) => getChatGptFeatures().seatRenewalHours[seat] ?? null,
   })
 }
 
@@ -51,5 +52,6 @@ export function applyChatGptRemoval(
     profileOrder: getSetting("profileOrder"),
   }))
   if (getChatGptFeatures().seatCreditsPolicy[seat.seat]) updateChatGptFeatures({ seatCreditsPolicy: { [seat.seat]: CHATGPT_CREDITS_INHERIT } })
+  if (getChatGptFeatures().seatRenewalHours[seat.seat]) updateChatGptFeatures({ seatRenewalHours: { [seat.seat]: null } })
   if (pointer.moves) setSetting("chatGptActiveSeat", pointer.to)
 }

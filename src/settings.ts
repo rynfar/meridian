@@ -152,6 +152,8 @@ export type ChatGptFeatureSettings = {
   seatCreditsPolicy?: Record<string, string>
   /** "before-credits" | "after-credits"; see ChatGptFreeSeatOrder. */
   freeSeatOrder?: string
+  /** Seat id (accountUserId) -> hours between renewals, overriding the default for that seat. */
+  seatRenewalHours?: Record<string, number>
 }
 
 /**

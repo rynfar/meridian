@@ -13,6 +13,7 @@
  *     an instance nobody configured for ChatGPT behaves exactly as before.
  */
 import { createExternalCredentialSource } from "./external"
+import { chatGptRenewalIntervals, getChatGptFeatures } from "./features"
 import { createOwnedCredentialSource } from "./owned"
 import { chatGptStorePath } from "./paths"
 import type { ChatGptCredentialSource } from "./source"
@@ -22,7 +23,11 @@ export function resolveChatGptSource(value = process.env.MERIDIAN_CHATGPT_CREDEN
   if (mode === "off") return undefined
   if (mode === "follow-external") return createExternalCredentialSource()
   if (mode === "owned" || mode === undefined) {
-    return createOwnedCredentialSource({ storePath: chatGptStorePath(), allowEmpty: mode === "owned" })
+    return createOwnedCredentialSource({
+      storePath: chatGptStorePath(),
+      allowEmpty: mode === "owned",
+      renewalIntervals: () => chatGptRenewalIntervals(getChatGptFeatures()),
+    })
   }
   throw new Error("MERIDIAN_CHATGPT_CREDENTIALS must be follow-external, owned or off")
 }

@@ -14,6 +14,7 @@ import {
 } from "../proxy/chatgpt/parity"
 import {
   CHATGPT_FEATURE_DEFAULTS,
+  chatGptRenewalIntervals,
   effectiveCreditsPolicy,
   getChatGptFeatures,
   forcedReasoningSummary,
@@ -307,13 +308,13 @@ describe("Fallback Model", () => {
 describe("ChatGPT feature settings", () => {
   it("defaults to thinking passthrough on, the client's reasoning summary, no budget, no fallback, and never spending credits", () => {
     resetChatGptFeatures()
-    expect(getChatGptFeatures()).toEqual({ thinkingPassthrough: true, reasoningSummary: "client", maxBudgetUsd: 0, fallbackModel: "", creditsPolicy: "never", seatCreditsPolicy: {}, freeSeatOrder: "before-credits" })
+    expect(getChatGptFeatures()).toEqual({ thinkingPassthrough: true, reasoningSummary: "client", maxBudgetUsd: 0, fallbackModel: "", creditsPolicy: "never", seatCreditsPolicy: {}, freeSeatOrder: "before-credits", seatRenewalHours: {} })
   })
 
   it("round-trips through settings.json", () => {
     updateChatGptFeatures({ thinkingPassthrough: false, maxBudgetUsd: 0.5 })
     updateChatGptFeatures({ fallbackModel: "gpt-5.4", creditsPolicy: "reserve" })
-    expect(getChatGptFeatures()).toEqual({ thinkingPassthrough: false, reasoningSummary: "client", maxBudgetUsd: 0.5, fallbackModel: "gpt-5.4", creditsPolicy: "reserve", seatCreditsPolicy: {}, freeSeatOrder: "before-credits" })
+    expect(getChatGptFeatures()).toEqual({ thinkingPassthrough: false, reasoningSummary: "client", maxBudgetUsd: 0.5, fallbackModel: "gpt-5.4", creditsPolicy: "reserve", seatCreditsPolicy: {}, freeSeatOrder: "before-credits", seatRenewalHours: {} })
     resetChatGptFeatures()
   })
 
@@ -330,6 +331,23 @@ describe("ChatGPT feature settings", () => {
 
     updateChatGptFeatures(validateChatGptFeatureUpdate({ seatCreditsPolicy: { "pro-abc123": "inherit" } }, [], resolve))
     expect(getChatGptFeatures().seatCreditsPolicy).toEqual({})
+    resetChatGptFeatures()
+  })
+
+  it("keeps a per-seat renewal interval in hours, between 1 and 240, that null removes", () => {
+    const resolve = (id: string) => id === "pro-abc123" ? "user-1__workspace-1" : undefined
+    expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: { nobody: 24 } }, [], resolve)).toThrow('unknown ChatGPT profile "nobody"')
+    for (const bad of [0.5, 241, "24", Number.NaN, true]) {
+      expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": bad } }, [], resolve)).toThrow("seatRenewalHours.pro-abc123 must be a number of hours from 1 to 240, or null")
+    }
+    expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: [24] }, [], resolve)).toThrow("seatRenewalHours must be an object")
+
+    updateChatGptFeatures(validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": 24 } }, [], resolve))
+    expect(getChatGptFeatures().seatRenewalHours).toEqual({ "user-1__workspace-1": 24 })
+    expect(chatGptRenewalIntervals(getChatGptFeatures())).toEqual({ "user-1__workspace-1": 24 * 3_600_000 })
+
+    updateChatGptFeatures(validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": null } }, [], resolve))
+    expect(getChatGptFeatures().seatRenewalHours).toEqual({})
     resetChatGptFeatures()
   })
 

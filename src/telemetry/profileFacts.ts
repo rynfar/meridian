@@ -112,6 +112,51 @@ function ownerName(owner) {
   return owner.name + (owner.account ? ' \\u00b7 account ' + owner.account : '');
 }
 
+// One entry of an owned seat's renewal history (/profiles/list \`renewals\`),
+// in words: what came back from the provider, and why when it refused.
+var CHATGPT_RENEWAL_OUTCOME = {
+  rotated: 'renewed, new refresh token',
+  kept: 'renewed, same refresh token',
+  refused: 'refused',
+  unverified: 'failed'
+};
+
+function renewalWords(r) {
+  return (CHATGPT_RENEWAL_OUTCOME[r.outcome] || r.outcome) + (r.cause ? ' (' + r.cause + ')' : '');
+}
+
+// The renewal facts of a seat Meridian renews itself: its interval, and the
+// latest renewal with the ones before it in the explanation.
+function renewalFacts(p) {
+  var facts = [];
+  var own = typeof p.renewalHours === 'number';
+  facts.push({
+    label: 'Renewal',
+    value: own ? 'every ' + p.renewalHours + 'h' : 'on the token\\u2019s 8th day',
+    tone: '',
+    title: own
+      ? 'This seat\\u2019s own interval: Meridian renews it ' + p.renewalHours + ' hours after its access token was issued, never later than a request would.'
+      : 'Meridian renews the seat 80% into its access token\\u2019s life, the 8th of its 10 days. Renew every sets this seat\\u2019s own interval.'
+  });
+  var renewals = Array.isArray(p.renewals) ? p.renewals : [];
+  if (renewals.length > 0) {
+    var last = renewals[renewals.length - 1];
+    var earlier = renewals.slice(-6, -1).reverse().map(function (r) {
+      return new Date(r.at).toLocaleString() + ' ' + renewalWords(r);
+    });
+    facts.push({
+      label: 'Last renewal',
+      value: renewalWords(last) + ', ' + timeAgo(last.at),
+      tone: last.outcome === 'refused' || last.outcome === 'unverified' ? 'warn' : '',
+      title: new Date(last.at).toLocaleString()
+        + (typeof last.expiresAt === 'number' ? '; its token is valid until ' + new Date(last.expiresAt).toLocaleString() : '')
+        + '. ' + renewals.length + ' renewal' + (renewals.length === 1 ? '' : 's') + ' recorded'
+        + (earlier.length > 0 ? '; before it: ' + earlier.join('; ') : '') + '.'
+    });
+  }
+  return facts;
+}
+
 function profileFacts(p) {
   var facts = [];
   var chatgpt = isChatGptProfile(p);
@@ -176,6 +221,7 @@ function profileFacts(p) {
         : 'Meridian reads this seat\\u2019s login from ' + p.owner.name + ' and never changes it: sign-in, renewal and removal happen there.'
     });
   }
+  if (chatgpt && p.owner && p.owner.name === 'meridian') facts = facts.concat(renewalFacts(p));
   if (chatgpt && CHATGPT_OWNER_STATE[p.unavailable]) {
     facts.push({ label: 'Owner state', value: CHATGPT_OWNER_STATE[p.unavailable], tone: '' });
   }

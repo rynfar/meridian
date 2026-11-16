@@ -201,6 +201,10 @@ Meridian renews each seat in its own store on the eighth day of its ten-day acce
 
 When OpenAI refuses a renewal, the log line and the `cause` field of `POST /profiles/chatgpt/refresh` name which refusal it was: `refresh token expired`, `refresh token already used` (another program renewed the same login first) or `refresh token revoked`. A failure on OpenAI's side records `HTTP <status>` instead.
 
+A seat in Meridian's own store can be given its own renewal interval in hours, from 1 to 240: **Renew every** on its card, or `PATCH /settings/api/chatgpt` with `{"seatRenewalHours": {"<profile>": 24}}`, where `null` removes it. That seat is then renewed that long after its access token was issued, never later than a request would renew it; a token that does not say when it was issued is still left to the request path. The renewal pass reads the intervals every minute, so a change applies without a restart, and removing the seat drops its interval. Every other seat keeps the eighth day. `GET /settings/api/chatgpt` lists each seat's `renewalHours`, and the renewal log line names the interval. It exists to measure whether renewing more often changes how long a sign-in lasts. An instance with `MERIDIAN_CREDENTIALS_READONLY=1` never renews, interval or not.
+
+Each such seat keeps its latest 64 renewals with its record in the store, and `/profiles/list` lists them under `renewals`, oldest first, beside `renewalHours` (`null` for the default): when, the `outcome` (`rotated` or `kept`, whether OpenAI issued a new refresh token; `refused`; or `unverified`, a failure on OpenAI's side), the `cause` of a refusal or failure, and the new access token's `issuedAt` and `expiresAt`. An attempt that never reached OpenAI, such as one after an interrupted exchange, records nothing. The card shows the interval under **Renewal** and the latest entry under **Last renewal**, with the ones before it in its tooltip. A seat whose login another tool owns has `renewalHours: null` and `renewals: []`.
+
 ### Switching profiles
 
 ```bash

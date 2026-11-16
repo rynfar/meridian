@@ -9492,6 +9492,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     order: priorityProfileOrderSetting,
     spent: (profileId) => spentProfiles.get(profileId),
     freeSeatOrder: () => getChatGptFeatures().freeSeatOrder,
+    renewalHours: (seat) => getChatGptFeatures().seatRenewalHours[seat] ?? null,
   }) : undefined
   const orderableProfileIds = (): string[] => [
     ...listProfiles(finalConfig.profiles, finalConfig.defaultProfile).map(p => p.id),
@@ -10095,7 +10096,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
   // ChatGPT gateway features (chatgpt/features.ts), re-read per request.
   // `seats` lists every seat with its own credits-policy override (null =
-  // the instance's policy), for the per-seat controls.
+  // the instance's policy) and renewal interval (null = the default), for the
+  // per-seat controls.
   app.get("/settings/api/chatgpt", async (c) => {
     const models = (await chatGptOfferedModels()).map(model => model.slug)
     const features = getChatGptFeatures()
@@ -10103,6 +10105,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       id: profile.id,
       label: profile.label,
       creditsPolicy: features.seatCreditsPolicy[profile.seat] ?? null,
+      renewalHours: features.seatRenewalHours[profile.seat] ?? null,
     }))
     return c.json({ enabled: chatGptSource !== undefined, features, models, seats })
   })
@@ -10117,6 +10120,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       if (update.creditsPolicy || update.seatCreditsPolicy) {
         const overrides = Object.entries(features.seatCreditsPolicy).map(([seat, policy]) => `${chatGptProfiles?.profileIdFor(seat) ?? seat}=${policy}`)
         plog(`[PROXY] ChatGPT credits policy: ${features.creditsPolicy}${overrides.length > 0 ? ` overrides=${overrides.join(",")}` : ""}`)
+      }
+      if (update.seatRenewalHours) {
+        const intervals = Object.entries(features.seatRenewalHours).map(([seat, hours]) => `${chatGptProfiles?.profileIdFor(seat) ?? seat}=${hours}h`)
+        plog(`[PROXY] ChatGPT seat renewal intervals: ${intervals.length > 0 ? intervals.join(",") : "none (every seat renews 80% into its token's life)"}`)
       }
       return c.json({ ok: true, features })
     } catch (e) {
