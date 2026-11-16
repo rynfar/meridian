@@ -41,6 +41,14 @@ describe("parseLimitWording", () => {
     expect(parseLimitWording("You've hit your weekly fable limit").bucket).toBe("seven_day_fable")
   })
 
+  it("reads the tier out of the credits-era 'reached your <tier> limit' banner", () => {
+    expect(parseLimitWording("Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.").bucket).toBe("seven_day_fable")
+    expect(parseLimitWording("You've reached your Fable 5 limit. /model to switch models.").bucket).toBe("seven_day_fable")
+    expect(parseLimitWording("You've reached your Claude Opus 4.6 limit").bucket).toBe("seven_day_opus")
+    expect(parseLimitWording("You've reached your Sonnet 4.6 limit").bucket).toBe("seven_day_sonnet")
+    expect(parseLimitWording("You've reached your specified limit").bucket).toBeNull()
+  })
+
   it("returns nulls rather than throwing on prose it has never seen", () => {
     const parsed = parseLimitWording("something else entirely went wrong")
     expect(parsed.bucket).toBeNull()

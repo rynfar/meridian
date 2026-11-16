@@ -80,8 +80,15 @@ const MODEL_BUCKETS: Record<string, string> = {
  * as the Opus weekly bucket rather than the general one. Deliberately separate
  * from `classifyError`'s own matcher: this one decides WHICH limit, and must be
  * free to change without moving the line between 429 and 500.
+ *
+ * The credits-era per-tier banner says "reached", not "hit" ("You've reached
+ * your Fable 5 limit", "You've reached your Claude Opus 4.6 limit"), and
+ * classifies as a quota refusal (REACHED_YOUR_TIER_LIMIT in errors.ts). Without
+ * reading its tier here the refusal named no bucket, so a spent Fable window
+ * benched the whole profile for every model instead of only for Fable. Version
+ * numbers carry dots, hence the wider word class and one more word on that side.
  */
-const LIMIT_WORDING = /hit your ((?:[\w-]+ ){0,2})limit/i
+const LIMIT_WORDING = /(?:hit your ((?:[\w-]+ ){0,2})|reached your ((?:[\w.-]+ ){0,3}))limit/i
 const RESET_WORDING = /resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm)?|midnight|noon)\s*(?:\(([^)]+)\))?/i
 
 export interface ParsedLimitWording {
@@ -100,7 +107,7 @@ export interface ParsedLimitWording {
  */
 export function parseLimitWording(errMsg: string): ParsedLimitWording {
   const wording = LIMIT_WORDING.exec(errMsg)
-  const words = (wording?.[1] ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const words = (wording?.[1] ?? wording?.[2] ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
 
   let bucket: string | null = null
   const model = words.find(w => MODEL_BUCKETS[w])
