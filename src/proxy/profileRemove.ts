@@ -20,8 +20,8 @@
  * This is a leaf module - no imports from server.ts, profileCli.ts or session/.
  */
 
-import { existsSync, rmSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, realpathSync, rmSync } from "node:fs"
+import { isAbsolute, join, relative, resolve } from "node:path"
 import { getSetting, saveSettings, type MeridianSettings } from "../settings"
 import { readProfileConfigForUpdate, withProfileConfigLockSync } from "./profileConfigStore"
 import type { ProfileConfig } from "./profiles"
@@ -38,14 +38,36 @@ import { defaultProfilesConfigFile, defaultProfilesDir, saveProfileConfigTo } fr
  */
 export function dirsToRemoveOnProfileRemove(profile: ProfileConfig, profilesDir: string): string[] {
   const dirs: string[] = []
-  if (profile.claudeConfigDir?.startsWith(profilesDir)) {
+  if (profile.claudeConfigDir && strictlyInside(profile.claudeConfigDir, profilesDir)) {
     dirs.push(profile.claudeConfigDir)
   }
   if (profile.oauthToken || profile.type === "oauth-token") {
     const isolationDir = join(profilesDir, profile.id)
-    if (!dirs.includes(isolationDir)) dirs.push(isolationDir)
+    if (!dirs.includes(isolationDir) && strictlyInside(isolationDir, profilesDir)) dirs.push(isolationDir)
   }
   return dirs
+}
+
+/** Symlinks resolved where the path exists, so a link cannot lead outside. */
+function canonicalPath(path: string): string {
+  try { return realpathSync(path) } catch { return resolve(path) }
+}
+
+/**
+ * Whether `dir` lies below `root`. Not `root` itself, which would delete every
+ * profile's credentials, and not a sibling that merely shares its prefix
+ * (`profiles-backup`) or a path that climbs back out (`profiles/../x`).
+ */
+function strictlyInside(dir: string, root: string): boolean {
+  const rel = relative(canonicalPath(root), canonicalPath(dir))
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel)
+}
+
+/** Every directory a profile reads credentials from, owned or not. */
+function dirsInUse(profile: ProfileConfig, profilesDir: string): string[] {
+  const dirs = dirsToRemoveOnProfileRemove(profile, profilesDir)
+  if (profile.claudeConfigDir) dirs.push(profile.claudeConfigDir)
+  return dirs.map(canonicalPath)
 }
 
 export interface ProfileRemovePlan {
@@ -84,12 +106,16 @@ export function planProfileRemove(
   }
 
   const removed = profiles[idx]!
+  const remaining = profiles.filter((_, i) => i !== idx)
+  // Two profiles signed in to one directory share its credentials; the one
+  // that stays must keep them.
+  const stillUsed = new Set(remaining.flatMap(p => dirsInUse(p, profilesDir)))
   return {
     ok: true,
     plan: {
-      profiles: profiles.filter((_, i) => i !== idx),
+      profiles: remaining,
       removed,
-      dirsToRemove: dirsToRemoveOnProfileRemove(removed, profilesDir),
+      dirsToRemove: dirsToRemoveOnProfileRemove(removed, profilesDir).filter(dir => !stillUsed.has(canonicalPath(dir))),
     },
   }
 }

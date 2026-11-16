@@ -346,6 +346,13 @@ describe("dirsToRemoveOnProfileRemove", () => {
     expect(dirs).toEqual([])
   })
 
+  test("never returns PROFILES_DIR itself, a prefix sibling or a path climbing out of it", async () => {
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
+    for (const claudeConfigDir of [PROFILES_DIR, `${PROFILES_DIR}/`, `${PROFILES_DIR}-backup/x`, `${PROFILES_DIR}/../x`]) {
+      expect(dirsToRemoveOnProfileRemove({ id: "wild", claudeConfigDir }, PROFILES_DIR)).toEqual([])
+    }
+  })
+
   test("oauth-token profile drops the pinned isolation dir at PROFILES_DIR/<id>", async () => {
     const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(

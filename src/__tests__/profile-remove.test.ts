@@ -140,6 +140,19 @@ describe("applyProfileRemove", () => {
     expect(readConfig().map(p => p.id)).toEqual(["personal"])
   })
 
+  test("keeps a credential directory another profile still uses", () => {
+    const shared = seedProfileDir("shared")
+    seed([{ id: "work", claudeConfigDir: shared }, { id: "work-twin", claudeConfigDir: shared }])
+
+    const result = applyProfileRemove("work", { profilesDir: ctx.profilesDir, configFile: ctx.configFile })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.dirsRemoved).toEqual([])
+    expect(existsSync(shared)).toBe(true)
+    expect(readConfig().map(p => p.id)).toEqual(["work-twin"])
+  })
+
   test("leaves a credential directory it does not own alone", () => {
     // A profile pointed outside profilesDir names credentials somebody else
     // owns, such as the host's own ~/.claude.
