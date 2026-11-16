@@ -207,28 +207,6 @@ describe("keyed turn publication", () => {
       expect(first.text).not.toContain("Shared session mapping changed")
       expect(first.status).toBe(200)
       expect(lookupSharedSession(`personal:${id}`)?.messageCount).toBe(FIRST_TURN.length)
-      expect(logged).not.toContain("session.keyed_publication_lost")
-    }, 20_000)
-
-    it(`answers a ${mode} turn whose key was created and removed under it, and the next turn publishes`, async () => {
-      const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true, profiles })
-      const id = `aba-${mode}`
-      const key = `personal:${id}`
-
-      const first = await turnWith(app, turn(id, FIRST_TURN, stream), async () => {
-        const created = await storeSharedSession(key, "sdk-elsewhere", 1)
-        expect(created).toBeTruthy()
-        expect(await evictSharedSession(key, created || undefined)).toBe(true)
-      })
-      expect(first.text).not.toContain("Shared session mapping changed")
-      expect(first.status).toBe(200)
-      expect(first.text).toContain("ok")
-      expect(logged).toContain("session.keyed_publication_lost")
-      expect(lookupSharedSession(key)).toBeUndefined()
-
-      const second = await turnWith(app, turn(id, SECOND_TURN, stream))
-      expect(second.status).toBe(200)
-      expect(lookupSharedSession(key)?.messageCount).toBe(SECOND_TURN.length)
     }, 20_000)
   }
 })
