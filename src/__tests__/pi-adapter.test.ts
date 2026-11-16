@@ -414,6 +414,20 @@ describe("piAdapter.isAuxiliaryRequest — Oh My Pi side calls", () => {
     expect(piAdapter.isAuxiliaryRequest?.(other, ompBody("omp-main"))).toBe(false)
   })
 
+  it("marks a side call whose body session id an extension suffixed", () => {
+    // An omp extension rotating accounts sends `<session>~<suffix>` in the
+    // body; omp still names the bare session in the header.
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(side, ompBody("omp-main~rmwj21284"))).toBe(true)
+  })
+
+  it("does not mark a side call of a session whose id is only a prefix of the key", () => {
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
+    for (const key of ["omp-main2", "omp-main-2", "omp-main.2", "omp-main:child"]) {
+      expect(piAdapter.isAuxiliaryRequest?.(side, ompBody(key))).toBe(false)
+    }
+  })
+
   it("does not mark a request without a body session id", () => {
     const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
     expect(piAdapter.isAuxiliaryRequest?.(side, {})).toBe(false)

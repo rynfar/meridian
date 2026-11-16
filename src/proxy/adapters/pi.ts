@@ -82,10 +82,16 @@ function extractPiCwd(body: any): string | undefined {
  * `X-Claude-Code-Session-Id` to the side call's own id, `<session>:side:<id>`.
  * Only a side id of the request's own session key counts: a header naming
  * another session, or a request without a key, is not a side call of the
- * conversation it would be handled under.
+ * conversation it would be handled under. An omp extension can extend the
+ * body's session id (an account-rotation suffix, `<session>~<suffix>`) but not
+ * the header, so the key may continue after the header's session id with `~`;
+ * a key that merely shares a prefix with it does not match.
  */
 export function isOhMyPiSideCall(headerSessionId: string | undefined, sessionKey: string | undefined): boolean {
-  return sessionKey !== undefined && headerSessionId?.startsWith(`${sessionKey}:side:`) === true
+  const side = headerSessionId?.indexOf(":side:") ?? -1
+  if (sessionKey === undefined || side <= 0) return false
+  const session = headerSessionId!.slice(0, side)
+  return sessionKey === session || sessionKey.startsWith(`${session}~`)
 }
 
 function piSessionKey(c: Context, body?: unknown): string | undefined {
