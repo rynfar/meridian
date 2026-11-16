@@ -63,9 +63,11 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
 - Transcript GC here is the only Meridian-owned transcript deletion. Opt-in
   transcript retention (`proxy/transcriptRetention.ts`, off by default) hands
   Claude Code's own cleanup a period; that cleanup is outside this module's
-  leases and pins and may retire a mapped transcript by age, after which the
-  conversation replays (see `architecture` → *Transcript publication
-  lifetime*).
+  leases. Meridian refreshes the mtime of every mapped or pinned transcript the
+  cleanup could reach before a child whose cleanup is due starts (`proxy-core`
+  → *Decisions*), but a cleanup started elsewhere in the root can still retire
+  one by age, after which the conversation replays (see `architecture` →
+  *Transcript publication lifetime*).
 
 Detailed contracts live in [`architecture`](../../../ARCHITECTURE.md): *Session
 Management*, *Lineage Verification*, *SQLite bookkeeping boundary*, *Transcript
@@ -308,5 +310,7 @@ next request replays, as main's fresh replay of that turn would have.
   file without the earlier turns, so a later resume silently lacks them and
   lineage cannot detect it. A conversation
   whose transcript is already gone is refused and replays from client
-  history instead. A pin-aware cleanup is a recorded follow-up (`proxy-core`
-  → *Decisions*).
+  history instead. Meridian refreshes mapped and pinned transcripts before
+  its own children's cleanup (`proxy-core` → *Decisions*), so this needs a
+  cleanup started outside that protection: another process in the root, such
+  as interactive Claude Code in a shared `~/.claude`.
