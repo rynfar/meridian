@@ -509,3 +509,81 @@ describe("cross-process turn coordinator", () => {
     }
   })
 })
+
+describe("cross-process turn coordinator: locks without a readable owner", () => {
+  const key = "logical-session"
+  const DAY_MS = 24 * 3_600_000
+  const options = { acquireTimeoutMs: 1_000, staleAfterMs: 100, heartbeatIntervalMs: 25, retryDelayMs: 10 }
+
+  /** What a host crash left of an unflushed lock: owner.json with its size but not its data. */
+  async function tornLock(locks: string, lastActivityMs: number): Promise<string> {
+    const lockPath = lockDirectory(locks, key)
+    await mkdir(lockPath, { recursive: true })
+    await writeFile(join(lockPath, "owner.json"), "\0".repeat(338))
+    await writeFile(join(lockPath, "heartbeat-unknown-token"), "")
+    const at = new Date(lastActivityMs)
+    for (const name of await readdir(lockPath)) await utimes(join(lockPath, name), at, at)
+    await utimes(lockPath, at, at)
+    return lockPath
+  }
+
+  test("reclaims a torn lock whose last activity predates the current boot", async () => {
+    const { locks } = await makeFiles()
+    const bootedAt = Date.now() - 60_000
+    await tornLock(locks, bootedAt - 3_600_000)
+    const coordinator = new CrossProcessTurnCoordinator(locks, { ...options, bootTimeMs: () => bootedAt })
+    const lease = await coordinator.acquire(key)
+    const owner = JSON.parse(await readFile(join(lockDirectory(locks, key), "owner.json"), "utf8")) as { pid: number }
+    expect(owner.pid).toBe(process.pid)
+    await lease.release()
+  })
+
+  test("never reclaims a torn lock from the current boot, however old it is", async () => {
+    const { locks } = await makeFiles()
+    // A month-long boot, and a lock untouched for 29 days of it.
+    const bootedAt = Date.now() - 30 * DAY_MS
+    const lockPath = await tornLock(locks, Date.now() - 29 * DAY_MS)
+    const coordinator = new CrossProcessTurnCoordinator(locks, { ...options, acquireTimeoutMs: 300, bootTimeMs: () => bootedAt })
+    const refusal = await coordinator.acquire(key).then(() => undefined, (error: unknown) => error)
+    expect(refusal).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    expect((await readFile(join(lockPath, "owner.json"))).every(byte => byte === 0)).toBe(true)
+  })
+
+  test("only one of two contenders gets a reclaimed torn lock", async () => {
+    const { locks } = await makeFiles()
+    const bootedAt = Date.now() - 60_000
+    await tornLock(locks, bootedAt - 3_600_000)
+    const contender = () => new CrossProcessTurnCoordinator(locks, { ...options, acquireTimeoutMs: 1_500, bootTimeMs: () => bootedAt })
+      .acquire(key).then(lease => lease, (error: unknown) => error)
+    const results = await Promise.all([contender(), contender()])
+    const leases = results.filter(result => !(result instanceof Error))
+    expect(leases).toHaveLength(1)
+    expect(results.filter(result => result instanceof CrossProcessTurnAcquireTimeoutError)).toHaveLength(1)
+    await (leases[0] as { release(): Promise<void> }).release()
+  })
+
+  // #1223's review probe: a live holder, paused, whose owner record is then
+  // made unreadable and whose heartbeats age far past stale. It is from the
+  // current boot, so no amount of age hands its lock to a second process.
+  test.skipIf(process.platform === "win32")("never grants a second lease beside a paused live holder with an unreadable owner", async () => {
+    const paths = await makeFiles()
+    const holder = spawnWorker("hold", paths, { HOLD_MS: "30000" })
+    await waitForEvent(paths.events, "acquired", 10_000)
+    holder.kill("SIGSTOP")
+    try {
+      const lockPath = lockDirectory(paths.locks, key)
+      await writeFile(join(lockPath, "owner.json"), "\0".repeat(338))
+      const aged = new Date(Date.now() - 3_000)
+      for (const name of await readdir(lockPath)) await utimes(join(lockPath, name), aged, aged)
+      await utimes(lockPath, aged, aged)
+
+      const refusal = await new CrossProcessTurnCoordinator(paths.locks, { ...options, acquireTimeoutMs: 500 })
+        .acquire(key).then(() => undefined, (error: unknown) => error)
+      expect(refusal).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+      expect(() => process.kill(holder.pid, 0)).not.toThrow()
+    } finally {
+      holder.kill("SIGCONT")
+      holder.kill()
+    }
+  }, 20_000)
+})
