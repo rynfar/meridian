@@ -529,7 +529,9 @@ prompt-cache keepalive beats, control/provider operations and their finalizers
 before releasing its owner.
 `ProxyInstance.close()` bounds the wait after HTTP drain: an unjoined cleanup
 rejects instead of reporting success, while the original cleanup retains SQL
-and ChatGPT ownership until those operations join. Repeated calls return the
+ownership until those operations join. ChatGPT ownership is released once
+admitted work has joined, beside GC and backend close (`joinShutdownCleanup`),
+so a slow GC sweep cannot keep the writer lease past the deadline. The deadline is `MERIDIAN_SHUTDOWN_CLEANUP_DEADLINE_MS` (10 s): GC, backend close and ChatGPT release do fsyncs and join child processes, which on a loaded host routinely took longer than the former 2 s and made every restart exit 1. Cleanup still running after 2 s is logged with each step's time (`ShutdownProgress`), and a missed deadline names the step that held it. Repeated calls return the
 same promise. `session/deletionCleanup.ts` separately owns GC from admission,
 including gaps between transactions and native child creation. Its per-proxy
 async context keeps sibling shutdown independent; its directory ledger retains

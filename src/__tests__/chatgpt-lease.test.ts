@@ -197,6 +197,37 @@ describe("ChatGPT writer lease - exclusion across real processes", () => {
     expect(account?.refreshToken).toBe("refresh-committed-before-death")
     expect(account?.tokenRotatedAt).toBe(1)
   })
+
+  it("reclaims a dead holder at once, before its lock goes stale", async () => {
+    // A restart's successor starts within seconds of its predecessor exiting
+    // without releasing. Waiting out the stale window refused every start in
+    // between, though the holder was provably gone.
+    const child = Bun.spawn({
+      cmd: [process.execPath, "-e", `
+        import { acquireWriterLease } from ${JSON.stringify(LEASE_MODULE)}
+        await acquireWriterLease({ lockPath: ${JSON.stringify(lockPath)}, heartbeatMs: ${HEARTBEAT_MS}, waitMs: 0 })
+        console.log("HELD")
+        setInterval(() => {}, 1000)
+      `],
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const reader = child.stdout.getReader()
+    const decoder = new TextDecoder()
+    let seen = ""
+    while (!seen.includes("HELD")) {
+      const { done, value } = await reader.read()
+      if (done) break
+      seen += decoder.decode(value, { stream: true })
+    }
+    expect(seen).toContain("HELD")
+    child.kill("SIGKILL")
+    await child.exited
+
+    const lease = await take({ staleMs: 60_000 })
+
+    lease.assertValid()
+  })
 })
 
 describe("ChatGPT writer lease - validity", () => {
