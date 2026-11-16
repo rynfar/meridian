@@ -27,7 +27,7 @@ let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
 let mockBeforeTerminalError: (() => void | Promise<void>) | undefined
-let mockLogObserver: ((event: string) => void) | undefined
+let mockLogObserver: ((event: string, fields?: Record<string, unknown>) => void) | undefined
 /** What each PostToolBatch hook returned for a `test_post_tool_batch` step. */
 let postToolBatchResults: Array<{ ids: string[]; result: unknown }> = []
 /**
@@ -130,7 +130,7 @@ installSdkMock(() => ({
 }), "passthrough-early-stop-integration.test.ts")
 
 installLoggerMock(() => ({
-  claudeLog: (event: string) => { mockLogObserver?.(event) },
+  claudeLog: (event: string, fields?: Record<string, unknown>) => { mockLogObserver?.(event, fields) },
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
@@ -4148,6 +4148,77 @@ describe("Integration: passthrough early stop", () => {
     // Envelope stays balanced: one message_start, closed with message_stop.
     expect(events.filter(e => e.event === "message_start")).toHaveLength(1)
   })
+
+  for (const outcome of ["captured", "uncaptured", "truncated", "empty", "process_exit", "refusal", "publication_conflict"] as const) {
+    it(`stream termination logging: ${outcome}`, async () => {
+      const capError = "Claude Code returned an error result: Reached maximum number of turns (1)"
+      const errorText = outcome === "process_exit" ? "Claude Code process exited with code 2"
+        : outcome === "refusal" ? "You've hit your limit · resets 5pm (UTC)" : capError
+      const tool = { type: "tool_use", id: "logging-tool", name: "read", input: { file_path: "/x" } }
+      const captured = outcome === "captured" || outcome === "publication_conflict"
+      const text = outcome === "truncated" || outcome === "process_exit"
+      mockMessages = [
+        messageStart("msg_logging"),
+        ...(captured || outcome === "uncaptured" ? [
+          toolUseBlockStart(0, "read", tool.id), inputJsonDelta(0, JSON.stringify(tool.input)), blockStop(0),
+          { ...assistantMessage([tool]), test_skip_pre_tool_hook: !captured },
+          ...(captured ? [userDenyMessage(tool.id)] : [unavailableToolMessage(tool.id, "read")]),
+        ] : text ? [textBlockStart(0), textDelta(0, "half an answer"), blockStop(0)] : []),
+        ...(outcome === "process_exit" || outcome === "refusal" ? [] : [
+          { type: "result", subtype: "error_max_turns", is_error: true },
+        ]),
+      ]
+      mockTerminalError = new Error(errorText)
+      const sessionHeader = `es-termination-logging-${outcome}`
+      if (outcome === "publication_conflict") {
+        mockBeforeTerminalError = async () => {
+          expect(await storeSharedSession(`${sessionHeader}-${TEST_RUN_ID}`, "logging-concurrent-winner")).toBeTruthy()
+        }
+      }
+      // Exercise the existing SDK stderr callback as well as the thrown text.
+      if (outcome === "process_exit") {
+        mockBeforeTerminalError = () => { capturedQueryParams.options.stderr("logging stderr witness") }
+      }
+      const logs: Array<{ event: string; fields?: Record<string, unknown> }> = []
+      mockLogObserver = (event, fields) => { logs.push({ event, fields }) }
+      const response = await post(app, {
+        model: "claude-sonnet-4-5", max_tokens: 400, stream: true, tools: [READ_TOOL],
+        messages: [{ role: "user", content: "read x for logging" }],
+      }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": `${sessionHeader}-${TEST_RUN_ID}` })
+      const events = parseSSE(await readNaturallyClosedStream(response))
+      const recovery = captured && outcome !== "publication_conflict" ? "tool_use"
+        : outcome === "uncaptured" ? "tool_use_uncaptured" : outcome === "truncated" ? "max_tokens" : undefined
+      const failures = logs.filter(log => log.event === "upstream.failed")
+      const errors = logs.filter(log => log.event === "proxy.anthropic.error")
+      const completions = logs.filter(log => log.event === "upstream.completed")
+      if (recovery) {
+        expect(events.filter(e => e.event === "error")).toHaveLength(0)
+        expect(events.filter(e => e.event === "message_delta").map(e => e.data.delta))
+          .toEqual([{ stop_reason: outcome === "truncated" ? "max_tokens" : "tool_use", stop_sequence: null }])
+        expect(failures).toHaveLength(0)
+        expect(errors).toHaveLength(0)
+        expect(completions).toHaveLength(1)
+        expect(completions[0]!.fields).toMatchObject({
+          mode: "stream", model: "sonnet", sdkTermination: "max_turns", recovery,
+          durationMs: expect.any(Number), streamEventsSeen: expect.any(Number),
+          eventsForwarded: expect.any(Number), textEventsForwarded: expect.any(Number),
+        })
+      } else {
+        expect(events.filter(e => e.event === "error")).toHaveLength(1)
+        expect(completions).toHaveLength(0)
+        expect(failures).toHaveLength(1)
+        expect(errors).toHaveLength(1)
+        if (outcome === "process_exit") {
+          expect(failures[0]!.fields?.stderr).toBe("logging stderr witness")
+          expect(String(errors[0]!.fields?.error)).toContain("Subprocess stderr: logging stderr witness")
+        }
+        expect(failures[0]!.fields).toMatchObject({ mode: "stream", error: expect.stringContaining(errorText) })
+        expect(errors[0]!.fields).toMatchObject({
+          error: expect.stringContaining(errorText), classified: outcome === "refusal" ? "rate_limit_error" : "api_error",
+        })
+      }
+    })
+  }
 
   it("stream: uncaptured recovery is refused when the block never completed", async () => {
     process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "1"

@@ -53,6 +53,16 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 
 ## Decisions
 
+- **Streaming failure events describe unrecovered turns.** After SDK error
+  classification, a usable captured/uncaptured tool handoff or capped-turn
+  truncation logs `upstream.completed` with the normal streaming fields plus
+  `sdkTermination` and `recovery` (`tool_use`, `tool_use_uncaptured`, or
+  `max_tokens`), not `upstream.failed` / `proxy.anthropic.error`. Other exits,
+  including failed recovery publication, retain both failure events exactly
+  once with their original classification and stderr. This changes no recovery,
+  telemetry, idle-streak or wire behavior. See
+  [exit audit and live log evidence](../../docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
 - **Externally stopped Claude Code processes are transient.** SDK exits 143
   (SIGTERM) and 137 (SIGKILL), including the SDK's null-code `terminated by
   signal SIGTERM/SIGKILL` form, return 503 `api_error` with “Service temporarily

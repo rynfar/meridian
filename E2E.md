@@ -104,6 +104,22 @@ A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
+## Recovered passthrough streaming outcome logs
+
+`node scripts/e2e-passthrough-handoff-logging.mjs` compares an unchanged build
+with the candidate through the actual installed Pi AI provider, SDK and native
+Claude Code. It makes two real Haiku requests, each declaring exactly one
+non-deferred client tool; it does not start a Pi session. Set the explicit
+build/provider/executable/credential/scratch parameters and complete the
+pre-start isolation proof described in
+[the evidence record](docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
+Require identical client-visible tool handoffs (`tool_use`, no SSE error),
+baseline `upstream.failed` plus `proxy.anthropic.error`, and candidate only
+`upstream.completed` with `sdkTermination=max_turns` and `recovery=tool_use`.
+The HTTP integration tests additionally cover uncaptured handoffs, truncation,
+empty turns, process-exit stderr, rate-limit refusals and publication conflicts.
+
 ## Oh My Pi regrouped user messages
 
 `node scripts/e2e-lineage-regroup-omp.mjs --omp=<omp> --agent-dir=<dir>
