@@ -14,7 +14,7 @@
  * tolerates that because its refresh tokens survive reuse. ChatGPT will not.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdtempSync, rmSync, statSync, utimesSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -22,6 +22,7 @@ import {
   WriterLeaseLostError,
   WriterLeaseUnavailableError,
 } from "../proxy/chatgpt/lease"
+import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
 
 const LEASE_MODULE = join(import.meta.dir, "../proxy/chatgpt/lease.ts")
 const STORE_MODULE = join(import.meta.dir, "../proxy/chatgpt/credentials.ts")
@@ -227,6 +228,17 @@ describe("ChatGPT writer lease - exclusion across real processes", () => {
     const lease = await take({ staleMs: 60_000 })
 
     lease.assertValid()
+  })
+
+  it("leaves a fresh lock from an earlier boot of this host id to its stale window", async () => {
+    // Two machines sharing a host id see each other's boots as earlier ones
+    // here; the holder may be alive on the other, so only staleness retires it.
+    const current = captureProcessIncarnation()
+    expect(current).toBeDefined()
+    const incarnation = { ...current!, pid: 999_999, bootId: current!.bootId === "00000000-0000-4000-8000-000000000000" ? "00000000-0000-4000-8000-000000000001" : "00000000-0000-4000-8000-000000000000" }
+    writeFileSync(lockPath, JSON.stringify({ pid: 999_999, hostname: "elsewhere", token: "other-holder", incarnation }))
+
+    await expect(take({ staleMs: 60_000, waitMs: 1_500 })).rejects.toBeInstanceOf(WriterLeaseUnavailableError)
   })
 })
 

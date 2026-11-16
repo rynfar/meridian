@@ -17,9 +17,11 @@
  * is a routine occurrence rather than an exotic one. Here a lock is displaced
  * solely when the OS says its owner is gone (`processIncarnationIsDead`, which
  * answers `dead` only on a missing process or a different boot of this host,
- * and fails closed on everything else). Staleness only paces the probe: a
- * stale lock is probed on every attempt, a fresh one at most once a second,
- * because on darwin and win32 a probe is a synchronous child process. A
+ * and fails closed on everything else). A stale lock is probed on every
+ * attempt. A fresh one is probed at most once a second, because on darwin and
+ * win32 a probe is a synchronous child process, and is taken only from a
+ * holder of this boot: an earlier boot under the same host id may be another
+ * machine sharing it, so that lock still waits out the stale window. A
  * restart's successor therefore takes over from a predecessor that exited
  * without releasing as soon as it is gone, not a stale window later.
  *
@@ -49,7 +51,7 @@ import { withWriterRecoveryClaim } from "./recovery"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
-  processIncarnationIsDead,
+  processIncarnationIsDead, processIncarnationPredatesBoot,
   type ProcessIncarnation,
 } from "../session/processIncarnation"
 
@@ -184,9 +186,13 @@ function retireDeadLock(lockPath: string, staleMs: number, probeFresh: boolean):
     throw new Error(`[chatgpt] lease inspection failed: ${(error as Error).message}`, { cause: error })
   }
 
-  if (!probeFresh && Date.now() - info.mtimeMs <= staleMs) return false
+  const fresh = Date.now() - info.mtimeMs <= staleMs
+  if (fresh && !probeFresh) return false
   const owner = parseOwner(contents)
   if (!owner || !processIncarnationIsDead(owner.incarnation)) return false
+  // A different boot under this host id can be a live holder on another
+  // machine that shares the id, so only staleness retires its fresh lock.
+  if (fresh && processIncarnationPredatesBoot(owner.incarnation)) return false
 
   return withWriterRecoveryClaim(lockPath, contents, () => {
     // The generation claim excludes other reclaimers across this check/rename
