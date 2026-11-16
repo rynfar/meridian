@@ -20,6 +20,7 @@ import {
   createEarlyStopTracker,
   allForwardedCallsResolved,
   isClientForwardedToolUse,
+  isSdkToolSearchCall,
   noteAssistantContent,
   noteAssistantMessage,
   noteUserContent,
@@ -68,6 +69,33 @@ describe("isClientForwardedToolUse", () => {
     expect(isClientForwardedToolUse(toolUse("t1", "ToolSearch"), "mcp__oc__", true)).toBe(true)
     // StructuredOutput stays internal in every mode.
     expect(isClientForwardedToolUse(toolUse("t2", "StructuredOutput"), "mcp__oc__", true)).toBe(false)
+  })
+
+  // The deferred-tools note lists `mcp__oc__*` names, and a live model once
+  // called the search tool under that prefix. The CLI refuses it; forwarding it
+  // as `ToolSearch` made the client fail a tool it never declared.
+  it("excludes ToolSearch under the client prefix when the SDK owns the search", () => {
+    expect(isClientForwardedToolUse(toolUse("t1", "mcp__oc__ToolSearch"), "mcp__oc__", false, true)).toBe(false)
+    expect(isClientForwardedToolUse(toolUse("t2", "mcp__litellm__ToolSearch"), "mcp__litellm__", false, true)).toBe(false)
+    // No SDK search (nothing deferred) or a client ToolSearch: an ordinary name.
+    expect(isClientForwardedToolUse(toolUse("t3", "mcp__oc__ToolSearch"))).toBe(true)
+    expect(isClientForwardedToolUse(toolUse("t4", "mcp__oc__ToolSearch"), "mcp__oc__", true, false)).toBe(true)
+  })
+
+  it("does not arm the tracker for a prefixed SDK search, so its refusal cannot settle a checkpoint", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, sdkAssistant("a1", [toolUse("t1", "mcp__oc__ToolSearch")]), "mcp__oc__", false, true)
+    expect(tracker.expected.size).toBe(0)
+    expect(tracker.toolCallAssistantUuid).toBeUndefined()
+  })
+
+  it("names the SDK search call in both spellings only when the SDK owns each", () => {
+    expect(isSdkToolSearchCall("ToolSearch")).toBe(true)
+    expect(isSdkToolSearchCall("ToolSearch", "mcp__oc__", true)).toBe(false)
+    expect(isSdkToolSearchCall("mcp__oc__ToolSearch")).toBe(false)
+    expect(isSdkToolSearchCall("mcp__oc__ToolSearch", "mcp__oc__", false, true)).toBe(true)
+    expect(isSdkToolSearchCall("mcp__other__ToolSearch", "mcp__oc__", false, true)).toBe(false)
+    expect(isSdkToolSearchCall("mcp__oc__read", "mcp__oc__", false, true)).toBe(false)
   })
 
   it("excludes internal MCP tools from other servers", () => {

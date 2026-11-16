@@ -193,19 +193,19 @@ it("validates derived digest, denial and object ordering before trusting metadat
 })
 
 it("matches exact priority assignment/attempt and absence generations without reading mappings", async () => {
-  legacy.storeSharedSession("key", "claude")
+  await legacy.storeSharedSession("key", "claude")
   const mapping = legacy.lookupSharedSessionResult("key")
   const unassigned = legacy.lookupPriorityAssignmentResult("assigned")
   if (mapping.status === "error" || !mapping.generation || unassigned.status === "error") throw new Error("fixture read failed")
-  expect(legacy.storeSharedSessionAndPriorityAssignment({ key: "key", claudeSessionId: "claude",
+  expect((await legacy.storeSharedSessionAndPriorityAssignment({ key: "key", claudeSessionId: "claude",
     messageCount: 1, lineageHash: "lineage", messageHashes: ["hash"], messageBlockHashes: [["block"]],
     expectedMappingGeneration: mapping.generation, priority: { routeKey: "assigned", profileId: "p",
       lastHumanTurnDigest: "a".repeat(43), lastHumanTurnIssuedAt: 1,
-      expectedAssignmentGeneration: unassigned.generation } })).not.toBe(false)
+      expectedAssignmentGeneration: unassigned.generation } }))).not.toBe(false)
   const assigned = legacy.lookupPriorityAssignmentResult("assigned")
   const empty = legacy.lookupPriorityAssignmentResult("route")
   if (empty.status !== "missing") throw new Error("expected missing")
-  const claim = legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: empty.generation })
+  const claim = (await legacy.claimPriorityAttempt({ routeKey: "route", expectedAssignmentGeneration: empty.generation }))
   expect(claim).not.toBe(false)
   const pending = legacy.lookupPriorityAssignmentResult("route")
   const absent = legacy.lookupPriorityAssignmentResult("absent")

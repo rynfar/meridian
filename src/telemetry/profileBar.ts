@@ -48,6 +48,10 @@ export const themeCss = `
     --green:     #3fb950;
     --yellow:    #d29922;
     --red:       #f85149;
+    /* The semantic colours as channels, for tinted fills. */
+    --green-rgb:  63,185,80;
+    --yellow-rgb: 210,153,34;
+    --red-rgb:    248,81,73;
     /* Telemetry-specific aliases (waterfall + lineage badges) */
     --blue:      #58a6ff;
     --purple:    #bc8cff;

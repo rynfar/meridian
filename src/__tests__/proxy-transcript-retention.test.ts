@@ -115,7 +115,7 @@ describe("transcript retention through the proxy", () => {
   let claudeConfigDir: string
   const saved: Record<string, string | undefined> = {}
 
-  beforeEach(() => {
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "meridian-proxy-transcript-retention-"))
     for (const key of ENV_KEYS) {
       saved[key] = process.env[key]
@@ -127,7 +127,7 @@ describe("transcript retention through the proxy", () => {
     mkdirSync(claudeConfigDir, { recursive: true })
     process.env.CLAUDE_CONFIG_DIR = claudeConfigDir
     setSessionStoreDir(join(dir, "sessions"))
-    clearSessionCache()
+    await clearSessionCache()
     queryCalls = []
     sweptSessionId = undefined
   })
@@ -206,7 +206,7 @@ describe("transcript retention through the proxy", () => {
         const sessionId = `sess-swept-${stream}`
         sweptSessionId = `sdk-swept-${stream}`
         setSetting("transcriptRetentionDays", 30)
-        storeSession(sessionId, priorMessages, sweptSessionId, "/tmp/test")
+        await storeSession(sessionId, priorMessages, sweptSessionId, "/tmp/test")
 
         const response = await post(app, { model: "sonnet", stream, messages: continuation }, sessionId)
         expect(response.status).toBe(200)

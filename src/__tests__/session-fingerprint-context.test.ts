@@ -145,7 +145,7 @@ beforeEach(async () => {
   queuedSessionLabels = []
   callerSelectedSessionIds = new Map()
   await clearSessionCache()
-  clearSharedSessions()
+  await clearSharedSessions()
 })
 
 describe("Fingerprint resume: stable across dynamic systemContext", () => {
