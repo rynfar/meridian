@@ -12090,6 +12090,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
         const translate = createSseTranslator({ completionId, model, created, thinkingPassthrough: sdkFeatures.thinkingPassthrough, includeUsage })
 
+        // NOTE: Zed-specific. A turn that fails after message_start is closed
+        // with a max_tokens message_delta followed by an error event. Zed ends
+        // the turn at finish_reason "length" with "Output Limit Reached" and
+        // never reads the error behind it, so a stalled upstream looked like a
+        // truncated answer. The length finish waits for the next event: an
+        // error replaces it, anything else releases it unchanged.
+        let heldLengthFinish: Uint8Array | null = null
+        const releaseHeldLengthFinish = () => {
+          if (heldLengthFinish === null) return
+          controller.enqueue(heldLengthFinish)
+          heldLengthFinish = null
+        }
+
         try {
           while (true) {
             const { done, value } = await reader.read()
@@ -12118,18 +12131,27 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // preceding max_tokens finish chunk.
               const errorChunk = translateAnthropicSseError(event)
               if (errorChunk) {
+                heldLengthFinish = null
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`))
                 continue
               }
+              releaseHeldLengthFinish()
 
               const chunk = translate(event as unknown as AnthropicSseEvent)
-              if (chunk) controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+              if (!chunk) continue
+              const frame = encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
+              const stopReason = event.type === "message_delta"
+                ? (event.delta as { stop_reason?: unknown } | undefined)?.stop_reason
+                : undefined
+              if (isZed && stopReason === "max_tokens") heldLengthFinish = frame
+              else controller.enqueue(frame)
             }
           }
         } catch (err) {
           streamError = err instanceof Error ? err : new Error(String(err))
         } finally {
           if (!streamError) {
+            releaseHeldLengthFinish()
             const usageChunk = translate.buildUsageChunk()
             if (usageChunk) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(usageChunk)}\n\n`))
