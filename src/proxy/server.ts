@@ -61,7 +61,7 @@ import { plog, setProxyDiagnosticSink, setProxyLogSilent } from "./operationalLo
 import { AdmissionHold, parseDrainOptions, type AdmissionReservation } from "./admissionHold"
 import { DrainBodyError, readDrainBody } from "./drainBody"
 import { isGenerationSubmission, onGenerationResponseSettled } from "./generationAdmission"
-import { closeServerWithGracePeriod, trackServerConnections, waitForShutdownIdle, withShutdownDeadline } from "./shutdown"
+import { closeServerWithGracePeriod, joinShutdownCleanup, ShutdownProgress, trackServerConnections, waitForShutdownIdle, withShutdownDeadline } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage, clearOAuthUsageForProfile, quotaResetBody, redeemOAuthQuotaResetOnce } from "./oauthUsage"
 import { isSameOriginRequest } from "../sameOrigin"
 import { resolveSdkWorkingDirectory } from "./cwd"
@@ -164,8 +164,8 @@ import { inspectExecutionHistory } from "./executionHistory"
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
-import { authKeepaliveTargets, resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
-import { adoptedProfiles, followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { authKeepaliveTargets, resolveProfile, unknownPinnedProfile, unknownProfileResponse, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
+import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
@@ -379,6 +379,12 @@ const UPSTREAM_IDLE_MAX_CONSECUTIVE = envInt("UPSTREAM_IDLE_MAX_CONSECUTIVE", 3)
 // closes the HTTP server anyway. Plugins that already call close() for
 // graceful shutdown (see the Stable API Contract) get this drain for free.
 const SHUTDOWN_GRACE_MS = envInt("SHUTDOWN_GRACE_MS", 30_000)
+// Cleanup after the HTTP drain (GC sweep, backend close, ChatGPT release) does
+// fsyncs and joins child processes, which take seconds on a loaded host; two
+// seconds made a busy instance exit 1 on every restart. The slow report keeps
+// that time visible without failing the shutdown.
+const SHUTDOWN_CLEANUP_DEADLINE_MS = Math.max(1, envInt("SHUTDOWN_CLEANUP_DEADLINE_MS", 10_000))
+const SHUTDOWN_CLEANUP_SLOW_MS = 2_000
 
 interface RequestMeta {
   requestId: string
@@ -510,18 +516,12 @@ function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | 
 
 async function ensureFreshTokenForProfiles(config: ProxyConfig): Promise<void> {
   const profiles = getEffectiveProfiles(config.profiles)
-  if (profiles.length === 0) {
-    await ensureFreshToken(undefined, undefined, true).catch(() => {})
-    return
-  }
+  if (profiles.length === 0) return
 
-  // A profile adopted from a followed instance is that instance's to maintain;
-  // its plan is re-read there.
-  const adopted = new Set(adoptedProfiles().map(p => p.id))
   for (const profile of profiles) {
     const resolved = resolveProfile(config.profiles, config.defaultProfile, profile.id)
     const store = credentialStoreForProfile(resolved)
-    if (store) await ensureFreshToken(store, undefined, !adopted.has(profile.id)).catch(() => {})
+    if (store) await ensureFreshToken(store).catch(() => {})
   }
 }
 
@@ -1697,7 +1697,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    *  safe direction; over-suppressing a healthy profile is the bug this
    *  gate exists to prevent.
    *
-   *  `force: true` bypasses `fetchOAuthUsage`'s 30s cache: exhaustion is
+   *  `force: true` bypasses `fetchOAuthUsage`'s usage cache: exhaustion is
    *  rare (off the hot path) and `/v1/usage/quota/all` polling routinely
    *  keeps that cache warm with a snapshot recorded just before the failure,
    *  which would otherwise show "just under 1" and starve this refinement
@@ -2613,6 +2613,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // it failed.
       let attributedRoutingMode: RoutingMode | undefined
       try {
+        const unknownPin = options.forcedProfileId
+          ? undefined
+          : unknownPinnedProfile(
+            c.req.header("x-meridian-profile"),
+            getEffectiveProfiles(finalConfig.profiles),
+            (id) => chatGptProfiles?.resolve(id) !== undefined,
+          )
+        if (unknownPin !== undefined) {
+          claudeLog("profile.pin_unknown", { requestId: requestMeta.requestId, profile: unknownPin })
+          return unknownProfileResponse(unknownPin)
+        }
         const body = options.body
         // #874: `max_tokens` is required on /v1/messages and is a hard cap on
         // output, but nothing on this path ever read it. Honour it through the
@@ -8113,7 +8124,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
               }
               const errMsg = error instanceof Error ? error.message : String(error)
-              claudeLog("upstream.failed", {
+              const streamFailureFields = {
                 mode: "stream",
                 model,
                 durationMs: Date.now() - upstreamStartAt,
@@ -8121,7 +8132,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 textEventsForwarded,
                 error: errMsg,
                 ...(stderrOutput ? { stderr: stderrOutput } : {})
-              })
+              }
               let streamErr: { status: number; type: string; message: string }
               if (error instanceof UpstreamIdleError) {
                 // Stop advertising retries when this request reaches the ceiling.
@@ -8143,7 +8154,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               } else {
                 streamErr = classifyBookkeepingFailure(error, errMsg, model)
               }
-              claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+              // Failure events mean the turn did not recover; recovered capped
+              // turns log upstream.completed. Finally also covers publication
+              // throws and rejected awaits before either recovered return.
+              let streamRecovery: "tool_use" | "tool_use_uncaptured" | "max_tokens" | undefined
+              const sdkTerm = extractSdkTermination(errMsg)
+              try {
 
               // This is where a spent account is actually discovered. The
               // response committed 200 + SSE headers long before the SDK
@@ -8171,10 +8187,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 resetAtMs: observedResetAtMs(profile.id, Date.now()),
               })
 
-              // Surface the SDK termination reason (max_turns / process_exit / aborted)
-              // and stderr tail to /telemetry/logs?category=error so failures are
-              // visible without trawling raw log files.
-              const sdkTerm = extractSdkTermination(errMsg)
               // A deliberate single-step abort can be intercepted by a
               // publication guard before the final-envelope guard below runs.
               // That guard reports cancellation, so use the recorded cause
@@ -8591,6 +8603,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   try { controller.close() } catch {}
                   streamClosed = true
                 }
+                streamRecovery = uncapturedRecoveryActive ? "tool_use_uncaptured" : "tool_use"
                 return
               }
 
@@ -8733,6 +8746,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   }
                   streamClosed = true
                 }
+                streamRecovery = "max_tokens"
                 return
               }
 
@@ -8874,6 +8888,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               if (!streamClosed) {
                 try { controller.close() } catch {}
                 streamClosed = true
+              }
+              } finally {
+                if (streamRecovery) {
+                  claudeLog("upstream.completed", {
+                    mode: "stream",
+                    model,
+                    durationMs: Date.now() - upstreamStartAt,
+                    streamEventsSeen,
+                    eventsForwarded,
+                    textEventsForwarded,
+                    sdkTermination: sdkTerm.reason,
+                    recovery: streamRecovery,
+                  })
+                } else {
+                  claudeLog("upstream.failed", streamFailureFields)
+                  claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+                }
               }
             } finally {
               // Guard: a marking the body's cancel() started lands before the
@@ -9634,6 +9665,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const warm = turn.headers.get("x-meridian-internal-hop") === internalHopToken
         && turn.headers.get("x-meridian-routing-purpose") === "warm"
       const route = chatGptProfiles!.route(turn.headers.get("x-meridian-profile") ?? undefined, warm ? "warm" : "work")
+      if (route.kind === "unknown") return { kind: "refuse", error: "unknown_profile", response: unknownProfileResponse(route.id) }
       if (route.kind !== "refuse") return warm ? { ...route, spendCredits: false } : route
       return {
         kind: "refuse",
@@ -11442,6 +11474,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   })
 
   app.post("/auth/refresh", async (c) => {
+    const unknownPin = unknownPinnedProfile(
+      c.req.header("x-meridian-profile"),
+      getEffectiveProfiles(finalConfig.profiles),
+    )
+    if (unknownPin !== undefined) return unknownProfileResponse(unknownPin)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,
@@ -12251,6 +12288,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // auth resolved by the design module (design token first, then profile
   // credentials).
   app.post("/v1/design/*", async (c) => {
+    const unknownPin = unknownPinnedProfile(
+      c.req.header("x-meridian-profile"),
+      getEffectiveProfiles(finalConfig.profiles),
+    )
+    if (unknownPin !== undefined) return unknownProfileResponse(unknownPin)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,
@@ -12730,21 +12772,29 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         }
         // Keep the original cleanup alive after a bounded failure. The backend
         // joins request finalizers and admitted durable work before releasing SQL;
-        // ChatGPT ownership must remain attached to that actual cleanup as well.
+        // ChatGPT ownership is released once admitted work has joined, beside it.
+        const progress = new ShutdownProgress()
         const joined = (async () => {
-          try {
-            await waitForShutdownIdle(() => (getInFlightCount?.() ?? 0) > 0)
-            if (sweepSessionGc) await sweepSessionGc()
-            await closeBackend?.()
-          }
-          finally {
-            await chatGptRenewalStopped
-            await chatGpt?.settle()
-            chatGpt?.release()
-          }
+          await joinShutdownCleanup({
+            idle: waitForShutdownIdle(() => (getInFlightCount?.() ?? 0) > 0),
+            durable: async () => {
+              if (sweepSessionGc) await progress.run("session GC sweep", sweepSessionGc)
+              if (closeBackend) await progress.run("backend close", closeBackend)
+            },
+            chatGpt: async () => {
+              // Not before a renewal still out has recorded its seat's new refresh token.
+              await chatGptRenewalStopped
+              await chatGpt?.settle()
+              chatGpt?.release()
+            },
+          }, progress)
           if (httpCloseError) throw httpCloseError
         })()
-        await withShutdownDeadline(joined)
+        await withShutdownDeadline(joined, SHUTDOWN_CLEANUP_DEADLINE_MS, {
+          slowAfterMs: SHUTDOWN_CLEANUP_SLOW_MS,
+          describe: () => `${progress.describe()}; ${getInFlightCount?.() ?? 0} in flight`,
+          warn: (message) => console.warn(message),
+        })
       })()
       return closePromise
     },
