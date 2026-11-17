@@ -165,7 +165,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { authKeepaliveTargets, resolveProfile, unknownPinnedProfile, unknownProfileResponse, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
-import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { adoptedProfiles, followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
@@ -516,12 +516,18 @@ function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | 
 
 async function ensureFreshTokenForProfiles(config: ProxyConfig): Promise<void> {
   const profiles = getEffectiveProfiles(config.profiles)
-  if (profiles.length === 0) return
+  if (profiles.length === 0) {
+    await ensureFreshToken(undefined, undefined, true).catch(() => {})
+    return
+  }
 
+  // A profile adopted from a followed instance is that instance's to maintain;
+  // its plan is re-read there.
+  const adopted = new Set(adoptedProfiles().map(p => p.id))
   for (const profile of profiles) {
     const resolved = resolveProfile(config.profiles, config.defaultProfile, profile.id)
     const store = credentialStoreForProfile(resolved)
-    if (store) await ensureFreshToken(store).catch(() => {})
+    if (store) await ensureFreshToken(store, undefined, !adopted.has(profile.id)).catch(() => {})
   }
 }
 
