@@ -73,6 +73,9 @@ const MODEL_BUCKETS: Record<string, string> = {
   opus: "seven_day_opus",
   sonnet: "seven_day_sonnet",
   fable: "seven_day_fable",
+  // Mythos rides the Fable tier (claudeModelFamily), so its weekly budget is
+  // the Fable bucket.
+  mythos: "seven_day_fable",
 }
 
 /**
@@ -80,12 +83,22 @@ const MODEL_BUCKETS: Record<string, string> = {
  * as the Opus weekly bucket rather than the general one. Deliberately separate
  * from `classifyError`'s own matcher: this one decides WHICH limit, and must be
  * free to change without moving the line between 429 and 500.
+ *
+ * The credits-era per-tier banner says "reached", not "hit" ("You've reached
+ * your Fable 5 limit", "You've reached your Claude Opus 4.6 limit"), and
+ * classifies as a quota refusal (REACHED_YOUR_TIER_LIMIT in errors.ts). Without
+ * reading its tier here the refusal named no bucket, so a spent Fable window
+ * benched the whole profile for every model instead of only for Fable. Version
+ * numbers carry dots, hence the wider word class and one more word on that side.
  */
-const LIMIT_WORDING = /hit your ((?:[\w-]+ ){0,2})limit/i
+const LIMIT_WORDING = /(?:hit your ((?:[\w-]+ ){0,2})|reached your ((?:[\w.-]+ ){0,3}))limit/i
 const RESET_WORDING = /resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm)?|midnight|noon)\s*(?:\(([^)]+)\))?/i
 
 export interface ParsedLimitWording {
   bucket: string | null
+  /** The credits-era "reached your <tier> limit" banner, which the CLI also
+   *  sends for a zero-credit cap, so it does not prove the window is spent. */
+  tierBanner: boolean
   /** The qualifier as written, kept for the rationale so an unrecognized one
    *  ("daily", "monthly") still tells the reader what the CLI said. */
   qualifier: string | null
@@ -100,7 +113,7 @@ export interface ParsedLimitWording {
  */
 export function parseLimitWording(errMsg: string): ParsedLimitWording {
   const wording = LIMIT_WORDING.exec(errMsg)
-  const words = (wording?.[1] ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const words = (wording?.[1] ?? wording?.[2] ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
 
   let bucket: string | null = null
   const model = words.find(w => MODEL_BUCKETS[w])
@@ -111,6 +124,7 @@ export function parseLimitWording(errMsg: string): ParsedLimitWording {
   const reset = RESET_WORDING.exec(errMsg)
   return {
     bucket,
+    tierBanner: wording?.[2] !== undefined,
     qualifier: words.length > 0 ? words.join(" ") : null,
     clock: reset?.[1]?.trim() ?? null,
     zone: reset?.[2]?.trim() ?? null,
@@ -237,6 +251,11 @@ function windowResetsAt(windows: readonly CachedWindow[] | undefined, bucket: st
   return hit?.resetsAt ?? null
 }
 
+function spentWindowResetsAt(windows: readonly CachedWindow[] | undefined, bucket: string): number | null {
+  const hit = windows?.find(w => w.type === bucket)
+  return hit && (hit.utilization ?? 0) >= 1 ? hit.resetsAt : null
+}
+
 /**
  * Decide which allowance was refused, and say how confident that is.
  *
@@ -269,7 +288,9 @@ export function diagnoseLimit(input: DiagnoseLimitInput): LimitDiagnosis {
       bucket: wording.bucket,
       reported: true,
       source: "error_message",
-      resetsAt: clockReset ?? windowResetsAt(windows, wording.bucket),
+      resetsAt: clockReset ?? (wording.tierBanner
+        ? spentWindowResetsAt(windows, wording.bucket)
+        : windowResetsAt(windows, wording.bucket)),
       rationale: `Anthropic named the ${wording.qualifier} limit`,
     }
   }

@@ -481,20 +481,24 @@ function formatResetCountdown(resetsAt) {
   return remHr > 0 ? 'in ' + days + 'd ' + remHr + 'h' : 'in ' + days + 'd';
 }
 
+function formatExtraUsageAmount(amount, currency) {
+  var code = currency || '';
+  var prefix = code === 'USD' ? '$' : /^[A-Z]{3}$/.test(code) ? code + ' ' : code;
+  return prefix + amount.toFixed(2);
+}
+
 function formatExtraUsage(eu) {
   if (!eu || !eu.isEnabled) return null;
   var monthlyLimit = isFinite(eu.monthlyLimit) ? eu.monthlyLimit : 0;
   if (monthlyLimit <= 0) return null;
-  var used = isFinite(eu.usedCredits) ? eu.usedCredits : 0;
-  var utilization = (eu.utilization != null && isFinite(eu.utilization))
-    ? Math.max(0, Math.min(1, eu.utilization))
-    : (monthlyLimit > 0 ? Math.max(0, Math.min(1, used / monthlyLimit)) : 0);
-  var currency = eu.currency || '';
+  var used = isFinite(eu.usedCredits) ? Math.max(0, eu.usedCredits) : 0;
+  var share = used / monthlyLimit;
   return {
-    used: (currency + used.toFixed(2)).trim(),
-    limit: (currency + monthlyLimit.toFixed(2)).trim(),
-    utilizationPct: Math.round(utilization * 100),
-    status: classifyUtilization(utilization),
+    used: formatExtraUsageAmount(used, eu.currency),
+    limit: formatExtraUsageAmount(monthlyLimit, eu.currency),
+    over: used > monthlyLimit ? formatExtraUsageAmount(used - monthlyLimit, eu.currency) : null,
+    utilizationPct: Math.round(share * 100),
+    status: classifyUtilization(share),
   };
 }
 
@@ -1066,9 +1070,10 @@ function renderUsageSection(profileQuota, p) {
       +     '<span class="usage-label">Extra usage</span>'
       +     '<span class="usage-pct">' + extra.utilizationPct + '%' + usageTag + '</span>'
       +   '</div>'
-      +   '<div class="usage-bar"><div class="usage-fill" style="width:' + extra.utilizationPct + '%"></div></div>'
+      +   '<div class="usage-bar"><div class="usage-fill" style="width:' + Math.min(100, extra.utilizationPct) + '%"></div></div>'
       +   '<div class="usage-extra-row" style="margin-top:4px">'
-      +     '<span class="usage-reset">' + esc(extra.used) + ' / ' + esc(extra.limit) + '</span>'
+      +     '<span class="usage-reset">' + esc(extra.used) + ' / ' + esc(extra.limit)
+      +       (extra.over ? ', over by ' + esc(extra.over) : '') + '</span>'
       +   '</div>'
       + '</div>';
   } else if (credits) {
@@ -1170,8 +1175,11 @@ function render(data, quotaData) {
       html += "<a class=\\"profile-name\\" href=\\"#" + esc(encodeURIComponent(p.id)) + "\\" title=\\"Link to this profile\\">" + esc(p.id) + "</a>";
       if (isActive) html += "<span class=\\"profile-badge badge-active\\">active</span>";
       html += meridianProviders.badgeHtml(slot.provider, "profile-badge");
-      // A seat's type is its provider's name, which the badge before it says.
-      if ((p.type || "claude-max") !== slot.provider) html += "<span class=\\"profile-badge badge-type\\">" + esc(p.type || "claude-max") + "</span>";
+      // The allowance (20x, 5x) tells accounts apart; the type does not, as
+      // every claude-max profile shares it. Without an allowance the type
+      // stays, except on a seat, whose type is the provider badge's name.
+      if (p.allowance) html += '<span class="profile-badge badge-type" title="' + attr([p.planLabel, p.rateLimitTier].filter(Boolean).join(' \u00b7 ')) + '">' + esc(p.allowance) + '</span>';
+      else if ((p.type || "claude-max") !== slot.provider) html += "<span class=\\"profile-badge badge-type\\">" + esc(p.type || "claude-max") + "</span>";
       // A seat's pill says what to do in the words of whoever holds its login.
       if (needsLogin && isChatGptProfile(p)) {
         var access = profileAccessHelp(p);

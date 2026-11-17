@@ -199,7 +199,7 @@ describe("GET /v1/usage/quota", () => {
         { type: "seven_day", utilization: 0.05, resetsAt: 1_730_222_222_222 },
         { type: "seven_day_omelette", utilization: 0.01, resetsAt: 1_730_333_333_333 },
       ],
-      extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" },
+      extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 236.3, utilization: null, currency: "USD", exponent: 2 },
       bankedResets: null,
       fetchedAt: 1_730_000_000_000,
     }))
@@ -233,7 +233,7 @@ describe("GET /v1/usage/quota", () => {
 
     // extra_usage block exposed at top level
     expect(body.extraUsage).toBeDefined()
-    expect(body.extraUsage!.usedCredits).toBe(23630)
+    expect(body.extraUsage!.usedCredits).toBe(236.3)
 
     // afterEach handles cleanup.
   })

@@ -8,12 +8,11 @@ import {
   rmSync,
 } from "node:fs"
 import { open, rename, rm, type FileHandle } from "node:fs/promises"
-import { dirname, isAbsolute, join } from "node:path"
+import { isAbsolute, join } from "node:path"
 import type {
   SpawnedProcess,
   SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk"
-import { syncDirectoryDurably } from "./durableFileSystem"
 import {
   captureProcessIncarnationAsync,
   type ProcessIncarnation,
@@ -76,17 +75,17 @@ function gateContents(options: SpawnOptions): string {
   })
 }
 
+/** The rename makes the wrapper see the whole gate or none of it. Not fsynced:
+ *  only the live wrapper reads it, and an OS crash ends that wrapper too. */
 async function publishGate(path: string, contents: string): Promise<void> {
   const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`
   let handle: FileHandle | undefined
   try {
     handle = await open(temporary, "wx", 0o600)
     await handle.writeFile(contents, "utf8")
-    await handle.sync()
     await handle.close()
     handle = undefined
     await rename(temporary, path)
-    await syncDirectoryDurably(dirname(path))
   } finally {
     if (handle) await handle.close()
     await rm(temporary, { force: true })
@@ -273,8 +272,8 @@ export async function createSdkProcessGate(
       }
       // The SDK needs the process handle back synchronously, and the wrapper
       // already waits for the gate, so the publication finishes in the
-      // background instead of holding the event loop through two fsyncs. A
-      // gate that cannot be published must not leave the wrapper waiting.
+      // background. A gate that cannot be published must not leave the
+      // wrapper waiting.
       publication = publishGate(gatePath, gateContents(options)).catch((error: unknown) => {
         console.error("[sdkProcessGate] gate publication failed:", error)
         killOwned("SIGKILL")

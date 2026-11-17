@@ -79,9 +79,24 @@ function asFiniteOrNull(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null
 }
 
+/**
+ * A followed instance that predates `exponent` serves Anthropic's minor units
+ * (cents) as `monthlyLimit`/`usedCredits`; convert them so this instance never
+ * shows $500 for a $5.00 limit. Cents is the only unit those versions saw.
+ */
+const LEGACY_EXTRA_USAGE_EXPONENT = 2
+
 function readExtraUsage(raw: unknown): OAuthExtraUsageInfo | null {
   if (!raw || typeof raw !== "object" || typeof (raw as { isEnabled?: unknown }).isEnabled !== "boolean") return null
-  return raw as OAuthExtraUsageInfo
+  const value = raw as Omit<OAuthExtraUsageInfo, "exponent"> & { exponent?: unknown }
+  if (typeof value.exponent === "number") return value as OAuthExtraUsageInfo
+  const scale = 10 ** LEGACY_EXTRA_USAGE_EXPONENT
+  return {
+    ...value,
+    monthlyLimit: (asFiniteOrNull(value.monthlyLimit) ?? 0) / scale,
+    usedCredits: (asFiniteOrNull(value.usedCredits) ?? 0) / scale,
+    exponent: LEGACY_EXTRA_USAGE_EXPONENT,
+  }
 }
 
 function readBankedResets(raw: unknown): OAuthBankedResets | null {

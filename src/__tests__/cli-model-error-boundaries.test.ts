@@ -31,7 +31,7 @@ describe("CLI model rejection boundaries", () => {
     ['Error: this tool does not support streaming input', 500],
     ['API Error: 401 Invalid authentication credentials', 401],
     ["You've hit your usage limit for claude-fable-5-1", 429],
-    ['Claude Code process exited with code 137', 502],
+    ['Claude Code process exited with code 2', 502],
   ] as const) {
     it(`preserves unrelated error classification: ${input}`, () => {
       const result = classifyError(input)
