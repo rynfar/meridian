@@ -70,6 +70,10 @@ export const themeCss = `
     --chatgpt:        #74aa9c;
     --chatgpt-bright: #9ec3ba;
     --chatgpt-rgb:    116,170,156;
+    /* Text on a solid brand fill. Black clears 4.5:1 on every brand and
+       tint (lowest: --claude, 4.97:1); white would be 4.23:1 there and
+       2.63:1 on --chatgpt, and --bg 4.48:1 on --claude. */
+    --on-brand:       #000000;
   }
   /* Banner backsplash — the brand look: a gentle diagonal wash with soft
      blue (top-left) and violet (bottom-right) glows. Pages must not set

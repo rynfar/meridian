@@ -53,6 +53,28 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 
 ## Decisions
 
+- **Streaming failure events describe unrecovered turns.** After SDK error
+  classification, a usable captured/uncaptured tool handoff or capped-turn
+  truncation logs `upstream.completed` with the normal streaming fields plus
+  `sdkTermination` and `recovery` (`tool_use`, `tool_use_uncaptured`, or
+  `max_tokens`), not `upstream.failed` / `proxy.anthropic.error`. Other exits,
+  including failed recovery publication, retain both failure events exactly
+  once with their original classification and stderr. This changes no recovery,
+  telemetry, idle-streak or wire behavior. See
+  [exit audit and live log evidence](../../docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
+- **Externally stopped Claude Code processes are transient.** SDK exits 143
+  (SIGTERM) and 137 (SIGKILL), including the SDK's null-code `terminated by
+  signal SIGTERM/SIGKILL` form, return 503 `api_error` with “Service temporarily
+  unavailable” and retry advice, not login advice. A null-code signal name
+  comes only from the SDK text before `Subprocess stderr:`, never quoted stderr.
+  Earlier global auth, entitlement, quota and request-error classification
+  keeps precedence. This
+  does not enable account failover (only quota/billing classes do that).
+  Shutdown still drains admitted work before its deadline; deadline expiry
+  force-closes sockets rather than promising delivery of an SSE error. See
+  [signal/drain evidence](../../docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+
 - **OpenAI Responses (`/v1/responses`) for Codex** is pure translation
   forwarded in-process to `/v1/messages`, reusing auth, model mapping, sessions
   and the tool loop.

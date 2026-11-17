@@ -17,14 +17,16 @@
  * (reports say the endpoint rate-limits per access token, so a new token gets a
  * new bucket).
  *
- * Per-profile caching: each profile has its own 30s TTL cache so multi-account
- * setups can be queried independently without cross-contamination. Concurrent
- * callers for the same profile share a single in-flight request.
+ * Per-profile caching: each profile has its own TTL cache (30s by default,
+ * `MERIDIAN_USAGE_CACHE_TTL_MS`) so multi-account setups can be queried
+ * independently without cross-contamination. Concurrent callers for the same
+ * profile share a single in-flight request.
  */
 
 import { createHash } from "node:crypto"
 import { z } from "zod"
 import { claudeLog } from "../logger"
+import { envIntValue } from "../env"
 import { isCredentialsReadOnly } from "./credentialsMode"
 import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
@@ -56,10 +58,15 @@ interface RawOAuthWindow {
 
 interface RawOAuthExtraUsage {
   is_enabled?: boolean
-  monthly_limit?: number
-  used_credits?: number
+  /** Minor units (cents for USD): 500 is $5.00. */
+  monthly_limit?: number | null
+  /** Minor units, like `monthly_limit`. */
+  used_credits?: number | null
+  /** 0..100, clamped by Anthropic at 100 even when used exceeds the limit. */
   utilization?: number | null
-  currency?: string
+  currency?: string | null
+  /** Decimal places of the minor unit; absent on some responses. */
+  decimal_places?: number | null
 }
 
 interface RawOAuthLimit {
@@ -97,10 +104,19 @@ export interface OAuthUsageWindow {
 
 export interface OAuthExtraUsageInfo {
   isEnabled: boolean
+  /** Major units of `currency` (dollars for USD). */
   monthlyLimit: number
+  /** Major units; may exceed `monthlyLimit`, since a turn can overshoot it. */
   usedCredits: number
   utilization: number | null
   currency: string
+  /**
+   * Decimal places applied to Anthropic's minor-unit amounts. Its presence
+   * tells a consumer that `monthlyLimit` and `usedCredits` are major units:
+   * Meridian versions without this field served the minor units under the
+   * same names.
+   */
+  exponent: number
 }
 
 export interface OAuthBankedResetGrant {
@@ -226,7 +242,15 @@ export function toUsageEntry(result: OAuthUsageResult): UsageEntryFields {
   }
 }
 
+// The cache lifetime unforced reads use; `MERIDIAN_USAGE_CACHE_TTL_MS` can
+// raise it, never lower it. While anything polls `/v1/usage/quota/all`
+// steadily, every read past the TTL reaches Anthropic, so the TTL sets the
+// upstream rate per profile. Anthropic answers 429 to a token read about every
+// 30–60 s for a few minutes, so a setup with many polling clients can raise it.
 const CACHE_TTL_MS_DEFAULT = 30_000
+// A longer cache would keep showing figures for a login that has since expired
+// or been revoked.
+const CACHE_TTL_MS_MAX = 5 * 60_000
 // A transiently failing fetch serves the last-good snapshot instead of
 // blanking the consumer ("no usage data yet" flapping) — but only within
 // this bound, so genuinely dead credentials still surface as missing data.
@@ -338,6 +362,17 @@ function parseBankedResets(raw: unknown): OAuthBankedResets | null {
   }
 }
 
+/** Anthropic's minor unit is cents for USD; `decimal_places` names it when present. */
+const EXTRA_USAGE_DEFAULT_EXPONENT = 2
+
+function extraUsageExponent(raw: number | null | undefined): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 4 ? raw : EXTRA_USAGE_DEFAULT_EXPONENT
+}
+
+function minorToMajor(amount: number | null | undefined, exponent: number): number {
+  return typeof amount === "number" && Number.isFinite(amount) ? amount / 10 ** exponent : 0
+}
+
 function normalizeUtilization(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null
   // OAuth returns 0..100. Normalize to 0..1 to match SDK rate_limit_event.
@@ -384,13 +419,15 @@ function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
   }
 
   const extra = raw.extra_usage
+  const exponent = extraUsageExponent(extra?.decimal_places)
   const extraUsage: OAuthExtraUsageInfo | null = extra
     ? {
         isEnabled: !!extra.is_enabled,
-        monthlyLimit: extra.monthly_limit ?? 0,
-        usedCredits: extra.used_credits ?? 0,
+        monthlyLimit: minorToMajor(extra.monthly_limit, exponent),
+        usedCredits: minorToMajor(extra.used_credits, exponent),
         utilization: normalizeUtilization(extra.utilization ?? null),
         currency: extra.currency ?? "USD",
+        exponent,
       }
     : null
 
@@ -740,7 +777,9 @@ export function __setFetchOAuthUsageOverride(
  * Anthropic's endpoint when many clients poll concurrently. Concurrent
  * callers for the same profile share a single in-flight request.
  *
- * @param ttlMs           Override the cache TTL (default 30s).
+ * @param ttlMs           Override the cache TTL (default 30s, or
+ *                        `MERIDIAN_USAGE_CACHE_TTL_MS` when larger, at most
+ *                        5 minutes).
  * @param force           Bypass the TTL cache and fetch fresh. Does NOT bypass
  *                        the in-flight de-dupe or the 429 cooldown — both still
  *                        apply, so a forced caller can still get a stale (or
@@ -792,7 +831,7 @@ export async function fetchOAuthUsageResult(opts?: FetchOAuthUsageOpts): Promise
 }
 
 async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsageResult> {
-  const ttl = opts?.ttlMs ?? CACHE_TTL_MS_DEFAULT
+  const ttl = opts?.ttlMs ?? Math.min(CACHE_TTL_MS_MAX, Math.max(CACHE_TTL_MS_DEFAULT, envIntValue("USAGE_CACHE_TTL_MS") ?? 0))
   const cacheKey = opts?.profileId ?? DEFAULT_KEY
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch
   const staleMaxMs = opts?.staleMaxMs ?? STALE_MAX_MS_DEFAULT

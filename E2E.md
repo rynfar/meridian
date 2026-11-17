@@ -1,3 +1,15 @@
+## Signal-stopped Claude Code requests
+
+After building unchanged main and the candidate separately, run
+`scripts/e2e-signal-exit.mjs` with the explicit paths and private read-only
+credential source documented in [the signal-exit evidence](docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+It drives the actual Pi provider, Meridian CLI, SDK and live Haiku 5.5 on Linux,
+without starting a Pi session. Require the baseline streamed signal exit to be
+non-retryable, the candidate's to be retryable, and the candidate's normal drain
+to finish admitted work while refusing new turns with 503. This qualifies the
+provider/error policy, not Pi's outer automatic retry loop or interactive UI.
+Review all state-root isolation before starting; never target a managed service.
+
 ## Pi extension (#1408)
 
 Three harnesses use the actual Pi CLI with the extension that
@@ -91,6 +103,22 @@ base `opus` tier while the parent stayed signed on `opus[1m]`
 A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
+
+## Recovered passthrough streaming outcome logs
+
+`node scripts/e2e-passthrough-handoff-logging.mjs` compares an unchanged build
+with the candidate through the actual installed Pi AI provider, SDK and native
+Claude Code. It makes two real Haiku requests, each declaring exactly one
+non-deferred client tool; it does not start a Pi session. Set the explicit
+build/provider/executable/credential/scratch parameters and complete the
+pre-start isolation proof described in
+[the evidence record](docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
+Require identical client-visible tool handoffs (`tool_use`, no SSE error),
+baseline `upstream.failed` plus `proxy.anthropic.error`, and candidate only
+`upstream.completed` with `sdkTermination=max_turns` and `recovery=tool_use`.
+The HTTP integration tests additionally cover uncaptured handoffs, truncation,
+empty turns, process-exit stderr, rate-limit refusals and publication conflicts.
 
 ## Oh My Pi regrouped user messages
 

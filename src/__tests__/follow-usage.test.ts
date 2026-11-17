@@ -119,7 +119,7 @@ describe("readFollowedUsage", () => {
 
   test("keeps the followed instance's stale mark, banked resets and extra usage", () => {
     const bankedResets = { eligible: true, nextGrantId: "g1", ineligibleReason: null, grants: [] }
-    const extraUsage = { isEnabled: true, monthlyLimit: 50, usedCredits: 5, utilization: 0.1, currency: "USD" }
+    const extraUsage = { isEnabled: true, monthlyLimit: 50, usedCredits: 5, utilization: 0.1, currency: "USD", exponent: 2 }
     const parsed = readFollowedUsage(quotaBody([
       { id: "personal", windows: [{ type: "five_hour", utilization: 0.4, resetsAt: null }],
         extraUsage, bankedResets, fetchedAt: 999, stale: true, error: null },
@@ -128,6 +128,14 @@ describe("readFollowedUsage", () => {
       windows: [{ type: "five_hour", utilization: 0.4, resetsAt: null }],
       extraUsage, bankedResets, fetchedAt: 999, stale: true,
     })
+  })
+
+  test("converts extra usage from a followed instance that still serves cents", () => {
+    const parsed = readFollowedUsage(quotaBody([
+      { id: "personal", windows: [{ type: "five_hour", utilization: 1, resetsAt: null }], fetchedAt: 999, error: null,
+        extraUsage: { isEnabled: true, monthlyLimit: 500, usedCredits: 539, utilization: 1, currency: "USD" } },
+    ]))
+    expect(parsed.get("personal")!.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 5, usedCredits: 5.39, utilization: 1, currency: "USD", exponent: 2 })
   })
 
   test("drops malformed extra usage and banked resets instead of importing them", () => {

@@ -196,6 +196,12 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * the negative cases below turn on exactly that distinction: a documentation
  * sentence continuing past the banner must not exhaust a healthy profile.
  *
+ * When usage credits can be bought, the CLI splices a link into that prose:
+ * "Switch to another model, or manage usage credits at <url>, to continue."
+ * (Claude Code 2.1.322; the URL is claude.ai/settings/usage for personal
+ * plans and claude.ai/admin-settings/usage for team/enterprise). Only a
+ * claude.ai URL is accepted in that slot, for the same reason.
+ *
  * The bound is the LINE, not the message — `/m`, like HIT_YOUR_SPEND_LIMIT
  * above and CONTEXT_OVERFLOW_SIGNALS below. `server.ts` appends captured
  * stderr to `Error.message` before classification, so a message-final anchor
@@ -205,7 +211,7 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * always, the harmless "custom betas" warning being emitted first. Both shapes
  * then fell through to the code-1 branch, which tells the operator to run
  * `claude login` for what is actually a quota refusal. */
-const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
+const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:,[ \t]+or[ \t]+manage[ \t]+usage[ \t]+credits[ \t]+at[ \t]+https:\/\/claude\.ai\/[^\s,]+,)?(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
 
 /**
  * The CLI's refusal when a turn hit the output-token maximum.
@@ -455,9 +461,22 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // SDK process crash
-  if (lower.includes("exited with code") || lower.includes("process exited")) {
+  // Only the SDK's own termination line names the signal, never text quoted in
+  // appended subprocess stderr.
+  const stoppedSignal = (errMsg.split(/subprocess stderr:/i)[0] ?? "").match(/process terminated by signal (SIGTERM|SIGKILL)\b/)?.[1]
+  if (lower.includes("exited with code") || lower.includes("process exited") || stoppedSignal) {
     const codeMatch = errMsg.match(/exited with code (\d+)/)
     const code = codeMatch ? codeMatch[1] : "unknown"
+
+    // External stops (restart or OOM kill) are transient, not expired logins.
+    if (code === "143" || code === "137" || stoppedSignal) {
+      const reason = stoppedSignal ? `signal ${stoppedSignal}` : `exit code ${code}`
+      return {
+        status: 503,
+        type: "api_error",
+        message: `Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (${reason}), as happens when Meridian restarts or the process is killed for memory. Retry the request.`
+      }
+    }
 
     // If stderr was captured it will be appended to the message — use it for classification
     const hasStderr = lower.includes("subprocess stderr:")
