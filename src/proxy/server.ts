@@ -164,6 +164,7 @@ import { inspectExecutionHistory } from "./executionHistory"
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
+import { CACHE_TTL_HEADER, cacheTtlFromHeader, invalidCacheTtlResponse } from "./cacheTtl"
 import { authKeepaliveTargets, resolveProfile, unknownPinnedProfile, unknownProfileResponse, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
 import { applyProfileRemove } from "./profileRemove"
 import { adoptedProfiles, followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
@@ -2631,6 +2632,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           claudeLog("profile.pin_unknown", { requestId: requestMeta.requestId, profile: unknownPin })
           return unknownProfileResponse(unknownPin)
         }
+        const cacheTtl = cacheTtlFromHeader(c.req.header(CACHE_TTL_HEADER))
+        if (!cacheTtl.ok) {
+          claudeLog("cache_ttl.invalid", { requestId: requestMeta.requestId, value: cacheTtl.value })
+          return invalidCacheTtlResponse(cacheTtl.value)
+        }
+        const requestedCacheTtlEnv = cacheTtl.env
         const body = options.body
         // #874: `max_tokens` is required on /v1/messages and is a hard cap on
         // output, but nothing on this path ever read it. Honour it through the
@@ -3011,9 +3018,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // An auxiliary replay carries a 5-minute breakpoint of its own
         // (layoutReplayBlocks). The API rejects a longer-lived breakpoint
         // after a shorter one, and the CLI may choose 1h for its own, so pin
-        // the CLI to 5 minutes for these requests.
-        const envOverrides = requestMeta.auxiliaryRequest
-          ? { ...explicitModelPin(requestedModel), FORCE_PROMPT_CACHING_5M: "1" }
+        // the CLI to 5 minutes for these requests. Any other request may ask
+        // for the same pin with x-meridian-cache-ttl (cacheTtl.ts).
+        const cacheTtlEnv = requestMeta.auxiliaryRequest ? { FORCE_PROMPT_CACHING_5M: "1" } : requestedCacheTtlEnv
+        const envOverrides = cacheTtlEnv
+          ? { ...explicitModelPin(requestedModel), ...cacheTtlEnv }
           : explicitModelPin(requestedModel)
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
@@ -11725,6 +11734,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
     const requestedProfile = c.req.header("x-meridian-profile")
     if (requestedProfile) internalHeaders["x-meridian-profile"] = requestedProfile
+    const cacheTtlHeader = c.req.header(CACHE_TTL_HEADER)
+    if (cacheTtlHeader) internalHeaders[CACHE_TTL_HEADER] = cacheTtlHeader
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")
@@ -11884,6 +11895,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     if (authz) internalHeaders["authorization"] = authz
     const xProfile = c.req.header("x-meridian-profile")
     if (xProfile) internalHeaders["x-meridian-profile"] = xProfile
+    const cacheTtlHeader = c.req.header(CACHE_TTL_HEADER)
+    if (cacheTtlHeader) internalHeaders[CACHE_TTL_HEADER] = cacheTtlHeader
 
     internalHeaders["x-meridian-internal-hop"] = internalHopToken
     internalHeaders[admissionTokenHeader] = token
