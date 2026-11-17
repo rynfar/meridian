@@ -13,6 +13,7 @@ import {
   classifyCacheTier,
   decideCacheKeepalive,
   resolveCacheKeepaliveEnabled,
+  resolveCacheKeepaliveMaxBeats,
   resolveCacheKeepaliveMaxInFlight,
   resolveCacheKeepaliveMode,
   type CacheKeepaliveAccountFacts,
@@ -51,6 +52,14 @@ describe("resolveCacheKeepaliveMode", () => {
     expect(resolveCacheKeepaliveMode("1", () => "client")).toBe("auto")
     expect(resolveCacheKeepaliveMode("0", () => "client")).toBe("off")
     expect(resolveCacheKeepaliveEnabled("client", () => false)).toBe(true)
+  })
+})
+
+describe("resolveCacheKeepaliveMaxBeats", () => {
+  it("defaults to three and allows at least one", () => {
+    expect(resolveCacheKeepaliveMaxBeats(undefined)).toBe(3)
+    expect(resolveCacheKeepaliveMaxBeats(6)).toBe(6)
+    expect(resolveCacheKeepaliveMaxBeats(0)).toBe(1)
   })
 })
 
@@ -193,7 +202,7 @@ describe("decideCacheKeepalive", () => {
 })
 
 describe("CacheKeepaliveScheduler", () => {
-  function harness(results: Array<CacheKeepaliveBeatOutcome | Error> = [], options: { maxInFlight?: number; enabled?: () => boolean; autoBeats?: () => boolean } = {}) {
+  function harness(results: Array<CacheKeepaliveBeatOutcome | Error> = [], options: { maxInFlight?: number; maxBeats?: number; enabled?: () => boolean; autoBeats?: () => boolean } = {}) {
     let now = 0
     let current: string | undefined = "s1"
     const beats: Array<{ recipe: string; sessionId: string; signal: AbortSignal; at: number }> = []
@@ -453,8 +462,8 @@ describe("CacheKeepaliveScheduler", () => {
       expect(h.scheduler.size).toBe(0)
     })
 
-    it("beats on request past the automatic cap, each beat extending the cache", async () => {
-      const h = client()
+    it("beats on request up to the per-period cap, each beat extending the cache", async () => {
+      const h = harness([], { autoBeats: () => false, maxBeats: 4 })
       h.turn("codex:k", "r", 0, "1h")
       const outcomes: string[] = []
       for (let beat = 1; beat <= 5; beat++) {
@@ -463,10 +472,41 @@ describe("CacheKeepaliveScheduler", () => {
         await h.settleAll()
         outcomes.push(await pending)
       }
-      expect(outcomes).toEqual(["reached", "reached", "reached", "reached", "reached"])
-      h.at(5 * 50 * MIN + HOUR - 10_000)
+      expect(outcomes).toEqual(["reached", "reached", "reached", "reached", "stop"])
+      expect(h.beats).toHaveLength(4)
+      h.at(4 * 50 * MIN + HOUR - 10_000)
       h.scheduler.tick()
       expect(h.scheduler.size).toBe(1)
+    })
+
+    it("a real turn starts a new period of beats", async () => {
+      const h = harness([], { autoBeats: () => false, maxBeats: 1 })
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(50 * MIN)
+      const first = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await first).toBe("reached")
+      h.at(100 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("stop")
+      h.turn("codex:k", "r", 101 * MIN, "read")
+      h.at(130 * MIN)
+      const next = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await next).toBe("reached")
+    })
+
+    it("refuses a beat sooner than the minimum gap after the last turn or beat", async () => {
+      const h = client()
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(19 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      h.at(20 * MIN)
+      const pending = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await pending).toBe("reached")
+      h.at(39 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      expect(h.beats).toHaveLength(1)
     })
 
     it("refuses to beat an expired cache, an untracked key or a session mid-turn", async () => {
@@ -481,11 +521,30 @@ describe("CacheKeepaliveScheduler", () => {
       expect(h.beats).toHaveLength(0)
     })
 
-    it("finds tracked keys by the client's session id", () => {
+    it("refuses every request unless the operator chose client mode", async () => {
+      const auto = harness([], { autoBeats: () => true })
+      auto.turn("codex:k", "r", 0, "1h")
+      auto.at(50 * MIN)
+      expect(await auto.scheduler.beatNow("codex:k")).toBe("disabled")
+      const unset = harness()
+      unset.turn("codex:k", "r", 0, "1h")
+      unset.at(50 * MIN)
+      expect(await unset.scheduler.beatNow("codex:k")).toBe("disabled")
+      const off = harness([], { autoBeats: () => false, enabled: () => false })
+      off.turn("codex:k", "r", 0, "1h")
+      off.at(50 * MIN)
+      expect(await off.scheduler.beatNow("codex:k")).toBe("disabled")
+      expect(auto.beats.length + unset.beats.length + off.beats.length).toBe(0)
+    })
+
+    it("finds tracked keys by the client's exact session id", () => {
       const h = client()
       h.turn("codex:abc", "r", 0, "1h")
+      h.turn("codex:xabc", "r", 0, "1h")
+      h.turn("opencode:x:abc", "r", 0, "1h")
       h.turn("opencode:other", "r", 0, "1h")
       expect(h.scheduler.keysForSession("abc")).toEqual(["codex:abc"])
+      expect(h.scheduler.keysForSession("x:abc")).toEqual(["opencode:x:abc"])
     })
   })
 

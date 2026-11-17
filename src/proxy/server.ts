@@ -45,6 +45,7 @@ import {
   cacheKeepaliveAccountBlock,
   classifyCacheTier,
   resolveCacheKeepaliveMode,
+  resolveCacheKeepaliveMaxBeats,
   resolveCacheKeepaliveMaxInFlight,
   type CacheTierUsage,
 } from "./cacheKeepalive"
@@ -1391,6 +1392,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const cacheKeepalive = new CacheKeepaliveScheduler<CacheKeepaliveRecipe>({
     enabled: cacheKeepaliveEnabled,
     autoBeats: () => cacheKeepaliveMode() === "auto",
+    maxBeats: resolveCacheKeepaliveMaxBeats(envIntValue("CACHE_KEEPALIVE_MAX_BEATS")),
     maxInFlight: resolveCacheKeepaliveMaxInFlight(envIntValue("CACHE_KEEPALIVE_MAX_IN_FLIGHT")),
     currentSessionId: currentCacheKeepaliveSessionId,
     beat: createCacheKeepaliveRunner({
@@ -9759,15 +9761,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    * mode, src/proxy/SPEC.md → Decisions). `:key` is the client's session key
    * (`x-session-affinity`, `x-opencode-session`, ...). The beat is the same
    * read-only one the automatic schedule sends; this only lets a client that
-   * knows whether its user is coming back decide when. Answers once the beat
-   * has finished, with its outcome.
+   * knows whether its user is coming back decide when, within the operator's
+   * per-period cap and a minimum gap. Answers `disabled` unless the operator
+   * chose client mode, otherwise once the beat has finished, with its outcome.
    */
   app.post("/v1/sessions/:key/cache-beat", async (c) => {
     const key = c.req.param("key")
     if (!key) {
       return c.json({ type: "error", error: { type: "invalid_request_error", message: "Session key is required" } }, 400)
     }
-    if (!cacheKeepaliveEnabled()) return c.json({ session: key, outcome: "disabled" })
+    if (cacheKeepaliveMode() !== "client") return c.json({ session: key, outcome: "disabled" })
     const trackedKeys = cacheKeepalive.keysForSession(key)
     if (trackedKeys.length === 0) return c.json({ session: key, outcome: "untracked" })
     const outcomes = await Promise.all(trackedKeys.map((trackedKey) => cacheKeepalive.beatNow(trackedKey)))
