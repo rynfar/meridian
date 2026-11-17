@@ -1,16 +1,11 @@
 /**
- * Unit tests for the plan backfill a token refresh performs.
- *
- * The plan is written at login and never again, so a credential file created
- * before Meridian persisted it stays plan-blind for the life of the login. A
- * refresh is the only other moment holding a valid access token, so it is the
- * only place the gap can be closed without an interactive re-login.
+ * Unit tests for plan discovery during token refresh: missing fields are
+ * recovered, stale readings are replaced, and fresh readings avoid a lookup.
  *
  * Both endpoints are reached through `globalThis.fetch`, so the mock dispatches
  * on URL: the token endpoint returns rotated tokens, the profile endpoint
- * returns the plan. Profile-endpoint calls are counted, because "does not ask
- * when it already knows" is the assertion that keeps this one GET per profile
- * rather than one per refresh.
+ * returns the plan. Profile-endpoint calls distinguish a due reading from a
+ * complete plan that was checked recently.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
@@ -70,7 +65,7 @@ function stubEndpoints(profileResponse: () => Response | null) {
 }
 
 /** A store seeded with tokens plus whatever plan fields the case is about. */
-function makeStore(plan: { subscriptionType?: string; rateLimitTier?: string; seatTier?: string | null }) {
+function makeStore(plan: { subscriptionType?: string; rateLimitTier?: string; seatTier?: string | null; planCheckedAt?: number }) {
   let stored: Record<string, unknown> = {
     claudeAiOauth: {
       accessToken: "old-access-token",
@@ -160,9 +155,9 @@ describe("a token refresh backfills a plan-blind credential", () => {
     expect(planAllowance(await getStoredPlanFields(store)).multiplier).toBe("6.25x")
   })
 
-  it("does not repeatedly look up a Team whose seat is already known", async () => {
+  it("does not repeatedly look up a Team whose seat was recently checked", async () => {
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
-    const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x", seatTier: "team_tier_1" })
+    const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x", seatTier: "team_tier_1", planCheckedAt: Date.now() })
     const stub = stubEndpoints(() => jsonResponse({ organization: { seat_tier: "team_tier_1" } }))
 
     await refreshOAuthToken(store)
@@ -218,16 +213,16 @@ describe("a token refresh backfills a plan-blind credential", () => {
     expect(stub.profileAuthorization()).toBe("Bearer rotated-access-token")
   })
 
-  it("does not ask again once both fields are known", async () => {
+  it("does not ask again while the complete plan reading is fresh", async () => {
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
-    const { store } = makeStore({ subscriptionType: "max", rateLimitTier: "default_claude_max_20x" })
+    const { store } = makeStore({ subscriptionType: "max", rateLimitTier: "default_claude_max_20x", planCheckedAt: Date.now() })
     const stub = stubEndpoints(() => jsonResponse(MAX_20X_PROFILE))
 
     expect(await refreshOAuthToken(store)).toBe(true)
     expect(stub.profileCalls()).toBe(0)
   })
 
-  it("keeps the stored value when the endpoint reports a different one", async () => {
+  it("takes the current plan when the endpoint reports a different one", async () => {
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
     // Only the missing half is being filled in; a plan already on disk was
     // written by a login and is not up for revision by a backfill.
@@ -235,7 +230,7 @@ describe("a token refresh backfills a plan-blind credential", () => {
     stubEndpoints(() => jsonResponse(MAX_20X_PROFILE))
 
     expect(await refreshOAuthToken(store)).toBe(true)
-    expect(oauth().subscriptionType).toBe("team")
+    expect(oauth().subscriptionType).toBe("max")
     expect(oauth().rateLimitTier).toBe("default_claude_max_20x")
   })
 

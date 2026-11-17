@@ -312,6 +312,8 @@ export function buildLoginCredentials(
   const refreshTokenExpiresAt = typeof refreshDeadline === "number"
     && Number.isFinite(refreshDeadline) && refreshDeadline > now && refreshDeadline <= 8.64e15
     ? refreshDeadline : undefined
+  // A null seat only clears a stored one; a new credential has none to clear.
+  const { seatTier, ...knownPlan } = plan
   return {
     claudeAiOauth: {
       accessToken: tokenData.access_token,
@@ -319,7 +321,8 @@ export function buildLoginCredentials(
       expiresAt: tokenData.expires_at ?? now + (tokenData.expires_in ?? 8 * 60 * 60) * 1000,
       ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
       scopes: tokenData.scope?.split(" ").filter(Boolean) ?? OAUTH_SCOPES,
-      ...plan,
+      ...knownPlan,
+      ...(seatTier ? { seatTier } : {}),
     },
   }
 }
