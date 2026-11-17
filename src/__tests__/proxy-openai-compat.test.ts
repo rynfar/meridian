@@ -1148,6 +1148,73 @@ describe("POST /v1/chat/completions — streaming", () => {
     expect(errorIndex).toBeGreaterThan(lengthIndex)
   })
 
+  // NOTE: Zed-specific. Zed ends the turn at finish_reason "length" with
+  // "Output Limit Reached" and never reads the error frame behind it.
+  describe("Zed", () => {
+    const ZED_HEADERS = { "User-Agent": "Zed/1.25.3 (windows; x86_64)" }
+    const stall = "upstream idle for 90000ms (limit 90000ms)"
+
+    /** Answer the internal hop with a turn that stopped at max_tokens. */
+    async function streamMaxTokensTurn(failure?: { type: string; message: string }) {
+      const app = createTestApp()
+      const originalFetch = app.fetch.bind(app)
+      const internalFrames = [
+        `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", content: [], model: "claude-sonnet-5", stop_reason: null, usage: { input_tokens: 10, output_tokens: 0 } } })}`,
+        `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
+        `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Partial" } })}`,
+        `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
+        `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "max_tokens", stop_sequence: null }, usage: { output_tokens: 3 } })}`,
+        ...(failure ? [`event: error\ndata: ${JSON.stringify({ type: "error", error: failure })}`] : []),
+        `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}`,
+      ]
+      app.fetch = (req, env, executionCtx) => {
+        if (req.url === "http://internal/v1/messages") {
+          return Promise.resolve(new Response(`${internalFrames.join("\n\n")}\n\n`, {
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+          }))
+        }
+        return originalFetch(req, env, executionCtx)
+      }
+
+      const res = await postChatCompletion(app, {
+        stream: true,
+        messages: [{ role: "user", content: "Hi" }],
+      }, ZED_HEADERS)
+      const text = await readStream(res)
+      const frames = text.split("\n")
+        .filter(l => l.startsWith("data: ") && l !== "data: [DONE]")
+        .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
+      const finishReasons = frames
+        .map(frame => (frame.choices as Array<{ finish_reason?: string | null }> | undefined)?.[0]?.finish_reason)
+        .filter((reason): reason is string => typeof reason === "string")
+      const content = frames
+        .map(frame => (frame.choices as Array<{ delta?: { content?: string } }> | undefined)?.[0]?.delta?.content ?? "")
+        .join("")
+      return { text, frames, finishReasons, content }
+    }
+
+    it("reports a failed turn as the error alone, with no length finish", async () => {
+      const { text, frames, finishReasons, content } = await streamMaxTokensTurn({ type: "upstream_timeout", message: stall })
+
+      expect(finishReasons).toEqual([])
+      expect(frames.filter(frame => frame.error !== undefined).map(frame => frame.error)).toEqual([
+        { type: "upstream_timeout", code: "upstream_timeout", message: stall },
+      ])
+      expect(content).toBe("Partial")
+      expect(text).toContain("data: [DONE]")
+    })
+
+    it("keeps the length finish of a turn that really ran out of output", async () => {
+      const { text, frames, finishReasons, content } = await streamMaxTokensTurn()
+
+      expect(finishReasons).toEqual(["length"])
+      expect(frames.some(frame => frame.error !== undefined)).toBe(false)
+      expect(content).toBe("Partial")
+      expect(text).toContain("data: [DONE]")
+    })
+  })
+
   // --- tool_call_counter increment behavior ---
 
   type DeltaToolCall = {
