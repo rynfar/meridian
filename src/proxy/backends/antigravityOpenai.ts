@@ -26,7 +26,7 @@ const chatSchema = z.object({
   tool_choice: choice.optional(), parallel_tool_calls: z.boolean().optional(),
   stream: z.boolean().optional(), stream_options: z.object({ include_usage: z.boolean().optional() }).strict().optional(),
   max_tokens: z.number().int().positive().optional(), max_completion_tokens: z.number().int().positive().optional(),
-  reasoning_effort: z.enum(['low', 'medium', 'high']).optional(), response_format: format.optional(),
+  reasoning_effort: z.enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(), response_format: format.optional(),
   temperature: z.number().optional(), top_p: z.number().optional(),
   stop: z.union([z.string(), z.array(z.string())]).optional(), n: z.literal(1).optional(), store: z.literal(false).optional(), user: z.string().optional(),
 }).strict()
@@ -52,7 +52,7 @@ const responsesSchema = z.object({
   tools: z.array(z.union([responseTool, z.object({ type: z.literal('namespace'), name: z.string(), description: z.string().optional(), tools: z.array(responseTool) }).strict()])).optional(),
   tool_choice: z.union([z.enum(['auto', 'none', 'required']), z.object({ type: z.enum(['function', 'custom']), name: z.string(), namespace: z.string().optional() }).strict()]).optional(),
   parallel_tool_calls: z.boolean().optional(), stream: z.boolean().optional(), max_output_tokens: z.number().int().positive().optional(),
-  reasoning: z.object({ effort: z.enum(['low', 'medium', 'high']).optional(), summary: z.literal('auto').optional() }).strict().optional(),
+  reasoning: z.object({ effort: z.enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(), summary: z.literal('auto').optional() }).strict().optional(),
   include: z.array(z.literal('reasoning.encrypted_content')).optional(),
   prompt_cache_key: z.string().max(256).optional(), client_metadata: z.record(z.string(), z.string()).optional(),
   text: z.object({ format: z.union([z.object({ type: z.literal('text') }).strict(), z.object({ type: z.literal('json_schema'), name: z.string(), schema: json, strict: z.boolean().optional() }).strict()]) }).strict().optional(),
