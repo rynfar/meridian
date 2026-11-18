@@ -340,6 +340,8 @@ Meridian speaks the OpenAI protocol natively — no LiteLLM or translation proxy
 
 **`GET /v1/models`** — returns available Claude models in OpenAI format
 
+With `x-meridian-profile: <profile>` it returns the Claude models that account itself may use (a Team account lists Claude Mythos, a personal Max account does not), with each model's `max_output_tokens`. The response header `x-meridian-models-source` reads `account`, or `static` when the account's list could not be read and the static list was returned instead. An unknown profile answers `400` `unknown_profile`.
+
 Set the OpenAI API base to `http://127.0.0.1:3456/v1` (clients append `/chat/completions` or `/models`). Use your proxy key if authentication is enabled:
 
 ```bash
