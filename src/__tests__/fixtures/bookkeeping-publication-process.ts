@@ -21,7 +21,7 @@ try {
     if (!(error instanceof SessionLifecycleLockError)) throw error
     result = "busy"
   }
-  console.log(JSON.stringify({ result, node: process.versions.node }))
+  console.log(JSON.stringify({ result, node: process.versions.node, bun: process.versions.bun ?? null }))
 } finally {
   handle.close()
   process.disconnect()
