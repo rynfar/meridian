@@ -288,8 +288,11 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   estimated at 2 bytes) becomes an `is_error` notice with size, limit, how to
   narrow the call and a sample; the person gets a `[meridian] Withheld …` line
   at the top of that answer, only for cuts in the live turn: the client
-  resends the thread on every request (Zed's title request included), so a
-  cut in history would repeat the line on every answer and become the
+  resends the thread on every request, so a cut in history would repeat the
+  line on every answer. Auxiliary one-shots (Zed's title and summary, Claude
+  Code's session title) carry no proxy note at all:
+  Zed asks for the title right after the first tool round, while the cut
+  result is still in the live turn, and keeps the answer's first line as the
   thread's title. The cap runs once per request on the messages
   that become the prompt — before the replay budget estimates them and before
   lineage-neutral rendering — and again inside `buildFreshPrompt` for the
