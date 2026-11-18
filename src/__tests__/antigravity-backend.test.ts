@@ -43,7 +43,7 @@ describe("Antigravity request contract", () => {
   it("rejects images and unsupported controls before creating a process", () => {
     expect(() => parseAgRequest({ ...initial(), messages: [{ role: "user", content: [{ type: "image", source: {} }] }] })).toThrow("text")
     expect(() => parseAgRequest({ ...initial(), temperature: 0 })).toThrow("temperature")
-    expect(() => parseAgRequest({ ...initial(), thinking: { type: "enabled", budget_tokens: 100 } })).toThrow()
+    expect(() => parseAgRequest({ ...initial(), thinking: { type: "enabled", budget_tokens: 100 } }, false)).toThrow()
     expect(() => parseAgRequest({ ...initial(), tool_choice: { type: "tool", name: "unknown" } })).toThrow()
   })
   it("supports native effort and binds it to a pending tool contract", () => {
@@ -51,12 +51,15 @@ describe("Antigravity request contract", () => {
     expect(() => parseAgRequest({ ...initial(), model: "claude-sonnet-4-6", output_config: { effort: "high" } })).toThrow("model slug")
     expect(base.output_config?.effort).toBe("high")
     expect(contractKey(base)).not.toBe(contractKey({ ...base, output_config: { effort: "low" } }))
-    expect(() => parseAgRequest({ ...initial(), output_config: { effort: "max" } })).toThrow()
+    expect(parseAgRequest({ ...initial(), model: "fixture-model-high", output_config: { effort: "max" } }).output_config?.effort).toBe("high")
+    expect(() => parseAgRequest({ ...initial(), model: "fixture-model-high", output_config: { effort: "low" } })).toThrow("model slug")
     expect(parseAgRequest({ ...initial(), output_config: { format: { type: "json_schema", schema: {} } } }).output_config?.format?.type).toBe("json_schema")
   })
-  it("adapts numeric budgets only by explicit opt-in, without mutating client input", () => {
+  it("adapts numeric budgets only when opted in, without mutating client input", () => {
     const original = { ...initial(), model: "gemini-fixture-low", thinking: { type: "enabled", budget_tokens: 8192 } }
-    expect(() => parseAgRequest(original)).toThrow("ADAPT_THINKING_BUDGETS")
+    expect(() => parseAgRequest(original)).toThrow("MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1")
+    expect(() => parseAgRequest(original, false)).toThrow("MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1")
+    expect(parseAgRequest(original, true).model).toBe("gemini-fixture-medium")
     for (const [budget, effort] of [[1, "low"], [2048, "low"], [2049, "medium"], [8192, "medium"], [8193, "high"], [32768, "high"]] as const) {
       const adapted = parseAgRequest({ ...original, thinking: { type: "enabled", budget_tokens: budget } }, true)
       expect(adapted.model).toBe(`gemini-fixture-${effort}`)
@@ -610,7 +613,7 @@ describe("Antigravity thinking-budget client compatibility", () => {
   })
   it("does not spawn a model for disabled adaptation or missing account variants", async () => {
     const request = { ...initial(), model: "gemini-missing-low", thinking: { type: "enabled", budget_tokens: 8192 } }
-    const strict = fixture()
+    const strict = fixture({ adaptThinkingBudgets: false })
     expect((await strict.send(request)).status).toBe(400)
     expect(strict.runtime.runs.size).toBe(0)
     const enabled = fixture({ adaptThinkingBudgets: true })

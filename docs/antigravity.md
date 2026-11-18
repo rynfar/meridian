@@ -235,12 +235,16 @@ allowToolBridge, maxConcurrent, turnTimeoutMs, pendingToolTimeoutMs }` on
 - Exact numeric thinking budgets, sampling controls, signed reasoning, Claude-specific
   profiles/SDK hooks and signed Claude lineage remain unavailable. Explicit
   Antigravity provider plugins and bounded persistent activity are supported. Unsupported modeled request features fail before execution.
-- `output_config.effort` accepts `low`, `medium`, or `high` only when it matches
-  the selected model slug suffix; it is passed to the native CLI flag. Adaptive
-  thinking is accepted, but no private reasoning transcript is synthesized.
-  Google-hosted Claude does not support this effort override: select its account
-  model as advertised, with client thinking controls off. Gemini effort variants
-  can always be selected as separate model slugs.
+- `output_config.effort` accepts `minimal`, `low`, `medium`, `high`, `xhigh`, and
+  `max` (clamping `minimal` to `low` and `xhigh`/`max` to `high`) and passes
+  the effective effort to the native CLI flag. Without enabled numeric thinking,
+  an explicit `-low`/`-medium`/`-high` suffix on a Gemini model slug remains
+  authoritative over `output_config.effort`, while unsuffixed Gemini models
+  select the closest discovered effort variant. Adaptive thinking is accepted,
+  but no private reasoning transcript is synthesized. Google-hosted Claude does
+  not support this effort override: select its account model as advertised, with
+  client thinking controls off. Gemini effort variants can always be selected as
+  separate model slugs.
 - `max_tokens` is included as a prompt instruction; the CLI does not expose a
   native hard output-token cap. Health reports this as `advisory`.
 - CLI-reported terminal permission denial is an error even when terminal status
@@ -487,9 +491,16 @@ to low/medium variants or Google-hosted Claude models.
 ### Client thinking controls through effort adaptation
 
 Set `MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1` on the Meridian service (or
-`antigravity.adaptThinkingBudgets: true` for embedders) to use numeric Anthropic
-client thinking controls with Gemini effort variants. Strict rejection remains
-the default. Generation still goes through the official subscription CLI.
+`antigravity.adaptThinkingBudgets: true` for embedders) to opt in to numeric
+`thinking.budget_tokens` adaptation for Gemini models. Explicit
+`output_config.effort` levels (`minimal`, `low`, `medium`, `high`, `xhigh`,
+`max`) clamp (`minimal` to `low`, `xhigh`/`max` to `high`) and map unsuffixed
+Gemini models to the closest discovered Gemini effort variant (`low`/`medium`/
+`high`, preferring `-high` over `-low` when `-medium` is absent) even when
+numeric budget adaptation is off. Without enabled numeric thinking, an explicit
+`-low`, `-medium`, or `-high` suffix on the requested Gemini model remains
+authoritative over `output_config.effort` and sets the effective effort to that
+suffix. Generation still goes through the official subscription CLI.
 
 | Client `thinking.budget_tokens` | Effective CLI effort |
 | --- | --- |
@@ -499,11 +510,13 @@ the default. Generation still goes through the official subscription CLI.
 
 These thresholds are Meridian's compatibility policy, not Google's token
 allocations. The selected Gemini family stays fixed; for example an 8192 budget
-on `gemini-3.8-flash-low` selects `gemini-3.8-flash-medium` and passes
-`--effort medium`. The target must appear in the signed-in account's `agy models`
-list. A missing variant is rejected without a model call; Meridian never switches
-to a different family or provider. Google-hosted Claude models are not mapped.
-Conflicting explicit effort and numeric budget settings are rejected.
+on `gemini-3.8-flash-low` (or `gemini-3.8-flash`) selects
+`gemini-3.8-flash-medium` (or the closest discovered variant in that family if
+`-medium` is absent) and passes `--effort medium`. The family must appear in the
+signed-in account's `agy models` list. A missing family is rejected without a
+model call; Meridian never switches to a different family or provider.
+Google-hosted Claude models are not mapped. Conflicting explicit effort and
+numeric budget settings are rejected.
 
 For Pi, change the model entry above to `"reasoning": true` and
 `"maxTokens": 32768`, then use `--thinking low`, `medium`, or `high`. Pi clamps
@@ -514,10 +527,12 @@ and configure a model's `options` or a named variant with
 `{"thinking":{"type":"enabled","budgetTokens":8192}}`. Keep `temperature: false`.
 Pi/OpenCode still own tool execution, approvals, skills and client subagents.
 
-JSON and SSE responses expose `x-meridian-thinking-budgets: approximate-effort`,
-`x-meridian-effective-model` and, when selected, `x-meridian-effective-effort`.
-The response model and request telemetry use the effective CLI model. Health
-reports `capabilities.thinkingBudgets: "approximate-gemini-effort"` when enabled.
+When adaptation occurs, JSON and SSE responses expose
+`x-meridian-thinking-budgets: approximate-effort` (for numeric budgets),
+`x-meridian-effective-model`, and (when effort is set)
+`x-meridian-effective-effort`. The response model and request telemetry use the
+effective CLI model. Health reports `capabilities.thinkingBudgets:
+"approximate-gemini-effort"` when enabled.
 Changing effort between completed turns can replay history rather than reuse a
 process; changing it while a tool result is pending is rejected by the existing
 continuation contract. Client thinking `off` leaves the chosen model unchanged;
@@ -719,6 +734,10 @@ UTF-8 bytes divided by four plus an image allowance. Hidden CLI context and
 unprocessed PDF/audio/video contents are excluded and explicitly counted in
 `excluded_unprocessed_media`. It performs no fetching, rendering, transcription
 or model call. It is neither an exact tokenizer nor an upper-bound quota estimate.
+Because it performs no `agy models` discovery, unsuffixed Gemini models with
+`output_config.effort` or opted-in numeric `thinking.budget_tokens` are mapped
+syntactically without verifying discovered family variants (unlike
+`/v1/messages`, which rejects undiscovered families).
 
 ## Locally adapted documents, audio and video
 
