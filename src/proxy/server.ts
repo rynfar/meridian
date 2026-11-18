@@ -106,7 +106,7 @@ import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
 import { openCodeInstructionSections } from "./adapters/opencodeInstructionSections"
 import { PendingSystemPromptResets, requestsSystemPromptReset, SYSTEM_PROMPT_RESET_HEADER } from "./systemPromptReset"
-import { instructionSectionState, planInstructionSections } from "./session/instructionSections"
+import { hasInstructionSectionChange, instructionSectionState, planInstructionSections, renderInstructionSectionReminder } from "./session/instructionSections"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { isSdkToolSearchCall, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
@@ -152,7 +152,7 @@ import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapter
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, withTrailingText, layoutReplayBlocks, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
@@ -4203,11 +4203,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const publishFreshInstructionSections = () => {
         if (instructionSections) instructionSectionPublication = instructionSectionState(instructionSections)
       }
-      if (instructionPlan && (instructionPlan.change.changed.length > 0 || instructionPlan.change.removed > 0)) {
+      // The resumed model is told what changed in this turn's input; once
+      // published, the transcript holds it, so the current sections are seen.
+      // The reminder is SDK input only: lineage and UUID mapping hash the
+      // client messages, which it never enters.
+      let instructionReminder: string | undefined
+      if (instructionSections && instructionPlan && hasInstructionSectionChange(instructionPlan.change)) {
         claudeLog("session.instruction_sections_changed", {
           changed: instructionPlan.change.changed.length,
           removed: instructionPlan.change.removed,
         })
+        instructionReminder = renderInstructionSectionReminder(instructionPlan.change, instructionSections)
+        instructionSectionPublication = instructionSectionState(instructionSections)
       }
       // Client usage describes its resumed context, not the fresh transcript;
       // derive replay capacity from the actual SDK model's window instead.
@@ -4578,10 +4585,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // Create a fresh prompt value — can be called multiple times for retry
       function makePrompt(): string | AsyncIterable<any> {
         if (structuredMessages) {
-          const msgs = structuredMessages
+          const msgs = instructionReminder ? withTrailingText(structuredMessages, instructionReminder) : structuredMessages
           return (async function* () { for (const msg of msgs) yield msg })()
         }
-        return textPrompt!
+        return instructionReminder ? `${instructionReminder}\n\n${textPrompt!}` : textPrompt!
       }
 
       // Passthrough tool_use capture. `capturedToolUses` holds the DISTINCT

@@ -64,6 +64,38 @@ export function diffInstructionSections(
   return { changed, removed: Object.keys(seen).filter(key => !current.has(key)).length }
 }
 
+export function hasInstructionSectionChange(change: InstructionSectionChange): boolean {
+  return change.changed.length > 0 || change.removed > 0
+}
+
+/**
+ * The reminder that delivers a change to a resumed conversation, whose system
+ * prompt still holds the instruction files its first turn recorded. Each
+ * changed file is given whole: a full replacement is unambiguous where a line
+ * diff is easy to misapply. Only digests of removed files are stored, so a
+ * removal is stated by naming the files that still apply.
+ */
+export function renderInstructionSectionReminder(
+  change: InstructionSectionChange,
+  current: readonly InstructionSection[],
+): string {
+  const parts = [
+    "The client's instruction files changed after your system prompt was recorded. "
+      + "Where this reminder and the instruction files in your system prompt disagree, this reminder applies.",
+  ]
+  if (change.changed.length > 0) {
+    parts.push("Current content of each new or changed file, superseding any earlier version of the same file:")
+    parts.push(...change.changed.map(section => section.text))
+  }
+  if (change.removed > 0) {
+    const names = current.map(section => section.key)
+    parts.push(names.length > 0
+      ? `The client's current instruction files are: ${names.join(", ")}. Instructions from any other file in your system prompt no longer apply.`
+      : "The client sends no instruction files any more. Instructions from files in your system prompt no longer apply.")
+  }
+  return `<system-reminder>\n${parts.join("\n\n")}\n</system-reminder>`
+}
+
 /**
  * The state to publish for a turn, and what changed relative to the stored one.
  *

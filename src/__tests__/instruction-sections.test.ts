@@ -2,7 +2,9 @@ import { describe, expect, it } from "bun:test"
 import { openCodeInstructionSections } from "../proxy/adapters/opencodeInstructionSections"
 import {
   diffInstructionSections, hashInstructionSections, isInstructionSectionState, planInstructionSections,
+  renderInstructionSectionReminder,
 } from "../proxy/session/instructionSections"
+import { withTrailingText } from "../proxy/replay"
 
 const system = (agents: string, project: string, tail = "Skills provide specialized instructions and workflows for specific tasks.\n- skill-a") => [
   "You are OpenCode.",
@@ -85,5 +87,28 @@ describe("instruction section state", () => {
     expect(planInstructionSections(undefined, sections, true)).toEqual({
       state: { seen: hashInstructionSections(sections) }, change: { changed: [], removed: 0 },
     })
+  })
+})
+
+describe("instruction section reminder", () => {
+  it("carries every changed file whole and states removals by the files that remain", () => {
+    const a = { key: "/a.md", text: "Instructions from: /a.md\nA2" }
+    const reminder = renderInstructionSectionReminder({ changed: [a], removed: 1 }, [a])
+    expect(reminder.startsWith("<system-reminder>\n")).toBe(true)
+    expect(reminder.endsWith("\n</system-reminder>")).toBe(true)
+    expect(reminder).toContain("Instructions from: /a.md\nA2")
+    expect(reminder).toContain("current instruction files are: /a.md.")
+    expect(renderInstructionSectionReminder({ changed: [], removed: 2 }, [])).toContain("sends no instruction files")
+    expect(renderInstructionSectionReminder({ changed: [a], removed: 0 }, [a])).not.toContain("no longer apply")
+  })
+
+  it("appends text after tool results and converts string content", () => {
+    const tool = { type: "tool_result", tool_use_id: "t", content: "r" }
+    const [structured] = withTrailingText<{ message: { content: unknown } }>([{ message: { content: [tool] } }], "R")
+    expect(structured!.message.content).toEqual([tool, { type: "text", text: "R" }])
+    const [plain] = withTrailingText<{ message: { content: unknown } }>([{ message: { content: "q" } }], "R")
+    expect(plain!.message.content).toEqual([{ type: "text", text: "q" }, { type: "text", text: "R" }])
+    const [empty] = withTrailingText<{ message: { content: unknown } }>([{ message: { content: "" } }], "R")
+    expect(empty!.message.content).toEqual([{ type: "text", text: "R" }])
   })
 })

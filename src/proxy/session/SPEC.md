@@ -318,9 +318,12 @@ next request replays, as main's fresh replay of that turn would have.
 - **Mixed proxy versions replay.** v1 lineage digests cannot prove a v2 prefix,
   so alternating old and new proxies repeats a full-history replay until every
   participating proxy is upgraded.
-- **Editing a primary agent's instructions without switching agents** stays
-  subject to the native resume limitation (the SDK restores its original system
-  prompt).
+- **Edited instructions reach a resumed conversation as a reminder, not as a
+  new system prompt.** The SDK restores the system prompt it recorded; Meridian
+  delivers changed OpenCode instruction files in the next turn's input
+  (`instructionSections`, see `ARCHITECTURE.md`). Other clients' prompt edits,
+  and prompt text outside instruction files, still need a reset
+  (`x-meridian-system-prompt-reset`) to take effect.
 - **A conversation returning to a pruned profile copy replays** instead of
   resuming (only with `MERIDIAN_SESSION_PROFILE_COPY_PRUNE=1`).
 - **Windows writer-lease recovery** for a crashed proxy waits for a host reboot,

@@ -655,6 +655,17 @@ parts of the prompt are never hashed, so their per-turn churn keeps ordinary
 resume. A mapping published without digests adopts the current sections as its
 baseline.
 
+When a resumed turn finds sections changed, it appends one `<system-reminder>`
+to that turn's SDK input carrying each new or changed file whole (removals are
+stated by naming the files that still apply), and publishes the current
+digests, so the reminder is sent once. The cached prefix is kept: the turn
+writes only the reminder to cache instead of rewriting the conversation. The
+reminder is SDK input only. Lineage, message hashes and the SDK UUID mapping
+are computed from the client's messages, which it never enters, so resume
+proof is unchanged. It is appended after any `tool_result` blocks, which must
+open a user turn. Each reminder adds to the transcript, so a client that wants
+removed or contradicting rules gone entirely uses the reset below.
+
 An explicit reset (`systemPromptReset.ts`: the `x-meridian-system-prompt-reset`
 request header, or `POST /v1/sessions/:key/system-prompt-reset`, which arms the
 next publishing turn of that client key in this process) takes the existing

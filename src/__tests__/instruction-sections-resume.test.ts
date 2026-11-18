@@ -30,6 +30,7 @@ installMcpToolsMock(() => ({ createOpencodeMcpServer: () => ({ type: "sdk", name
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { lookupSharedSession, storeSharedSession } = await import("../proxy/sessionStore")
+const { storeSession } = await import("../proxy/session/cache")
 const { openCodeInstructionSections } = await import("../proxy/adapters/opencodeInstructionSections")
 const { instructionSectionState } = await import("../proxy/session/instructionSections")
 
@@ -71,13 +72,68 @@ for (const stream of [false, true]) describe(`OpenCode instruction sections (str
     expect(events.some(entry => entry.event === "session.instruction_sections_changed")).toBe(false)
   })
 
-  it("detects an edited instruction file on resume", async () => {
-    const { post } = conversation()
+  it("delivers an edited instruction file once to the resumed session, keeping lineage and resume", async () => {
+    const { session, post } = conversation()
     await post(system("ALPHA-7731"))
-    const resumed = await post(system("BETA-4419"))
-    expect(resumed.options.resume).toBeDefined()
+    const first = lookupSharedSession(session)!
+    const resumed = await post(system("BETA-4419", "15 files"))
+    expect(resumed.options.resume).toBe(first.claudeSessionId)
     expect(events.find(entry => entry.event === "session.instruction_sections_changed")?.data)
       .toEqual({ changed: 1, removed: 0 })
+    expect(resumed.prompt).toContain("<system-reminder>")
+    expect(resumed.prompt).toContain("Instructions from: /work/AGENTS.md\nCanary token: BETA-4419.")
+    expect(resumed.prompt).not.toContain("OWNED_HISTORY_SECTIONS")
+    expect(resumed.prompt).not.toContain("File tree")
+    const second = lookupSharedSession(session)!
+    expect(second.instructionSections).toEqual(stateOf("BETA-4419"))
+    // The SDK-only reminder must not touch the client lineage proof.
+    expect(second.lineageHash).not.toBe("")
+    const next = await post(system("BETA-4419"))
+    expect(next.options.resume).toBe(second.claudeSessionId)
+    expect(next.prompt).not.toContain("<system-reminder>")
+    expect(next.prompt).not.toContain("OWNED_HISTORY_SECTIONS")
+  })
+
+  it("names the files that still apply when one is removed", async () => {
+    const { post } = conversation()
+    const two = (canary: string) => system(canary).replace("Skills provide",
+      "Instructions from: /work/extra.md\nExtra rule.\nSkills provide")
+    await post(two("ALPHA-7731"))
+    const resumed = await post(system("ALPHA-7731"))
+    expect(resumed.options.resume).toBeDefined()
+    expect(resumed.prompt).toContain("The client's current instruction files are: /work/AGENTS.md.")
+    expect(resumed.prompt).not.toContain("Extra rule.")
+  })
+
+  it("appends the reminder after the tool results of a passthrough checkpoint continuation", async () => {
+    const previous = process.env.MERIDIAN_PASSTHROUGH
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    try {
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+      const session = crypto.randomUUID()
+      const prior = [{ role: "user", content: "OWNED_CHECKPOINT_OBJECTIVE" }]
+      await storeSession(session, prior, "owned-sdk-sections", undefined, [null, "owned-tool-uuid"], undefined,
+        "owned-tool-uuid", ["owned-call-sections"], undefined, undefined, undefined, undefined, true, undefined,
+        stateOf("ALPHA-7731"))
+      const response = await app.fetch(new Request("http://localhost/v1/messages", {
+        method: "POST", headers: { "content-type": "application/json", "x-opencode-session": session },
+        body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 128, stream, system: system("BETA-4419"),
+          tools: [{ name: "read", input_schema: { type: "object", properties: { path: { type: "string" } } } }],
+          messages: [...prior,
+            { role: "assistant", content: [{ type: "tool_use", id: "owned-call-sections", name: "read", input: { path: "f.txt" } }] },
+            { role: "user", content: [{ type: "tool_result", tool_use_id: "owned-call-sections", content: "EXACT_RESULT" }] }],
+        }),
+      }))
+      expect(response.status).toBe(200); await response.text()
+      const call = captured.at(-1)!
+      expect(call.options.resume).toBe("owned-sdk-sections")
+      const input = JSON.parse(call.prompt) as { message: { content: Array<{ type: string; text?: string }> } }
+      expect(input.message.content[0]!.type).toBe("tool_result")
+      expect(input.message.content.at(-1)!.text).toContain("Canary token: BETA-4419.")
+    } finally {
+      if (previous === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+      else process.env.MERIDIAN_PASSTHROUGH = previous
+    }
   })
 
   it("adopts the current sections as the baseline of a mapping published without them", async () => {
