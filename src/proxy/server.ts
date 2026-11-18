@@ -68,6 +68,7 @@ import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG, resolveBackendConfig } from "./types"
 import { createAntigravityServer } from "./backends/antigravity"
+import { createCopilotServer } from "./backends/copilot"
 import { env, envBool, envInt, envIntValue, envVarSource } from "../env"
 import { installErrorReporter } from "../errorReporting"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
@@ -821,6 +822,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const finalConfig = resolveBackendConfig(config)
   const claudeProviderFacts = new ClaudeProviderFacts()
   const antigravity = finalConfig.backend === "combined" ? createAntigravityServer({ ...finalConfig, profiles: undefined, defaultProfile: undefined }) : undefined
+  // Opt-in preview (MERIDIAN_COPILOT=1). Absent means /copilot answers 404.
+  const copilot = finalConfig.copilot ? createCopilotServer(finalConfig) : undefined
   // Decided once per instance. Absent means GPT model names keep meaning
   // Claude, exactly as before ChatGPT support existed.
   const chatGptSource = resolveChatGptSource()
@@ -1467,6 +1470,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   app.use("/providers", requireAuth)
   app.use("/providers/*", requireAuth)
   app.use("/antigravity/*", requireAuth)
+  app.use("/copilot/*", requireAuth)
   app.use("/drain", requireAuth)
   app.use("/upstream-reachability", async (c, next) => {
     c.header("Cache-Control", "no-store")
@@ -1475,9 +1479,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   app.use("/upstream-reachability", requireAuth)
 
   // Separate provider routes; Claude retains all existing paths and semantics.
-  app.all('/antigravity/*', async c => {
-    if (!antigravity) return c.json({ error: { type: 'not_found_error', message: 'Antigravity is not enabled' } }, 404)
-    const url = new URL(c.req.url); url.pathname = url.pathname.slice('/antigravity'.length)
+  const providerMounts = [
+    { prefix: '/antigravity', upstream: 'antigravity', name: 'Antigravity', backend: antigravity },
+    { prefix: '/copilot', upstream: 'copilot', name: 'Copilot', backend: copilot },
+  ] as const
+  for (const mount of providerMounts) app.all(`${mount.prefix}/*`, async c => {
+    const backend = mount.backend
+    if (!backend) return c.json({ error: { type: 'not_found_error', message: `${mount.name} is not enabled` } }, 404)
+    const url = new URL(c.req.url); url.pathname = url.pathname.slice(mount.prefix.length)
     const generation = isGenerationSubmission(c.req.method, url.pathname)
     const shape: ErrorShape = ["/v1/responses", "/v1/chat/completions"].includes(url.pathname) ? "openai" : "anthropic"
     if (generation && draining) return drainingResponse(shape)
@@ -1508,8 +1517,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
       // Preserve existing admitted client-HTTP counting for every provider
       // POST, including unheld estimates/control operations.
-      entry = c.req.method === 'POST' ? inflight.begin('antigravity') : undefined
-      const response = await antigravity.app.fetch(new Request(url.toString(), c.req.raw))
+      entry = c.req.method === 'POST' ? inflight.begin(mount.upstream) : undefined
+      const response = await backend.app.fetch(new Request(url.toString(), c.req.raw))
       if (!entry) return response
       entry.setStream((response.headers.get('content-type') ?? '').includes('text/event-stream'))
       responseOwned = true
@@ -1538,7 +1547,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const [summary, google] = await Promise.all([claudeSummary(), antigravity?.providerStatus() ?? disabledProvider('antigravity')])
     // ChatGPT appears only where it is served, so a Claude-only instance answers
     // exactly as before, including to desktop builds that know two providers.
-    const data = providerSnapshot([claudeProviderFacts.snapshot(read, summary), google, ...(chatGptSource ? [chatGptStatus()] : [])])
+    // Copilot, like ChatGPT, appears only where it is served.
+    const data = providerSnapshot([claudeProviderFacts.snapshot(read, summary), google, ...(chatGptSource ? [chatGptStatus()] : []), ...(copilot ? [copilot.providerStatus()] : [])])
     if (route.endsWith('/status')) return c.json(data)
     const filter = c.req.query('provider')
     return c.html(providerOverview(data, isProviderFilter(filter) ? filter : 'all'))
@@ -10265,6 +10275,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         "claude",
         ...(antigravity ? ["antigravity" as const] : []),
         ...(chatGptBackend ? ["chatgpt" as const] : []),
+        ...(copilot ? ["copilot" as const] : []),
       ]),
       draining: admissionHold.active,
       drain: admissionHold.snapshot(),
@@ -12436,7 +12447,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   }
 
   const bookkeepingHandle = retainProxyBookkeeping()
-  const getInFlightCount = () => inFlightRequests + cacheKeepalive.inFlight + pendingControlOperations + pendingProviderRequests + (antigravity?.getInFlightCount?.() ?? 0)
+  const getInFlightCount = () => inFlightRequests + cacheKeepalive.inFlight + pendingControlOperations + pendingProviderRequests + (antigravity?.getInFlightCount?.() ?? 0) + (copilot?.getInFlightCount() ?? 0)
   const beginDrain = () => {
     if (draining) return
     draining = true
@@ -12445,6 +12456,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     admissionHold.end("shutdown")
     cacheKeepalive.stop()
     antigravity?.beginDrain?.()
+    copilot?.beginDrain()
     chatGptLoginClosed = chatGptLogin?.close()
   }
   let backendClosePromise: Promise<void> | undefined
@@ -12457,7 +12469,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       beginDrain()
       backendClosePromise = (async () => {
         const results = await Promise.allSettled([
-          executableProbeOwner.close(), authOwner.close(), antigravity?.closeBackend?.(),
+          executableProbeOwner.close(), authOwner.close(), antigravity?.closeBackend?.(), copilot?.closeBackend(),
           waitForShutdownIdle(() => getInFlightCount() > 0),
         ])
         // Failed child cleanup is not permission to release its native owner.
@@ -12474,6 +12486,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     beginDrain,
     forceAbortInFlight: () => {
       antigravity?.forceAbortInFlight?.()
+      copilot?.forceAbortInFlight()
       durableWritesRevoked = true
       // Label every request's cause registry BEFORE aborting: shutdown is
       // the producer, and the diagnostic must not read unknown_abort.

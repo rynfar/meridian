@@ -15,7 +15,7 @@ otherwise lose.
 
 ## Problem
 
-Subscription plans (Claude Max/Pro, Antigravity, ChatGPT) are consumed through
+Subscription plans (Claude Max/Pro, Antigravity, ChatGPT, GitHub Copilot) are consumed through
 each vendor's own tooling, not a raw API key. Third-party coding clients speak
 the Anthropic Messages or OpenAI APIs and resend full conversation history each
 turn. Bridging the two naively loses session state, cold-caches every turn,
@@ -41,6 +41,10 @@ contract ([`api-contract`](.agents/references/api-contract.md)).
 - **ChatGPT backend (opt-in):** GPT models served from ChatGPT subscription seats
   on `/v1/responses` and image routes, off unless configured. Meridian either owns
   the seat store or follows an external one read-only.
+- **Copilot backend (preview, opt-in):** GitHub Copilot subscription models on
+  OpenAI Chat Completions under `/copilot`, through the operator-installed
+  official Copilot SDK, with client-owned tools and live session reuse. Off
+  unless `MERIDIAN_COPILOT=1`.
 - **Client adaptation:** automatic client detection and per-client adapters for
   session identity, working directory, tool mapping and transforms.
 - **Accounts:** multiple Claude profiles with manual, sticky or priority
@@ -57,7 +61,7 @@ contract ([`api-contract`](.agents/references/api-contract.md)).
 ## Non-goals
 
 - **No automatic paid-API fallback.** Generation goes through the operator's
-  signed-in subscription tooling (Agent SDK, `agy`, ChatGPT seats); Meridian
+  signed-in subscription tooling (Agent SDK, `agy`, ChatGPT seats, Copilot SDK); Meridian
   never falls back to an API key or a provider model SDK on its own. An
   explicitly configured `apiKey` Claude profile is the operator's opt-in and
   still runs through the Agent SDK.
@@ -73,11 +77,11 @@ contract ([`api-contract`](.agents/references/api-contract.md)).
 ## Principles
 
 - **Providers stay isolated.** Claude account routing, sessions and caches never
-  leak into Antigravity or ChatGPT paths, and vice versa; account identities and
+  leak into Antigravity, ChatGPT or Copilot paths, and vice versa; account identities and
   quotas are reported separately.
 - **Client-specific behavior lives in adapters**, not spread through the core.
 - **Risky or costly behavior is opt-in.** Automatic account switching, native
-  browser/subagent grants, the ChatGPT backend, update checks and crash
+  browser/subagent grants, the ChatGPT and Copilot backends, update checks and crash
   reporting are off by default.
 - **Honest bounds.** When Meridian cannot prove state (a session prefix, a
   recovery), it replays or refuses rather than guessing.

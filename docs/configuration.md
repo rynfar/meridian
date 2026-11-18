@@ -90,6 +90,12 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_CHATGPT_CREDENTIALS` | — | unset | Serve GPT models from ChatGPT subscriptions: `owned`, `follow-external` or `off`. Unset means `owned` when Meridian's own ChatGPT store holds seats, else off. See [ChatGPT subscriptions](#chatgpt-subscriptions). |
 | `MERIDIAN_CHATGPT_STORE_PATH` | — | `<config dir>/chatgpt-accounts.json` | Meridian's own ChatGPT seat store (`owned` mode). |
 | `MERIDIAN_CODEX_POOL_PATH` | — | `~/.opencode/oc-codex-multi-auth-accounts.json` | The oc-codex-multi-auth store read in `follow-external` mode. |
+| `MERIDIAN_COPILOT` | — | unset | Set to `1` to serve GitHub Copilot models under `/copilot` (preview). See [GitHub Copilot (preview)](#github-copilot-preview). |
+| `MERIDIAN_COPILOT_SDK_PATH` | — | unset | Absolute path of an installed `@microsoft/copilot-sdk` package directory. Unset resolves it from Meridian's own module path. |
+| `MERIDIAN_COPILOT_MODELS` | — | unset | Comma-separated allowlist of Copilot model IDs. Unset serves every model the account enables. |
+| `MERIDIAN_COPILOT_MAX_SESSIONS` | — | `8` | Live Copilot sessions kept for conversation reuse. |
+| `MERIDIAN_COPILOT_TURN_TIMEOUT_MS` | — | `600000` | Deadline for one Copilot model round. |
+| `MERIDIAN_COPILOT_TOOL_TIMEOUT_MS` | — | `3600000` | How long a session waits for the client's tool results before it is closed. |
 | `MERIDIAN_CREDENTIALS_READONLY` | `CLAUDE_PROXY_CREDENTIALS_READONLY` | unset | Set to `1` to forbid this instance from refreshing or writing OAuth credentials. For a second instance sharing another's credential files — see [Read-only credentials](#read-only-credentials). |
 
 †These are Meridian context defaults, not a billing guarantee. Availability and extended-context charges depend on the model and account; consult [Anthropic model configuration](https://code.claude.com/docs/en/model-config#extended-context). Historical Max/Team tests do not establish entitlement for another account.
@@ -798,6 +804,9 @@ HTTP requests before requesting a graceful shutdown:
   `MERIDIAN_BACKEND=antigravity` server does not serve `/inflight`.
 - `chatgpt` appears only when the ChatGPT gateway is configured and counts
   every turn it serves on `/v1/responses` and `/v1/messages`.
+- `copilot` appears only with `MERIDIAN_COPILOT=1` and counts
+  `POST /copilot/*` requests. A session waiting for a client tool result is
+  not counted.
 - Meridian's own background work (token refresh, usage polling, session
   cleanup) is never counted.
 - Only a loopback peer (`127.0.0.0/8`, `::1`) gets an answer, and not through a
@@ -1612,6 +1621,57 @@ meridian instance-import --from ~/.config/meridian-gpt --to ~/.config/meridian -
 Other settings (`layout`, `claudeExecutable`, ...) and Claude profiles stay with their instance; a source with Claude profiles is refused. The plan is computed the way the destination will name its seats: a name the destination already uses for a Claude profile, a former name, or another seat, and requests filed under such a name, are conflicts, and nothing is written. `--rename <old>=<new>` files a seat, or requests filed under `<old>`, under another name.
 
 With `--apply`, neither instance may be serving ChatGPT: stop the source, and the destination unless it has no ChatGPT seats yet (a destination still serving Claude may keep running). Telemetry is copied first, in short transactions beside the running destination, and read back column by column; then the settings; the seats last. Only after the whole destination has been checked again is the source retired: each file it read is renamed to `<name>.imported-<time>`, and nothing is deleted. A run that stops part-way leaves the source in place, and running the command again continues it without copying a request twice. Once it succeeds, restart the destination with `MERIDIAN_CHATGPT_CREDENTIALS=owned` (or unset).
+
+## GitHub Copilot (preview)
+
+With `MERIDIAN_COPILOT=1`, Meridian also serves the models on your GitHub
+Copilot subscription (for example `mai-code-2`) to OpenAI-compatible clients,
+through the official [Copilot SDK](https://www.npmjs.com/package/@microsoft/copilot-sdk).
+It runs beside Claude (`MERIDIAN_BACKEND=claude` or `combined`) under its own
+prefix, so no existing route or model name changes meaning. Without the flag,
+`/copilot/*` answers 404.
+
+**Setup.** Meridian does not bundle the SDK: its per-platform runtime is about
+185 MB. Install it yourself and sign in once with the Copilot CLI:
+
+```sh
+npm install -g @microsoft/copilot-sdk
+copilot            # then /login, once
+MERIDIAN_COPILOT=1 \
+MERIDIAN_COPILOT_SDK_PATH="$(npm root -g)/@microsoft/copilot-sdk" \
+meridian
+```
+
+Point the client's base URL at `http://127.0.0.1:3456/copilot/v1`.
+
+**What it does.** The client's system prompt replaces Copilot's, and its tools
+are the only tools the model sees. Copilot's built-in tools, repository
+instructions, hooks and permission prompts are off, and BYOK models are never
+used. Every tool call is returned to the client in OpenAI form, so the client
+runs it with its own approvals; Meridian runs nothing. The SDK runtime is a
+child process with a private, temporary `COPILOT_HOME`, and it does not inherit
+`MERIDIAN_*`, `ANTHROPIC_*` or `CLAUDE_*` variables.
+
+Each conversation keeps a live Copilot session while its requests extend what
+the session has seen. A changed model, reasoning effort, system prompt or tool
+list, edited history, compaction or a restart opens a new session with the
+earlier conversation replayed as text. Sessions are keyed by
+`x-session-affinity`, `x-opencode-session` or `x-session-id`, else by the
+conversation's opening. Requests without tools (titles, summaries) use a
+short-lived session.
+
+| Endpoint | |
+|---|---|
+| `POST /copilot/v1/chat/completions` | Streaming and non-streaming. Text, client tools (parallel), `reasoning_effort` as the model supports it, reasoning streamed as `reasoning_content`, usage including cached tokens. |
+| `GET /copilot/v1/models` | Enabled models on the account, after `MERIDIAN_COPILOT_MODELS`. |
+| `GET /copilot/health` | Sign-in, SDK version and capabilities. |
+
+**Limits.** Images, audio and documents, `tool_choice` other than `auto`,
+`parallel_tool_calls: false`, `response_format` and any other unknown option
+are rejected with a 400. `max_tokens` and `temperature` are accepted and
+ignored. Copilot bills premium requests by its own rules and each model's
+multiplier; Meridian does not meter, cap or report them. The SDK release this
+was verified with is `2.0.1` (runtime `1.0.114`), on macOS arm64.
 
 ## SDK Feature Toggles (Experimental)
 
