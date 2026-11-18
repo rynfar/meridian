@@ -204,6 +204,23 @@ describe("buildQueryOptions", () => {
     expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1")
   })
 
+  it.each([false, true])("disables the CLI's auto-compaction of client-owned history in passthrough (stream=%s)", (stream) => {
+    expect(buildQueryOptions(makeContext({ passthrough: true, stream })).options.env?.DISABLE_AUTO_COMPACT).toBe("1")
+  })
+
+  it("lets inherited env and query overrides re-enable passthrough auto-compaction", () => {
+    expect(buildQueryOptions(makeContext({
+      passthrough: true, cleanEnv: { DISABLE_AUTO_COMPACT: "" },
+    })).options.env?.DISABLE_AUTO_COMPACT).toBe("")
+    expect(buildQueryOptions(makeContext({
+      passthrough: true, envOverrides: { DISABLE_AUTO_COMPACT: "" },
+    })).options.env?.DISABLE_AUTO_COMPACT).toBe("")
+  })
+
+  it("keeps the CLI's auto-compaction for SDK-owned history", () => {
+    expect(buildQueryOptions(makeContext()).options.env?.DISABLE_AUTO_COMPACT).toBeUndefined()
+  })
+
   it("applies envOverrides after inherited env", () => {
     const result = buildQueryOptions(makeContext({
       cleanEnv: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-6" },

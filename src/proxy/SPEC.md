@@ -276,6 +276,11 @@ response response.created → response.in_progress → output_item.added →
 - **Implicit SDK attachments** in passthrough are suppressed by default
   (`CLAUDE_CODE_DISABLE_ATTACHMENTS=1`), which also bypasses the CLI's
   kept-deferred-tools optimization.
+- **No proxy-side compaction in passthrough:** the CLI's auto-compaction is
+  off (`DISABLE_AUTO_COMPACT=1`) because the client owns the history. A turn
+  over the context window fails with the canonical prompt-too-long error
+  (400 `invalid_request_error`), which the client answers by compacting.
+  Inherited env or profile `envOverrides` may set another value.
 - **Passthrough turns default to `maxTurns=1`** to stop at the tool boundary;
   the client must send another request after executing tools.
 
