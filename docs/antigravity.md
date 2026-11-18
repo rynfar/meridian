@@ -161,8 +161,10 @@ or edits private CLI transcripts.
 
 Repeated MCP request IDs reuse their original result within their MCP session;
 conflicting reuse is rejected. Native children have independent MCP sessions. Each
-live conversation permits 256 client calls, 32 outstanding calls and 64 MCP
-sessions. Warm reuse retires long tool conversations before exhausting that budget.
+live conversation permits 256 client calls by default (configurable with
+`MERIDIAN_AGY_MAX_TOOL_CALLS`), 32 outstanding calls and 64 MCP sessions. The
+existing warm-reuse eligibility cutoff remains 128 completed client calls; raising
+the allowance does not raise that separate cutoff.
 
 If the proxy or CLI dies, or the tool deadline expires, a later client request
 containing the complete tool-call/result history starts a fresh CLI conversation.
@@ -208,6 +210,7 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS` | off | Guarded native self/research subagent opt-in |
 | `MERIDIAN_AGY_WHISPER_MODEL` | unset | Local whisper.cpp model for audio transcription |
 | `MERIDIAN_AGY_MAX_CONCURRENT` | `4` | Maximum live processes; idle pending tools can yield capacity |
+| `MERIDIAN_AGY_MAX_TOOL_CALLS` | `256` | Client-call and MCP replay-ledger allowance per live process, integer 1–65536; independent of deadlines and the 128-call warm-reuse cutoff |
 | `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Per-turn deadline, including preprocessing and tool waits |
 | `MERIDIAN_AGY_TOOL_TIMEOUT_MS` | `60000` | Pending client tool-result deadline |
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
@@ -1009,3 +1012,26 @@ apart (up to 12 frames). Each frame carries its measured source timestamp from
 ffmpeg; times are not inferred from image numbering. These references help
 locate content but do not establish native citations, perfect transcription,
 continuous motion understanding or coverage of brief events between samples.
+
+## Long client-tool conversations
+
+`MERIDIAN_AGY_MAX_TOOL_CALLS` sets the cumulative client-tool and MCP replay-ledger
+allowance for one live conversation. It defaults to 256 and accepts integers
+from 1 to 65536; invalid explicit values fail startup. An operator can raise the
+allowance for a long agent task, for example to 512, before starting Meridian.
+Higher allowances retain more conversation and replay data until the run is
+retired. The existing completed-conversation reuse policy is unchanged.
+
+A restored live process starts with a fresh allowance; the count is not a
+lifetime ledger for a saved native conversation. Model/turn and pending-tool
+deadlines remain independent: raising the call allowance does not extend them.
+
+This setting does not change native CLI/provider limits, client tool
+permissions, the 32 outstanding-call limit, or the 16-call parallel batch limit.
+Duplicate MCP request IDs replay their original result without spending another
+client call. A batch that exceeds the remaining allowance is rejected before
+any call in it is dispatched.
+
+A client-call limit error retains the existing error wording. Use
+`MERIDIAN_AGY_MAX_TOOL_CALLS` to configure this allowance, independently of turn
+and client-tool wait deadlines.

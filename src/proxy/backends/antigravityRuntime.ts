@@ -14,7 +14,7 @@ import { join } from "node:path"
 import { createHash, randomUUID } from "node:crypto"
 import { createInterface } from "node:readline"
 import { z } from "zod"
-import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, renderAgPromptWithinLimit, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
+import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, agClientToolCallLimit, renderAgPromptWithinLimit, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
 
 import { AgSchemaCompiler, agSchemaError, agUpstreamSchema } from "./antigravitySchema"
 import type { ValidateFunction } from "ajv"
@@ -203,7 +203,7 @@ export class AntigravityRun {
       if (existing.identity !== identity) return Promise.reject(new Error("MCP request ID was reused for a different tool call"))
       return existing.result
     }
-    if (this.rpcCalls.size >= 256) return Promise.reject(new Error("Antigravity turn exceeded 256 tool calls"))
+    if (this.rpcCalls.size >= this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity turn exceeded ${this.runtime.maxClientToolCalls} tool calls`))
     const result = this.call(name, input)
     this.rpcCalls.set(key, { identity, result })
     return result
@@ -214,7 +214,7 @@ export class AntigravityRun {
     const identity = stable({ batch: parsed })
     const existing = this.rpcCalls.get(key)
     if (existing) return existing.identity === identity ? existing.result : Promise.reject(new Error("MCP request ID was reused for a different tool call"))
-    if (this.rpcCalls.size >= 256) return Promise.reject(new Error("Antigravity turn exceeded 256 tool calls"))
+    if (this.rpcCalls.size >= this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity turn exceeded ${this.runtime.maxClientToolCalls} tool calls`))
     if (this.pending.size + parsed.calls.length > 32) return Promise.reject(new Error("Too many outstanding tools"))
     const allowed = availableAgTools(this.request)
     for (const call of parsed.calls) {
@@ -223,10 +223,10 @@ export class AntigravityRun {
       const invalid = agSchemaError(validator, call.arguments)
       if (invalid) return Promise.reject(new Error(`Invalid arguments for ${call.name}: ${invalid}`))
     }
-    if (this.toolCalls + parsed.calls.length > 256) return Promise.reject(new Error("Antigravity conversation exceeded 256 client tool calls"))
+    if (this.toolCalls + parsed.calls.length > this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity conversation exceeded ${this.runtime.maxClientToolCalls} client tool calls`))
     const result = (async () => {
       await Promise.all(parsed.calls.map(call => this.grammars.validate(call.name, call.arguments)))
-      if (this.pending.size + parsed.calls.length > 32 || this.toolCalls + parsed.calls.length > 256) throw new Error('Parallel tool capacity changed during validation')
+      if (this.pending.size + parsed.calls.length > 32 || this.toolCalls + parsed.calls.length > this.runtime.maxClientToolCalls) throw new Error('Parallel tool capacity changed during validation')
       return Promise.all(parsed.calls.map(call => this.call(call.name, call.arguments, true)))
     })().then(results => ({ type: "tool_result" as const, tool_use_id: "batch", content: JSON.stringify(results.map((result, index) => ({ name: parsed.calls[index]!.name, input: parsed.calls[index]!.arguments, result: result.content, is_error: result.is_error ?? false, clientMessages: result.clientMessages }))) }))
     this.rpcCalls.set(key, { identity, result })
@@ -241,7 +241,7 @@ export class AntigravityRun {
     if (!grammarChecked) await this.grammars.validate(name, input)
     if (this.stopped || this.terminal) throw new Error("Turn is closed")
     if (this.pending.size >= 32) throw new Error("Too many outstanding tools")
-    if (this.toolCalls >= 256) throw new Error("Antigravity conversation exceeded 256 client tool calls")
+    if (this.toolCalls >= this.runtime.maxClientToolCalls) throw new Error(`Antigravity conversation exceeded ${this.runtime.maxClientToolCalls} client tool calls`)
     this.toolCalls++
     const call: AgCall = { type: "tool_use", id: "toolu_agy_" + randomUUID().replaceAll("-", ""), name, input }
     return new Promise((resolve, reject) => {
@@ -460,6 +460,7 @@ export class AntigravityRuntime {
   private verifying?: Promise<void>
   private checking?: Promise<string[]>
   private closing?: Promise<void>
+  readonly maxClientToolCalls = agClientToolCallLimit()
   constructor(readonly options: AntigravityOptions = {}) {
     this.plugins = new AgPlugins(options.plugins, options.pluginPaths)
     this.executable = options.executable ?? "agy"
