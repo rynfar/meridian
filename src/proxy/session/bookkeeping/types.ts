@@ -1,5 +1,6 @@
 import type { ProcessIncarnation } from "../processIncarnation"
 import type { TokenUsage } from "../lineage"
+import type { InstructionSectionState } from "../instructionSections"
 
 import type { TranscriptLocator, CanonicalTranscriptLocator } from "./locator"
 export type { TranscriptLocator, CanonicalTranscriptLocator } from "./locator"
@@ -53,6 +54,8 @@ export interface StoredSession {
   clientLineageHash?: string
   /** Adapter-owned stable context digest, never prompt text. */
   resumeContextHash?: string
+  /** Digests of the instruction sections the transcript's model has seen; never prompt text. */
+  instructionSections?: InstructionSectionState
   /** Per-message content hashes for precise diff-based compaction detection. */
   messageHashes?: string[]
   /** Per-message hashes of individual content blocks for append-only tool results. */

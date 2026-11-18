@@ -1,5 +1,6 @@
 import type { StoredSession, TranscriptLocator } from "./types"
 import type { TokenUsage } from "../lineage"
+import type { InstructionSectionState } from "../instructionSections"
 import type {
   StoredSessionGeneration, DurablePriorityAssignment, PriorityAssignmentGeneration, DurablePriorityAttempt,
 } from "./legacyCodec"
@@ -32,6 +33,7 @@ export interface SharedSessionAndPriorityAssignmentOptions {
   lineageHash: string
   clientLineageHash?: string
   resumeContextHash?: string
+  instructionSections?: InstructionSectionState
   messageHashes: string[]
   sdkMessageUuids?: Array<string | null>
   contextUsage?: TokenUsage
@@ -90,4 +92,5 @@ export type StoreSessionArguments = [
   passthroughToolCallIds?: string[] | null, currentTranscript?: TranscriptLocator,
   sourceTranscript?: TranscriptLocator, expectedGeneration?: StoredSessionGeneration | null,
   clientLineageHash?: string | null, resumeContextHash?: string | null,
+  instructionSections?: InstructionSectionState | null,
 ]

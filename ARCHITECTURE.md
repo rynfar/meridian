@@ -638,9 +638,22 @@ mapping replays once when the plugin first supplies primary-agent identity.
 The cache and shared store publish the digest with the mapping; `server.ts`
 uses the existing execution-history replay boundary. Dynamic file-tree and
 diagnostic context within the same agent retains ordinary resume, as do
-clients without this explicit identity. Editing instructions without changing
-the primary agent remains subject to the native resume limitation. Prompt text
-is never added to the store.
+clients without this explicit identity. Prompt text is never added to the
+store.
+
+The native CLI records the system prompt on a conversation's first request and
+resends that record on every resume (Claude Code's `--system-prompt-snapshot`,
+on by default), even when a later request passes different text. Editing an
+instruction file therefore does not reach a resumed conversation by itself.
+`adapters/opencodeInstructionSections.ts` splits OpenCode's system prompt into
+one section per `Instructions from: <path>` file, and
+`session/instructionSections.ts` publishes a sha256 digest of each section's
+path and text with the mapping (`instructionSections`). A fresh SDK session
+publishes the sections it rendered; a resume keeps the stored digests and
+compares them against the current sections. The environment, MCP and skill
+parts of the prompt are never hashed, so their per-turn churn keeps ordinary
+resume. A mapping published without digests adopts the current sections as its
+baseline.
 
 ### Lineage Verification
 

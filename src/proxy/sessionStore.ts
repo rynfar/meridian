@@ -53,6 +53,7 @@ import {
   syncDirectoryDurablySync,
 } from "./session/durableFileSystem"
 import type { TokenUsage } from "./session/lineage"
+import type { InstructionSectionState } from "./session/instructionSections"
 import {
   createRecoveryClaimOwner,
   getRecoveryClaimPath,
@@ -1149,6 +1150,7 @@ export function storeSharedSession(
   expectedGeneration?: StoredSessionGeneration | null,
   clientLineageHash?: string | null,
   resumeContextHash?: string | null,
+  instructionSections?: InstructionSectionState | null,
   beforePublish?: () => void,
 ): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
   const backend = activeStoreBackend()
@@ -1156,7 +1158,8 @@ export function storeSharedSession(
     beforePublish?.()
     return backend.storeSharedSession(getSessionStoreDir(), key, claudeSessionId, messageCount,
     lineageHash, messageHashes, sdkMessageUuids, contextUsage, messageBlockHashes, passthroughToolCallAssistantUuid,
-    passthroughToolCallIds, currentTranscript, sourceTranscript, expectedGeneration, clientLineageHash, resumeContextHash)
+    passthroughToolCallIds, currentTranscript, sourceTranscript, expectedGeneration, clientLineageHash, resumeContextHash,
+    instructionSections)
   }
   // Capture caller-owned history before the queue or disk yields. Validation
   // and publication must refer to the same values even if the caller reuses
@@ -1167,6 +1170,7 @@ export function storeSharedSession(
     contextUsage = contextUsage === undefined ? undefined : structuredClone(contextUsage)
     messageBlockHashes = messageBlockHashes?.map(blocks => blocks.slice())
     passthroughToolCallIds = passthroughToolCallIds?.slice() ?? passthroughToolCallIds
+    instructionSections = instructionSections ? structuredClone(instructionSections) : instructionSections
     currentTranscript = currentTranscript === undefined ? undefined : { ...currentTranscript }
     sourceTranscript = sourceTranscript === undefined ? undefined : { ...sourceTranscript }
     if (currentTranscript !== undefined) {
@@ -1225,6 +1229,9 @@ export function storeSharedSession(
         resumeContextHash: resumeContextHash === undefined
           ? sessionIdChanged ? undefined : existing?.resumeContextHash
           : resumeContextHash ?? undefined,
+        instructionSections: instructionSections === undefined
+          ? sessionIdChanged ? undefined : existing?.instructionSections
+          : instructionSections ?? undefined,
         messageHashes: messageHashes ?? existing?.messageHashes,
         messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
         sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
@@ -1527,6 +1534,7 @@ export function storeSharedSessionAndPriorityAssignment(
         lineageHash: options.lineageHash,
         clientLineageHash: options.clientLineageHash,
         resumeContextHash: options.resumeContextHash,
+        instructionSections: options.instructionSections,
         messageHashes: options.messageHashes,
         messageBlockHashes: options.messageBlockHashes,
         sdkMessageUuids: options.sdkMessageUuids,

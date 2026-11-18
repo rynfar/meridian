@@ -7,6 +7,7 @@
 
 import { createHash } from "crypto"
 import { HASH_IGNORED_BLOCK_TYPES, normalizeContent } from "../messages"
+import type { InstructionSectionState } from "./instructionSections"
 
 // --- Types ---
 
@@ -49,6 +50,8 @@ export interface SessionState {
   clientLineageHash?: string
   /** Adapter-owned proof of the stable context used to create this SDK session. */
   resumeContextHash?: string
+  /** Digests of the client instruction sections the SDK transcript's model has seen. */
+  instructionSections?: InstructionSectionState
   /** Per-message content hashes from the last stored request.
    *  Used for precise diff-based mutation classification when the aggregate
    *  lineageHash mismatches. */
