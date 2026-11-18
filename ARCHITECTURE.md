@@ -655,6 +655,19 @@ parts of the prompt are never hashed, so their per-turn churn keeps ordinary
 resume. A mapping published without digests adopts the current sections as its
 baseline.
 
+An explicit reset (`systemPromptReset.ts`: the `x-meridian-system-prompt-reset`
+request header, or `POST /v1/sessions/:key/system-prompt-reset`, which arms the
+next publishing turn of that client key in this process) takes the existing
+execution-replay boundary with reason `system_prompt_reset`: the client history
+replays into a fresh SDK session, which renders the current system prompt.
+Claude Code offers no switch that re-renders a recorded prompt in place. Both
+candidates were probed against CLI 2.1.322 on a resumed Meridian session:
+`CLAUDE_CODE_HOST_PROMPT_SUPERSEDES_RECORD=1` left the model answering from the
+recorded prompt, and one launch with `--system-prompt-snapshot off` rendered
+the new prompt for that turn only. The next ordinary launch resent the
+original record. Turning the snapshot off for every turn would rewrite the
+cache whenever a dynamic prompt part changed, so it is not used.
+
 ### Lineage Verification
 
 Every request verifies that incoming messages are a valid continuation of the cached session:
