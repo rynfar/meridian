@@ -15,7 +15,14 @@ import { buildRuntime } from "../buildRuntime"
 import { hasValidApiKey } from "../auth"
 import { headerSettingsResponse, healthHostname } from "../../headerSettings"
 import { AntigravityRuntime, type AntigravityRun } from "./antigravityRuntime"
-import { AntigravityError, forcedAgTool, toolChoiceInstruction, blocks, contractKey, historyKey, sameAgExecutionContract, parseAgRequest, type AgBlock, type AgResult, type AgRequest } from "./antigravityProtocol"
+import { AntigravityError, forcedAgTool, toolChoiceInstruction, blocks, contractKey, historyKey, sameAgExecutionContract, parseAgRequestWithMeta, type AgBlock, type AgResult, type AgRequest } from "./antigravityProtocol"
+
+function droppedToolHeaders(names: string[]): Record<string, string> {
+  if (!names.length) return {}
+  const sample = names.slice(0, 16)
+  console.warn(`[antigravity] Dropped unsupported hosted tools: ${sample.join(", ")} (${names.length} total)`)
+  return { "x-meridian-dropped-tools": sample.join(","), "x-meridian-dropped-tools-count": String(names.length) }
+}
 
 function errorResponse(error: unknown): Response {
   const e = error instanceof AntigravityError ? error : new AntigravityError(error instanceof Error ? error.message : String(error), 503, "api_error")
@@ -114,13 +121,16 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
   async function messages(request: Request, saveCompletedAnswers = true): Promise<Response> {
     if (runtime.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
     if (request.headers.has("x-meridian-profile")) throw new AntigravityError("Antigravity uses the current agy account; Claude profile routing is unavailable")
-    const body = parseAgRequest(await runtime.plugins.request(await readBody(request), request.signal), runtime.options.adaptThinkingBudgets)
+    const { request: body, droppedTools } = parseAgRequestWithMeta(await runtime.plugins.request(await readBody(request), request.signal), runtime.options.adaptThinkingBudgets)
     if (request.signal.aborted) throw new AntigravityError("Request cancelled", 499, "api_error")
-    const adaptationHeaders: Record<string, string> = runtime.options.adaptThinkingBudgets ? {
-      "x-meridian-thinking-budgets": "approximate-effort",
-      "x-meridian-effective-model": body.model,
-      ...(body.output_config?.effort ? { "x-meridian-effective-effort": body.output_config.effort } : {}),
-    } : {}
+    const adaptationHeaders: Record<string, string> = {
+      ...(runtime.options.adaptThinkingBudgets ? {
+        "x-meridian-thinking-budgets": "approximate-effort",
+        "x-meridian-effective-model": body.model,
+        ...(body.output_config?.effort ? { "x-meridian-effective-effort": body.output_config.effort } : {}),
+      } : {}),
+      ...droppedToolHeaders(droppedTools),
+    }
     const scope = agResponseScope(request.headers)
     const canSaveAnswer = saveCompletedAnswers && !runtime.options.allowNativeBrowser && !runtime.options.allowNativeSubagents
     const requestId = saveCompletedAnswers ? agRequestId(body, request.headers) : undefined
@@ -321,7 +331,15 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
         const models = await runtime.availableModels()
         return Response.json({ object: "list", data: models.map(id => ({ id, type: "model", object: "model", display_name: id, owned_by: "antigravity" })), has_more: false, first_id: models[0], last_id: models.at(-1) })
       }
-      if (request.method === "POST" && path === "/v1/messages/count_tokens") return Response.json(estimateAgTokens(parseAgRequest(await readBody(request), runtime.options.adaptThinkingBudgets)), { headers: { "x-meridian-token-count": "estimate" } })
+      if (request.method === "POST" && path === "/v1/messages/count_tokens") {
+        const { request: parsed, droppedTools } = parseAgRequestWithMeta(await readBody(request), runtime.options.adaptThinkingBudgets)
+        return Response.json(estimateAgTokens(parsed), {
+          headers: {
+            "x-meridian-token-count": "estimate",
+            ...droppedToolHeaders(droppedTools),
+          },
+        })
+      }
       if (request.method === "POST" && path === "/v1/responses/input_tokens") return await agOpenai(request, await readBody(request), true, request => messages(request, false), responses, responseJobs, { countTokens: true })
       const storedResponse = /^\/v1\/responses\/(resp_agy_[a-f0-9]{32})(?:\/(input_items|cancel))?$/.exec(path)
       if (storedResponse) {
