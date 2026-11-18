@@ -290,7 +290,7 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   at the top of that answer, only for cuts in the live turn: the client
   resends the thread on every request, so a cut in history would repeat the
   line on every answer. Auxiliary one-shots (Zed's title and summary, Claude
-  Code's session title) carry no proxy note at all:
+  Code's session title) carry no proxy note at all, compaction's included:
   Zed asks for the title right after the first tool round, while the cut
   result is still in the live turn, and keeps the answer's first line as the
   thread's title. The cap runs once per request on the messages

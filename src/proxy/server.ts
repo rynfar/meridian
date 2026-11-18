@@ -5682,7 +5682,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const compaction = extractCompaction(message)
               if (compaction) {
                 logCompaction(compaction, requestMeta.requestId)
-                const note = compactionNoteFor(compaction)
+                const note = proxyNotesOff ? "" : compactionNoteFor(compaction)
                 if (note) compactionNotes.push(note)
               }
               // Passthrough single-turn guard: once the model re-emits a call it
@@ -7219,7 +7219,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   const compaction = extractCompaction(message)
                   if (compaction) {
                     logCompaction(compaction, requestMeta.requestId)
-                    const note = compactionNoteFor(compaction)
+                    const note = proxyNotesOff ? "" : compactionNoteFor(compaction)
                     if (note) {
                       if (messageStartEmitted) {
                         if (emitProxyNote(note, "compaction_note")) {
