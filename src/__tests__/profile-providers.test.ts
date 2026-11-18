@@ -1334,3 +1334,57 @@ for (const [name, html, path, rootId, selector, apply] of [
     expect(open(base).shown()).toEqual(["g1"])
   })
 }
+
+describe("a refused account explains itself in its out-of badge's tooltip, not a permanent block", () => {
+  const until = () => Date.now() + (3 * 60 + 46) * 60_000
+  const spent = () => ({ at: Date.now() - 21 * 60_000, until: until(), diagnosis: { bucket: "five_hour", reported: true, rationale: "the SDK reported this window rejected" } })
+  /** The markup from an element's opening tag to the opening tag that follows it. */
+  const after = (html: string, marker: string, end: string) => {
+    const start = html.indexOf(marker)
+    expect(start).toBeGreaterThanOrEqual(0)
+    return html.slice(start, html.indexOf(end, start))
+  }
+
+  test("/profiles: the badge is focusable and described by a tooltip carrying the note", () => {
+    const page = loadPage(profilePageHtml, new MemoryStorage())
+    const quota = { profiles: [{ id: "c1", windows: [], spent: spent() }] }
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: [claude("c1", { isActive: true })] })}; render(lastProfiles, ${JSON.stringify(quota)})`)
+    const html = page.element("content").innerHTML
+    expect(html).not.toContain('<div class="spent-note')
+    expect(html).toContain('<span class="profile-badge badge-spent" tabindex="0" aria-describedby="spent-tip-c1">out of 5h</span>')
+    const tip = after(html, '<span class="spent-note spent-pop" id="spent-tip-c1" role="tooltip">', '<span class="profile-card-actions">')
+    expect(tip).toContain('<strong style="color:var(--red)">\u26a0 Anthropic is refusing this account</strong> - out of <strong>5h</strong>, expected back in 3h 4')
+    expect(tip).toContain(". Refused 21m ago.")
+    expect(tip).toContain('<span class="spent-why">the SDK reported this window rejected. The percentages below are the last successful read, not live.</span>')
+    // Inside the header row, where the badge is: never under it as its own block.
+    expect(html.indexOf("spent-tip-c1")).toBeLessThan(html.indexOf('<span class="profile-card-actions">'))
+  })
+
+  test("/profiles: a healthy account draws neither", () => {
+    const page = loadPage(profilePageHtml, new MemoryStorage())
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: [claude("c1")] })}; render(lastProfiles, ${JSON.stringify({ profiles: [{ id: "c1", windows: [] }] })})`)
+    const html = page.element("content").innerHTML
+    expect(html).not.toContain("badge-spent")
+    expect(html).not.toContain("spent-pop")
+  })
+
+  test("/profiles: hover or keyboard focus on the badge shows the tooltip", () => {
+    expect(profilePageHtml).toContain(".spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }")
+  })
+
+  test("landing: the out-of chip carries the banner as its tooltip, in the name row", () => {
+    const html = loadPage(landingHtml, new MemoryStorage()).run<{ html: string }>(
+      `profileSection(${JSON.stringify({ profiles: [{ id: "c1", windows: [], spent: spent() }] })}, {}, ${JSON.stringify({ profiles: [claude("c1", { isActive: true })], routing: "active" })}, { auth: { loggedIn: true } })`,
+    ).html
+    expect(html).not.toContain('<div class="spent-banner')
+    expect(html).toContain('<span class="pool-chip exhausted" tabindex="0" aria-describedby="spent-tip-c1">out of 5h</span>')
+    const tip = after(html, '<span class="spent-banner spent-pop" id="spent-tip-c1" role="tooltip">', '<span class="profile-cost">')
+    expect(tip).toContain("<strong>\u26a0 Anthropic is refusing this account</strong> - out of 5h, back in 3h 4")
+    expect(tip).toContain('<span class="spent-banner-sub">the SDK reported this window rejected; figures below are the last successful read, not live</span>')
+  })
+
+  test("landing: hover or keyboard focus shows it, and neither switches the account", () => {
+    expect(landingHtml).toContain(".spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }")
+    expect(landingHtml).toContain("e.target.closest('.prof-info, .spent-tip')")
+  })
+})

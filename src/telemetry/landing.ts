@@ -94,6 +94,7 @@ export const landingHtml = `<!DOCTYPE html>
   .profile-card.spend-fading:hover > *, .profile-card.spend-spent:hover > * { filter: none; opacity: 1; }
   .profile-card.active.spend-fading > .profile-head, .profile-card.active.spend-spent > .profile-head { filter: none; opacity: 1; }
   .profile-card.active.spend-fading > .card-strip, .profile-card.active.spend-spent > .card-strip { filter: none; opacity: 1; }
+  .profile-card.spend-fading > .profile-head:focus-within, .profile-card.spend-spent > .profile-head:focus-within { filter: none; opacity: 1; }
   .profile-card.needs-login { border-color: var(--red); }
   .profile-card.needs-login .prof-dot { background: var(--red); }
   .spend-pill { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
@@ -208,7 +209,21 @@ export const landingHtml = `<!DOCTYPE html>
   .spent-banner { font-size: 12px; line-height: 1.45; color: var(--text); margin-bottom: 10px;
     padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(248,81,73,0.35); background: rgba(248,81,73,0.1); }
   .spent-banner strong { color: var(--red); }
-  .spent-banner-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .spent-banner-sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  /* The banner is the out-of chip's tooltip, on hover or focus, hung from the
+     name row and spanning the card as .prof-pop does. It lies over the
+     figures, so the banner's red tint is layered on an opaque surface. */
+  .spent-tip { display: inline-flex; }
+  .spent-tip .pool-chip { cursor: help; }
+  .spent-tip .pool-chip:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+  .spent-banner.spent-pop { position: absolute; top: calc(100% + 8px); left: -14px; right: -14px; z-index: 20; margin: 0;
+    background: linear-gradient(rgba(248,81,73,0.1), rgba(248,81,73,0.1)), var(--surface);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); font-weight: 400; letter-spacing: 0; text-align: left; cursor: default;
+    opacity: 0; visibility: hidden; transition: opacity 0.12s; }
+  .spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }
+  @media (max-width: 720px) {
+    .spent-banner.spent-pop { left: -4px; right: -4px; }
+  }
   .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
   .usage-row .w-reset { color: var(--muted); font-size: 11px; width: 76px; text-align: right; }
   .no-usage { font-size: 12px; color: var(--muted); padding: 4px 0; }
@@ -647,8 +662,8 @@ function profileSection(q,s,pl,h){
       var orderIdx=poolOrder.indexOf(p.id);
       if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority||chat?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';
       var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
-      // Suppressed when a refusal is being reported below: both say the same
-      // thing, and the banner says it better.
+      // Suppressed when a refusal is being reported: both say the same
+      // thing, and the out-of chip with its tooltip says it better.
       if(exh&&!spentByProfile[p.id]){\n        // A billing refusal has no reset to wait for — the pool re-probes on the
         // same timer, but nothing changes until a human fixes the account.
         // Showing it as 'resets in 9m' promises a recovery that never comes.
@@ -661,19 +676,18 @@ function profileSection(q,s,pl,h){
     }
     if(credits&&credits.serving)badge+=' <span class="pool-chip on-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
     var sp=spentByProfile[p.id];
-    var spentBanner='';
     if(sp){\n      var spBucket=(sp.diagnosis&&sp.diagnosis.bucket)?winLabel(sp.diagnosis.bucket):'its limit';
       var spGuess=(sp.diagnosis&&sp.diagnosis.reported)?'':' (guess)';
+      var spWhy=(sp.diagnosis&&sp.diagnosis.rationale)||'';
       var refused=refusalSubject(p.entry);
-      badge+=' <span class="pool-chip exhausted">out of '+esc(spBucket+spGuess)+'</span>';
-      // A full-width line immediately above the usage bars, not a chip beside
-      // the name: measured in review, a 10px chip wraps to four lines in a
-      // narrow card and loses to the large "67%" rendered right below it -
-      // which is the exact misreading this whole feature exists to stop.
-      spentBanner='<div class="spent-banner" title="'+esc((sp.diagnosis&&sp.diagnosis.rationale)||'')+'">'
+      var spTipId=esc('spent-tip-'+p.id);
+      // The chip says it in the name row; the banner explaining it is the
+      // chip's tooltip, so the card does not carry it permanently.
+      badge+=' <span class="spent-tip"><span class="pool-chip exhausted" tabindex="0" aria-describedby="'+spTipId+'">out of '+esc(spBucket+spGuess)+'</span>'
+        +'<span class="spent-banner spent-pop" id="'+spTipId+'" role="tooltip">'
         +'<strong>⚠ '+refused.vendor+' is refusing this '+refused.noun+'</strong> - out of '+esc(spBucket+spGuess)
         +(sp.until?', back '+resetIn(sp.until):'')
-        +'<div class="spent-banner-sub">figures below are the last successful read, not live</div></div>';
+        +'<span class="spent-banner-sub">'+(spWhy?esc(spWhy)+'; ':'')+'figures below are the last successful read, not live</span></span></span>';
     }
     var access=spend.reason==='unusable'?profileAccessHelp(p.entry||p):null;
     if(access)badge+=' '+(p.configured
@@ -700,7 +714,7 @@ function profileSection(q,s,pl,h){
       +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,slot.place,slot.size):'')+'<span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+''+esc(p.label||p.id)+' '+meridianProviders.badgeHtml(slot.provider,'provider-pill')+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
-      +meridianCardStatus.updateHtml(update)+spentBanner+rows+'</div>';
+      +meridianCardStatus.updateHtml(update)+rows+'</div>';
     if(p.configured)pos++;
   }
   if(!cards)return {html:'',shown:shown};
@@ -805,7 +819,7 @@ document.getElementById('content').addEventListener('click',function(e){
   if(onHandle(e))return;
   // The card is itself the switch button, so the icon inside one has to opt
   // out of it or reading an account would move all traffic to that account.
-  if(e.target.closest('.prof-info'))return;
+  if(e.target.closest('.prof-info, .spent-tip'))return;
   // Same for a link to the account's /profiles entry: following it is not a switch.
   if(e.target.closest('a'))return;
   var tab=e.target.closest('.sort-tab');
@@ -819,7 +833,7 @@ document.getElementById('content').addEventListener('click',function(e){
 document.getElementById('content').addEventListener('keydown',function(e){
   if(e.key!=='Enter'&&e.key!==' ')return;
   if(onHandle(e))return;
-  if(e.target.closest('.prof-info')||e.target.closest('a'))return;
+  if(e.target.closest('.prof-info, .spent-tip')||e.target.closest('a'))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile){e.preventDefault();switchProfile(card.dataset.profile)}
 });
