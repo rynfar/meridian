@@ -13,7 +13,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ProviderUsage } from "../../telemetry/providerView"
 import { loadCopilotSdk, VERIFIED_COPILOT_SDK_VERSION, type CopilotClientHandle, type CopilotModel, type CopilotSdk } from "./copilotSdk"
-import { CopilotError, openingPrompt, parseCopilotRequest, planContinuation, type ChatToolCall, type CopilotContinuation, type CopilotRequest, type CopilotSessionView } from "./copilotProtocol"
+import { CopilotError, openingPrompt, parseCopilotAnthropicRequest, parseCopilotRequest, planContinuation, type ChatToolCall, type CopilotContinuation, type CopilotRequest, type CopilotSessionView } from "./copilotProtocol"
 import type { CopilotSessionHandle } from "./copilotSdk"
 import type { CopilotOptions } from "../types"
 
@@ -32,6 +32,7 @@ export class CopilotRuntime {
   private readonly busy = new Set<string>()
   private readonly rounds = new Set<AbortController>()
   private readonly recent: Array<{ at: number; error: boolean; input: number; output: number; cached: number }> = []
+  private readonly quota = new Map<string, { type: string; group?: string; utilization: number; resetsAt: number; fetchedAt: number }>()
   private starting?: Promise<Started>
   private refreshing?: Promise<{ login?: string; models: CopilotModel[] }>
   private account?: { login?: string; models: CopilotModel[]; checkedAt: number }
@@ -111,7 +112,7 @@ export class CopilotRuntime {
         live = await this.open(client, workspace, request)
         if (key) { this.sessions.set(key, live); this.evict() }
         const opening = openingPrompt(request.history)
-        plan = { kind: "user", prompt: opening.prompt }
+        plan = { kind: "user", prompt: opening.prompt, ...(opening.attachments ? { attachments: opening.attachments } : {}) }
         path = !key ? "stateless" : opening.replayed ? "replayed" : "new"
       }
       const current: LiveSession = live, continuation: CopilotContinuation = plan
@@ -150,7 +151,7 @@ export class CopilotRuntime {
   }
 
   private async release(live: LiveSession, plan: CopilotContinuation): Promise<void> {
-    if (plan.kind === "user") { await live.session.send({ prompt: plan.prompt }); return }
+    if (plan.kind === "user") { await live.session.send({ prompt: plan.prompt, ...(plan.attachments ? { attachments: plan.attachments } : {}) }); return }
     await Promise.all(plan.results.map(async result => {
       const handled = await live.session.rpc.tools.handlePendingToolCall({ requestId: result.requestId, result: result.content })
       if (!handled.success) throw new Error("Copilot rejected a pending tool result.")
@@ -187,6 +188,7 @@ export class CopilotRuntime {
       if (signal.aborted) return onAbort()
       signal.addEventListener("abort", onAbort, { once: true })
       unsubscribe = live.session.on(({ type, data }) => {
+        if (type === "session.quota_observation") this.observeQuota(data.observation)
         if (settled) return
         try {
           if (type === "assistant.usage") {
@@ -222,6 +224,19 @@ export class CopilotRuntime {
       })
       start().catch(finish)
     })
+  }
+
+  private observeQuota(value: unknown) {
+    if (!value || typeof value !== "object") return
+    const state = value as Record<string, any>, budget = state.budgetMetadata
+    const reset = Number(budget?.resetAtEpochMs), remaining = Number(budget?.remainingPercentage)
+    if (typeof state.quotaId !== "string" || !Number.isFinite(reset) || !Number.isFinite(remaining) || budget?.unlimited) return
+    this.quota.set(state.quotaId, { type: String(state.service || state.quotaId), ...(state.source ? { group: String(state.source) } : {}), utilization: Math.min(1, Math.max(0, 1 - remaining / 100)), resetsAt: reset, fetchedAt: state.observedAt ? Date.parse(state.observedAt) || Date.now() : Date.now() })
+  }
+
+  quotaFacts() {
+    const windows = [...this.quota.values()]
+    return { ...(windows.length ? { fetchedAt: Math.max(...windows.map(window => window.fetchedAt)) } : {}), windows: windows.map(({ type, group, utilization, resetsAt }) => ({ type, group, utilization, resetsAt })) }
   }
 
   private record(usage: CopilotUsage | undefined, error: boolean) {
@@ -341,9 +356,50 @@ export function createCopilotServer(config: { copilot?: CopilotOptions }, runtim
     return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-cache", "x-accel-buffering": "no" } })
   }
 
+  async function messages(request: Request): Promise<Response> {
+    let body: unknown
+    try { body = await request.json() } catch { throw new CopilotError("Request body must be JSON.") }
+    const parsed = parseCopilotAnthropicRequest(body, request.headers)
+    await runtime.check(parsed)
+    const id = `msg_${randomUUID()}`
+    const usage = (value: CopilotUsage) => ({ input_tokens: value.inputTokens ?? 0, output_tokens: value.outputTokens ?? 0, ...(value.cacheReadTokens !== undefined ? { cache_read_input_tokens: value.cacheReadTokens } : {}) })
+    const stop = (round: CopilotRound) => round.calls.length ? "tool_use" : round.finishReason === "length" ? "max_tokens" : "end_turn"
+    const content = (round: CopilotRound, text: string, reasoning: string) => [
+      ...(reasoning ? [{ type: "thinking", thinking: reasoning }] : []),
+      ...(text ? [{ type: "text", text }] : []),
+      ...round.calls.map(call => ({ type: "tool_use", id: call.id, name: call.function.name, input: JSON.parse(call.function.arguments) })),
+    ]
+    if (!parsed.stream) {
+      let text = "", reasoning = ""
+      const round = await runtime.complete(parsed, { content: delta => { text += delta }, reasoning: delta => { reasoning += delta } }, request.signal)
+      return Response.json({ id, type: "message", role: "assistant", model: parsed.model, content: content(round, text, reasoning), stop_reason: stop(round), stop_sequence: null, usage: usage(round.usage) }, { headers: { "x-meridian-copilot-session": round.path } })
+    }
+    const encoder = new TextEncoder(), abort = new AbortController()
+    const cancel = () => abort.abort(new Error("Client disconnected."))
+    request.signal.addEventListener("abort", cancel, { once: true })
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const write = (event: string, data: unknown) => { try { controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)) } catch {} }
+        let nextIndex = 0, reasoningIndex = -1, textIndex = -1
+        write("message_start", { type: "message_start", message: { id, type: "message", role: "assistant", model: parsed.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } } })
+        runtime.complete(parsed, {
+          reasoning: delta => { if (reasoningIndex < 0) { reasoningIndex = nextIndex++; write("content_block_start", { type: "content_block_start", index: reasoningIndex, content_block: { type: "thinking", thinking: "" } }); } write("content_block_delta", { type: "content_block_delta", index: reasoningIndex, delta: { type: "thinking_delta", thinking: delta } }) },
+          content: delta => { if (textIndex < 0) { textIndex = nextIndex++; write("content_block_start", { type: "content_block_start", index: textIndex, content_block: { type: "text", text: "" } }); } write("content_block_delta", { type: "content_block_delta", index: textIndex, delta: { type: "text_delta", text: delta } }) },
+        }, abort.signal).then(round => {
+          if (reasoningIndex >= 0) write("content_block_stop", { type: "content_block_stop", index: reasoningIndex })
+          if (textIndex >= 0) write("content_block_stop", { type: "content_block_stop", index: textIndex })
+          round.calls.forEach(call => { const callIndex = nextIndex++; write("content_block_start", { type: "content_block_start", index: callIndex, content_block: { type: "tool_use", id: call.id, name: call.function.name, input: {} } }); write("content_block_delta", { type: "content_block_delta", index: callIndex, delta: { type: "input_json_delta", partial_json: call.function.arguments } }); write("content_block_stop", { type: "content_block_stop", index: callIndex }) })
+          write("message_delta", { type: "message_delta", delta: { stop_reason: stop(round), stop_sequence: null }, usage: usage(round.usage) })
+          write("message_stop", { type: "message_stop" })
+        }, error => { if (!abort.signal.aborted) write("error", { type: "error", error: { type: error instanceof CopilotError ? error.type : "api_error", message: message(error) } }) }).finally(() => { request.signal.removeEventListener("abort", cancel); try { controller.close() } catch {} })
+      }, cancel,
+    })
+    return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-cache", "x-accel-buffering": "no" } })
+  }
+
   async function health(): Promise<Response> {
     const base = () => ({ backend: "copilot", preview: true, sdk: { package: "@microsoft/copilot-sdk", version: runtime.sdkVersion, verifiedVersion: VERIFIED_COPILOT_SDK_VERSION }, sessions: runtime.sessions.size, activeRounds: runtime.activeRounds,
-      capabilities: { openai: ["chat-completions"], text: true, clientTools: true, parallelTools: true, reasoning: "streamed-reasoning-content", images: false, documents: false, structuredOutput: false, forcedToolChoice: false, copilotBuiltInTools: false, byok: false, maxTokens: "ignored", temperature: "ignored", tokenCounting: "provider-reported", conversationReuse: "live-session" } })
+      capabilities: { openai: ["chat-completions"], anthropic: ["messages"], text: true, clientTools: true, parallelTools: true, reasoning: "streamed-reasoning-content", images: "base64", documents: false, structuredOutput: false, forcedToolChoice: false, copilotBuiltInTools: false, byok: false, maxTokens: "ignored", temperature: "ignored", tokenCounting: "provider-reported", conversationReuse: "live-session", quota: "sdk-observed" } })
     if (runtime.draining) return Response.json({ status: "draining", ...base() }, { status: 503, headers: { "cache-control": "no-store" } })
     try {
       const account = await runtime.refresh()
@@ -362,6 +418,7 @@ export function createCopilotServer(config: { copilot?: CopilotOptions }, runtim
         return Response.json({ object: "list", data: models.map(model => ({ id: model.id, object: "model", owned_by: "github-copilot", ...(model.name ? { display_name: model.name } : {}) })) })
       }
       if (request.method === "POST" && path === "/v1/chat/completions") return await chat(request)
+      if (request.method === "POST" && path === "/v1/messages") return await messages(request)
       throw new CopilotError("Endpoint unavailable on the Copilot backend. Use /copilot/v1/chat/completions.", 404, "not_found_error")
     } catch (error) { return errorResponse(error) }
   }
@@ -374,10 +431,11 @@ export function createCopilotServer(config: { copilot?: CopilotOptions }, runtim
         capabilities: [
           { name: "Preview", status: "Opt-in", detail: "Official @microsoft/copilot-sdk with the Copilot CLI sign-in. Copilot bills premium requests by its own rules and each model's multiplier; Meridian does not meter or cap them." },
           { name: "Client tools", status: "Available", detail: "Copilot built-in tools, repository instructions and hooks are off. Every tool call returns to the client, which runs it with its own approvals." },
-          { name: "OpenAI clients", status: "Chat Completions", detail: "Text, client tools and streamed reasoning. Images, documents, forced tool choice and structured output are rejected; max_tokens and temperature are ignored." },
+          { name: "OpenAI clients", status: "Chat Completions", detail: "Text, client tools, base64 images and streamed reasoning. Documents, forced tool choice and structured output are rejected; max_tokens and temperature are ignored." },
+          { name: "Anthropic clients", status: "Messages", detail: "Streaming and non-streaming /v1/messages compatibility, including client tools and base64 images." },
           { name: "Conversation reuse", status: "Live session", detail: "Exact continuations reuse a live Copilot session. Edits, prompt or tool changes and restarts replay history as text." },
         ],
-        activity: runtime.activity(), accounts: [{ id: facts.login ? `@${facts.login}` : "Copilot account", active: true, windows: [] }] }
+        activity: runtime.activity(), accounts: [{ id: facts.login ? `@${facts.login}` : "Copilot account", active: true, ...runtime.quotaFacts() }] }
     },
     beginDrain: () => { runtime.draining = true },
     forceAbortInFlight: () => runtime.abortAll(new Error("Backend shutting down")),

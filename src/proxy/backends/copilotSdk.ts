@@ -23,10 +23,11 @@ export interface CopilotModel {
 }
 
 export interface CopilotSessionEvent { type: string; data: Record<string, any> }
+export interface CopilotAttachment { type: "blob"; data: string; mimeType: string; displayName?: string }
 
 export interface CopilotSessionHandle {
   on(handler: (event: CopilotSessionEvent) => void): () => void
-  send(options: { prompt: string }): Promise<unknown>
+  send(options: { prompt: string; attachments?: CopilotAttachment[] }): Promise<unknown>
   abort(): Promise<void>
   disconnect(): Promise<void>
   rpc: { tools: { handlePendingToolCall(input: { requestId: string; result: string }): Promise<{ success: boolean }> } }

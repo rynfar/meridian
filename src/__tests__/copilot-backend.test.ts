@@ -14,6 +14,7 @@ type Script = (session: FakeSession, input: Input) => void
 class FakeSession {
   private handlers = new Set<(event: { type: string; data: Record<string, any> }) => void>()
   readonly prompts: string[] = []
+  readonly attachments: unknown[][] = []
   readonly results: Array<{ requestId: string; result: string }> = []
   private batch: Array<{ requestId: string; result: string }> = []
   expectedResults = 0
@@ -21,7 +22,7 @@ class FakeSession {
   constructor(readonly config: CopilotSessionConfig, private readonly script: Script) {}
   on(handler: (event: { type: string; data: Record<string, any> }) => void) { this.handlers.add(handler); return () => { this.handlers.delete(handler) } }
   emit(type: string, data: Record<string, any> = {}) { for (const handler of [...this.handlers]) handler({ type, data }) }
-  async send({ prompt }: { prompt: string }) { this.prompts.push(prompt); queueMicrotask(() => this.script(this, { prompt })) }
+  async send({ prompt, attachments }: { prompt: string; attachments?: unknown[] }) { this.prompts.push(prompt); this.attachments.push(attachments ?? []); queueMicrotask(() => this.script(this, { prompt })) }
   async abort() {}
   async disconnect() { this.disconnected = true }
   rpc = { tools: { handlePendingToolCall: async (input: { requestId: string; result: string }) => {
@@ -87,13 +88,24 @@ async function sse(response: Response) {
 }
 
 describe("Copilot request validation", () => {
+  it("translates Anthropic tools and base64 images", async () => {
+    const { parseCopilotAnthropicRequest } = await import("../proxy/backends/copilotProtocol")
+    const parsed = parseCopilotAnthropicRequest({ model: "mai-code-2", system: [{ type: "text", text: "system" }], messages: [{ role: "user", content: [{ type: "text", text: "describe" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } }] }], max_tokens: 100, tools: [{ name: "read_file", description: "Read", input_schema: { type: "object" } }] }, new Headers())
+    expect(parsed.system).toBe("system")
+    expect(parsed.definitions[0]!.name).toBe("read_file")
+    expect(parsed.history[0]!.attachments).toEqual([{ type: "blob", mimeType: "image/png", data: "aGVsbG8=" }])
+    const replay = parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, messages: [{ role: "assistant", content: [{ type: "thinking", thinking: "private", signature: "sig" }, { type: "text", text: "answer" }] }, { role: "user", content: "continue" }] }, new Headers())
+    expect(replay.history).toEqual([{ role: "assistant", content: "answer" }, { role: "user", content: "continue" }])
+    expect(() => parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, thinking: { type: "disabled" }, messages: [{ role: "user", content: "hello" }] }, new Headers())).toThrow("not supported")
+  })
+
   const headers = new Headers()
   const base = { model: "mai-code-2", messages: [{ role: "system", content: "sys" }, { role: "user", content: "hi" }] }
   it("rejects controls it cannot honour instead of dropping them", () => {
     expect(() => parseCopilotRequest({ ...base, response_format: { type: "json_object" } }, headers)).toThrow("Unsupported request options: response_format")
     expect(() => parseCopilotRequest({ ...base, tool_choice: "required" }, headers)).toThrow("tool_choice")
     expect(() => parseCopilotRequest({ ...base, parallel_tool_calls: false }, headers)).toThrow("parallel_tool_calls")
-    expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "x" } }] }] }, headers)).toThrow("text content only")
+    expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "x" } }] }] }, headers)).toThrow("base64 data URL images")
     expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: "a" }, { role: "system", content: "late" }] }, headers)).toThrow("start of the conversation")
     expect(() => parseCopilotRequest({ ...base, tools: [...tools, ...tools] }, headers)).toThrow("unique")
   })
@@ -121,6 +133,31 @@ describe("Copilot request validation", () => {
 })
 
 describe("Copilot backend", () => {
+  it("serves Anthropic messages with SDK attachments and quota observations", async () => {
+    const fake = fakeSdk(session => {
+      session.emit("session.quota_observation", { observation: { quotaId: "premium", service: "Copilot", source: "monthly", observedAt: "2026-11-18T10:00:00Z", budgetMetadata: { remainingPercentage: 60, resetAtEpochMs: 1795000000000, unlimited: false } } })
+      session.answer("image received")
+    })
+    const server = createCopilotServer({}, new CopilotRuntime({}, fake.load))
+    servers.push(server)
+    const response = await server.app.fetch(new Request("http://localhost/v1/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: "mai-code-2", max_tokens: 100, messages: [{ role: "user", content: [{ type: "text", text: "inspect" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } }] }] }) }))
+    expect(await response.json()).toMatchObject({ type: "message", role: "assistant", content: [{ type: "thinking", thinking: "thinking" }, { type: "text", text: "image received" }], stop_reason: "end_turn" })
+    expect(fake.sessions[0]!.attachments[0]).toEqual([{ type: "blob", mimeType: "image/png", data: "aGVsbG8=" }])
+    expect(server.providerStatus().accounts[0]!.windows).toEqual([{ type: "Copilot", group: "monthly", utilization: 0.4, resetsAt: 1795000000000 }])
+  })
+
+  it("streams Anthropic message lifecycle events in order", async () => {
+    const fake = fakeSdk(session => session.answer("streamed"))
+    const server = createCopilotServer({}, new CopilotRuntime({}, fake.load))
+    servers.push(server)
+    const response = await server.app.fetch(new Request("http://localhost/v1/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: "mai-code-2", max_tokens: 100, stream: true, messages: [{ role: "user", content: "hello" }] }) }))
+    const raw = await response.text()
+    const events = raw.split("\n\n").filter(Boolean).map(record => record.split("\n")[0]!.slice("event: ".length))
+    expect(events).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_start", "content_block_delta", "content_block_stop", "content_block_stop", "message_delta", "message_stop"])
+    expect(raw).toContain('"stop_reason":"end_turn"')
+    expect(raw).toContain('"input_tokens":10')
+  })
+
   it("runs a parallel client-tool round natively, then continues the same session with the results", async () => {
     const { post, sessions } = serve(readFiles)
     const messages: Array<Record<string, unknown>> = [{ role: "system", content: "You are the client." }, { role: "user", content: "read a and b" }]
@@ -193,7 +230,7 @@ describe("Copilot backend", () => {
   it("serves health, models and provider status, and refuses new work while draining", async () => {
     const { server, post, state } = serve(readFiles)
     const health = await (await server.app.fetch(new Request("http://localhost/health"))).json() as Record<string, any>
-    expect(health).toMatchObject({ status: "healthy", preview: true, account: { login: "octocat" }, sdk: { version: "2.0.1" }, capabilities: { copilotBuiltInTools: false, byok: false, images: false } })
+    expect(health).toMatchObject({ status: "healthy", preview: true, account: { login: "octocat" }, sdk: { version: "2.0.1" }, capabilities: { copilotBuiltInTools: false, byok: false, images: "base64", anthropic: ["messages"] } })
     const models = await (await server.app.fetch(new Request("http://localhost/v1/models"))).json() as { data: Array<{ id: string }> }
     expect(models.data.map(model => model.id)).toEqual(["mai-code-2", "plain-model"])
     expect(server.providerStatus()).toMatchObject({ id: "copilot", enabled: true, status: "healthy", endpoint: "/copilot/v1/chat/completions", models: ["mai-code-2", "plain-model"], accounts: [{ id: "@octocat" }] })

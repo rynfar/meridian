@@ -1647,8 +1647,8 @@ Point the client's base URL at `http://127.0.0.1:3456/copilot/v1`.
 **What it does.** The client's system prompt replaces Copilot's, and its tools
 are the only tools the model sees. Copilot's built-in tools, repository
 instructions, hooks and permission prompts are off, and BYOK models are never
-used. Every tool call is returned to the client in OpenAI form, so the client
-runs it with its own approvals; Meridian runs nothing. The SDK runtime is a
+used. Every tool call is returned to the client in the selected API form, so the
+client runs it with its own approvals; Meridian runs nothing. The SDK runtime is a
 child process with a private, temporary `COPILOT_HOME`, and it does not inherit
 `MERIDIAN_*`, `ANTHROPIC_*` or `CLAUDE_*` variables.
 
@@ -1662,15 +1662,18 @@ short-lived session.
 
 | Endpoint | |
 |---|---|
-| `POST /copilot/v1/chat/completions` | Streaming and non-streaming. Text, client tools (parallel), `reasoning_effort` as the model supports it, reasoning streamed as `reasoning_content`, usage including cached tokens. |
+| `POST /copilot/v1/chat/completions` | Streaming and non-streaming OpenAI Chat Completions. Text, base64 data-URL images, client tools (parallel), `reasoning_effort` as the model supports it, reasoning streamed as `reasoning_content`, usage including cached tokens. |
+| `POST /copilot/v1/messages` | Streaming and non-streaming Anthropic Messages. Text, base64 image blocks, client tools, thinking deltas and provider usage. |
 | `GET /copilot/v1/models` | Enabled models on the account, after `MERIDIAN_COPILOT_MODELS`. |
 | `GET /copilot/health` | Sign-in, SDK version and capabilities. |
 
-**Limits.** Images, audio and documents, `tool_choice` other than `auto`,
+**Limits.** Remote image URLs, audio, documents, `tool_choice` other than `auto`,
 `parallel_tool_calls: false`, `response_format` and any other unknown option
 are rejected with a 400. `max_tokens` and `temperature` are accepted and
 ignored. Copilot bills premium requests by its own rules and each model's
-multiplier; Meridian does not meter, cap or report them. The SDK release this
+multiplier. Meridian records provider quota observations when the SDK emits them
+and shows supported reset windows on the provider dashboard; it does not meter
+or cap them. The SDK release this
 was verified with is `2.0.1` (runtime `1.0.114`), on macOS arm64.
 
 ## SDK Feature Toggles (Experimental)
