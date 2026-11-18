@@ -51,7 +51,22 @@ export function textOf(content: unknown): string {
   if (content == null) return ""
   if (typeof content === "string") return content
   if (Array.isArray(content) && content.every(part => part?.type === "text" && typeof part.text === "string")) return content.map(part => part.text).join("\n\n")
-  throw new CopilotError("The Copilot backend accepts text content only. Images, audio and documents are not supported.")
+  throw new CopilotError("Only text-only content can be rendered through this path.")
+}
+
+function blob(mimeType: string, data: unknown, displayName?: unknown): CopilotAttachment {
+  if (typeof data !== "string" || !data) throw new CopilotError("Attachment data must be non-empty base64.")
+  const normalized = data.replace(/\s/g, "")
+  if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) throw new CopilotError("Attachment data is not valid base64.")
+  const padding = normalized.endsWith("==") ? 2 : normalized.endsWith("=") ? 1 : 0
+  if (normalized.length / 4 * 3 - padding > 8 * 1024 * 1024) throw new CopilotError("Attachment data exceeds the 8 MiB limit.")
+  return { type: "blob", data: normalized, mimeType: mimeType === "image/jpg" ? "image/jpeg" : mimeType, ...(typeof displayName === "string" && displayName ? { displayName } : {}) }
+}
+
+function attachmentDataUrl(url: unknown): { mimeType: string; data: string } | null {
+  if (typeof url !== "string") return null
+  const match = /^data:((?:image\/(?:jpeg|jpg|png|gif|webp))|application\/pdf|text\/plain)(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=\r\n]+)$/i.exec(url)
+  return match ? { mimeType: match[1]!.toLowerCase() === "image/jpg" ? "image/jpeg" : match[1]!.toLowerCase(), data: match[2]!.replace(/\s/g, "") } : null
 }
 
 function userContentOf(content: unknown): { text: string; attachments?: CopilotAttachment[] } {
@@ -61,9 +76,20 @@ function userContentOf(content: unknown): { text: string; attachments?: CopilotA
     const part = object(raw)
     if (part.type === "text" && typeof part.text === "string") { text.push(part.text); continue }
     const image = object(part.image_url)
-    const match = part.type === "image_url" && typeof image.url === "string" ? /^data:(image\/(?:jpeg|jpg|png|gif|webp));base64,([A-Za-z0-9+/=\r\n]+)$/i.exec(image.url) : null
-    if (!match) throw new CopilotError(part.type === "image_url" ? "Copilot supports only base64 data URL images (JPEG, PNG, GIF or WebP)." : "Only text and image_url message parts are supported.")
-    attachments.push({ type: "blob", mimeType: match[1]!.toLowerCase() === "image/jpg" ? "image/jpeg" : match[1]!.toLowerCase(), data: match[2]!.replace(/\s/g, "") })
+    if (part.type === "image_url") {
+      const dataUrl = attachmentDataUrl(image.url)
+      if (!dataUrl || !dataUrl.mimeType.startsWith("image/")) throw new CopilotError("Copilot supports only base64 data URL images (JPEG, PNG, GIF or WebP) in image_url parts.")
+      attachments.push(blob(dataUrl.mimeType, dataUrl.data))
+      continue
+    }
+    const file = object(part.file)
+    if (part.type === "file") {
+      const dataUrl = attachmentDataUrl(file.file_data)
+      if (!dataUrl || (dataUrl.mimeType !== "application/pdf" && dataUrl.mimeType !== "text/plain")) throw new CopilotError("Copilot supports only base64 PDF or text file_data; file IDs and remote files are not supported.")
+      attachments.push(blob(dataUrl.mimeType, dataUrl.data, file.filename))
+      continue
+    }
+    throw new CopilotError("Only text, image_url and base64 PDF/text file parts are supported.")
   }
   return { text: text.join("\n\n"), ...(attachments.length ? { attachments } : {}) }
 }
@@ -96,7 +122,7 @@ export function parseCopilotAnthropicRequest(body: unknown, headers: Headers): C
   for (const raw of input.messages.map(object)) {
     if (raw.role !== "user" && raw.role !== "assistant") throw new CopilotError("Anthropic messages must have role user or assistant.")
     const blocks = typeof raw.content === "string" ? [{ type: "text", text: raw.content }] : Array.isArray(raw.content) ? raw.content.map(object) : []
-    const text: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> = []
+    const text: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } } | { type: "file"; file: { filename?: string; file_data: string } }> = []
     const calls: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> = []
     const results: Array<{ tool_use_id: string; content: string }> = []
     for (const block of blocks) {
@@ -105,6 +131,14 @@ export function parseCopilotAnthropicRequest(body: unknown, headers: Headers): C
         const source = object(block.source)
         if (source.type !== "base64" || typeof source.data !== "string" || typeof source.media_type !== "string") throw new CopilotError("Image blocks require base64 source media_type and data.")
         text.push({ type: "image_url", image_url: { url: `data:${source.media_type};base64,${source.data}` } })
+      } else if (block.type === "document" && raw.role === "user") {
+        const source = object(block.source)
+        if (source.type === "text" && source.media_type === "text/plain" && typeof source.data === "string") {
+          text.push({ type: "text", text: source.data })
+        } else if (source.type === "base64" && ["application/pdf", "text/plain"].includes(source.media_type) && typeof source.data === "string") {
+          const attachment = blob(source.media_type, source.data, block.title)
+          text.push({ type: "file", file: { filename: attachment.displayName, file_data: `data:${attachment.mimeType};base64,${attachment.data}` } })
+        } else throw new CopilotError("Document blocks require a base64 PDF/text or text/plain source.")
       } else if (block.type === "tool_use" && raw.role === "assistant") {
         if (typeof block.id !== "string" || typeof block.name !== "string") throw new CopilotError("tool_use blocks require id and name.")
         calls.push({ id: block.id, type: "function", function: { name: block.name, arguments: JSON.stringify(block.input ?? {}) } })
@@ -112,7 +146,11 @@ export function parseCopilotAnthropicRequest(body: unknown, headers: Headers): C
         // Provider-specific thinking is not replayable to Copilot. Adjacent
         // text and tool_use blocks still preserve the usable assistant turn.
       } else if (block.type === "tool_result" && raw.role === "user" && typeof block.tool_use_id === "string") {
-        results.push({ tool_use_id: block.tool_use_id, content: Array.isArray(block.content) ? block.content.map(object).filter(part => part.type === "text").map(part => part.text).filter(v => typeof v === "string").join("\n\n") : typeof block.content === "string" ? block.content : "" })
+        const content = Array.isArray(block.content) ? block.content.map(object).map(part => {
+          if (part.type !== "text" || typeof part.text !== "string") throw new CopilotError("Copilot tool_result content supports text only; attachments must be sent in a direct user message.")
+          return part.text
+        }).join("\n\n") : typeof block.content === "string" ? block.content : ""
+        results.push({ tool_use_id: block.tool_use_id, content })
       } else throw new CopilotError(`Unsupported Anthropic content block ${String(block.type)} for ${raw.role}.`)
     }
     if (results.length) {
@@ -209,6 +247,7 @@ export function planContinuation(view: CopilotSessionView, request: CopilotReque
     if (results.length !== view.waiting.size || results.some(m => m.role !== "tool" || !view.waiting.has(m.tool_call_id!)) || new Set(results.map(m => m.tool_call_id)).size !== view.waiting.size || rest.some(m => m.role !== "user")) return null
     // A pending tool phase accepts tool results only, so a user message sent
     // alongside them travels with the last result.
+    if (rest.some(m => m.attachments?.length)) throw new CopilotError("Attachments sent alongside tool results are not supported; send them in a direct user message after the tool round completes.")
     const extra = rest.map(m => textOf(m.content)).filter(Boolean).join("\n\n")
     return { kind: "tool-results", results: results.map((m, index) => ({
       requestId: view.waiting.get(m.tool_call_id!)!,

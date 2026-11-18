@@ -10,11 +10,12 @@ depends-on: [telemetry-ui]
 
 ## Responsibility
 
-Serve OpenAI Chat Completions from the models on the operator's GitHub Copilot
-subscription, through the official `@microsoft/copilot-sdk` (preview): SDK
-loading, one Copilot session per conversation, the hand-off of every tool call
-to the client, history replay when a session cannot continue, health, models
-and provider status.
+Serve OpenAI Chat Completions and Anthropic Messages from the models on the
+operator's GitHub Copilot subscription, through the official
+`@microsoft/copilot-sdk` (preview): SDK loading, one Copilot session per
+conversation, media attachments, the hand-off of every tool call to the
+client, history replay when a session cannot continue, health, models and
+provider status.
 
 Enabled by `MERIDIAN_COPILOT=1` (`ProxyConfig.copilot`), independent of
 `backend`, and mounted at `/copilot/*` beside Claude (`claude` or `combined`).
@@ -45,10 +46,14 @@ Code: `src/proxy/backends/copilot.ts` (runtime and routes),
   every permission request denied. Copilot never executes a tool.
 - The SDK runtime is a child process with a private temporary `COPILOT_HOME`
   and no `MERIDIAN_*`, `ANTHROPIC_*` or `CLAUDE_*` environment.
-- **Unsupported controls are rejected, not faked:** non-text content,
-  `tool_choice` other than `auto`, `parallel_tool_calls: false`, unknown
-  options and unsupported `reasoning_effort` values. `max_tokens` and
-  `temperature` are accepted, ignored and labelled as ignored in `/health`.
+- **Unsupported controls are rejected, not faked:** audio, remote/file-ID
+  attachments, `tool_choice` other than `auto`, `parallel_tool_calls: false`,
+  unknown options and unsupported `reasoning_effort` values. Base64 images,
+  PDFs and text documents in direct user messages are sent as SDK blob
+  attachments, bounded to 8 MiB. Tool-result attachments are rejected because
+  the pending-tool RPC accepts text results only. `max_tokens` and `temperature`
+  are accepted, ignored and labelled as ignored
+  in `/health`.
 
 ## Continuity
 
@@ -66,9 +71,9 @@ pending-tool timeout.
 ## Known limitations
 
 - **Preview.** Verified with SDK 2.0.1 (runtime 1.0.114) on macOS arm64 only.
-- Chat Completions only: no Anthropic Messages, Responses API, images or
-  documents.
-- Premium-request billing is Copilot's; Meridian neither meters nor caps it, and
-  shows no quota windows.
+- No Responses API, audio/video, remote/file-ID inputs, structured output or
+  forced tool choice.
+- Premium-request billing is Copilot's. Meridian neither meters nor caps it;
+  it shows only quota windows observed by the SDK and leaves missing data unknown.
 - Replay is text, so a replayed session loses native tool-call structure for
   earlier turns and costs a fresh prompt.

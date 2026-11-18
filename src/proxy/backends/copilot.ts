@@ -399,7 +399,7 @@ export function createCopilotServer(config: { copilot?: CopilotOptions }, runtim
 
   async function health(): Promise<Response> {
     const base = () => ({ backend: "copilot", preview: true, sdk: { package: "@microsoft/copilot-sdk", version: runtime.sdkVersion, verifiedVersion: VERIFIED_COPILOT_SDK_VERSION }, sessions: runtime.sessions.size, activeRounds: runtime.activeRounds,
-      capabilities: { openai: ["chat-completions"], anthropic: ["messages"], text: true, clientTools: true, parallelTools: true, reasoning: "streamed-reasoning-content", images: "base64", documents: false, structuredOutput: false, forcedToolChoice: false, copilotBuiltInTools: false, byok: false, maxTokens: "ignored", temperature: "ignored", tokenCounting: "provider-reported", conversationReuse: "live-session", quota: "sdk-observed" } })
+      capabilities: { openai: ["chat-completions"], anthropic: ["messages"], text: true, clientTools: true, parallelTools: true, reasoning: "streamed-reasoning-content", images: "base64", documents: "base64-pdf-and-text", structuredOutput: false, forcedToolChoice: false, copilotBuiltInTools: false, byok: false, maxTokens: "ignored", temperature: "ignored", tokenCounting: "provider-reported", conversationReuse: "live-session", quota: "sdk-observed" } })
     if (runtime.draining) return Response.json({ status: "draining", ...base() }, { status: 503, headers: { "cache-control": "no-store" } })
     try {
       const account = await runtime.refresh()
@@ -431,8 +431,8 @@ export function createCopilotServer(config: { copilot?: CopilotOptions }, runtim
         capabilities: [
           { name: "Preview", status: "Opt-in", detail: "Official @microsoft/copilot-sdk with the Copilot CLI sign-in. Copilot bills premium requests by its own rules and each model's multiplier; Meridian does not meter or cap them." },
           { name: "Client tools", status: "Available", detail: "Copilot built-in tools, repository instructions and hooks are off. Every tool call returns to the client, which runs it with its own approvals." },
-          { name: "OpenAI clients", status: "Chat Completions", detail: "Text, client tools, base64 images and streamed reasoning. Documents, forced tool choice and structured output are rejected; max_tokens and temperature are ignored." },
-          { name: "Anthropic clients", status: "Messages", detail: "Streaming and non-streaming /v1/messages compatibility, including client tools and base64 images." },
+          { name: "OpenAI clients", status: "Chat Completions", detail: "Text, client tools, base64 images, PDFs and streamed reasoning. Forced tool choice and structured output are rejected; max_tokens and temperature are ignored." },
+          { name: "Anthropic clients", status: "Messages", detail: "Streaming and non-streaming /v1/messages compatibility, including client tools, base64 images, PDFs and text documents." },
           { name: "Conversation reuse", status: "Live session", detail: "Exact continuations reuse a live Copilot session. Edits, prompt or tool changes and restarts replay history as text." },
         ],
         activity: runtime.activity(), accounts: [{ id: facts.login ? `@${facts.login}` : "Copilot account", active: true, ...runtime.quotaFacts() }] }

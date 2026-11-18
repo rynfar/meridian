@@ -1662,12 +1662,14 @@ short-lived session.
 
 | Endpoint | |
 |---|---|
-| `POST /copilot/v1/chat/completions` | Streaming and non-streaming OpenAI Chat Completions. Text, base64 data-URL images, client tools (parallel), `reasoning_effort` as the model supports it, reasoning streamed as `reasoning_content`, usage including cached tokens. |
-| `POST /copilot/v1/messages` | Streaming and non-streaming Anthropic Messages. Text, base64 image blocks, client tools, thinking deltas and provider usage. |
+| `POST /copilot/v1/chat/completions` | Streaming and non-streaming OpenAI Chat Completions. Text, base64 images and PDF/text files, client tools (parallel), `reasoning_effort` as the model supports it, reasoning streamed as `reasoning_content`, usage including cached tokens. |
+| `POST /copilot/v1/messages` | Streaming and non-streaming Anthropic Messages. Text, base64 image and document blocks, client tools, thinking deltas and provider usage. |
 | `GET /copilot/v1/models` | Enabled models on the account, after `MERIDIAN_COPILOT_MODELS`. |
 | `GET /copilot/health` | Sign-in, SDK version and capabilities. |
 
-**Limits.** Remote image URLs, audio, documents, `tool_choice` other than `auto`,
+**Limits.** Attachments are accepted only in direct user messages, not inside or
+alongside tool results. Remote URLs, file IDs, audio/video and image or document
+attachments larger than 8 MiB are rejected. So are `tool_choice` other than `auto`,
 `parallel_tool_calls: false`, `response_format` and any other unknown option
 are rejected with a 400. `max_tokens` and `temperature` are accepted and
 ignored. Copilot bills premium requests by its own rules and each model's

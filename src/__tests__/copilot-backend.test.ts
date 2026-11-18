@@ -94,6 +94,12 @@ describe("Copilot request validation", () => {
     expect(parsed.system).toBe("system")
     expect(parsed.definitions[0]!.name).toBe("read_file")
     expect(parsed.history[0]!.attachments).toEqual([{ type: "blob", mimeType: "image/png", data: "aGVsbG8=" }])
+    const documents = parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, messages: [{ role: "user", content: [{ type: "document", title: "notes.pdf", source: { type: "base64", media_type: "application/pdf", data: "JVBERi0=" } }, { type: "document", source: { type: "base64", media_type: "text/plain", data: "aGVsbG8=" } }] }] }, new Headers())
+    expect(documents.history[0]!.attachments).toEqual([{ type: "blob", mimeType: "application/pdf", data: "JVBERi0=", displayName: "notes.pdf" }, { type: "blob", mimeType: "text/plain", data: "aGVsbG8=" }])
+    const openAiPdf = parseCopilotRequest({ model: "mai-code-2", messages: [{ role: "user", content: [{ type: "file", file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0=" } }] }] }, new Headers())
+    expect(openAiPdf.history[0]!.attachments).toEqual([{ type: "blob", mimeType: "application/pdf", data: "JVBERi0=", displayName: "report.pdf" }])
+    expect(() => parseCopilotRequest({ model: "mai-code-2", messages: [{ role: "user", content: [{ type: "file", file: { file_id: "file_1" } }] }] }, new Headers())).toThrow("file IDs")
+    expect(() => parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, messages: [{ role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: "JVBERi0=" } }] }] }] }, new Headers())).toThrow("tool_result content supports text only")
     const replay = parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, messages: [{ role: "assistant", content: [{ type: "thinking", thinking: "private", signature: "sig" }, { type: "text", text: "answer" }] }, { role: "user", content: "continue" }] }, new Headers())
     expect(replay.history).toEqual([{ role: "assistant", content: "answer" }, { role: "user", content: "continue" }])
     expect(() => parseCopilotAnthropicRequest({ model: "mai-code-2", max_tokens: 100, thinking: { type: "disabled" }, messages: [{ role: "user", content: "hello" }] }, new Headers())).toThrow("not supported")
@@ -106,6 +112,7 @@ describe("Copilot request validation", () => {
     expect(() => parseCopilotRequest({ ...base, tool_choice: "required" }, headers)).toThrow("tool_choice")
     expect(() => parseCopilotRequest({ ...base, parallel_tool_calls: false }, headers)).toThrow("parallel_tool_calls")
     expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "x" } }] }] }, headers)).toThrow("base64 data URL images")
+    expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "data:text/plain;base64,aGVsbG8=" } }] }] }, headers)).toThrow("base64 data URL images")
     expect(() => parseCopilotRequest({ ...base, messages: [{ role: "user", content: "a" }, { role: "system", content: "late" }] }, headers)).toThrow("start of the conversation")
     expect(() => parseCopilotRequest({ ...base, tools: [...tools, ...tools] }, headers)).toThrow("unique")
   })
@@ -126,6 +133,8 @@ describe("Copilot request validation", () => {
     const request = parseCopilotRequest({ ...base, tools }, headers)
     const view = { model: "mai-code-2", system: "sys", definitions: request.definitions, history: [], waiting: new Map() }
     expect(planContinuation(view, request)).toEqual({ kind: "user", prompt: "hi" })
+    const withAttachment = parseCopilotRequest({ model: "mai-code-2", messages: [{ role: "tool", tool_call_id: "call_1", content: "done" }, { role: "user", content: [{ type: "file", file: { filename: "notes.txt", file_data: "data:text/plain;base64,aGVsbG8=" } }] }] }, headers)
+    expect(() => planContinuation({ model: "mai-code-2", system: "", definitions: [], history: [], waiting: new Map([["call_1", "request_1"]]) }, withAttachment)).toThrow("alongside tool results")
     expect(planContinuation({ ...view, system: "other" }, request)).toBeNull()
     expect(planContinuation({ ...view, effort: "high" }, request)).toBeNull()
     expect(openingPrompt(request.history)).toEqual({ prompt: "hi", replayed: false })
@@ -230,7 +239,7 @@ describe("Copilot backend", () => {
   it("serves health, models and provider status, and refuses new work while draining", async () => {
     const { server, post, state } = serve(readFiles)
     const health = await (await server.app.fetch(new Request("http://localhost/health"))).json() as Record<string, any>
-    expect(health).toMatchObject({ status: "healthy", preview: true, account: { login: "octocat" }, sdk: { version: "2.0.1" }, capabilities: { copilotBuiltInTools: false, byok: false, images: "base64", anthropic: ["messages"] } })
+    expect(health).toMatchObject({ status: "healthy", preview: true, account: { login: "octocat" }, sdk: { version: "2.0.1" }, capabilities: { copilotBuiltInTools: false, byok: false, images: "base64", documents: "base64-pdf-and-text", anthropic: ["messages"] } })
     const models = await (await server.app.fetch(new Request("http://localhost/v1/models"))).json() as { data: Array<{ id: string }> }
     expect(models.data.map(model => model.id)).toEqual(["mai-code-2", "plain-model"])
     expect(server.providerStatus()).toMatchObject({ id: "copilot", enabled: true, status: "healthy", endpoint: "/copilot/v1/chat/completions", models: ["mai-code-2", "plain-model"], accounts: [{ id: "@octocat" }] })
