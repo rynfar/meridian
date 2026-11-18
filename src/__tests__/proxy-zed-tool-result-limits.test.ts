@@ -111,6 +111,23 @@ function zedRequest(app: any, threadId: string, messages: Array<Record<string, u
   }))
 }
 
+const TITLE_PROMPT = { role: "user", content: "Generate a concise 3-7 word title for this conversation, omitting punctuation." }
+
+/** Zed's title one-shot (build_thread_title_request): the thread's messages
+ * plus the title prompt, with no agent system prompt and no tools. */
+function zedTitleRequest(app: any, threadId: string, messages: Array<Record<string, unknown>>, stream = true): Promise<Response> {
+  return app.fetch(new Request("http://localhost/v1/chat/completions", {
+    method: "POST",
+    headers: ZED_HEADERS,
+    body: JSON.stringify({
+      model: "claude-opus-5-5",
+      stream,
+      prompt_cache_key: threadId,
+      messages: [...messages, TITLE_PROMPT],
+    }),
+  }))
+}
+
 async function readAll(res: Response): Promise<string> {
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
@@ -276,6 +293,31 @@ describe("Zed: oversized client tool results", () => {
     const [prompt] = await promptMessagesOf(capturedQueryParamsAll[0])
     expect(prompt).toContain("[Tool result withheld by the proxy] The `grep` result is 6 KB")
     expect(prompt).not.toContain("PAYLOAD-END")
+  })
+
+  it("keeps the note out of a title asked mid-turn, right after the cut result", async () => {
+    // Zed asks for the title after the first tool round, before the turn's
+    // answer: the cut result follows the last assistant message, so it is in
+    // the live turn. The title one-shot is auxiliary and carries no note.
+    const threadId = `thread-${randomUUID()}`
+    mockMessages = [
+      messageStart("msg_title"), textBlockStart(0), textDelta(0, "Duplicate ids search"),
+      blockStop(0), messageDelta("end_turn"), messageStop(),
+    ]
+    const res = await zedTitleRequest(app, threadId, [QUESTION, TOOL_CALL, TOOL_RESULT])
+    expect(res.status).toBe(200)
+    expect(streamedText(await readAll(res))).toBe("Duplicate ids search")
+    const [prompt] = await promptMessagesOf(capturedQueryParamsAll[0])
+    expect(JSON.stringify(prompt)).toContain("[Tool result withheld by the proxy]")
+    expect(JSON.stringify(prompt)).not.toContain("PAYLOAD-END")
+  })
+
+  it("keeps the note out of a non-streamed title asked mid-turn", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "Duplicate ids search" }])]
+    const res = await zedTitleRequest(app, `thread-${randomUUID()}`, [QUESTION, TOOL_CALL, TOOL_RESULT], false)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { choices: Array<{ message: { content: string } }> }
+    expect(body.choices[0]!.message.content).toBe("Duplicate ids search")
   })
 
   it("stays silent when MERIDIAN_NO_TOOL_RESULT_NOTE is set, while the model still gets the notice", async () => {

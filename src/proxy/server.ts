@@ -4218,12 +4218,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const cappedToolResults = capClientToolResults(messagesToConvert, toolResultLimits, buildToolUseIndex(executionMessages))
       messagesToConvert = cappedToolResults.messages
       logToolResultCuts(cappedToolResults.cuts, toolResultLimits, requestMeta.requestId)
+      // Proxy notes are for an answer the person reads. An auxiliary one-shot
+      // (Zed's title and summary, Claude Code's session title) is read by the
+      // client: Zed keeps the first line as the thread's title. Zed asks for
+      // the title right after the first tool round, while the cut result is
+      // still in the live turn, so the live-turn rule below cannot cover it.
+      const proxyNotesOff = requestMeta.auxiliaryRequest === true
       // Shown to the person at the top of the answer; the model's own notice is
       // already in the prompt. Only the live turn's cuts count: a result cut in
-      // history was announced when it arrived, and Zed resends the thread for
-      // its title, whose first line would otherwise be this note.
-      // MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
-      const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE
+      // history was announced when it arrived, and Zed resends the thread on
+      // every later request. MERIDIAN_NO_TOOL_RESULT_NOTE turns it off.
+      const withheldNote = process.env.MERIDIAN_NO_TOOL_RESULT_NOTE || proxyNotesOff
         ? ""
         : formatWithheldNote(cappedToolResults.liveCuts, toolResultLimits)
 
@@ -5464,7 +5469,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const compaction = extractCompaction(message)
               if (compaction) {
                 logCompaction(compaction, requestMeta.requestId)
-                const note = compactionNoteFor(compaction)
+                const note = proxyNotesOff ? "" : compactionNoteFor(compaction)
                 if (note) compactionNotes.push(note)
               }
               // Passthrough single-turn guard: once the model re-emits a call it
@@ -7013,7 +7018,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   const compaction = extractCompaction(message)
                   if (compaction) {
                     logCompaction(compaction, requestMeta.requestId)
-                    const note = compactionNoteFor(compaction)
+                    const note = proxyNotesOff ? "" : compactionNoteFor(compaction)
                     if (note) {
                       if (messageStartEmitted) {
                         if (emitProxyNote(note, "compaction_note")) {
