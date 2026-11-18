@@ -60,7 +60,8 @@ Environment variables:
   MERIDIAN_HOST                     Host to bind to (default: 127.0.0.1)
   MERIDIAN_BACKEND                  claude (default), antigravity, or combined
   MERIDIAN_AGY_STATE_PATH           Optional bounded persistent state file
-  MERIDIAN_AGY_TURN_TIMEOUT_MS      Active CLI turn deadline (default: 300000)
+  MERIDIAN_AGY_TURN_MAX_DURATION_MS Absolute turn deadline including tool waits (default: 7200000)
+  MERIDIAN_AGY_TURN_TIMEOUT_MS      Per-model-phase deadline, excluding client tool waits (default: 300000)
   MERIDIAN_AGY_TOOL_TIMEOUT_MS      Idle client-tool wait (default: 60000)
   MERIDIAN_AGY_MAX_CONCURRENT       Maximum CLI processes (default: 4)
   MERIDIAN_AGY_PLUGIN_PATHS         JSON array of Antigravity plugin modules

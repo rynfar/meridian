@@ -208,7 +208,8 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS` | off | Guarded native self/research subagent opt-in |
 | `MERIDIAN_AGY_WHISPER_MODEL` | unset | Local whisper.cpp model for audio transcription |
 | `MERIDIAN_AGY_MAX_CONCURRENT` | `4` | Maximum live processes; idle pending tools can yield capacity |
-| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Per-turn deadline, including preprocessing and tool waits |
+| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Full model/preprocessing deadline for each phase, refreshed after each accepted tool-result batch; paused while waiting for client tools |
+| `MERIDIAN_AGY_TURN_MAX_DURATION_MS` | `7200000` | Absolute per-turn deadline including client tool waits; also passed as CLI `--print-timeout` on every turn (including tool-less turns) |
 | `MERIDIAN_AGY_TOOL_TIMEOUT_MS` | `60000` | Pending client tool-result deadline |
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
 | `MERIDIAN_AGY_MAX_PROMPT_BYTES` | `190000` | UTF-8 byte limit of one prompt sent to agy, which keeps only about 192,000 bytes of an input step and drops the rest (the newest messages). Past it the oldest large tool results, arguments and text are shortened, the newest last; a current request that alone does not fit returns 400 `prompt is too long`. `0` disables it. |
@@ -216,10 +217,14 @@ directories. Meridian does not edit or garbage-collect those private records.
 Capacity exhaustion returns 429 with `Retry-After`. No unbounded request queue
 is created. Bodies are capped at 8 MiB; upstream stdout is capped at 16 MiB.
 Prompts use stdin to avoid OS argument-size limits. Shutdown terminates owned
-process groups and closes the MCP listener.
+process groups and closes the MCP listener. Because child processes are spawned
+detached and receive `--print-timeout` equal to `turnMaxDurationMs` (two hours
+by default), an unclean Meridian crash can leave an active `agy` child running
+up to that limit instead of the previous 300 s CLI backstop; real `agy`
+`--print-timeout` semantics across reused stdin turns are unverified.
 
 Embedders can set `backend: "antigravity"` and `antigravity: { executable,
-allowToolBridge, maxConcurrent, turnTimeoutMs, pendingToolTimeoutMs }` on
+allowToolBridge, maxConcurrent, turnTimeoutMs, turnMaxDurationMs, pendingToolTimeoutMs }` on
 `startProxyServer`. Call `ProxyInstance.close()` to release resources. Direct
 `createProxyServer().app.fetch` embedders must call the optional
 `closeBackend()` when finished.
