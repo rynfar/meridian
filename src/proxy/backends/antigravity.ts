@@ -146,6 +146,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
     if (request.signal.aborted) cancel()
     const started = Date.now()
     const id = "msg_agy_" + randomUUID().replaceAll("-", "")
+    run.responseId = id
     async function consume(emit?: (event: string, value: unknown) => void) {
       const content: AgBlock[] = []
       const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
@@ -180,6 +181,15 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
             reason = "stop_sequence"
             await run.stopAtSequence()
           } else {
+            if (event.kind === "end" && !forcedAgTool(body) && (!body.output_config?.format || !content.length)) {
+              const recovered = await run.finishFinalText(request.signal)
+              if (recovered) {
+                if (body.output_config?.format && body.stop_sequences?.some(stop => recovered.includes(stop))) throw new AntigravityError("A stop sequence occurs inside the structured result; truncation would violate the requested JSON schema", 422)
+                const text = stops.push(recovered)
+                if (text) emitText(text)
+                if (stops.matched) reason = "stop_sequence"
+              }
+            }
             const tail = stops.flush()
             if (tail) emitText(tail)
           }
@@ -210,6 +220,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
           break
         }
         if (forcedAgTool(body) && reason !== "tool_use") throw new AntigravityError("Antigravity completed without the required tool call", 502, "api_error")
+        if (reason === "end_turn" && !content.some(block => block.type === "tool_use" || (block.type === "text" && block.text.trim()))) throw new AntigravityError("Antigravity returned no final response in the stream or current native record", 502, "api_error")
         if (reason === "end_turn") { run.history = [...run.history, { role: "assistant", content }]; run.rememberCompleted() }
         if (!emittedTool) await runtime.plugins.observe("onResponse", { ...base, content, stop_reason: reason, usage }, request.signal)
         const answer = { ...base, content, stop_reason: reason, stop_sequence: stops.matched ?? null, usage }

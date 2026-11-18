@@ -317,6 +317,7 @@ export class AgEventQueue {
     this.items = []
     if (this.waiter) { const waiter = this.waiter; this.waiter = undefined; waiter({ kind: "error", error }) }
   }
+  discardQueuedText(): void { this.items = this.items.filter(event => event.kind !== "text") }
   takeQueuedTools(): AgCall[] {
     const calls: AgCall[] = []
     while (this.items[0]?.kind === "tool") {
