@@ -64,7 +64,7 @@ effort variants before continuation identity is calculated; runtime model discov
 checks availability, and responses expose the effective model.
 `antigravityRuntime.ts` owns the official CLI subprocesses and loopback MCP transport.
 Its bounded interrupted-continuation fingerprints permit only exact completed-result
-replay after cancellation joins the old process, before any subsequent client
+replay after cancellation, a retryable failed response (401/408/429/499/5xx) or a deadline joins the old process, before any subsequent client
 call was emitted and with native actions disabled. Exact concurrent retries wait
 for joining and use the existing result-ID claim; successful replay removes the
 exception without clearing consumed IDs. Optional SQLite preserves only the
@@ -173,7 +173,10 @@ tool validates a whole batch before delivery; reverse-order results remain corre
 may change between responses without changing the remaining pending contract.
 Client plugin changes to system instructions or tool definitions use completed-
 history replay after claiming all results and joining the old pending process.
-Model, session, execution controls and delivered history must still match. The
+Model, session and execution controls must still match. With native grants
+disabled, a complete changed delivered history or batch can also retire and join
+its single idle owner before cold replay; mixed owners and active responses
+remain conflicts. The
 new process installs its own tool catalog and deny hook; telemetry records
 `client-context-replay`. Failed preflight releases the replay claim for retry.
 Native schema mode permits `finish`, withholds prose and emits only the final

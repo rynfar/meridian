@@ -124,6 +124,17 @@ the existing answer budget. Native-grant requests are excluded. This is bounded
 request idempotency, not an exactly-once client-tool execution contract; see the
 backend guide and integrations for supported retry boundaries (#1073).
 
+Antigravity intentionally relaxes #1074's changed-delivered-history/batch rule:
+a validated complete client history may retire and join its single idle owner
+before cold replay, with matching model/session/execution controls and native
+grants disabled. Known completed IDs without live owners may be included; active
+responses and mixed live owners still conflict. This recovers production Claude
+Code dropped-stream histories without re-executing the old pending call.
+Exact consumed-result continuations can retry after joined 401/408/429/499/5xx
+failures, before another client tool was delivered. Other deterministic failures
+remain 409; failed fingerprint persistence logs an error and preserves the
+original status and Retry-After. This is not exactly-once external execution.
+
 Identified Antigravity Messages requests may set `x-meridian-replay-only: true`
 to recover a saved response without starting generation. The same fingerprint,
 credential scope and consumed-tool checks apply; a missing snapshot returns 404.
