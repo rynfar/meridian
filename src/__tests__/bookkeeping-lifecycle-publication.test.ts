@@ -15,7 +15,7 @@ import { sqliteLifecyclePublication } from "../proxy/session/bookkeeping/lifecyc
 import { sqliteSessionStoreBackend as store } from "../proxy/session/bookkeeping/sqliteStoreBackend"
 import { readMappingGeneration, PIN_LOOKUP_SQL } from "../proxy/session/bookkeeping/mappings"
 import { withStoreWrite } from "../proxy/session/bookkeeping/storeScope"
-import { buildNodeFixture, writeBenchArtifact } from "./fixtures/bookkeeping-support"
+import { buildNodeFixture, expectRealNodeRuntime, writeBenchArtifact } from "./fixtures/bookkeeping-support"
 import type { TranscriptLocator, TranscriptResourceState } from "../proxy/session/bookkeeping/types"
 
 let directory: string, handle: BookkeepingHandle, options: facade.SessionLifecycleOptions
@@ -337,7 +337,7 @@ it("two real Node publishers: one mapping CAS winner, no partial rows (N=10)", a
       const ready = Promise.withResolvers<void>()
       void ready.promise.catch(() => undefined)
       child.on("message", (value) => { if (value === "ready") ready.resolve() })
-      const exit = new Promise<{ result: string | false; node: string }>((resolve, reject) => {
+      const exit = new Promise<{ result: string | false; node: string; bun: string | null }>((resolve, reject) => {
         child.on("error", (error) => { ready.reject(error); reject(error) })
         child.on("exit", (code) => {
           if (code !== 0) {
@@ -357,7 +357,7 @@ it("two real Node publishers: one mapping CAS winner, no partial rows (N=10)", a
       const outcomes = await Promise.all(workers.map((worker) => worker.exit))
       expect(outcomes.filter((value) => typeof value.result === "string" && value.result !== "busy")).toHaveLength(1)
       expect(outcomes.filter((value) => value.result === false || value.result === "busy")).toHaveLength(1)
-      expect(outcomes.every((value) => value.node.startsWith("22."))).toBe(true)
+      outcomes.forEach(expectRealNodeRuntime)
       expect(handle.reader.all("SELECT key FROM mappings WHERE key=?", key)).toHaveLength(1)
       expect(handle.reader.all("SELECT * FROM mapping_pins WHERE mapping_key=?", key)).toHaveLength(1)
       for (const [id, loc] of locators.entries()) {

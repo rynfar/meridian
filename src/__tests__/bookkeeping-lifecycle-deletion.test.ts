@@ -1,4 +1,4 @@
-import { bookkeepingBunPreloadArgs } from "./fixtures/bookkeeping-support"
+import { bookkeepingBunPreloadArgs, expectRealNodeRuntime } from "./fixtures/bookkeeping-support"
 import { afterEach, beforeEach, expect, it, spyOn } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -295,7 +295,7 @@ it("an opened, hung real Node deletion executor stays fenced across GC and recon
   const child = spawn(facade.getSessionGcNodeExecutable(), ["-e", `
     const fs = require('node:fs');
     process.stdin.once('data', () => {
-      fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({pid: process.pid, node: process.versions.node}));
+      fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({pid: process.pid, node: process.versions.node, bun: process.versions.bun ?? null}));
       process.stdout.write('deletion-entered');
       setInterval(() => {}, 1000);
     });
@@ -317,7 +317,9 @@ it("an opened, hung real Node deletion executor stays fenced across GC and recon
     try {
       await Promise.race([entered, exited.then(() => { throw new Error("executor exited before gate entry") })])
     } finally { clearTimeout(timeout) }
-    expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({ pid: child.pid, node: expect.stringMatching(/^22\./) })
+    const gateMarker = JSON.parse(readFileSync(marker, "utf8")) as { pid: number | undefined; node: string; bun: string | null }
+    expect(gateMarker).toEqual({ pid: child.pid, node: expect.any(String), bun: null })
+    expectRealNodeRuntime(gateMarker)
     const fenced = row(locator)
     expect(fenced.state).toBe("deleting")
     expect(fenced.deletionToken).toBe(claim.deletionToken)
@@ -358,7 +360,7 @@ it("SIGKILL of the real deletion parent after the SDK gate opens never releases 
   const locator = seed(), marker = join(directory, "orphan-marker.json"), sdk = join(directory, "orphan-sdk.mjs")
   writeFileSync(sdk, `import { writeFileSync } from 'node:fs';
     export async function deleteSession(id) {
-      writeFileSync(${JSON.stringify(marker)}, JSON.stringify({id,pid:process.pid,node:process.versions.node}));
+      writeFileSync(${JSON.stringify(marker)}, JSON.stringify({id,pid:process.pid,node:process.versions.node,bun:process.versions.bun??null}));
       setInterval(() => {}, 1000); await new Promise(() => {});
     }`)
   const moduleUrl = (name: string) => pathToFileURL(join(import.meta.dir, "../proxy/session/bookkeeping", name)).href
@@ -376,8 +378,8 @@ it("SIGKILL of the real deletion parent after the SDK gate opens never releases 
   try {
     for (let attempt = 0; attempt < 500 && !existsSync(marker); attempt++) await Bun.sleep(10)
     expect(existsSync(marker)).toBe(true)
-    const entered = JSON.parse(readFileSync(marker, "utf8")) as { id: string; pid: number; node: string }
-    expect(entered.id).toBe(locator.sessionId); expect(entered.node).toMatch(/^22\./)
+    const entered = JSON.parse(readFileSync(marker, "utf8")) as { id: string; pid: number; node: string; bun: string | null }
+    expect(entered.id).toBe(locator.sessionId); expectRealNodeRuntime(entered)
     const fenced = row(locator)
     executor = fenced.deletionExecutor
     expect(executor?.pid).toBe(entered.pid)
@@ -410,7 +412,7 @@ it("SIGKILL of the real deletion parent after the SDK gate opens never releases 
 it("real Node child enters marker SDK only after executor attachment commits; capture has no SQL scope", async () => {
   const locator = seed(), marker = join(directory, "marker.json"), sdk = join(directory, "marker-sdk.mjs")
   writeFileSync(sdk, `import { writeFileSync } from 'node:fs';
-    export async function deleteSession(id) { writeFileSync(${JSON.stringify(marker)}, JSON.stringify({id,pid:process.pid,node:process.versions.node})); }`)
+    export async function deleteSession(id) { writeFileSync(${JSON.stringify(marker)}, JSON.stringify({id,pid:process.pid,node:process.versions.node,bun:process.versions.bun??null})); }`)
   const original = incarnations.captureProcessIncarnation
   const capture = spyOn(incarnations, "captureProcessIncarnation").mockImplementation((pid) => {
     expect(connectionFor(directory).scope).toBeUndefined()
@@ -433,8 +435,8 @@ it("real Node child enters marker SDK only after executor attachment commits; ca
       .toEqual({ deleted: 1, notFound: 0, failed: 0, deferred: 0 })
   } finally { capture.mockRestore(); onCommit = undefined }
   expect(observedAttachmentCommit).toBe(true)
-  const value = JSON.parse(readFileSync(marker, "utf8")) as { id: string; pid: number; node: string }
-  expect(value.id).toBe("a"); expect(value.pid).not.toBe(process.pid); expect(value.node).toMatch(/^22\./)
+  const value = JSON.parse(readFileSync(marker, "utf8")) as { id: string; pid: number; node: string; bun: string | null }
+  expect(value.id).toBe("a"); expect(value.pid).not.toBe(process.pid); expectRealNodeRuntime(value)
 })
 
 it("failed attachment COMMIT never opens real child gate or runs marker SDK", async () => {
