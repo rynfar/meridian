@@ -1246,6 +1246,19 @@ extension) is not checked after a stop yet. Its next message resumes the
 session as it always has, so a client that kept the partial output (OpenCode)
 is answered without it.
 
+### Prompt-cache lifetime per request
+
+A Claude Max (subscription) session through the Agent SDK writes the one-hour
+cache tier. That pays off for a person who pauses and comes back. A client
+whose calls come in short bursts and never return after an hour, such as a CI
+job, pays the one-hour write price (2x the input price, against 1.25x for five
+minutes) for entries no later call reads.
+
+Such a client can send `x-meridian-cache-ttl: 5m`. Meridian then runs that
+request's Claude Code process with `FORCE_PROMPT_CACHING_5M=1`, as it already
+does for auxiliary requests. Without the header nothing changes. Any other
+value is refused with `400 invalid_request_error`.
+
 ### Prompt-cache keepalive
 
 Off by default. When a session sits idle long enough for its prompt cache to
