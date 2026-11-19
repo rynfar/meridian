@@ -24,7 +24,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
-import { dirname, isAbsolute, join, resolve } from "node:path"
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { applyEdits, findNodeAtLocation, modify, parse as parseJsonc, parseTree, type ParseError } from "jsonc-parser"
 import {
@@ -198,16 +198,17 @@ export function packageNameOf(spec: string): string {
   return versionAt > 0 ? bare.slice(0, versionAt) : bare
 }
 
-function packageJsonName(start: string): string | null | undefined {
+/** The nearest package.json at or above `start`: its directory, and its name (null when unreadable). */
+function nearestPackageJson(start: string): { dir: string; name: string | null } | undefined {
   let current = start
   for (let depth = 0; depth < 12; depth++) {
     const candidate = join(current, "package.json")
     if (existsSync(candidate)) {
       try {
         const parsed: unknown = JSON.parse(readFileSync(candidate, "utf8"))
-        return isRecord(parsed) && typeof parsed.name === "string" ? parsed.name : null
+        return { dir: current, name: isRecord(parsed) && typeof parsed.name === "string" ? parsed.name : null }
       } catch {
-        return null
+        return { dir: current, name: null }
       }
     }
     const parent = dirname(current)
@@ -217,10 +218,20 @@ function packageJsonName(start: string): string | null | undefined {
   return undefined
 }
 
+/** The deepest of `target` and its ancestors whose own name contains the plugin's. */
+function pluginNamedPath(target: string): string | undefined {
+  for (let current = target; ; current = dirname(current)) {
+    if (basename(current).includes(PLUGIN_PACKAGE_NAME)) return current
+    if (dirname(current) === current) return undefined
+  }
+}
+
 /**
  * A path entry is the plugin when the package.json above it says so - which
  * also catches a checkout renamed to anything, such as a worktree. Only when
- * the target is gone does the directory name decide.
+ * the target is gone does the directory name decide: no package.json at or
+ * below the plugin-named directory, so one further up belongs to an enclosing
+ * project (a home directory, a monorepo) and says nothing about this path.
  */
 export function matchPluginSpec(spec: string, declaredIn: string | null): PluginMatchReason | null {
   if (!isPathSpec(spec)) return packageNameOf(spec) === PLUGIN_PACKAGE_NAME ? "package-name" : null
@@ -237,10 +248,12 @@ export function matchPluginSpec(spec: string, declaredIn: string | null): Plugin
   } catch {
     start = dirname(target)
   }
-  const name = packageJsonName(start)
-  if (name === PLUGIN_PACKAGE_NAME) return "package-json"
-  if (name === undefined && target.includes(PLUGIN_PACKAGE_NAME)) return "path-name"
-  return null
+  const found = nearestPackageJson(start)
+  if (found?.name === PLUGIN_PACKAGE_NAME) return "package-json"
+  const named = pluginNamedPath(target)
+  if (named === undefined) return null
+  const insideNamed = found !== undefined && (found.dir === named || found.dir.startsWith(named + sep))
+  return insideNamed ? null : "path-name"
 }
 
 function autoloadedFiles(dir: string): AutoloadedPluginFile[] {

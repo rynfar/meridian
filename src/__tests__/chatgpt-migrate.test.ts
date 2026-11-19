@@ -250,6 +250,18 @@ describe("opencode config resolution", () => {
     expect(matchPluginSpec(join(root, "gone", "oc-codex-multi-auth", "dist", "index.js"), null)).toBe("path-name")
   })
 
+  it("matches a vanished plugin checkout by name even inside another package", () => {
+    const workspace = join(root, "workspace")
+    mkdirSync(workspace, { recursive: true })
+    writeFileSync(join(workspace, "package.json"), JSON.stringify({ name: "enclosing-project" }))
+    expect(matchPluginSpec(join(workspace, "gone", "oc-codex-multi-auth", "dist", "index.js"), null)).toBe("path-name")
+
+    const otherCheckout = join(root, "forks", "oc-codex-multi-auth-fork")
+    mkdirSync(otherCheckout, { recursive: true })
+    writeFileSync(join(otherCheckout, "package.json"), JSON.stringify({ name: "something-else" }))
+    expect(matchPluginSpec(join(otherCheckout, "dist", "index.js"), null)).toBeNull()
+  })
+
   it("removes plugin entries and points the provider without disturbing comments", () => {
     const text = `{\n    // keep me\n    "plugin": [\n        "a",\n        "oc-codex-multi-auth@1", // pinned\n        "b",\n    ],\n    "provider": { "openai": { "options": { "apiKey": "{env:X}" } } },\n}\n`
     const removed = removePluginEntries(text, "opencode.jsonc")
