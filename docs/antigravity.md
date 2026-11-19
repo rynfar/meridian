@@ -313,7 +313,8 @@ The supported text/client-tools path is gated to official `agy` **1.5.5**
 move and awaits a 1.5.5 re-run on that platform).
 An unverified CLI update is refused before a new model process starts. Validate
 new versions with the live gates below before changing the compatibility gate.
-Windows
+`/health` still reports Linux as `preview` and macOS as `supported` until each
+platform has full 1.5.5 client evidence. Windows
 process-tree termination and hook quoting are implemented and exercised in CI;
 normal execution stays gated until authenticated live verification. The embedder
 option `allowUnverifiedWindows: true` is solely for that acceptance gate. This is a supported, bounded protocol surface, not full Claude parity.
