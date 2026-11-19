@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
-import { hostname } from "node:os"
+import { hostname, uptime } from "node:os"
 import { basename, dirname, join } from "node:path"
 import {
   chmod,
@@ -51,6 +51,10 @@ const DEFAULT_RELEASE_RETRY_DELAYS_MS: readonly number[] = [1_000, 5_000, 30_000
 const LIVE_LEASE_TOKENS: unique symbol = Symbol.for("meridian.crossProcessTurn.liveLeaseTokens")
 const leaseTokenRegistry = globalThis as typeof globalThis & { [LIVE_LEASE_TOKENS]?: Set<string> }
 const liveLeaseTokens = leaseTokenRegistry[LIVE_LEASE_TOKENS] ??= new Set<string>()
+// os.uptime() is whole seconds on some platforms, so the boot instant derived
+// from it can land up to a second late. Only activity clearly before it counts
+// as belonging to an earlier boot.
+const BOOT_CLOCK_TOLERANCE_MS = 5_000
 
 export interface CrossProcessTurnCoordinatorOptions {
   /** Maximum time an acquire may wait. Acquires always have a finite bound. */
@@ -66,6 +70,8 @@ export interface CrossProcessTurnCoordinatorOptions {
    * last delay repeats until the lock is gone; an empty list disables retries.
    */
   releaseRetryDelaysMs?: readonly number[]
+  /** Wall-clock instant the host booted. Injected by tests. */
+  bootTimeMs?: () => number
 }
 
 export interface CrossProcessTurnLease {
@@ -87,6 +93,10 @@ interface LockSnapshot {
   ino: bigint
   mtimeMs: number
   owner?: OwnerRecord
+  /**
+   * Freshest heartbeat. Without a readable owner the token is unknown, so this
+   * is the newest of owner.json and every heartbeat file in the directory.
+   */
   heartbeatMtimeMs?: number
 }
 
@@ -145,8 +155,9 @@ async function readOwner(lockPath: string): Promise<OwnerRecord | undefined> {
     value = JSON.parse(raw)
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    // A process may die during its owner write. Keep the incomplete directory
-    // busy until its mtime becomes stale.
+    // A host crash can leave owner.json with its size but not its data (all
+    // NUL bytes). canRecover decides when such an ownerless directory is
+    // abandoned.
     return undefined
   }
   if (
@@ -192,6 +203,8 @@ async function snapshotLock(lockPath: string): Promise<LockSnapshot | undefined>
     } catch (error) {
       if (!isErrno(error, "ENOENT")) throw error
     }
+  } else {
+    heartbeatMtimeMs = await newestOwnerlessActivity(lockPath)
   }
 
   return {
@@ -201,6 +214,31 @@ async function snapshotLock(lockPath: string): Promise<LockSnapshot | undefined>
     owner,
     heartbeatMtimeMs,
   }
+}
+
+async function newestOwnerlessActivity(lockPath: string): Promise<number | undefined> {
+  let names: string[]
+  try {
+    names = await readdir(lockPath)
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return undefined
+    throw error
+  }
+  let newest: number | undefined
+  for (const name of names) {
+    if (name !== OWNER_FILE && !name.startsWith("heartbeat-")) continue
+    try {
+      const { mtimeMs } = await stat(join(lockPath, name))
+      newest = newest === undefined ? mtimeMs : Math.max(newest, mtimeMs)
+    } catch (error) {
+      if (!isErrno(error, "ENOENT")) throw error
+    }
+  }
+  return newest
+}
+
+function currentBootTimeMs(): number {
+  return Date.now() - uptime() * 1000
 }
 
 function sameIdentity(left: LockSnapshot, right: LockSnapshot): boolean {
@@ -226,7 +264,28 @@ function abandonedBySelf(owner: OwnerRecord): boolean {
   return current !== undefined && sameIncarnation(owner.incarnation, current)
 }
 
-function canRecover(snapshot: LockSnapshot, staleAfterMs: number, now = Date.now()): boolean {
+interface RecoveryPolicy {
+  staleAfterMs: number
+  bootTimeMs: () => number
+}
+
+/**
+ * Whether an ownerless lock's last activity is from before the current boot.
+ *
+ * Nothing from an earlier boot is still running, so such a lock cannot belong
+ * to a live process, whatever wrote it. Activity during this boot proves
+ * nothing either way: an older writer may be paused between creating the
+ * directory and its owner write, or a live holder's owner record may be
+ * unreadable for another reason. Those stay fail-closed however old they are
+ * (#1223: elapsed time alone admitted a second holder while the first was
+ * alive). Every heartbeat file counts as activity, since the token is unknown.
+ */
+function ownerlessFromEarlierBoot(snapshot: LockSnapshot, policy: RecoveryPolicy): boolean {
+  const lastActivity = Math.max(snapshot.mtimeMs, snapshot.heartbeatMtimeMs ?? 0)
+  return lastActivity < policy.bootTimeMs() - BOOT_CLOCK_TOLERANCE_MS
+}
+
+function canRecover(snapshot: LockSnapshot, policy: RecoveryPolicy, now = Date.now()): boolean {
   // This process released the lease, but the release failed (for example
   // ENOSPC while renaming the lock away). Its heartbeat has stopped and its
   // turn is over, but the owner process is alive, so the dead-owner rule
@@ -234,16 +293,16 @@ function canRecover(snapshot: LockSnapshot, staleAfterMs: number, now = Date.now
   if (snapshot.owner && abandonedBySelf(snapshot.owner)) return true
   // Never steal from a process that may still be executing: without a fencing
   // token in sessions.json, a stale-but-live owner could later overwrite its
-  // successor. Same-host PID death is authoritative. Ownerless half-created
-  // directories are recoverable only after their quarantine age. Cross-host
-  // locks fail closed and require operator cleanup after the host is confirmed
-  // dead.
-  const lastHeartbeat = snapshot.heartbeatMtimeMs ?? snapshot.mtimeMs
-  if (now - lastHeartbeat <= staleAfterMs) return false
+  // successor. Same-host PID death is authoritative. An ownerless directory is
+  // recoverable only when its last activity predates the current boot.
+  // Cross-host locks fail closed and require operator cleanup after the host
+  // is confirmed dead.
+  const lastHeartbeat = snapshot.owner
+    ? snapshot.heartbeatMtimeMs ?? snapshot.mtimeMs
+    : Math.max(snapshot.mtimeMs, snapshot.heartbeatMtimeMs ?? 0)
+  if (now - lastHeartbeat <= policy.staleAfterMs) return false
   if (snapshot.owner) return ownerIsDead(snapshot.owner)
-  // A canonical directory without owner.json may be an initializer suspended
-  // after mkdir. Its ownership is uncertain, so recovery must fail closed.
-  return false
+  return ownerlessFromEarlierBoot(snapshot, policy)
 }
 
 interface RecoveryClaimSnapshot {
@@ -408,6 +467,7 @@ export class CrossProcessTurnCoordinator {
   private readonly heartbeatIntervalMs: number
   private readonly retryDelayMs: number
   private readonly releaseRetryDelaysMs: readonly number[]
+  private readonly recoveryPolicy: RecoveryPolicy
 
   constructor(root: string, options: CrossProcessTurnCoordinatorOptions = {}) {
     if (!root) throw new TypeError("root must not be empty")
@@ -433,6 +493,10 @@ export class CrossProcessTurnCoordinator {
     }
     this.releaseRetryDelaysMs = (options.releaseRetryDelaysMs ?? DEFAULT_RELEASE_RETRY_DELAYS_MS)
       .map((delay) => positiveFinite(delay, "releaseRetryDelaysMs"))
+    this.recoveryPolicy = {
+      staleAfterMs: this.staleAfterMs,
+      bootTimeMs: options.bootTimeMs ?? currentBootTimeMs,
+    }
   }
 
   /** Whether any process holds the turn lock for key, or left it behind stale. */
@@ -485,7 +549,7 @@ export class CrossProcessTurnCoordinator {
       }
 
       const snapshot = await snapshotLock(lockPath)
-      if (snapshot && canRecover(snapshot, this.staleAfterMs)) {
+      if (snapshot && canRecover(snapshot, this.recoveryPolicy)) {
         await this.recover(lockPath, snapshot)
         continue
       }
@@ -627,8 +691,10 @@ export class CrossProcessTurnCoordinator {
   }
 
   private async recover(lockPath: string, snapshot: LockSnapshot): Promise<void> {
+    // An ownerless lock has no token, so its directory identity names the
+    // generation. Recovery re-checks that identity before moving anything.
     const generation = snapshot.owner?.token
-    if (!generation) return
+      ?? `ownerless:${snapshot.dev}:${snapshot.ino}:${snapshot.mtimeMs}`
     const claimPath = getRecoveryClaimPath(lockPath, generation)
     let claimOwner = await tryPublishRecoveryClaim(claimPath, generation)
     if (!claimOwner) {
@@ -646,7 +712,7 @@ export class CrossProcessTurnCoordinator {
         generationResolved = true
         return
       }
-      if (!canRecover(current, this.staleAfterMs)) return
+      if (!canRecover(current, this.recoveryPolicy)) return
 
       const movedPath = `${lockPath}.stale-${randomUUID()}`
       await rename(lockPath, movedPath)
@@ -656,6 +722,9 @@ export class CrossProcessTurnCoordinator {
         throw new CrossProcessTurnOwnershipError("Lock changed during claimed stale recovery")
       }
       await rm(movedPath, { recursive: true })
+      if (!current.owner) {
+        console.error(`[crossProcessTurnCoordinator] reclaimed turn lock ${basename(lockPath)} with no readable owner from before the current boot`)
+      }
     } catch (error) {
       if (isErrno(error, "ENOENT")) generationResolved = true
       else throw error

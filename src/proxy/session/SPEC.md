@@ -177,6 +177,22 @@ another owner only when that owner's exact process incarnation is dead and its
 heartbeat has aged out; a live or unprovable owner fails closed (see #1223 for
 why age alone is not enough).
 
+A lock with no readable owner is the exception. A host crash can leave
+`owner.json` with its size but not its data (338 NUL bytes on 2026-09-29), and
+no incarnation can then be proved dead, so every later turn of that
+conversation waited out the acquire timeout until someone deleted the directory
+by hand. Such a lock is reclaimed once it is stale and its last activity (the
+newest mtime of the directory, `owner.json` and every `heartbeat-*` file, since
+the token is unknown) predates the current boot, derived from `os.uptime()`
+with 5s of tolerance. Nothing from an earlier boot is still running, so this
+cannot take a live holder's turn. An ownerless lock from the current boot stays
+fail-closed however old it is: #1223 reclaimed one after ten minutes, and its
+review probe (`scripts/e2e-turn-lock-ownerless-review.mjs`) then granted a
+second lease while the paused holder was alive. A torn owner only comes from a
+crash, so it always predates the boot that follows. Recovery of an ownerless
+lock goes through the same recovery claim, keyed by the directory's identity,
+and is logged.
+
 That rule cannot clear a lock whose **own** release failed. Releasing renames
 the lock directory away, and a filesystem error there (ENOSPC on a full disk
 was observed) left the directory behind with a live owner: the proxy that
