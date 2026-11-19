@@ -530,7 +530,7 @@ async function saveChatGpt(key, value) {
   });
   if (!res.ok) {
     const err = await res.json().catch(function () { return {}; });
-    alert(err.error || 'Failed to save ChatGPT settings');
+    meridianDialog.fail('Could not save the ChatGPT settings', err, 'Meridian refused the change (HTTP ' + res.status + ').');
   } else {
     showSaved();
   }
@@ -672,7 +672,7 @@ async function putPricing(model, rates) {
   });
   if (!res.ok) {
     const err = await res.json().catch(function () { return {}; });
-    alert('Could not save pricing: ' + (err.error || ('HTTP ' + res.status)));
+    meridianDialog.fail('Could not save pricing for ' + model, err, 'Meridian refused the change (HTTP ' + res.status + ').');
     return false;
   }
   showSaved();
@@ -757,8 +757,8 @@ async function addPricingModel() {
   const name = document.getElementById('newModelName').value.trim();
   const inputRate = parseFloat(document.getElementById('newModelInput').value);
   const outputRate = parseFloat(document.getElementById('newModelOutput').value);
-  if (!name) { alert('Enter a model id'); return; }
-  if (!isFinite(inputRate) || !isFinite(outputRate)) { alert('Enter input and output rates (USD per million tokens)'); return; }
+  if (!name) { meridianDialog.tell('Add a model', 'Enter a model id.'); return; }
+  if (!isFinite(inputRate) || !isFinite(outputRate)) { meridianDialog.tell('Add a model', 'Enter input and output rates, in USD per million tokens.'); return; }
   const rates = { inputPerMTok: inputRate, outputPerMTok: outputRate };
   const cacheRead = parseFloat(document.getElementById('newModelCacheRead').value);
   const cacheWrite = parseFloat(document.getElementById('newModelCacheWrite').value);
@@ -948,7 +948,7 @@ async function putTelemetry(body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    alert(err.error || 'Failed to save telemetry settings');
+    meridianDialog.fail('Could not save the telemetry settings', err, 'Meridian refused the change (HTTP ' + res.status + ').');
   } else {
     showSaved();
   }
@@ -987,7 +987,7 @@ async function putTranscripts(body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    alert(err.error || 'Failed to save transcript retention');
+    meridianDialog.fail('Could not save transcript retention', err, 'Meridian refused the change (HTTP ' + res.status + ').');
   } else {
     showSaved();
   }
@@ -1054,7 +1054,7 @@ async function putUpdates(checkForUpdates) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    alert(err.error || 'Failed to save update settings');
+    meridianDialog.fail('Could not save the update settings', err, 'Meridian refused the change (HTTP ' + res.status + ').');
   } else {
     showSaved();
     if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
@@ -1139,12 +1139,12 @@ async function putClaudeExecutable(body) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || 'Failed to save the Claude Code executable');
+      meridianDialog.fail('Could not save the Claude Code executable', err, 'Meridian refused the change (HTTP ' + res.status + ').');
     } else {
       showSaved();
     }
   } catch {
-    alert('Failed to save the Claude Code executable');
+    meridianDialog.fail('Could not save the Claude Code executable', null, 'Could not reach Meridian.');
   }
   await loadClaudeExecutable();
 }
@@ -1175,17 +1175,17 @@ async function putHeaderSettings(showHostname) {
     if (!res.ok) {
       checkbox.checked = !showHostname;
       const err = await res.json().catch(() => ({}));
-      alert(err.error || 'Failed to save header settings');
+      meridianDialog.fail('Could not save the header settings', err, 'Meridian refused the change (HTTP ' + res.status + ').');
     } else {
       showSaved();
       if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
     }
   } catch {
     checkbox.checked = !showHostname;
-    alert('Failed to save header settings');
+    meridianDialog.fail('Could not save the header settings', null, 'Could not reach Meridian.');
   } finally {
     try { await loadHeaderSettings(); }
-    catch { alert('Failed to reload header settings'); }
+    catch { meridianDialog.fail('Could not reload the header settings', null, 'Could not reach Meridian.'); }
     checkbox.disabled = false;
   }
 }
@@ -1211,7 +1211,7 @@ async function putLayout(layout) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    alert(err.error || 'Failed to save the layout');
+    meridianDialog.fail('Could not save the layout', err, 'Meridian refused the change (HTTP ' + res.status + ').');
   } else {
     const saved = await res.json();
     if (saved.layout === 'contained') document.documentElement.removeAttribute('data-layout');

@@ -288,7 +288,7 @@ function profilesPage(answer: { status: number; body: unknown } = { status: 200,
     freeResetView, freeResetOutcomeText, esc: textEsc, Date, JSON, Number, Math, String, Object,
     labelForWindow: (w: string) => (w === "seven_day_fable" ? "7d Fable" : w),
     redeemingReset: null, resetOutcomes: Object.create(null), refreshes: 0, accept: true,
-    confirm: (text: string) => { asked.push(text); return sandbox.accept },
+    meridianDialog: { ask: async (opts: { title: string; message: string }) => { asked.push(opts.title + "\n\n" + opts.message); return sandbox.accept } },
     fetch: async (url: string, init: { body: string }) => {
       posted.push({ url, ...JSON.parse(init.body) })
       return { status: answer.status, json: async () => answer.body }

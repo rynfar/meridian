@@ -331,6 +331,14 @@ describe("brand colours", () => {
     expect(css.indexOf(".profile-card.needs-login {")).toBeGreaterThan(css.indexOf(".profile-card.active {"))
   })
 
+  test("landing: a spent card never dims a refresh's outcome", () => {
+    // Its states are told apart by colour; greyed, "refreshed" and "rate
+    // limited" read alike on the very card someone just refreshed.
+    const spare = ".profile-card.spend-fading > .refresh-outcome, .profile-card.spend-spent > .refresh-outcome { filter: none; opacity: 1; }"
+    expect(landingHtml).toContain(spare)
+    expect(landingHtml.indexOf(spare)).toBeGreaterThan(landingHtml.indexOf(".profile-card.spend-fading > *, .profile-card.spend-spent > * {"))
+  })
+
   test("landing: a spent active card dims its figures, never its name row", () => {
     // The spent badge lives in that row, and with the Active strip it is what
     // says which account is serving and why the rest of the card is dimmed.
