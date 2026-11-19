@@ -31,6 +31,8 @@ export const OPENAI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gpt-6-sol": { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.2, cacheWritePerMTok: 2.5, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 4, outputPerMTok: 15, cacheReadPerMTok: 0.4, cacheWritePerMTok: 5 }] }, // models.dev
   "gpt-6.1-sol": { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.1, cacheWritePerMTok: 2.5, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 4, outputPerMTok: 15, cacheReadPerMTok: 0.2, cacheWritePerMTok: 5 }] }, // models.dev
   "gpt-6.1-terra": { inputPerMTok: 1, outputPerMTok: 5, cacheReadPerMTok: 0.05, cacheWritePerMTok: 1.25, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 2, outputPerMTok: 7.5, cacheReadPerMTok: 0.1, cacheWritePerMTok: 2.5 }] }, // models.dev
+  "gpt-6.2-astra": { inputPerMTok: 8, outputPerMTok: 40, cacheReadPerMTok: 0.4, cacheWritePerMTok: 10, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 16, outputPerMTok: 60, cacheReadPerMTok: 0.8, cacheWritePerMTok: 20 }] }, // models.dev
+  "gpt-6.2-sol": { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.1, cacheWritePerMTok: 2.5, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 4, outputPerMTok: 15, cacheReadPerMTok: 0.2, cacheWritePerMTok: 5 }] }, // models.dev
   "gpt-daybreak-blue-latest": { inputPerMTok: 4, outputPerMTok: 20, cacheReadPerMTok: 0.4, cacheWritePerMTok: 5, contextTiers: [{ aboveInputTokens: 272000, inputPerMTok: 8, outputPerMTok: 30, cacheReadPerMTok: 0.8, cacheWritePerMTok: 10 }] }, // models.dev
   "gpt-daybreak-red-latest": { inputPerMTok: 12.5, outputPerMTok: 75, cacheReadPerMTok: 1.25, cacheWritePerMTok: 15.625 }, // models.dev
 }
