@@ -113,15 +113,18 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
   const isUnusable = profilePageHtml.match(/^function isUnusable\(p\)\{.*\}$/m)?.[0]
   if (!isUnusable) throw new Error("Missing rendered page function isUnusable")
   const none = () => ""
-  runInNewContext([profileFactsJs, profileProvidersJs, profileLoginStatesJs, profileCardStatusJs, isUnusable, pageFunction("render"), "render(data, quota);"].join("\n"), {
+  const helpers = ["profileNameLink", "renameFieldHtml", "profileActionsHtml", "removePanelHtml", "loginSlotHtml",
+    "switchButtonHtml", "profileDetailFactsHtml", "renameErrorHtml", "render"].map(pageFunction)
+  runInNewContext([profileFactsJs, profileProvidersJs, profileLoginStatesJs, profileCardStatusJs, isUnusable, ...helpers, "render(data, quota);"].join("\n"), {
     data: { profiles }, quota: { profiles: quota },
     document: { getElementById: () => content },
     meridianReorder: { sortProfiles: (list: unknown[]) => list, focusAnchor: none, envPinned: () => true,
       noteHtml: none, handleHtml: none, restoreFocus: none },
-    esc: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
+    esc: (value: unknown) => String(value), attr: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
     renderSpentBadge: none, factRows: none, profileFacts: () => [],
     loginHrefFor: none, renderUsageSection: none, applyLoginHrefs: none, ensureLoginLinks: none,
     meridianPatch: { html: (target: { innerHTML: string }, markup: string) => { target.innerHTML = markup } },
+    meridianProfileTable: { isTable: () => false, toolbarHtml: none },
     loginPanelOpen: () => false, lastProfilesRequestedAt: null, updatePollTimer: null,
     afterRender: none, loginSlot: () => null, activeLogin: null, editingProfile: null, renameError: null,
     removingProfile: null, removeError: null, renderProviderChips: none, renderLoginChips: none, providersPresent: [],
@@ -167,12 +170,12 @@ test("the needs-login border is solid red, and an active card keeps its brand ri
 test("an older /profiles/list answer landing after a newer one is not drawn", async () => {
   const pending: Array<(body: unknown) => void> = []
   const drawn: string[] = []
-  const source = ["var refreshesIssued = 0; var refreshDrawn = 0;", pageFunction("refresh"),
+  const source = ["var refreshesIssued = 0; var refreshDrawn = 0;", pageFunction("profileRenderPaused"), pageFunction("refresh"),
     "var exercise = { refresh: refresh, last: function () { return lastProfiles; } };"].join("\n")
   const context: Record<string, unknown> = {
     editingProfile: null, removingProfile: null, detailFactFocused: () => false,
     lastQuota: null, lastProfiles: null, lastProfilesRequestedAt: null,
-    meridianReorder: { adopt() {} }, adoptChatGpt() {}, noticeNewChatGptSeats() {},
+    meridianReorder: { adopt() {} }, meridianProfileTable: { dragging: () => false }, adoptChatGpt() {}, noticeNewChatGptSeats() {},
     render: (data: { tag: string }) => { drawn.push(data.tag) },
     document: { getElementById: () => ({ innerHTML: "" }) },
     fetch: async (url: string) => url === "/profiles/list"

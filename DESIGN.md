@@ -278,6 +278,8 @@ account card on the home page (or the Profiles page). The header chip only
 - **Tabs:** muted text, active = accent text + 2px accent underline.
 - **Tables:** inside a `--surface` card; uppercase micro-label headers on
   `--bg`; row hover = faint blue tint.
+- **Profile table:** Home and Profiles offer a Tiles / Table toggle, with Tiles as the default. Table shows one row per account, with a compact home preset and more fields on Profiles. Headers sort, and Columns lets you set sort precedence and direction, show or hide columns, move them with drag or buttons, and reset to the page preset. Each page remembers its preferences separately in the browser. Missing readings sort last; the table never changes routing order. The Actions column keeps the existing profile controls and confirmations available.
+- **Profile table layout:** The toolbar stays in the page flow and the labeled table region scrolls horizontally when its columns do not fit. The page itself scrolls vertically as before. Full, Fable and other Claude resets have separate columns; redemption stays in the profile's Details on `/profiles` and is never offered on Home.
 - **Inline code chip:** mono, `--surface`/`--bg` fill, 1px border, radius
   4–5px, **violet text** (`--accent2`).
 - **Empty states:** calm centered `--muted` text in a card — never red.
