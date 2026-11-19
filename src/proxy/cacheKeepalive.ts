@@ -241,7 +241,7 @@ export type CacheKeepaliveBeatOutcome = "reached" | "retry" | "stop"
  * - `untracked`: no eligible session under that key (never a one-hour-tier
  *   subscription turn, or forgotten).
  * - `expired`: the cache had already expired, so a beat would rewrite it.
- * - `early`: the cache was read too recently; ask again later.
+ * - `early`: the cache was read too recently, or a failed beat is backing off; ask again later.
  * - `busy`: a real turn or another beat is running; ask again shortly.
  * A session that has used up its beats for the idle period answers `stop`.
  */
@@ -429,6 +429,7 @@ export class CacheKeepaliveScheduler<R> {
     if (entry.state.beats >= this.timing.maxBeats) return "stop"
     const minGapMs = this.options.clientMinGapMs ?? CACHE_KEEPALIVE_CLIENT_MIN_GAP_MS
     if (now < anchor + minGapMs) return "early"
+    if (entry.state.retryAt !== undefined && now < entry.state.retryAt) return "early"
     if (this.running.size >= this.maxInFlight) return "busy"
     return this.start(key, entry, sessionId, now)
   }

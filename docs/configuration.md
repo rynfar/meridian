@@ -1288,7 +1288,7 @@ the beat has finished, as `{ "session": "...", "outcome": "..." }`:
 | `retry` | The beat could not run now (no free SDK slot, account blocked, transient error). |
 | `busy` | A real turn or another beat is running for the session. |
 | `stop` | The session cannot be kept warm (cache gone, five-minute tier, mapping moved), or it has used its keepalives for this idle period. |
-| `early` | The cache was read less than 20 minutes ago; nothing was sent. |
+| `early` | The cache was read less than 20 minutes ago, or a failed beat is still backing off; nothing was sent. |
 | `expired` | The cache had already expired; nothing was sent. |
 | `untracked` | No eligible session under that key. |
 | `disabled` | The operator has not chosen client mode. |

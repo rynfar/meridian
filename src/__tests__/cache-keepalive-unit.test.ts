@@ -509,6 +509,23 @@ describe("CacheKeepaliveScheduler", () => {
       expect(h.beats).toHaveLength(1)
     })
 
+    it("waits out the retry backoff after a beat that did not reach upstream", async () => {
+      const h = harness(["retry"], { autoBeats: () => false })
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(30 * MIN)
+      const failed = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await failed).toBe("retry")
+      h.at(30 * MIN + 29_000)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      expect(h.beats).toHaveLength(1)
+      h.at(30 * MIN + 30_000)
+      const next = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await next).toBe("reached")
+      expect(h.beats).toHaveLength(2)
+    })
+
     it("refuses to beat an expired cache, an untracked key or a session mid-turn", async () => {
       const h = client()
       expect(await h.scheduler.beatNow("codex:none")).toBe("untracked")
