@@ -143,6 +143,7 @@ import { UpstreamReachability, DEFAULT_OVERRIDE_TTL_MS, MAX_OVERRIDE_TTL_MS, unr
 import { resolveReachabilityThresholds } from "./upstreamReachabilityConfig"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator, translateAnthropicSseError } from "./openai"
+import { clearAccountModels, fetchAccountModels, toAccountModelList } from "./accountModels"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapters/letta"
 import { isClaudeCodeClient } from "./adapters/claudecode"
@@ -11316,6 +11317,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     spentProfiles.forget(profileId)
     rateLimitStore.clear(profileId)
     clearOAuthUsageForProfile(profileId)
+    clearAccountModels(profileId)
   }
 
   function clearResetProfileHealth(profileId: string, cleared: readonly string[]): void {
@@ -11982,8 +11984,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // with models.ts (subscriptionIncludesExtendedContext) — an "=== max"
   // comparison here used to advertise 200k to Team accounts that Meridian was
   // already routing to opus[1m] (#826).
+  //
+  // Pinned to a Claude profile with `x-meridian-profile`, it answers that
+  // account's own Claude models instead (accountModels.ts), and
+  // `x-meridian-models-source` says whether they are the account's or the
+  // static fallback. A pin naming a ChatGPT seat keeps the unpinned answer.
   app.get("/v1/models", async (c) => {
-    const profile = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)
+    const pin = c.req.header("x-meridian-profile")?.trim() || undefined
+    const claudePin = pin !== undefined && !chatGptProfiles?.resolve(pin) ? pin : undefined
+    if (claudePin !== undefined) {
+      const unknownPin = unknownPinnedProfile(claudePin, getEffectiveProfiles(finalConfig.profiles))
+      if (unknownPin !== undefined) return unknownProfileResponse(unknownPin)
+    }
+    const profile = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, claudePin)
     const profileEnvOverrides = Object.keys(profile.env).length > 0 ? profile.env : undefined
     const authStatus = await getInstanceAuthStatus(
       profile.id !== "default" ? profile.id : undefined,
@@ -11991,8 +12004,21 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     )
     const extendedContext = subscriptionIncludesExtendedContext(authStatus?.subscriptionType)
     const disable1mContext = (profile.env.CLAUDE_CODE_DISABLE_1M_CONTEXT ?? process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) === "1"
-    const chatGptModels = chatGptModelList(await chatGptOfferedModels(), Math.floor(Date.now() / 1000))
-    return c.json({ object: "list", data: [...buildModelList(extendedContext, undefined, disable1mContext), ...chatGptModels] })
+    const now = Math.floor(Date.now() / 1000)
+    const staticModels = buildModelList(extendedContext, now, disable1mContext)
+    if (claudePin !== undefined) {
+      const store = credentialStoreForProfile(profile)
+      const accountModels = await fetchAccountModels({
+        cacheKey: profile.id,
+        auth: () => resolveDesignAuthHeaders({ designToken: null, profile, credentialStore: store, ensureFresh: ensureFreshToken }),
+        ...(store ? { refresh: () => refreshOAuthToken(store) } : {}),
+      })
+      c.header("x-meridian-models-source", accountModels ? "account" : "static")
+      const data = accountModels ? toAccountModelList(accountModels, staticModels, { disable1mContext, now }) : staticModels
+      return c.json({ object: "list", data })
+    }
+    const chatGptModels = chatGptModelList(await chatGptOfferedModels(), now)
+    return c.json({ object: "list", data: [...staticModels, ...chatGptModels] })
   })
 
   app.post("/v1/usage/quota/reset", async (c) => {

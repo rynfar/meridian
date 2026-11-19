@@ -15,7 +15,8 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   profile config store (`profile*.ts`, `auth*.ts`, `tokenHealth.ts`,
   `tokenRefresh.ts`, `oauth*.ts`,
   `planAllowance.ts`, `credentialsMode.ts`), the account each profile is
-  signed in to (`organizationName.ts`), profiles signed in to one account
+  signed in to (`organizationName.ts`), the models that account may use
+  (`accountModels.ts`), profiles signed in to one account
   (`duplicateProfiles.ts`) and the post-sign-in re-read state
   (`profileFactsRefresh.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
@@ -93,6 +94,23 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   alternative is failing it. Cache-keepalive beats skip held profiles. Pins and
   the `active` / `sticky` modes ignore the reserve. Invalid values and reserves
   naming no profile are logged once and ignored.
+- **A pinned model list is that account's own.** `GET /v1/models` with
+  `x-meridian-profile` naming a Claude profile answers the Claude models
+  Anthropic's `GET /v1/models?limit=1000` lists for that profile's own
+  credential (OAuth with `anthropic-beta: oauth-2025-04-20`, or its API key),
+  read through the same store, expiry renewal and one 401 refresh as every
+  other account call. Accounts differ: Team accounts list Claude Mythos and
+  personal Max accounts do not. Each entry keeps the static shape (`id`,
+  `object`, `created`, `owned_by: "anthropic"`, `display_name`,
+  `context_window` from `max_input_tokens`, capped at 200k under
+  `CLAUDE_CODE_DISABLE_1M_CONTEXT`) plus `max_output_tokens` from
+  `max_tokens`; a model the static list knows keeps its static
+  capabilities. The list is cached per profile for 10 minutes, a failed read
+  for 1 minute, and dropped when the profile's credential is cleared. A read
+  that fails answers the static list. `x-meridian-models-source` reads
+  `account` or `static`. An unknown pin answers 400 `unknown_profile`.
+  Without the header, or with one naming a ChatGPT seat, the answer is
+  unchanged. The credential is never logged or returned.
 - **Cooldowns are layered:** Anthropic's named reset first, then the profile's
   own observed window (5-hour or 7-day, capped per window), then a 10-minute
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at
