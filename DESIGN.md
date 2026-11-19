@@ -177,6 +177,7 @@ at its provider, so card CSS never names one.
     with 0% Fable used: "Full reset 1 · all usable now · expires in 24d
     [Redeem full reset]", then a muted "Fable reset 3 · no Fable usage to
     give back right now · next expires in 12d" with no button.
+- **Refresh:** a small icon button with circular arrows, on every card except an API-key profile's. On `/profiles` it is the first of the card's action icons, before Rename and Remove; on `/` it sits at the end of the name row, after the cost, and clicking it never switches the account. While the reads run it spins (still under reduced motion) and is disabled. The outcome stays on the card for a minute as a short muted list, one line per part (Login, Usage): the part, its state as a word (green "refreshed", yellow "rate limited", red "failed", muted "skipped" / "not readable here"), then the note. Below 520px the note wraps under the part and state. A spent card's fade on `/` never reaches the outcome: its states are told apart by colour.
 - **Needs a login:** a red border, the same for every provider, and a
   needs-login badge. An active card keeps its brand ring outside the red.
 - **Controls stay blue:** buttons, links, focus rings, drag handles and drop
@@ -281,6 +282,7 @@ account card on the home page (or the Profiles page). The header chip only
 - **Inline code chip:** mono, `--surface`/`--bg` fill, 1px border, radius
   4–5px, **violet text** (`--accent2`).
 - **Empty states:** calm centered `--muted` text in a card — never red.
+- **Dialogs and toasts:** never the browser's `alert`, `confirm` or `prompt`. The shared header provides `meridianDialog` (`dialog.ts`): a `--surface` card, radius 12px, on a dimmed backdrop, title 16px/600, body 13px, optional label/value facts and a muted note, buttons right-aligned in the Buttons style (blue for the expected action, red only for one that cannot be undone or overrides a safeguard). The border turns yellow for a warning and red for an error. Escape, a click outside and Close all cancel; focus stays inside while it is open and returns afterwards. Errors show the server's message and code, never `[object Object]`. A toast is a short `--surface2` note in the bottom-right corner with a blue, green or red left edge, gone after four seconds.
 - **Header build badge:** a current npm install shows nothing; an
   outdated one shows the blue update chip linking to releases. A local or
   dev build shows one violet metadata pill (release · build number or

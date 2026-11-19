@@ -118,7 +118,7 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
     document: { getElementById: () => content },
     meridianReorder: { sortProfiles: (list: unknown[]) => list, focusAnchor: none, envPinned: () => true,
       noteHtml: none, handleHtml: none, restoreFocus: none },
-    esc: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
+    esc: (value: unknown) => String(value), attr: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
     renderSpentBadge: none, factRows: none, profileFacts: () => [],
     loginHrefFor: none, renderUsageSection: none, applyLoginHrefs: none, ensureLoginLinks: none,
     meridianPatch: { html: (target: { innerHTML: string }, markup: string) => { target.innerHTML = markup } },
@@ -126,7 +126,8 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
     afterRender: none, loginSlot: () => null, activeLogin: null, editingProfile: null, renameError: null,
     removingProfile: null, removeError: null, renderProviderChips: none, renderLoginChips: none, providersPresent: [],
     chatGptOwnerInfo: null, renderAccessNote: none, renderLoginRows: none,
-    ICON_PENCIL: "", ICON_CHECK: "", ICON_X: "", ICON_TRASH: "",
+    meridianProfileActions: { refreshing: () => false, outcomeHtml: none },
+    ICON_PENCIL: "", ICON_CHECK: "", ICON_X: "", ICON_TRASH: "", ICON_REFRESH: "",
   })
   const cards = content.innerHTML.split(/<div class="profile-card(?=[ "])/).slice(1)
   return Object.fromEntries(cards.map(card => [card.match(/data-id="([^"]+)"/)?.[1], card]))

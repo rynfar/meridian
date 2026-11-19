@@ -14,6 +14,7 @@ import { isUnusableJs } from "./profileSpent"
 import { WINDOW_LABELS } from "./profileUsage"
 import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
+import { ICON_REFRESH_SVG, profileActionsCss, profileActionsJs } from "./profileActions"
 
 
 /**
@@ -113,6 +114,8 @@ export const profilePageHtml = `<!DOCTYPE html>
   ${profileProvidersCss}
   ${profileLoginStatesCss}
   ${profileCardStatusCss}
+  ${profileActionsCss}
+  .profile-card > .refresh-outcome { font-size: 12px; margin: -4px 0 10px; }
   .profile-name { font-size: 16px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
   .profile-card-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .icon-btn {
@@ -536,6 +539,7 @@ ${profileProvidersJs}
 ${profileLoginStatesJs}
 ${domPatchJs}
 ${profileCardStatusJs}
+${profileActionsJs}
 
 var providersPresent = [];
 // Each card's login state by profile id, and how many cards the login-state
@@ -591,6 +595,8 @@ var ICON_PENCIL = '<svg width="14" height="14" viewBox="0 0 16 16" fill="current
 var ICON_TRASH = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11 1.75V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM6.5 1.75V3h3V1.75a.25.25 0 00-.25-.25h-2.5a.25.25 0 00-.25.25z"/><path d="M4.997 6.178a.75.75 0 10-1.494.144L4.462 16.5h7.076l.959-10.178a.75.75 0 00-1.494-.144l-.888 9.322H5.885l-.888-9.322z"/></svg>';
 var ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>';
 var ICON_X = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/></svg>';
+
+var ICON_REFRESH = '${ICON_REFRESH_SVG}';
 
 function focusRenameInput() {
   var el = document.getElementById('rename-input');
@@ -1254,12 +1260,19 @@ function render(data, quotaData) {
       html += renderSpentBadge((quotaById[p.id] || {}).spent, p);
       if ((quotaById[p.id] || {}).servingOnCredits) html += '<span class="profile-badge badge-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
       html += "<span class=\\"profile-card-actions\\">";
+      // An API-key profile has no login or usage for Meridian to re-read.
+      if ((p.type || 'claude-max') !== 'api') {
+        var refreshingProfile = meridianProfileActions.refreshing(p.id);
+        html += '<button type="button" class="icon-btn profile-refresh' + (refreshingProfile ? ' spinning' : '') + '" title="Refresh this profile: login and usage" aria-label="Refresh ' + attr(p.id) + '"'
+          + ' data-profile="' + attr(p.id) + '" onclick="refreshProfile(this.getAttribute(&quot;data-profile&quot;))"' + (refreshingProfile ? ' disabled' : '') + '>' + ICON_REFRESH + '</button>';
+      }
       html += "<button class=\\"icon-btn\\" title=\\"Rename profile\\" onclick=\\"startRename(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_PENCIL + "</button>";
       html += "<button class=\\"icon-btn danger\\" title=\\"" + (isChatGptProfile(p) ? "Remove seat" : "Remove profile") + "\\" onclick=\\"startRemove(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_TRASH + "</button>";
       html += "</span>";
     }
     html += '</div>';
     html += meridianCardStatus.updateHtml(update);
+    html += meridianProfileActions.outcomeHtml(p.id);
 
     if (editingProfile === p.id && renameError) {
       html += '<div class="rename-error">' + esc(renameError) + '</div>';
@@ -1497,14 +1510,24 @@ function copyCmd(btn) {
 }
 
 async function switchProfile(id) {
-  const res = await fetch('/profiles/active', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: id })
-  });
-  const data = await res.json();
-  if (data.success) refresh();
-  else if (data.error) alert(data.error);
+  try {
+    const res = await fetch('/profiles/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: id })
+    });
+    const data = await res.json().catch(function () { return null; });
+    if (res.ok && data && data.success) {
+      refresh();
+      if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
+    } else await meridianDialog.fail('Could not activate ' + id, data, 'Meridian refused the switch (HTTP ' + res.status + ').');
+  } catch {
+    await meridianDialog.fail('Could not activate ' + id, null, 'Could not reach Meridian.');
+  }
+}
+
+function refreshProfile(id) {
+  return meridianProfileActions.refreshProfile(id, function (finished) { return finished ? refresh() : redraw(); });
 }
 
 // --- Browser login ---
@@ -2527,10 +2550,15 @@ async function redeemFreeReset(button) {
       + ' to its weekly allowance; the rest of the week\\u2019s usage stays as it is.'
     : 'Anthropic clears this account\\u2019s weekly usage right away.')
     + (button.getAttribute('data-clears-five-hour') === 'true' ? ' It also clears the 5-hour window.' : '');
-  if (!confirm('Redeem a ' + noun + ' on ' + button.getAttribute('data-name') + ' now?\\n\\n'
-    + 'This spends \\u201c' + (button.getAttribute('data-grant-name') || grantId) + '\\u201d. ' + effect
-    + ' It cannot be undone. '
-    + after + ' usable ' + noun + (after === 1 ? '' : 's') + ' would be left.')) return;
+  var confirmed = await meridianDialog.ask({
+    title: 'Redeem a ' + noun + ' on ' + button.getAttribute('data-name') + ' now?',
+    message: 'This spends \\u201c' + (button.getAttribute('data-grant-name') || grantId) + '\\u201d. ' + effect
+      + ' It cannot be undone. '
+      + after + ' usable ' + noun + (after === 1 ? '' : 's') + ' would be left.',
+    confirmText: 'Redeem ' + noun,
+    danger: true
+  });
+  if (!confirmed || redeemingReset) return;
   redeemingReset = id;
   button.disabled = true;
   button.textContent = 'Redeeming\\u2026';
@@ -2587,7 +2615,7 @@ if (!restorePendingAdd()) resetAddForm('');
 // polls and catches up when it is shown again.
 function pollRefresh() {
   if (document.visibilityState !== 'visible' || meridianReorder.dragging()
-    || activeLogin || activeAdd || activeChatGptRelogin || redeemingReset) return;
+    || activeLogin || activeAdd || activeChatGptRelogin || redeemingReset || meridianProfileActions.busy()) return;
   refresh();
 }
 // The 1.5s poll while a card updates: a hidden tab keeps the timer, not the

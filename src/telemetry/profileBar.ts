@@ -14,6 +14,7 @@ import { buildDriftView, buildIdentityView } from "./buildBadge"
 import { hostLabelView } from "./hostLabel"
 import { statusPillView } from "./statusPill"
 import { bindStatusDetails } from "./statusDetails"
+import { dialogCss, dialogJs } from "./dialog"
 
 /**
  * Canonical Meridian theme.
@@ -309,6 +310,7 @@ export const profileBarCss = `
     max-width: none; padding-left: var(--page-gutter); padding-right: var(--page-gutter);
   }
   html[data-layout="wide"] .meridian-header { padding-left: var(--page-gutter); padding-right: var(--page-gutter); }
+${dialogCss}
 `
 
 export const profileBarHtml = `
@@ -646,6 +648,7 @@ export const profileBarJs = `
   // so the header chip updates immediately instead of on the next poll.
   window.meridianHeaderRefresh = function() { loadHeader(); pollDrift(); };
 })();
+${dialogJs}
 `
 
 /** Native desktop chrome: system appearance with the canonical Meridian hues.

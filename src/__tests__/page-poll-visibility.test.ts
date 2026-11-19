@@ -19,6 +19,7 @@ function tick(html: string, name: string, visibilityState: string) {
     refreshes: 0, timers: 0,
     document: { visibilityState },
     meridianReorder: { dragging: () => false },
+    meridianProfileActions: { busy: () => false },
     infoPopOpen: () => false,
     activeLogin: null, activeAdd: null, activeChatGptRelogin: null, redeemingReset: null,
     updatePollTimer: null as unknown,
@@ -63,3 +64,21 @@ test("profilePageHtml holds its poll while a free reset is being redeemed", () =
   runInNewContext(`${pageFunction(profilePageHtml, "pollRefresh")}\npollRefresh();`, fixture)
   expect(fixture.refreshes).toBe(0)
 })
+
+// The refresh redraws the card itself when its read ends; a poll landing in
+// between would draw the old figures over the spinner.
+for (const [page, html] of Object.entries({ landingHtml, profilePageHtml })) {
+  test(`${page} holds its poll while a usage refresh runs`, () => {
+    const fixture = {
+      refreshes: 0,
+      document: { visibilityState: "visible" },
+      meridianReorder: { dragging: () => false },
+      meridianProfileActions: { busy: () => true },
+      infoPopOpen: () => false,
+      activeLogin: null, activeAdd: null, activeChatGptRelogin: null, redeemingReset: null,
+      refresh: () => { fixture.refreshes++ },
+    }
+    runInNewContext(`${pageFunction(html, "pollRefresh")}\npollRefresh();`, fixture)
+    expect(fixture.refreshes).toBe(0)
+  })
+}
