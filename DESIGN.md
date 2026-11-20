@@ -150,11 +150,28 @@ at its provider, so card CSS never names one.
 - **Spent or failing:** shown by dimming and the existing badges. The active
   border is never recoloured or faded, and the active card's Active strip and
   name row, with its spent badge, never dim. Only its figures do.
-- **Refused:** an "out of <window>" badge in the name row. Its explanation
-  (who is refusing, the reset, when it was refused, why, and that the figures
-  are the last good read) is the badge's tooltip on hover or keyboard focus,
-  hung across the card over the figures; the card does not carry it
-  permanently.
+- **Free resets:** a Claude account with banked resets shows one line per
+  kind, because each clears something different: "Full reset" (the whole
+  week), "Fable reset" (only Fable usage) and "Unrecognised reset" (the
+  provider's own label, quoted, as a readout only). Each shows its count in
+  green while one of that kind can be redeemed and in `--muted` otherwise,
+  beside the reason or how many are usable, and that kind's soonest expiry. A
+  Fable reset with no Fable usage to give back stays visible, muted, and says
+  so. On `/` each kind is a "resets" row under the usage figures, labelled
+  "full reset", "Fable reset" or "other reset", and never redeems. On
+  `/profiles` each kind is a block below them; a kind that can be redeemed
+  carries its own small blue "Redeem full reset" / "Redeem Fable reset"
+  button. The confirmation names the kind, the grant and only that kind's
+  effect, adding "It also clears the 5-hour window." only when that grant's
+  provider scope lists it, and the outcome is shown in that kind's block.
+  - Brief (`/profiles` blocks): primary action is the redeem button of a kind
+    that can be redeemed; priorities are the kind's name, its count, then
+    why it is or is not offered. Left out on purpose: a combined total, a
+    redeem for unrecognised or muted kinds, and any fallback to another kind.
+  - Expected rendering for a whole-week grant and three Fable launch grants
+    with 0% Fable used: "Full reset 1 · all usable now · expires in 24d
+    [Redeem full reset]", then a muted "Fable reset 3 · no Fable usage to
+    give back right now · next expires in 12d" with no button.
 - **Needs a login:** a red border, the same for every provider, and a
   needs-login badge. An active card keeps its brand ring outside the red.
 - **Controls stay blue:** buttons, links, focus rings, drag handles and drop
