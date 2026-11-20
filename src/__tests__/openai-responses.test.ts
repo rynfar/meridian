@@ -664,7 +664,7 @@ describe("resolveCodexThreadIdentity", () => {
   it("keys a user thread the same way prompt_cache_key did", () => {
     const key = "01a07829-00b2-7c23-b950-26b07808dc26"
     const identity = resolveCodexThreadIdentity({ prompt_cache_key: key }, turnMetadata({}))
-    expect(identity).toEqual({ sessionKey: key })
+    expect(identity).toEqual({ threadId: key, sessionKey: key })
   })
 
   it("keys a subagent by its own thread, not the parent's cache key", () => {
@@ -677,6 +677,7 @@ describe("resolveCodexThreadIdentity", () => {
       }),
     )
     expect(identity).toEqual({
+      threadId: "01a07806-a29d-79b3-af96-876d8fa1be83",
       sessionKey: "01a07806-a29d-79b3-af96-876d8fa1be83",
       requestSource: "fork-codex-subagent",
     })
@@ -699,7 +700,7 @@ describe("resolveCodexThreadIdentity", () => {
         "x-codex-turn-metadata": turnMetadata({ thread_id: "child", thread_source: "subagent" }),
       },
     })
-    expect(identity).toEqual({ sessionKey: "child", requestSource: "fork-codex-subagent" })
+    expect(identity).toEqual({ threadId: "child", sessionKey: "child", requestSource: "fork-codex-subagent" })
   })
 
   it("prefers the header over client_metadata", () => {
@@ -742,19 +743,19 @@ describe("resolveCodexThreadIdentity", () => {
       { prompt_cache_key: thread },
       turnMetadata({ thread_id: thread, request_kind: "compact" }),
     )
-    expect(identity).toEqual({ sessionKey: `${thread}:compact`, requestSource: "fork-codex-compact" })
+    expect(identity).toEqual({ threadId: thread, sessionKey: `${thread}:compact`, requestSource: "fork-codex-compact" })
   })
 
   it("leaves a plain turn exactly as before", () => {
     const thread = "01a077c4-9c1c-73d1-bddb-7887bef18554"
     expect(resolveCodexThreadIdentity({ prompt_cache_key: thread }, turnMetadata({ thread_id: thread, request_kind: "turn" })))
-      .toEqual({ sessionKey: thread })
+      .toEqual({ threadId: thread, sessionKey: thread })
   })
 
   it("treats a missing request_kind as a turn", () => {
     const meta = JSON.parse(turnMetadata({ thread_id: "t1" }))
     delete meta.request_kind
-    expect(resolveCodexThreadIdentity({ prompt_cache_key: "t1" }, JSON.stringify(meta))).toEqual({ sessionKey: "t1" })
+    expect(resolveCodexThreadIdentity({ prompt_cache_key: "t1" }, JSON.stringify(meta))).toEqual({ threadId: "t1", sessionKey: "t1" })
   })
 
   it("lets the kind name the flow when a spawned thread compacts", () => {
@@ -762,7 +763,7 @@ describe("resolveCodexThreadIdentity", () => {
       { prompt_cache_key: "parent" },
       turnMetadata({ thread_id: "child", thread_source: "subagent", request_kind: "compact" }),
     )
-    expect(identity).toEqual({ sessionKey: "child:compact", requestSource: "fork-codex-compact" })
+    expect(identity).toEqual({ threadId: "child", sessionKey: "child:compact", requestSource: "fork-codex-compact" })
   })
 
   it("handles a kind Codex has not sent yet the same way", () => {
@@ -770,7 +771,7 @@ describe("resolveCodexThreadIdentity", () => {
       { prompt_cache_key: "t1" },
       turnMetadata({ thread_id: "t1", request_kind: "Memory Extract" }),
     )
-    expect(identity).toEqual({ sessionKey: "t1:memory-extract", requestSource: "fork-codex-memory-extract" })
+    expect(identity).toEqual({ threadId: "t1", sessionKey: "t1:memory-extract", requestSource: "fork-codex-memory-extract" })
   })
 })
 

@@ -143,4 +143,5 @@ export const lettaAdapter: AgentAdapter = {
     return normalizeLettaConversationId(c.req.header(LETTA_CONVERSATION_HEADER))
       ?? extractLettaConversationId(body)
   },
+  getClientSessionId: undefined,
 }

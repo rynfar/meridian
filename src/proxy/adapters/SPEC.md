@@ -49,6 +49,8 @@ Management*; per-client setup is in `docs/agents.md`.
 
 ## Decisions
 
+- **Telemetry uses the adapter's conversation ID, not its internal session scope.** By default `getSessionId` supplies the client key. OpenCode and adapters that reuse its session identity expose the unscoped header through `getClientSessionId`; adapters that override `getSessionId` with a different identity source must not inherit this override. This does not change routing, cancellation, lineage or SDK resume.
+
 - **Codex gets a dedicated adapter** (not an extension of `openai`): always
   passthrough, with the coding preset off so Codex's own instructions are not
   overridden.

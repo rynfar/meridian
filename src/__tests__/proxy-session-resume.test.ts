@@ -206,6 +206,44 @@ describe("Session resume: session ID tracking", () => {
     expect(capturedQueryParams.options.resume).toBe(firstCallSessionId)
   })
 
+  it("attributes OpenCode requests to the same client conversation across distinct SDK sessions", async () => {
+    const app = createTestApp()
+    const body = {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "Hello" }],
+    }
+    const clientSessionId = "oc-telemetry-conversation"
+    const primary = await post(app, body, {
+      "x-opencode-session": clientSessionId,
+      "x-request-id": "telemetry-primary",
+    })
+    const subagent = await post(app, body, {
+      "x-opencode-session": clientSessionId,
+      "x-opencode-agent-mode": "subagent",
+      "x-opencode-agent-name": "explore",
+      "x-request-id": "telemetry-subagent",
+    })
+    const unkeyed = await post(app, body, { "x-request-id": "telemetry-unkeyed" })
+
+    expect([primary.status, subagent.status, unkeyed.status]).toEqual([200, 200, 200])
+    const primarySdkId = primary.headers.get("x-claude-session-id")
+    const subagentSdkId = subagent.headers.get("x-claude-session-id")
+    expect(primarySdkId).toBeString()
+    expect(subagentSdkId).toBeString()
+    expect(subagentSdkId).not.toBe(primarySdkId)
+    const history = await app.fetch(new Request("http://localhost/telemetry/requests?limit=20"))
+    const rows: unknown = await history.json()
+    if (!Array.isArray(rows)) throw new TypeError("Expected telemetry request rows")
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ requestId: "telemetry-primary", clientSessionId, sdkSessionId: primarySdkId }),
+      expect.objectContaining({ requestId: "telemetry-subagent", clientSessionId, sdkSessionId: subagentSdkId }),
+      expect.objectContaining({ requestId: "telemetry-unkeyed" }),
+    ]))
+    expect(rows.find(row => row?.requestId === "telemetry-unkeyed")).not.toHaveProperty("clientSessionId")
+  })
+
   it("should NOT resume for a different session ID", async () => {
     const app = createTestApp()
 

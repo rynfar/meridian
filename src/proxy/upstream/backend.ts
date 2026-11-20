@@ -50,6 +50,7 @@ export interface UpstreamRequest<Ctx> {
   readonly endpoint: UpstreamEndpoint
   /** The route the client called, preserved verbatim. */
   readonly route: string
+  readonly clientSessionId?: string
 }
 
 export interface UpstreamBackend<Ctx> {
