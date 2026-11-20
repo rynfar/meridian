@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.94.0](https://github.com/rynfar/meridian/compare/meridian-v1.93.0...meridian-v1.94.0) (2026-11-20)
+
+
+### Features
+
+* **antigravity:** move the compatibility gate to agy 1.5.5 ([#1537](https://github.com/rynfar/meridian/issues/1537)) ([ae78e27](https://github.com/rynfar/meridian/commit/ae78e27aaee649a4080376e20f96c134e3389fb7))
+* **keepalive:** client-requested cache beats ([#1518](https://github.com/rynfar/meridian/issues/1518)) ([f4d8288](https://github.com/rynfar/meridian/commit/f4d828813d733da2610e6e343df7825a0f95fc6d))
+* **profiles:** show each Claude account's free resets, and redeem one from /profiles ([#1576](https://github.com/rynfar/meridian/issues/1576)) ([f411d9c](https://github.com/rynfar/meridian/commit/f411d9c4edc9c5646d9ce8d9285b946d9b817742))
+* **transcripts:** clean idle profiles with an idle sweep that keeps process custody ([#1551](https://github.com/rynfar/meridian/issues/1551)) ([e176fb3](https://github.com/rynfar/meridian/commit/e176fb35f1579775f6590d217b66563234827dfe))
+* **ui:** show a refusal's note as the out-of badge's tooltip ([#1569](https://github.com/rynfar/meridian/issues/1569)) ([ed2231b](https://github.com/rynfar/meridian/commit/ed2231b608de91faf444f684647af4dc0689f4d6))
+
+
+### Bug Fixes
+
+* **chatgpt:** match a vanished plugin checkout inside another package ([#1556](https://github.com/rynfar/meridian/issues/1556)) ([4dad0cc](https://github.com/rynfar/meridian/commit/4dad0cc1c0dc9024b0eee40058719cec445ac94f))
+* never auto-compact client-owned history in passthrough ([#1568](https://github.com/rynfar/meridian/issues/1568)) ([44c72ad](https://github.com/rynfar/meridian/commit/44c72ad9bb1e0b4d3a9703741ba1ab4d3cfde716))
+* **pi:** answer Oh My Pi side calls from an unpublished fork ([#1553](https://github.com/rynfar/meridian/issues/1553)) ([a9ee337](https://github.com/rynfar/meridian/commit/a9ee337250601320ed72febca1b7e51ab82b63c1))
+* **providers:** keep ChatGPT accounts out of the Claude card ([#1583](https://github.com/rynfar/meridian/issues/1583)) ([0c9883e](https://github.com/rynfar/meridian/commit/0c9883eaf72e3ecaafd0ad49f35cd87a2b3cc63d))
+* **routing:** keep a conversation on its account across a restart ([#1588](https://github.com/rynfar/meridian/issues/1588)) ([2025381](https://github.com/rynfar/meridian/commit/2025381a2bc5df9d2bf166d5764de2a475ad30b1))
+* **session:** reclaim a torn turn lock left from before the current boot ([#1555](https://github.com/rynfar/meridian/issues/1555)) ([307646b](https://github.com/rynfar/meridian/commit/307646b0ac81dce1bfcb1f63a332b2b565ff0b79))
+
 ## [1.93.0](https://github.com/rynfar/meridian/compare/meridian-v1.92.0...meridian-v1.93.0) (2026-11-17)
 
 
