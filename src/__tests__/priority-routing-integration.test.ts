@@ -3240,9 +3240,11 @@ describe("re-authenticated profile unbenching (#1385)", () => {
     savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
     savedEnv.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
     savedEnv.MERIDIAN_CREDENTIALS_READONLY = process.env.MERIDIAN_CREDENTIALS_READONLY
+    savedEnv.MERIDIAN_CLAUDE_EXTRA_USAGE = process.env.MERIDIAN_CLAUDE_EXTRA_USAGE
     savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
     delete process.env.MERIDIAN_CREDENTIALS_READONLY
+    delete process.env.MERIDIAN_CLAUDE_EXTRA_USAGE
     delete process.env.MERIDIAN_PRIORITY_FAILBACK
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
@@ -3443,6 +3445,10 @@ describe("re-authenticated profile unbenching (#1385)", () => {
   }, 20_000)
 
   it("retains independent overage refusal and routing exclusion after clearing the session window", async () => {
+    // The refusal has to come from work for there to be a spent record to
+    // clear, so Extra Usage must not move work to the back of the pool here;
+    // what keeps work out afterwards is the retained overage refusal.
+    process.env.MERIDIAN_CLAUDE_EXTRA_USAGE = "immediately"
     const { app, workDir } = createReauthTestApp()
     await seedResetCredentials(workDir)
     const observedAt = Date.now()
@@ -3960,6 +3966,118 @@ describe("priority weekly reserve", () => {
     const res = await post(app, {}, "weekly reserve active held")
     expect(res.status).toBe(200)
     expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+})
+
+describe("priority routing: Extra Usage is a last resort", () => {
+  const RESET = Date.now() + 2 * 60 * 60_000
+
+  /** The account's last turn drew Extra Usage, as the SDK reports it. */
+  function onExtraUsage(profile: string): void {
+    rateLimitStore.record(profile, { status: "allowed", rateLimitType: "five_hour", utilization: 1, resetsAt: RESET, isUsingOverage: true })
+  }
+
+  beforeEach(async () => {
+    resetProcessSdkSemaphoreForTests()
+    capturedEnvs = []
+    failingDirs = new Set()
+    await clearSessionCache()
+    resetActiveProfile()
+    resetOAuthUsageCache()
+    rateLimitStore.clear()
+    for (const key of ["MERIDIAN_ROUTING", "MERIDIAN_PROFILE_ORDER", "MERIDIAN_PRIORITY_FAILBACK", "MERIDIAN_CLAUDE_EXTRA_USAGE", "CLAUDE_CONFIG_DIR"]) {
+      savedEnv[key] = process.env[key]
+    }
+    delete process.env.CLAUDE_CONFIG_DIR
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
+    delete process.env.MERIDIAN_CLAUDE_EXTRA_USAGE
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+  })
+
+  afterEach(() => {
+    resetProcessSdkSemaphoreForTests()
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    rateLimitStore.clear()
+    resetOAuthUsageCache()
+  })
+
+  it("routes past an account drawing Extra Usage to one with plan allowance", async () => {
+    onExtraUsage("work")
+    const res = await post(createTestApp(), {}, "extra usage last resort sdk")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+
+  it("reads Extra Usage from the cached usage snapshot: plan window spent, Extra Usage on", async () => {
+    const store = { async read() { return { claudeAiOauth: { accessToken: "t", refreshToken: "r", expiresAt: Date.now() + 3_600_000 } } as any }, async write() { return true } }
+    await fetchOAuthUsage({
+      profileId: "work",
+      force: true,
+      store,
+      fetchImpl: async () => Response.json({
+        five_hour: { utilization: 100, resets_at: new Date(RESET).toISOString() },
+        extra_usage: { is_enabled: true, monthly_limit: 500, used_credits: 539, utilization: 100, currency: "USD" },
+      }),
+    })
+    expect(peekOAuthUsage("work")?.extraUsage?.isEnabled).toBe(true)
+    const res = await post(createTestApp(), {}, "extra usage last resort oauth")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+  }, 20_000)
+
+  it("moves an existing session off an account that started drawing Extra Usage", async () => {
+    const app = createTestApp()
+    const first = await post(app, {}, "extra usage move one")
+    expect(first.status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-work")
+    onExtraUsage("work")
+    const second = await post(app, {}, [
+      { role: "user", content: "extra usage move one" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "extra usage move two" },
+    ])
+    expect(second.status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+  }, 20_000)
+
+  it("uses Extra Usage once no account has plan allowance left", async () => {
+    onExtraUsage("work")
+    onExtraUsage("personal")
+    const res = await post(createTestApp(), {}, "extra usage everyone out")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("refuses with 429 under `never` when every account would draw Extra Usage", async () => {
+    process.env.MERIDIAN_CLAUDE_EXTRA_USAGE = "never"
+    onExtraUsage("work")
+    onExtraUsage("personal")
+    const res = await post(createTestApp(), {}, "extra usage never")
+    expect(res.status).toBe(429)
+    expect(capturedEnvs).toHaveLength(0)
+    const retryAfter = Number(res.headers.get("retry-after"))
+    expect(retryAfter).toBeGreaterThan(0)
+  }, 20_000)
+
+  it("keeps normal order under `immediately`", async () => {
+    process.env.MERIDIAN_CLAUDE_EXTRA_USAGE = "immediately"
+    onExtraUsage("work")
+    const res = await post(createTestApp(), {}, "extra usage immediately")
+    expect(res.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  }, 20_000)
+
+  it("active+priority leaves an active account that is drawing Extra Usage", async () => {
+    process.env.MERIDIAN_ROUTING = "active+priority"
+    onExtraUsage("work")
+    const res = await post(createTestApp(), {}, "extra usage active priority")
+    expect(res.status).toBe(200)
     expect(capturedEnvs[0]).toContain("prof-personal")
   }, 20_000)
 })
