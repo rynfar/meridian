@@ -160,6 +160,25 @@ fresh replay before); the second turn started while the side call was still
 answering and resumed the first turn's session (`lineage=continuation`, read
 15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
 
+## Priority affinity across a restart
+
+`node scripts/e2e-priority-restart.mjs --omp=<omp> --profiles=<A>,<B>
+[--cli=dist/cli.js] [--port=3791] [--model=opus] [--expect=retain|move]
+[--profiles-json=<file>]` starts a built Meridian itself (`npm run build`
+first) on a free port with its own config and session dirs, read-only
+credentials, none of the operator's `MERIDIAN_*` variables, and the profile
+list from `~/.config/meridian/profiles.json` (two non-default profiles). Under
+priority order A,B the real omp client sends the first turn; the harness
+restarts Meridian with the order reversed and `omp -c` sends the second.
+`retain` (the default) asserts the second turn stays on A and resumes the
+session (`lineage=continuation`, no refused resume); `move` asserts the
+behaviour before the fix (on B, `diverged=not-found`).
+
+Recorded 2026-11-20 on Linux x64, Node 24.22.3, omp 19.0.1, Claude Code
+2.1.322, `opus`: on main the second turn moved to the other account and
+replayed; with the fix it stayed and read 16k, wrote 72 cache tokens.
+[Evidence](docs/maintenance/evidence/priority-restart-affinity-20261120/README.md).
+
 ## Claude Code's own tool search in passthrough (#1478)
 
 `node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
