@@ -225,8 +225,8 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   - *55 minutes, 3 beats.* One beat 55 minutes after the latest real turn
     started, and 55 minutes after each reached beat: five minutes of margin
     under the hour for tick jitter (10 s), the 15 s settle after a new
-    mapping, a retry, and SDK start-up. At most three per idle period (≈3 h)
-    bounds the cost of a session that never comes back. A real turn ends the
+    mapping, a retry, and SDK start-up. At most three per idle period (≈3 h;
+    `MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS` changes it) bounds the cost of a session that never comes back. A real turn ends the
     period (and no beat runs while one is running); auxiliary/independent
     requests never touch the schedule.
   - *Main conversations only.* Subagent and one-shot requests (OpenCode's
@@ -240,6 +240,15 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     rewrote 86,385 tokens; with it, one beat at 55.3 min read 90,018 and the
     next turn read 90,018 and wrote 340, about 89% cheaper in input-token
     equivalents net of the beat.
+  - *Client mode* (deploy-only). `MERIDIAN_CACHE_KEEPALIVE=client` tracks the
+    same sessions but starts no beat on its own; `POST
+    /v1/sessions/:key/cache-beat` runs one now and answers with its outcome.
+    Only the operator chooses this mode; otherwise the endpoint answers
+    `disabled`. A client that knows whether its user is coming back picks the
+    time, within the same per-period cap (`MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS`,
+    default 3) and no sooner than 20 minutes after the latest turn or beat;
+    eligibility, the account rules, the in-flight cap and "never refresh an
+    expired prefix" still apply. The key must match the session key exactly.
   - *Never on someone's money or an exhausted window.* No beat on API-key or
     token profiles, while any live window reports `isUsingOverage`, a
     rejected or fully used window, priority cooldown, a spent refusal, or a
@@ -305,6 +314,11 @@ response response.created → response.in_progress → output_item.added →
 - **Implicit SDK attachments** in passthrough are suppressed by default
   (`CLAUDE_CODE_DISABLE_ATTACHMENTS=1`), which also bypasses the CLI's
   kept-deferred-tools optimization.
+- **No proxy-side compaction in passthrough:** the CLI's auto-compaction is
+  off (`DISABLE_AUTO_COMPACT=1`) because the client owns the history. A turn
+  over the context window fails with the canonical prompt-too-long error
+  (400 `invalid_request_error`), which the client answers by compacting.
+  Inherited env or profile `envOverrides` may set another value.
 - **Passthrough turns default to `maxTurns=1`** to stop at the tool boundary;
   the client must send another request after executing tools.
 

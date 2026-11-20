@@ -459,7 +459,8 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
 | `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
-| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips session lookup, publication and the turn lease (Claude Code's auto-mode classifier, progress captions and tool-less side calls) |
+| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips publication and the turn lease and never touches the mapping (Claude Code's auto-mode classifier, progress captions and tool-less side calls; Oh My Pi's side calls) |
+| `forksAuxiliaryRequests` | The client's side calls send the conversation's own system prompt and tools: one that only adds user text after a completed turn resumes the conversation's session as an unpublished fork that leases only its own target (`auxiliaryLineage`); every other side call replays fresh (Oh My Pi) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
 | `getBlockedBuiltinTools()` | SDK tools replaced by agent's MCP equivalents |
@@ -911,6 +912,14 @@ per-request alerts. Recovery exhaustion is critical; individual child exits rema
 in the in-app history.
 
 ## Auth-status refresh lifetime
+
+`planRecheck.ts` bounds Claude plan readings to six-hour freshness and a
+five-minute retry floor. Plan-only writes and token rotations share per-store
+maintenance admission; a forced rotation waits for a plan write rather than
+joining its result. A reported plan field replaces the stored one, an omitted
+field survives, and the facts cache is fenced against reads older than a
+write. Only the 45-second profile maintenance loop asks for plan-only
+readings; request admission with a valid token stays network-free.
 
 Auth-status caches remain shared by profile/default context. Each proxy instance
 owns only the refreshes its routes or keepalive requested; closing one owner

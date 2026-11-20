@@ -13,6 +13,8 @@ import {
   getActiveProfileId,
   resetActiveProfile,
   restoreActiveProfile,
+  unknownPinnedProfile,
+  unknownProfileResponse,
   type ProfileConfig,
 } from "../proxy/profiles"
 
@@ -329,7 +331,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   const PROFILES_DIR = "/tmp/test-profiles-dir"
 
   test("browser-login profile drops its claudeConfigDir when under PROFILES_DIR", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "personal", claudeConfigDir: `${PROFILES_DIR}/personal` },
       PROFILES_DIR,
@@ -338,7 +340,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("never returns a claudeConfigDir outside PROFILES_DIR (refuses to rm-rf foreign paths)", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "wild", claudeConfigDir: "/home/user/.claude" },
       PROFILES_DIR,
@@ -346,8 +348,15 @@ describe("dirsToRemoveOnProfileRemove", () => {
     expect(dirs).toEqual([])
   })
 
+  test("never returns PROFILES_DIR itself, a prefix sibling or a path climbing out of it", async () => {
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
+    for (const claudeConfigDir of [PROFILES_DIR, `${PROFILES_DIR}/`, `${PROFILES_DIR}-backup/x`, `${PROFILES_DIR}/../x`]) {
+      expect(dirsToRemoveOnProfileRemove({ id: "wild", claudeConfigDir }, PROFILES_DIR)).toEqual([])
+    }
+  })
+
   test("oauth-token profile drops the pinned isolation dir at PROFILES_DIR/<id>", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "ci", oauthToken: "sk-ant-oat01-xxx" },
       PROFILES_DIR,
@@ -356,7 +365,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("explicit type='oauth-token' without oauthToken still drops the isolation dir", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "bare-ci", type: "oauth-token" },
       PROFILES_DIR,
@@ -365,7 +374,7 @@ describe("dirsToRemoveOnProfileRemove", () => {
   })
 
   test("api profile returns no dirs (token lives in profiles.json, no on-disk state)", async () => {
-    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileCli")
+    const { dirsToRemoveOnProfileRemove } = await import("../proxy/profileRemove")
     const dirs = dirsToRemoveOnProfileRemove(
       { id: "direct-api", type: "api", apiKey: "sk-ant-api03-..." },
       PROFILES_DIR,
@@ -462,5 +471,36 @@ describe("resolveProfile — sticky routing (#383)", () => {
     const r = resolveProfile(undefined, undefined, undefined, opts("sess-a", "sticky"))
     expect(r.id).toBe("default")
     expect(r.env).toEqual({})
+  })
+})
+
+describe("unknownPinnedProfile", () => {
+  const profiles: ProfileConfig[] = [
+    { id: "personal", type: "claude-max" },
+    { id: "work", type: "claude-max", aliases: ["corp"] },
+  ]
+
+  test("a pin naming a profile, an alias or another pool's seat is usable", () => {
+    expect(unknownPinnedProfile("work", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("corp", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("seat-a", profiles, id => id === "seat-a")).toBeUndefined()
+  })
+
+  test("no pin, or no profiles to pin, is not a pin at all", () => {
+    expect(unknownPinnedProfile(undefined, profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("  ", profiles)).toBeUndefined()
+    expect(unknownPinnedProfile("anything", [])).toBeUndefined()
+  })
+
+  test("default keeps resolving for clients that send it unconditionally", () => {
+    expect(unknownPinnedProfile("default", profiles)).toBeUndefined()
+  })
+
+  test("a pin naming nothing is reported rather than served from the first profile", async () => {
+    expect(unknownPinnedProfile(" typo ", profiles)).toBe("typo")
+    expect(resolveProfile(profiles, undefined, "typo").id).toBe("personal")
+    const response = unknownProfileResponse("typo")
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: { type: string } }).error.type).toBe("unknown_profile")
   })
 })

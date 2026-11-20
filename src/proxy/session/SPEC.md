@@ -60,6 +60,16 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   child is joined; collectors in other processes ignore that private pin, but
   the published mapping retains the source, and if another process retires it
   anyway the beat only fails and is retried or stopped.
+- An auxiliary fork (an adapter's `forksAuxiliaryRequests` side call that
+  `auxiliaryLineage` accepts: user text after a completed turn) also only
+  **reads** the mapping. It resumes the mapping's current transcript into a
+  managed fork target, holds no turn lease, takes the writer lease on its
+  target alone (the conversation's own turn may hold the source's), neither
+  attaches nor re-registers the source, writes no mapping, and abandons the
+  target when it ends. Like a beat, its source is pinned only against this
+  process's GC; a source retired meanwhile is refused by the SDK and the side
+  call replays fresh without evicting anything. A legacy mapping without a
+  transcript locator, or any other shape, is answered from a fresh replay.
 - Transcript GC here is the only Meridian-owned transcript deletion. Opt-in
   transcript retention (`proxy/transcriptRetention.ts`, off by default) hands
   Claude Code's own cleanup a period; that cleanup is outside this module's
@@ -178,6 +188,22 @@ A cross-process turn lock (`crossProcessTurnCoordinator.ts`) is recovered from
 another owner only when that owner's exact process incarnation is dead and its
 heartbeat has aged out; a live or unprovable owner fails closed (see #1223 for
 why age alone is not enough).
+
+A lock with no readable owner is the exception. A host crash can leave
+`owner.json` with its size but not its data (338 NUL bytes on 2026-09-29), and
+no incarnation can then be proved dead, so every later turn of that
+conversation waited out the acquire timeout until someone deleted the directory
+by hand. Such a lock is reclaimed once it is stale and its last activity (the
+newest mtime of the directory, `owner.json` and every `heartbeat-*` file, since
+the token is unknown) predates the current boot, derived from `os.uptime()`
+with 5s of tolerance. Nothing from an earlier boot is still running, so this
+cannot take a live holder's turn. An ownerless lock from the current boot stays
+fail-closed however old it is: #1223 reclaimed one after ten minutes, and its
+review probe (`scripts/e2e-turn-lock-ownerless-review.mjs`) then granted a
+second lease while the paused holder was alive. A torn owner only comes from a
+crash, so it always predates the boot that follows. Recovery of an ownerless
+lock goes through the same recovery claim, keyed by the directory's identity,
+and is logged.
 
 That rule cannot clear a lock whose **own** release failed. Releasing renames
 the lock directory away, and a filesystem error there (ENOSPC on a full disk
