@@ -214,6 +214,9 @@ independently installed package's exported function for the package arm.
 Run `node scripts/e2e-antigravity-idle-conversation.mjs <server.js> <pi-integration.js> <pi-cli.js> <official-agy> <new-report.json> <label>`
 against unchanged main and candidate builds. The gate pins the verified official
 agy1.2.7 macOS ARM64 binary hash and uses actual Pi1.1.0/Gemini3.8FlashLow.
+That pin predates the 1.5.5 compatibility gate: until this gate is re-verified
+on macOS with agy 1.5.5 (new binary hash), it cannot run against a current
+build, which refuses 1.2.7.
 It validates the real provider-specific Pi retry integration against a local
 fixture before allowing generation, and retains its request-ID check at native
 admission. The independently installed arm uses the packaged
@@ -821,10 +824,12 @@ It never uses a Gemini API key or the Python SDK.
 For an owned official CLI pin, set `AGY_CLI_DISABLE_AUTO_UPDATE=true` and verify
 its executable hash and version before/after the flow. The CLI can otherwise
 replace itself after an initial version check. Run
-`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.2.7 /owned/empty-project /owned/settings-proof.json`
+`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.5.5 /owned/empty-project /owned/settings-proof.json`
 to capture only whitelisted effective setting types/flags with per-command
-binary identity checks. The tested 1.2.7 account exposes boolean
-`useG1Credits: false`; missing or malformed credits are not verified disabled.
+binary identity checks. The tested 1.5.5 account prints effective settings as a
+TSV block (`response`) with a `useG1Credits\tfalse` row; missing or malformed
+credits are not verified disabled. (agy 1.2.7 printed a typed
+`command.data.config` object instead.)
 The live runner uses an owned fixture service key, or the explicitly supplied
 key for `E2E_MERIDIAN_URL`. See the
 [sanitized settings proof](docs/maintenance/evidence/1073-subscription-settings.md).
@@ -853,6 +858,15 @@ owned subprocesses. The CLI's own account conversation/project records persist.
 HTTP requests for the read/write loop, copied the random client-only file
 exactly, and returned its value. The CLI version was unchanged across the run;
 server and subprocess shutdown completed successfully.
+
+**Verified 2026-11-12 (agy 1.5.5 gate move):** Linux x64, Node 24.17.0, official
+`agy` 1.5.5, `gemini-3.8-flash-low`, Pi 1.5.2. All four live checks passed
+(live text, HTTP client tool receipt, completed history replay, actual Pi
+streaming read/write rounds with exact file copy). The CLI version was
+unchanged across the run. The same session verified the ported 1.5.5
+subscription-configuration probe (TSV `response` envelope) through
+`e2e-antigravity-account-settings.mjs` (`TSV_EFFECTIVE_SETTINGS_OBSERVED`,
+binary hash stable before/after).
 
 The extended native gate runs the actual macOS app with disposable app data and
 an app-managed combined service:
@@ -954,6 +968,13 @@ for the OpenCode effort probe.
 | `meridian-agy-pi-kqrZWn` | All 11 checks passed over 22 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, ls/find/grep, steering, compaction and abort/recovery. |
 | `meridian-agy-opencode-qyKT50` | All 9 checks passed over 18 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, glob/grep/task and native high effort. |
 | `meridian-agy-opencode-session-kolHLi` | Actual OpenCode server passed undo/continuation, saved compaction/recall, and cancellation/next-prompt recovery. |
+
+**Verified 2026-11-12 (agy 1.5.5 gate move):** Linux x64, Node 24.17.0, agy
+1.5.5, Pi 1.5.2, `gemini-3.8-flash-low`. `E2E_CLIENT=pi` passed all 11 checks
+over 21 HTTP requests (coding loop, tool-error recovery, exact edits, Unicode
+paths/output, streaming, saved continuation/fork, ls/find/grep, steering,
+compaction, abort/recovery). The OpenCode variants were not re-run on Linux and
+keep their macOS agy 1.2.7 evidence until re-verified.
 
 Pi steering must advance exactly one completed agy process and leave no pending
 process; the obsolete write must not exist. Regression tests separately cover
@@ -1064,6 +1085,9 @@ bun scripts/e2e-antigravity-active-history.mjs
 ```
 
 Use Bun 1.4.3, Pi 1.1.0 and the official agy 1.2.7 Darwin arm64 binary.
+This gate is frozen to agy 1.2.7 (version and binary-hash asserts); like the
+idle-conversation gate it needs a macOS 1.5.5 refresh before it can run
+against a current build, which pins 1.5.5.
 The gate requires the default subscription with paid credits/custom providers disabled,
 imports the retained public long-history fixture, and requires one exact write
 and a correlated read after joined backend replacement. The newest request,
@@ -1857,6 +1881,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
 | E80 | [Claude Code in-process teammate session isolation](#e80-claude-code-in-process-teammate-session-isolation) | **Automated, needs the `claude` CLI and `tmux`**: `bun scripts/e2e-claude-code-teammate-session.mjs` — real proxy + SDK, the REAL interactive Claude Code CLI (agent teams on) spawning two named teammates. Asserts the teammates' `name@team` agent ids each get their own session key, every teammate and parent turn after the first resumes, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys or Claude Code detection** | 2026-11-10 |
 | E81 | [Abandoned turn lock after a failed release](#e81-abandoned-turn-lock-after-a-failed-release) | **Automated, needs the `claude` CLI, non-root**: `bash scripts/e2e-abandoned-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Makes the turn-lock directory read-only while turn 1 streams so the lock release fails, restores it, then asserts turn 2 continues the conversation promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-13 |
+| E82 | [Torn turn lock after a host crash](#e82-torn-turn-lock-after-a-host-crash) | **Automated, needs the `claude` CLI, Linux**: `bash scripts/e2e-torn-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Leaves the conversation's turn lock as a host crash left it (an `owner.json` of NUL bytes, dated before the current boot) between turn 1 and turn 2, then asserts turn 2 continues promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-15 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7440,6 +7465,31 @@ Baseline `main` (`663311e`): FAIL. The release failed, turn 2 (`claude -p
 remained. Branch: PASS. Turn 2 continued the conversation in 3s
 (`lineage=continuation`, session wait 25–62ms) and the lock was gone.
 
+## E82: Torn turn lock after a host crash
+
+**What it proves:** a conversation whose cross-process turn lock a host crash
+tore no longer wedges. After a crash on 2026-09-29 one conversation's lock was
+left with an `owner.json` of 338 NUL bytes, and every later turn of it waited
+out the acquire timeout and failed (38 times in 3 hours) until the directory
+was deleted by hand. The proxy now reclaims an ownerless lock whose last
+activity predates the current boot.
+
+```bash
+bash scripts/e2e-torn-turn-lock.sh   # E2E_MODEL, CLAUDE_BIN, E2E_PORT, TURN2_LIMIT, E2E_REPO optional
+```
+
+A host crash cannot be staged on demand, so the harness stages what it leaves:
+turn 1 runs and its lock's name is recorded, the proxy stops, and the lock is
+recreated with an all-NUL `owner.json` and every mtime an hour before the
+current boot (read from `/proc/uptime`). The proxy starts again and turn 2
+(`claude -p --continue`) follows.
+
+**Before/after (2026-11-15, Linux x86_64, Claude Code 2.1.322, `haiku`).**
+Baseline `main` (`3a48b0d`, same coordinator as 1.91.0): FAIL. Turn 2 hung until
+its 120s client timeout and the lock remained. Branch: PASS. The proxy logged
+the reclaim, turn 2 continued the conversation in 8s (`lineage=continuation`)
+and no lock was left.
+
 ## Concurrent transcript publication
 
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
@@ -8969,8 +9019,9 @@ See [the corrected before/after proof and limits](docs/maintenance/evidence/clau
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`
-with actual OpenCode 1.18.30, official agy 1.2.7 and
-`gemini-3.8-flash-high`. Two real stdio MCP servers must advertise 129 or 256
+with actual OpenCode 1.18.30, official agy 1.5.5 and
+`gemini-3.8-flash-high` (the gate was not re-run for the 1.5.5 gate move; its
+macOS agy 1.2.7 run remains the recorded evidence). Two real stdio MCP servers must advertise 129 or 256
 fixture tools to the client. Require the complete client catalog, a tail tool
 beyond index 127, exactly one target invocation, a tool-only random receipt in
 actual frontend output and the returned client tool result in the next request.
