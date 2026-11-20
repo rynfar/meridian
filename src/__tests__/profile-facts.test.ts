@@ -186,6 +186,19 @@ describe("a ChatGPT seat's card", () => {
     expect(profileAccessHelp({ id: "work" })).toMatchObject({ pill: "needs login", summary: "Cannot serve requests — run: meridian profile login work" })
   })
 
+  test("says when Meridian renews a seat whose access token was refused, instead of asking for a sign-in", () => {
+    const owned = { name: "meridian", webSignIn: true }
+    const now = Date.now()
+    const renewing = seat({ loggedIn: false, tokenState: "refused", owner: owned, renewalRetryAt: now + 5 * 60_000 + 30_000 })
+    expect(valueOf(renewing, "Next renewal")).toBe("in 5m")
+    expect(valueOf(seat({ loggedIn: false, tokenState: "refused", owner: owned, renewalRetryAt: now - 1000 }), "Next renewal")).toBe("now")
+    expect(labels(seat({ loggedIn: false, tokenState: "refused", owner: owned }))).not.toContain("Next renewal")
+    const help = profileAccessHelp(renewing)
+    expect(help.pill).toBe("renewing")
+    expect(help.reason).toContain("Meridian renews it on its own")
+    expect(profileAccessHelp(seat({ loggedIn: false, tokenState: "refused", owner: owned })).pill).toBe("needs login")
+  })
+
   test("states purchased Codex credits where a Claude card states extra usage, and nothing without them", () => {
     const credits = (extra: Record<string, unknown>) => ({ hasCredits: false, unlimited: false, overageLimitReached: false, balance: null, ...extra })
     expect(codexCreditsView(credits({ hasCredits: true, balance: 1234.5 })))
