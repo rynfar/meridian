@@ -156,6 +156,20 @@ export const profilePageHtml = `<!DOCTYPE html>
     background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3); color: var(--text);
     overflow-wrap: anywhere; }
   .spent-note .spent-why { color: var(--muted); }
+  /* A refusal's note is the out-of badge's tooltip, shown on hover or focus.
+     It hangs from the header row and spans it, so it reads as the note did,
+     over the figures it qualifies. Over them it needs an opaque fill, so the
+     note's red tint is layered on the card's surface. */
+  .profile-card-header { position: relative; }
+  .spent-tip { display: inline-flex; min-width: 0; }
+  .spent-tip .badge-spent { cursor: help; }
+  .spent-tip .badge-spent:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+  .spent-note.spent-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; margin: 0;
+    background: linear-gradient(rgba(248,81,73,0.08), rgba(248,81,73,0.08)), var(--surface);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); font-weight: 400;
+    opacity: 0; visibility: hidden; transition: opacity 0.12s; }
+  .spent-pop .spent-why { display: block; }
+  .spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }
   /* minmax(0, 1fr), not 1fr: a bare fr track is at least as wide as its
      longest unbreakable value, so an email address widened the grid past
      the card instead of wrapping. */
@@ -976,23 +990,22 @@ function spentSummary(spent) {
   };
 }
 
-function renderSpentBadge(spent) {
-  var s = spentSummary(spent);
-  if (!s) return '';
-  return '<span class="profile-badge badge-spent" title="' + esc(s.why) + '">out of ' + esc(s.label) + '</span>';
-}
-
-function renderSpentNote(spent, p) {
+// The badge in the header, with the full note as its tooltip: inline in the
+// row, so its parts are spans.
+function renderSpentBadge(spent, p) {
   var s = spentSummary(spent);
   if (!s) return '';
   var refused = refusalSubject(p);
-  return '<div class="spent-note">'
+  var tipId = attr('spent-tip-' + p.id);
+  return '<span class="spent-tip">'
+    + '<span class="profile-badge badge-spent" tabindex="0" aria-describedby="' + tipId + '">out of ' + esc(s.label) + '</span>'
+    + '<span class="spent-note spent-pop" id="' + tipId + '" role="tooltip">'
     + '<strong style="color:var(--red)">\u26a0 ' + refused.vendor + ' is refusing this ' + refused.noun + '</strong> - '
     + 'out of <strong>' + esc(s.label) + '</strong>'
     + (s.reset ? ', expected back ' + esc(s.reset) : '')
     + '. Refused ' + esc(timeAgo(s.at)) + '.'
-    + '<div class="spent-why">' + esc(s.why) + '. The percentages below are the last successful read, not live.</div>'
-    + '</div>';
+    + '<span class="spent-why">' + esc(s.why) + '. The percentages below are the last successful read, not live.</span>'
+    + '</span></span>';
 }
 
 function renderUsageSection(profileQuota, p) {
@@ -1238,7 +1251,7 @@ function render(data, quotaData) {
         html += '<span class="profile-badge badge-needs-login" title="' + esc(access.summary) + '">' + esc(access.pill) + '</span>';
       } else if (needsLogin) html += "<span class=\\"profile-badge badge-needs-login\\" title=\\"Cannot serve requests. Log in again below.\\">needs login</span>";
       html += meridianCardStatus.duplicateBadgeHtml(p, 'profile-badge');
-      html += renderSpentBadge((quotaById[p.id] || {}).spent);
+      html += renderSpentBadge((quotaById[p.id] || {}).spent, p);
       if ((quotaById[p.id] || {}).servingOnCredits) html += '<span class="profile-badge badge-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
       html += "<span class=\\"profile-card-actions\\">";
       html += "<button class=\\"icon-btn\\" title=\\"Rename profile\\" onclick=\\"startRename(&quot;"+esc(p.id)+"&quot;)\\">" + ICON_PENCIL + "</button>";
@@ -1247,7 +1260,6 @@ function render(data, quotaData) {
     }
     html += '</div>';
     html += meridianCardStatus.updateHtml(update);
-    html += renderSpentNote((quotaById[p.id] || {}).spent, p);
 
     if (editingProfile === p.id && renameError) {
       html += '<div class="rename-error">' + esc(renameError) + '</div>';
