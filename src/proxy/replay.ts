@@ -68,6 +68,16 @@ function mediaSummary(counts: ReturnType<typeof mediaCounts>): string {
     `${counts.file} ${counts.file === 1 ? "file" : "files"}`
 }
 
+/** Append a text block to the final SDK input. Appended, never prepended:
+ *  a user turn answering tool calls must open with its tool_result blocks. */
+export function withTrailingText<T extends { message: { content: unknown } }>(messages: T[], text: string): T[] {
+  const last = messages.at(-1)
+  if (!last) return messages
+  const content = Array.isArray(last.message.content) ? last.message.content
+    : last.message.content ? [{ type: "text", text: String(last.message.content) }] : []
+  return [...messages.slice(0, -1), { ...last, message: { ...last.message, content: [...content, { type: "text", text }] } }]
+}
+
 /** One HTTP request must not become several independently answered SDK turns. */
 export function coalesceStructuredUserMessages<T extends { message: { content: unknown } }>(messages: T[]): T[] {
   if (messages.length < 2) return messages

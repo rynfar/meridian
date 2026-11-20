@@ -6,6 +6,7 @@ import { isAbsolute } from "node:path"
 import { parseProcessIncarnation } from "../processIncarnation"
 import { SessionLifecycleCorruptError } from "../lifecycleErrors"
 import { resourceKey as getTranscriptResourceKey } from "./locator"
+import { isInstructionSectionState } from "../instructionSections"
 import type {
   StoredSession,
   TranscriptLocator,
@@ -197,6 +198,8 @@ export function validateStoredSession(key: string, value: unknown): asserts valu
   if (entry.resumeContextHash !== undefined && (
     typeof entry.resumeContextHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.resumeContextHash)
   )) throw new Error(`session store entry ${JSON.stringify(key)} has invalid resumeContextHash`)
+  if (entry.instructionSections !== undefined && !isInstructionSectionState(entry.instructionSections))
+    throw new Error(`session store entry ${JSON.stringify(key)} has invalid instructionSections`)
   const stringArrays = ["messageHashes", "passthroughToolCallIds"] as const
   for (const field of stringArrays) {
     const item = entry[field]

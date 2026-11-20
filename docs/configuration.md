@@ -1212,6 +1212,7 @@ line reads `session=new`. One value applies, in this order:
 |---|---|
 | `transformed-history` | A plugin rewrote the history this turn runs. This does not depend on the lookup, so it appears on any line, `lineage=new` (with its `diverged=`) included |
 | `changed-or-unproved-primary-agent` | The lookup found a session (`lineage=continuation`, `compaction` or `undo`), but OpenCode's primary agent is not the one that session was published with, or that session recorded none |
+| `system-prompt-reset` | The lookup found a session, and the request carried `x-meridian-system-prompt-reset: 1` or its key was armed with `POST /v1/sessions/:key/system-prompt-reset`: the history replays so the fresh session renders the client's current system prompt |
 | `unproved-sdk-prefix` | The lookup found a session (`lineage=continuation`, `compaction` or `undo`) that holds no proof its SDK transcript matches this history: it was published from a plugin-rewritten history, or it is a stopped turn's kept session read without that turn's record (after a restart, or on another process sharing the store; see [Stopping a turn](#stopping-a-turn)) |
 
 `headerless-tool-result` also prints a one-time warning at the first

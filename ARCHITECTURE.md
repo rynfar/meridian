@@ -638,9 +638,46 @@ mapping replays once when the plugin first supplies primary-agent identity.
 The cache and shared store publish the digest with the mapping; `server.ts`
 uses the existing execution-history replay boundary. Dynamic file-tree and
 diagnostic context within the same agent retains ordinary resume, as do
-clients without this explicit identity. Editing instructions without changing
-the primary agent remains subject to the native resume limitation. Prompt text
-is never added to the store.
+clients without this explicit identity. Prompt text is never added to the
+store.
+
+The native CLI records the system prompt on a conversation's first request and
+resends that record on every resume (Claude Code's `--system-prompt-snapshot`,
+on by default), even when a later request passes different text. Editing an
+instruction file therefore does not reach a resumed conversation by itself.
+`adapters/opencodeInstructionSections.ts` splits OpenCode's system prompt into
+one section per `Instructions from: <path>` file, and
+`session/instructionSections.ts` publishes a sha256 digest of each section's
+path and text with the mapping (`instructionSections`). A fresh SDK session
+publishes the sections it rendered; a resume keeps the stored digests and
+compares them against the current sections. The environment, MCP and skill
+parts of the prompt are never hashed, so their per-turn churn keeps ordinary
+resume. A mapping published without digests adopts the current sections as its
+baseline.
+
+When a resumed turn finds sections changed, it appends one `<system-reminder>`
+to that turn's SDK input carrying each new or changed file whole (removals are
+stated by naming the files that still apply), and publishes the current
+digests, so the reminder is sent once. The cached prefix is kept: the turn
+writes only the reminder to cache instead of rewriting the conversation. The
+reminder is SDK input only. Lineage, message hashes and the SDK UUID mapping
+are computed from the client's messages, which it never enters, so resume
+proof is unchanged. It is appended after any `tool_result` blocks, which must
+open a user turn. Each reminder adds to the transcript, so a client that wants
+removed or contradicting rules gone entirely uses the reset below.
+
+An explicit reset (`systemPromptReset.ts`: the `x-meridian-system-prompt-reset`
+request header, or `POST /v1/sessions/:key/system-prompt-reset`, which arms the
+next publishing turn of that client key in this process) takes the existing
+execution-replay boundary with reason `system_prompt_reset`: the client history
+replays into a fresh SDK session, which renders the current system prompt.
+Claude Code offers no switch that re-renders a recorded prompt in place. Both
+candidates were probed against CLI 2.1.322 on a resumed Meridian session:
+`CLAUDE_CODE_HOST_PROMPT_SUPERSEDES_RECORD=1` left the model answering from the
+recorded prompt, and one launch with `--system-prompt-snapshot off` rendered
+the new prompt for that turn only. The next ordinary launch resent the
+original record. Turning the snapshot off for every turn would rewrite the
+cache whenever a dynamic prompt part changed, so it is not used.
 
 ### Lineage Verification
 

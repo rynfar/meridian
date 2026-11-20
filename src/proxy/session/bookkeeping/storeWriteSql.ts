@@ -12,7 +12,7 @@ import type { CanonicalStoredSession } from "./types"
 export function storeSharedSession(directory: string, ...args: StoreSessionArguments): string | false {
   const [key, claudeSessionId, messageCount, lineageHash, messageHashes, sdkMessageUuids, contextUsage,
     messageBlockHashes, passthroughToolCallAssistantUuid, passthroughToolCallIds, current, source,
-    expectedGeneration, clientLineageHash, resumeContextHash] = args
+    expectedGeneration, clientLineageHash, resumeContextHash, instructionSections] = args
   checkParameters([key, claudeSessionId, lineageHash ?? null,
     passthroughToolCallAssistantUuid ?? null, expectedGeneration ?? null])
   const currentTranscript = prepareStoreLocator(directory, current, claudeSessionId)
@@ -39,6 +39,9 @@ export function storeSharedSession(directory: string, ...args: StoreSessionArgum
       resumeContextHash: resumeContextHash === undefined
         ? changed ? undefined : existing?.resumeContextHash
         : resumeContextHash ?? undefined,
+      instructionSections: instructionSections === undefined
+        ? changed ? undefined : existing?.instructionSections
+        : instructionSections ?? undefined,
       messageHashes: messageHashes ?? existing?.messageHashes,
       messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,

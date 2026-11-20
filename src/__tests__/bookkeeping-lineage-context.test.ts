@@ -39,9 +39,10 @@ function session() {
   if (result.status !== "found") throw new Error("owned fixture mapping is not readable")
   return result.session
 }
-async function store(client?: string | null, context?: string | null, id = "owned-session") {
+async function store(client?: string | null, context?: string | null, id = "owned-session",
+  sections?: { seen: Record<string, string> } | null) {
   return (await storeSharedSession("key", id, 1, "execution", ["owned-history"],
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, client, context))
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, client, context, sections))
 }
 
 it("preserves current-main proofs through explicit migration, native reopen and latest-state export", async () => {
@@ -108,9 +109,22 @@ it("publishes both proofs atomically and restores the original pair on priority 
   expect(session()).toMatchObject({ clientLineageHash: "owned-original", resumeContextHash: "a".repeat(64) })
 })
 
+it("round-trips instruction section digests and clears them on a new SDK session", async () => {
+  open()
+  const sections = { seen: { ["c".repeat(64)]: "d".repeat(64) } }
+  expect((await store(undefined, undefined, "owned-session", sections))).not.toBe(false)
+  reopen()
+  expect(session().instructionSections).toEqual(sections)
+  expect((await store())).not.toBe(false)
+  expect(session().instructionSections).toEqual(sections)
+  expect((await store(undefined, undefined, "owned-new-session"))).not.toBe(false)
+  expect(session().instructionSections).toBeUndefined()
+})
+
 it.each([
   { clientLineageHash: 17 },
   { resumeContextHash: "not-a-digest" },
+  { instructionSections: { seen: { "/work/AGENTS.md": "not-a-digest" } } },
 ])("fails closed on malformed modern proof payload %j", async (payload) => {
   open()
   await store()

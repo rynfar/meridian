@@ -115,6 +115,28 @@ describe("durable raw proof and execution reuse proof", () => {
     } finally { errors.mockRestore() }
   })
 
+  it("persists instruction section digests and drops them when a new SDK session replaces the mapping", async () => {
+    const sections = { seen: { ["c".repeat(64)]: "d".repeat(64) } }
+    await storeSession("sections", messages, "sdk-sections", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, true, undefined, sections)
+    const file = join(directory, "sessions.json")
+    expect(JSON.parse(readFileSync(file, "utf8")).sections.instructionSections).toEqual(sections)
+    expect(lookupSharedSession("sections")?.instructionSections).toEqual(sections)
+    expect(await storeSession("sections", continuation, "sdk-other")).not.toBe(false)
+    expect(lookupSharedSession("sections")?.instructionSections).toBeUndefined()
+  })
+
+  it("fails closed on malformed persisted instruction section digests", async () => {
+    await storeSession("malformed-sections", messages, "sdk-malformed-sections")
+    const file = join(directory, "sessions.json")
+    const document = JSON.parse(readFileSync(file, "utf8"))
+    document["malformed-sections"].instructionSections = { seen: { "/work/AGENTS.md": "x" } }
+    writeFileSync(file, JSON.stringify(document))
+    const errors = spyOn(console, "error").mockImplementation(() => {})
+    try { expect(lookupSharedSessionResult("malformed-sections").status).toBe("error") }
+    finally { errors.mockRestore() }
+  })
+
   it("fails closed on malformed persisted adapter context proof", async () => {
     await storeSession("malformed-system", messages, "sdk-malformed-system")
     const file = join(directory, "sessions.json")
