@@ -1,0 +1,180 @@
+{
+  "label": "main",
+  "result": "PASS",
+  "model": "gemini-3.8-flash-low",
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v22.23.2",
+  "nativeHash": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d",
+  "pluginHash": "0b40c022e3883332b39ad5bc6411033f0d836dc3bd303476d4bfe7226cc77e8e",
+  "clientPreflight": true,
+  "metrics": [
+    {
+      "model": "gemini-3.8-flash-low",
+      "status": 200,
+      "continuation": "new",
+      "conversationId": "2b02abb8-5fdd-493e-9628-bc7d7c06f29d",
+      "inputTokens": 16957,
+      "outputTokens": 109
+    },
+    {
+      "model": "gemini-3.8-flash-low",
+      "status": 200,
+      "continuation": "new",
+      "conversationId": "d5382b52-b8be-457a-a5c7-2756ef73dc4f",
+      "inputTokens": 17142,
+      "outputTokens": 110
+    },
+    {
+      "model": "gemini-3.8-flash-low",
+      "status": 200,
+      "continuation": "tool-result",
+      "conversationId": "d5382b52-b8be-457a-a5c7-2756ef73dc4f",
+      "inputTokens": 2250,
+      "outputTokens": 5
+    }
+  ],
+  "requests": [
+    {
+      "model": "gemini-3.8-flash-low",
+      "id": "064d608d-02c7-4f65-b78f-afe1ccf62c4a",
+      "messageCount": 1
+    },
+    {
+      "model": "gemini-3.8-flash-low",
+      "id": "8ec1a444-798e-42ad-bee5-6bcb504cfc9a",
+      "messageCount": 3
+    },
+    {
+      "model": "gemini-3.8-flash-low",
+      "id": "00f0f194-cf5a-4503-a69b-b5a648d5c0dc",
+      "messageCount": 5
+    }
+  ],
+  "restarted": true,
+  "clientReads": [
+    "running",
+    "done"
+  ],
+  "guardEvents": 0,
+  "replayedEnvelopes": [
+    "done"
+  ],
+  "children": [
+    {
+      "pid": 13827,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 143,
+      "signal": null
+    },
+    {
+      "pid": 13830,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13831,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13846,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13853,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 143,
+      "signal": null
+    },
+    {
+      "pid": 13854,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13855,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13862,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": null,
+      "signal": "SIGKILL"
+    },
+    {
+      "pid": 13872,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13873,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13880,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13885,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13886,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "pid": 13891,
+      "close": true,
+      "stdoutEof": true,
+      "stderrEof": true,
+      "code": null,
+      "signal": "SIGKILL"
+    }
+  ],
+  "joined": true,
+  "finalStatus": "done",
+  "finalNativeHash": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d"
+}
