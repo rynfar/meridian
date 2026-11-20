@@ -152,6 +152,7 @@ describe("classifyError", () => {
       const result = classifyError("429 Too Many Requests")
       expect(result.status).toBe(429)
       expect(result.type).toBe("rate_limit_error")
+      expect(result.message.toLowerCase()).not.toContain("usage limit")
     })
 
     it("detects 'rate limit' keyword", () => {
@@ -1134,6 +1135,7 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     // exact shape, classified api_error, and failed nothing over while three
     // other profiles in the pool had Fable window left.
     ["prose switch suffix", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model to continue."],
+    ["usage settings URL suffix", "api_error: Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc-cli-limit-message, to continue."],
     ["prose switch suffix, bare banner", "You've reached your Fable 5 limit. Switch to another model to continue."],
     ["prose switch suffix without the trailing clause", "You've reached your Opus limit. Switch to another model."],
     // Claude Code 2.1.322 splices a usage-credits link into the prose suffix
@@ -1154,6 +1156,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
     expect(r.status).toBe(429)
+    expect(r.message.toLowerCase()).toContain("usage limit")
+    expect(r.message.toLowerCase()).not.toContain("wait a moment")
   })
 
   it.each([
@@ -1176,6 +1180,7 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["prose switch suffix continuing into documentation", "You've reached your Fable 5 limit. Switch to another model to continue, the docs say, but the account is healthy"],
     ["usage-credits link that is not claude.ai", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://example.com/usage, to continue."],
     ["usage-credits link continuing into documentation", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage, to continue, the docs say"],
+    ["usage URL suffix continuing into documentation", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc-cli-limit-message, to continue. This is a documentation example"],
     // The status allowance is exactly three digits immediately before the
     // banner, so neither a longer number nor an arbitrary numeric preamble
     // opens the line up.
