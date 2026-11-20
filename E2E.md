@@ -844,6 +844,35 @@ nothing. Found: an off request stamps `.last-cleanup`, so the first opted-in
 cleanup can wait up to a day (documented in configuration.md); a child that
 lives under about 5 s never cleans up.
 
+### Idle transcript sweep
+
+```sh
+bun scripts/e2e-transcript-sweep.mjs
+```
+
+Needs no credentials, network or model. It starts a real Meridian server
+(`startProxyServer`) in disposable directories with retention at 30 days, a
+3-second sweep interval and two profiles signed in with synthetic logins, and
+lets the idle sweep run the installed Claude Code CLI. Profile `idle` holds 200
+transcripts 40 days old, one 40-day-old transcript the session store maps (with
+a sidecar file) and a fresh one. Profile `stuck` gets a stand-in CLI that
+ignores SIGTERM and leaves a grandchild holding its output pipe for 20 s;
+`close()` runs while it lives. Asserts: the real CLI's cleanup ran, deleted
+the 200 and kept the mapped and the fresh transcripts, left the login file
+byte-identical, and had exited before the sweep moved on; `close()` did not
+succeed while the stuck process lived (past the shutdown deadline it rejects
+with ownership retained); the SDK permit stayed held until that process was
+joined.
+
+**Verified 2026-11-15** (Linux, Claude Code 2.1.322, Bun 1.4.4, at load ~100):
+PASS. The real CLI cleaned in one process; 2 transcripts left; the mapped
+transcript's mtime refreshed; `close()` rejected at 2 s with ownership
+retained; process gone and permit freed together at 19 s. The same harness
+against the earlier idle sweep proposed with #1261: the mapped transcript and
+its sidecar were deleted, the CLI was still alive when the sweep moved on,
+`close()` resolved at 0 s with the stuck process alive, and the permit was free
+at 0 s while the process lived until 19 s.
+
 ## Antigravity subscription CLI backend
 
 ```sh
