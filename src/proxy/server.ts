@@ -182,6 +182,7 @@ import {
   resolvePriorityOrder,
   choosePriorityProfile,
   chooseActivePriorityCandidates,
+  lastMappedProfile,
   isPoolRouting,
   ACTIVE_PRIORITY,
   ROUTING_MODES,
@@ -2756,8 +2757,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // subagent keyed apart from its parent stays on the parent's
             // account (AgentIdentity.getRootSessionId).
             const adapterSessionId = adapter.getSessionId(c, body)
+            const rootSessionId = rootSessionIdOf(adapter, c, body)
             const sessionKey = getPriorityAssignmentKey(
-              rootSessionIdOf(adapter, c, body),
+              rootSessionId,
               lineageMessages,
               assignmentCwd,
             )
@@ -2851,8 +2853,35 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   publicationTurn = trustedTurn
                 } else if (sessionKey) {
                   // A process-local assignment preserves legacy/keyless affinity
-                  // but can never create durable promotion authority.
+                  // but can never create durable promotion authority. A restart
+                  // empties it; the account holding the conversation's most
+                  // recently used mapping stands in (see profiles-routing spec,
+                  // *A restart keeps a running conversation on its account*).
                   assignment = priorityAssignments.get(sessionKey)
+                  if (!assignment) {
+                    const lastUsed = new Map<string, number>()
+                    for (const id of configuredOrder) {
+                      for (const sessionId of new Set([rootSessionId ?? adapterSessionId, adapterSessionId])) {
+                        const mapped = lookupSharedSessionResult(mappingKeyOn(id, sessionId))
+                        if (mapped.status === "error") {
+                          return c.json({
+                            type: "error",
+                            error: { type: "overloaded_error", message: "Durable priority session state is unavailable" },
+                          }, 503, TRANSIENT_RETRY_AFTER_HEADERS)
+                        }
+                        if (mapped.status === "found") {
+                          lastUsed.set(id, Math.max(lastUsed.get(id) ?? 0, mapped.session.lastUsedAt))
+                        }
+                      }
+                    }
+                    const restored = lastMappedProfile(configuredOrder, id => lastUsed.get(id))
+                    if (restored !== undefined) {
+                      assignment = { profileId: restored, requestId: undefined }
+                      claudeLog("priority.assignment_restored", {
+                        routeKey, sessionKey, profileId: restored, lastUsedAt: lastUsed.get(restored),
+                      })
+                    }
+                  }
                 }
               } else if (sessionKey) {
                 assignment = priorityAssignments.get(sessionKey)

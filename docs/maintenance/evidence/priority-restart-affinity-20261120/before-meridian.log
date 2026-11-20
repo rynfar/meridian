@@ -1,0 +1,38 @@
+[PROXY] CREDENTIALS READ-ONLY MODE (MERIDIAN_CREDENTIALS_READONLY): this instance will not refresh or write OAuth credentials. Token rotation is another instance's job; credentials are re-read from disk.
+Meridian running at http://127.0.0.1:3791
+Build: running a local build, a9ee3372, with uncommitted changes — reported version 1.93.0 is the tree's last release, not proof of what is running
+[PROXY] c2722fc7-9b9d-43cb-a9eb-8676c2c9ee11 Pi request without a session identity: the Meridian Pi extension is not installed. Meridian falls back to fingerprint matching, cannot keep side calls out of the conversation or give subagents the base model tier, and cannot apply next-user-turn priority failback. Fix: meridian setup --client pi, then select a model under the meridian provider.
+[PROXY] c2722fc7-9b9d-43cb-a9eb-8676c2c9ee11 adapter=pi profile=mobiwia(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 6ed9e7a1-6b11-47a9-8311-5ec8b6a94f4a adapter=pi profile=mobiwia(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 01046be1-fe8b-4306-a9d9-1682bd741841 adapter=pi profile=mobiwia(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] ed75d232-a5b8-4c78-a776-5d5e39a90edf adapter=pi profile=mobiwia(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] e93fbcd9-dace-429f-b8b7-1eb9c575bb28 adapter=pi profile=mobiwia(priority) model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=9ms msgCount=1 msgs=user[text,text]
+[PROXY] ed75d232-a5b8-4c78-a776-5d5e39a90edf usage: input=3 output=26 cache_read=5k cache=100%
+[PROXY] 09c29e21-6e51-4c91-a2e3-6ab6ef1ae7e0 adapter=pi profile=mobiwia(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] e93fbcd9-dace-429f-b8b7-1eb9c575bb28 usage: input=10 output=44 cache_read=14k cache_write=1k cache=91%
+[PROXY] 6ed9e7a1-6b11-47a9-8311-5ec8b6a94f4a usage: input=3 output=22 cache_read=5k cache=100%
+[PROXY] 01046be1-fe8b-4306-a9d9-1682bd741841 usage: input=3 output=26 cache_read=4k cache=100%
+[PROXY] c2722fc7-9b9d-43cb-a9eb-8676c2c9ee11 usage: input=3 output=28 cache_read=5k cache=100%
+[PROXY] 09c29e21-6e51-4c91-a2e3-6ab6ef1ae7e0 usage: input=3 output=30 cache_read=4k cache=100%
+[PROXY] CREDENTIALS READ-ONLY MODE (MERIDIAN_CREDENTIALS_READONLY): this instance will not refresh or write OAuth credentials. Token rotation is another instance's job; credentials are re-read from disk.
+Meridian running at http://127.0.0.1:3791
+Build: running a local build, a9ee3372, with uncommitted changes — reported version 1.93.0 is the tree's last release, not proof of what is running
+[PROXY] d94ec31d-907d-41a0-ba28-c831124b218e adapter=pi profile=codecool(priority) model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=1ms msgCount=3 msgs=user[text,text] → assistant[thinking,text] → user[text]
+[PROXY] c14ea142-882f-4310-b73a-3e6190dc2140 Pi request without a session identity: the Meridian Pi extension is not installed. Meridian falls back to fingerprint matching, cannot keep side calls out of the conversation or give subagents the base model tier, and cannot apply next-user-turn priority failback. Fix: meridian setup --client pi, then select a model under the meridian provider.
+[PROXY] c14ea142-882f-4310-b73a-3e6190dc2140 adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 1bb297bd-fb89-463f-9ab0-026e27cda880 adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] ac9c06cc-88b9-45f0-9dbe-a65b9289978f adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 7b92ba25-6476-4ca7-bb40-66062ae9ce56 adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] c14ea142-882f-4310-b73a-3e6190dc2140 usage: input=3 output=25 cache_read=4k cache=100%
+[PROXY] 896e0db6-da6b-4b39-80dc-839227d26b5f adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] ac9c06cc-88b9-45f0-9dbe-a65b9289978f usage: input=3 output=28 cache_read=5k cache=100%
+[PROXY] 16858183-0611-43a2-b6f9-8d18c0dd37da adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 7b92ba25-6476-4ca7-bb40-66062ae9ce56 usage: input=3 output=28 cache_read=5k cache=100%
+[PROXY] 37d5347d-5b79-4fa3-829e-5eb17d522bde adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] 1bb297bd-fb89-463f-9ab0-026e27cda880 usage: input=3 output=25 cache_read=5k cache=100%
+[PROXY] 1e413134-1dc6-42ec-bbfa-ac64942b74be adapter=pi profile=codecool(priority) model=opus stream=true tools=0 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text]
+[PROXY] d94ec31d-907d-41a0-ba28-c831124b218e usage: input=10 output=58 cache_read=9k cache_write=7k cache=54%
+[PROXY] 16858183-0611-43a2-b6f9-8d18c0dd37da usage: input=3 output=21 cache_read=5k cache=100%
+[PROXY] 1e413134-1dc6-42ec-bbfa-ac64942b74be usage: input=3 output=23 cache_read=5k cache=100%
+[PROXY] 896e0db6-da6b-4b39-80dc-839227d26b5f usage: input=3 output=22 cache_read=4k cache=100%
+[PROXY] 37d5347d-5b79-4fa3-829e-5eb17d522bde usage: input=3 output=25 cache_read=4k cache=100%

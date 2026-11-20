@@ -1337,10 +1337,12 @@ describe("SDK and Session concurrency coordination", () => {
     expect(response.status).toBe(400)
     expect((await response.json() as { error?: { message?: string } }).error?.message)
       .toContain("advanced while the request was waiting")
-    expect(capturedParams.length).toBeGreaterThan(0)
-    expect(capturedParams.every((params) =>
-      params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-work") === true
-    )).toBe(true)
+    // The session's only mapping is on hot, so priority routing restores it
+    // there first (profiles-routing spec, *A restart keeps a running
+    // conversation on its account*); the stale turn must never reach hot's SDK.
+    expect(capturedParams.some((params) =>
+      params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-new") === true
+    )).toBe(false)
   }, 10_000)
 
   it("lets a declared concurrent flow replay instead of refusing it", async () => {
