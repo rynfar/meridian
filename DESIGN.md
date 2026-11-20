@@ -150,6 +150,11 @@ at its provider, so card CSS never names one.
 - **Spent or failing:** shown by dimming and the existing badges. The active
   border is never recoloured or faded, and the active card's Active strip and
   name row, with its spent badge, never dim. Only its figures do.
+- **Refused:** an "out of <window>" badge in the name row. Its explanation
+  (who is refusing, the reset, when it was refused, why, and that the figures
+  are the last good read) is the badge's tooltip on hover or keyboard focus,
+  hung across the card over the figures; the card does not carry it
+  permanently.
 - **Free resets:** a Claude account with banked resets shows one line per
   kind, because each clears something different: "Full reset" (the whole
   week), "Fable reset" (only Fable usage) and "Unrecognised reset" (the
