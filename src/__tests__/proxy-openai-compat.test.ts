@@ -73,6 +73,7 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, buildNoClientCwdNote } = await import("../proxy/query")
+const { neutralWorkingDirectory } = await import("../proxy/cwd")
 
 const testProxies: ReturnType<typeof createProxyServer>[] = []
 
@@ -510,6 +511,129 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
     expect(capturedOptionHistory).toHaveLength(2)
     expect(capturedOptionHistory[1]?.resume).toBeUndefined()
     expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
+  })
+})
+
+describe("POST /v1/chat/completions — Zed session continuity", () => {
+  const ZED_HEADERS = { "User-Agent": "Zed/1.25.3 (windows; x86_64)" }
+  // Every thread turn carries Zed's agent system prompt; the title and
+  // summary one-shots do not.
+  const AGENT_SYSTEM = "You are the Zed agent.\n\nThe current project contains the following root directories:\n\n- `/tmp/proj`"
+  const firstTurn = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "system", content: AGENT_SYSTEM },
+      { role: "user", content: "Turn 1" },
+    ],
+  }
+  const secondTurn = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "system", content: AGENT_SYSTEM },
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Turn 2" },
+    ],
+  }
+  const titleOneShot = {
+    stream: false,
+    prompt_cache_key: "thread-1",
+    messages: [
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Generate a concise 3-7 word title for this conversation, omitting punctuation." },
+    ],
+  }
+
+  beforeEach(async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    capturedPromptMessages = []
+    capturedOptions = null
+    capturedOptionHistory = []
+    await clearSessionCache()
+  })
+
+  it("keys the session by prompt_cache_key and keeps the real history", async () => {
+    const app = createTestApp()
+
+    expect((await postChatCompletion(app, firstTurn, ZED_HEADERS)).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, ZED_HEADERS)).status).toBe(200)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[0]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+    expect(String(capturedOptionHistory[1]?.systemPrompt)).not.toContain("<conversation_history>")
+  })
+
+  it("runs the SDK in Meridian's neutral directory and loads nothing from the host", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+
+    expect(capturedOptions?.cwd).toBe(neutralWorkingDirectory())
+    expect(capturedOptions?.cwd).not.toBe(process.cwd())
+    expect((capturedOptions?.settingSources as unknown[] | undefined) ?? []).toHaveLength(0)
+    expect(capturedOptions?.systemPrompt).not.toEqual(expect.objectContaining({ preset: "claude_code" }))
+  })
+
+  it("treats a title one-shot as auxiliary: fresh session, and the thread still resumes its own", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+    await postChatCompletion(app, titleOneShot, ZED_HEADERS)
+    await postChatCompletion(app, secondTurn, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(3)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[2]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+  })
+
+  it("keeps distinct thread ids isolated", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+    await postChatCompletion(app, { ...secondTurn, prompt_cache_key: "thread-2" }, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+  })
+
+  it("still keeps the real history when Zed sends no prompt_cache_key", async () => {
+    const app = createTestApp()
+    const { prompt_cache_key: _first, ...firstWithoutKey } = firstTurn
+    const { prompt_cache_key: _second, ...secondWithoutKey } = secondTurn
+
+    await postChatCompletion(app, firstWithoutKey, ZED_HEADERS)
+    await postChatCompletion(app, secondWithoutKey, ZED_HEADERS)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(String(capturedOptionHistory[1]?.systemPrompt)).not.toContain("<conversation_history>")
+  })
+
+  it("applies the high default effort when the request carries none", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("applies the high default effort over the \"none\" Zed sends", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, { ...firstTurn, reasoning_effort: "none" }, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("keeps an effort the request does carry", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, { ...firstTurn, reasoning_effort: "low" }, ZED_HEADERS)
+
+    expect(capturedOptions?.effort).toBe("low")
   })
 })
 
@@ -1022,6 +1146,73 @@ describe("POST /v1/chat/completions — streaming", () => {
       (frame.choices as Array<{ finish_reason?: string }> | undefined)?.[0]?.finish_reason === "length")
     expect(lengthIndex).toBeGreaterThan(-1)
     expect(errorIndex).toBeGreaterThan(lengthIndex)
+  })
+
+  // NOTE: Zed-specific. Zed ends the turn at finish_reason "length" with
+  // "Output Limit Reached" and never reads the error frame behind it.
+  describe("Zed", () => {
+    const ZED_HEADERS = { "User-Agent": "Zed/1.25.3 (windows; x86_64)" }
+    const stall = "upstream idle for 90000ms (limit 90000ms)"
+
+    /** Answer the internal hop with a turn that stopped at max_tokens. */
+    async function streamMaxTokensTurn(failure?: { type: string; message: string }) {
+      const app = createTestApp()
+      const originalFetch = app.fetch.bind(app)
+      const internalFrames = [
+        `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", content: [], model: "claude-sonnet-5", stop_reason: null, usage: { input_tokens: 10, output_tokens: 0 } } })}`,
+        `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
+        `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Partial" } })}`,
+        `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
+        `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "max_tokens", stop_sequence: null }, usage: { output_tokens: 3 } })}`,
+        ...(failure ? [`event: error\ndata: ${JSON.stringify({ type: "error", error: failure })}`] : []),
+        `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}`,
+      ]
+      app.fetch = (req, env, executionCtx) => {
+        if (req.url === "http://internal/v1/messages") {
+          return Promise.resolve(new Response(`${internalFrames.join("\n\n")}\n\n`, {
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+          }))
+        }
+        return originalFetch(req, env, executionCtx)
+      }
+
+      const res = await postChatCompletion(app, {
+        stream: true,
+        messages: [{ role: "user", content: "Hi" }],
+      }, ZED_HEADERS)
+      const text = await readStream(res)
+      const frames = text.split("\n")
+        .filter(l => l.startsWith("data: ") && l !== "data: [DONE]")
+        .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
+      const finishReasons = frames
+        .map(frame => (frame.choices as Array<{ finish_reason?: string | null }> | undefined)?.[0]?.finish_reason)
+        .filter((reason): reason is string => typeof reason === "string")
+      const content = frames
+        .map(frame => (frame.choices as Array<{ delta?: { content?: string } }> | undefined)?.[0]?.delta?.content ?? "")
+        .join("")
+      return { text, frames, finishReasons, content }
+    }
+
+    it("reports a failed turn as the error alone, with no length finish", async () => {
+      const { text, frames, finishReasons, content } = await streamMaxTokensTurn({ type: "upstream_timeout", message: stall })
+
+      expect(finishReasons).toEqual([])
+      expect(frames.filter(frame => frame.error !== undefined).map(frame => frame.error)).toEqual([
+        { type: "upstream_timeout", code: "upstream_timeout", message: stall },
+      ])
+      expect(content).toBe("Partial")
+      expect(text).toContain("data: [DONE]")
+    })
+
+    it("keeps the length finish of a turn that really ran out of output", async () => {
+      const { text, frames, finishReasons, content } = await streamMaxTokensTurn()
+
+      expect(finishReasons).toEqual(["length"])
+      expect(frames.some(frame => frame.error !== undefined)).toBe(false)
+      expect(content).toBe("Partial")
+      expect(text).toContain("data: [DONE]")
+    })
   })
 
   // --- tool_call_counter increment behavior ---
