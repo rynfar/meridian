@@ -53,6 +53,22 @@ provider service*; public routes and headers are in
 [`api-contract`](../../../.agents/references/api-contract.md); feature status in
 `docs/antigravity-support.md`.
 
+## Client-tool allowance
+
+The live conversation's cumulative client-tool count and MCP request replay
+ledger are bounded by `MERIDIAN_AGY_MAX_TOOL_CALLS` (default 256, integer
+1–65536, captured at runtime construction). Invalid explicit values fail
+construction. Sequential and parallel calls share this allowance; an excessive
+batch fails before any call is dispatched, and duplicate MCP request IDs replay
+their original result without spending another call. The independent limits of
+32 outstanding client calls and 16 calls per parallel batch remain unchanged.
+This is Meridian's bridge allowance; native CLI/provider limits are unchanged;
+raising it retains more conversation/replay data until that run is retired.
+The existing completed-conversation reuse cutoff (128 client calls) is unchanged.
+A restored live process starts a fresh counter; this is not a persistent native
+conversation lifetime ledger. Model/turn and pending-tool deadlines remain
+independent of the allowance.
+
 ## Known limitations
 
 - **Platform verification.** Authenticated acceptance exists on macOS arm64
