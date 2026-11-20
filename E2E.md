@@ -230,6 +230,21 @@ pause. CLI self-updates are disabled, paid-credit/provider guards remain active,
 and original child/pipe closure and final executable identity are required.
 See [before/after receipts, retained timing failure and limits](docs/maintenance/evidence/1341-idle-window-20261012.md).
 
+## Passthrough history is never compacted by the CLI
+
+Build unchanged main and the candidate separately, then run
+`scripts/e2e-passthrough-autocompact-opencode.mjs` once per arm with
+`E2E_MERIDIAN_ROOT` naming that arm's checkout: `E2E_EXPECT=sdk-compacts` on
+main, `E2E_EXPECT=client-compacts` on the candidate. It installs each arm's V1
+client plugin with `setup --v1`, requires the OpenCode scrub as the only server
+plugin, and grows one passthrough conversation on Haiku 4.5 (declared as a 200k
+window with a 1024-token output cap) until it passes the window. Main must
+show the resumed context collapse while OpenCode never compacted; the candidate
+must keep growing, return prompt-too-long, and continue after OpenCode's own
+compaction. The account comes from a private `E2E_LIVE_PROFILE_FILE` under
+`MERIDIAN_CREDENTIALS_READONLY=1`. See
+[the evidence](docs/maintenance/evidence/passthrough-autocompact-20261118.md).
+
 # End-to-End Testing
 
 ## Client-owned tool isolation: model-facing request gate
