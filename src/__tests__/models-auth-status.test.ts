@@ -193,6 +193,7 @@ const {
   resetCachedClaudeAuthStatus,
   expireAuthStatusCache,
   pendingAuthStatusRefresh,
+  recheckClaudeAuthStatus,
   authStatusFailureTtlMs,
   setAuthStatusWaitMsForTesting,
 } = await import("../proxy/models")
@@ -284,6 +285,27 @@ describe("getClaudeAuthStatusAsync — real implementation", () => {
     await pendingAuthStatusRefresh(p)
     // ...and the refresh it started answers the next one.
     expect(await getClaudeAuthStatusAsync(p)).toEqual(currentPayload)
+  })
+
+  it("a recheck waits for a new answer instead of serving the cached one", async () => {
+    // The card's Refresh after a login made outside Meridian: the cached
+    // answer is the one the refresh exists to replace.
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    currentPayload = { loggedIn: true, email: "relogin@test.com", subscriptionType: "max" }
+    expect(await recheckClaudeAuthStatus(p)).toEqual(currentPayload)
+    expect(execFileCalls).toBe(2)
+  })
+
+  it("a recheck expires only its own profile", async () => {
+    const p = nextProfile()
+    const other = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    await getClaudeAuthStatusAsync(other)
+    await recheckClaudeAuthStatus(p)
+    expect(execFileCalls).toBe(3)
+    await getClaudeAuthStatusAsync(other)
+    expect(execFileCalls).toBe(3)
   })
 
   it("does not wait on the auth-status spawn once the cache has expired", async () => {

@@ -292,6 +292,15 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
   The reserve is approximate. It reads only usage Meridian has already observed (the SDK's rate-limit events and any cached usage reads) and never makes extra usage requests, so it can land a few percent past the line, and an account Meridian has not measured yet is not held. Right after a restart that means no protection until a usage read succeeds (the dashboard and desktop app read usage while open, and the usage endpoint rate-limits), or until the SDK reports weekly usage on a response. A conversation already on the account moves to the next account on its next turn. Internal work that may only resume its existing route (for example a title or compaction request) keeps it. Cache-keepalive pings skip a held account. When every account in the pool is holding its reserve, Meridian answers `429` with a `Retry-After` for the earliest weekly reset (capped at 24 hours). Explicit `x-meridian-profile` pins and the `active`/`sticky` modes are not affected. Changes are logged as `priority.weekly_reserve_held` and `priority.weekly_reserve_released`; a value outside 1–99 or a profile name that doesn't exist is logged (`priority.weekly_reserve_invalid`, `priority.weekly_reserve_unknown_ids`) and ignored.
 - Failovers are logged (`profile.failover` in the diagnostic stream; `profile=<id>(priority)` in request lines).
 
+### Refreshing a profile
+
+The refresh icon on each card re-reads what Meridian knows about that profile right away, for example after a reset or a re-login made outside Meridian, and shows one line per part:
+
+- **Login:** asks Claude Code again whether the profile is signed in and which account it holds. If it now holds another account, what Meridian knew about the previous one is dropped first.
+- **Usage:** re-reads usage from Anthropic (or ChatGPT). Routing and reserves see the new figures at once, and refusals the new reading shows are over are cleared.
+
+Each part is re-read at most once per profile per 30 seconds. `POST /profiles/<id>/refresh` does the same from a script; `POST /profiles/<id>/usage/refresh` re-reads usage alone.
+
 ### Profile commands
 
 | Command | Description |

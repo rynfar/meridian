@@ -879,6 +879,25 @@ function startAuthStatusRefresh(
   return state
 }
 
+/**
+ * Re-run `claude auth status` for one profile now and wait for its answer,
+ * for the card's Refresh after a login made outside Meridian: the cached
+ * answer is the one being replaced, so unlike an ordinary read it is not
+ * served while the check runs. Other profiles' answers keep their TTL. A
+ * check already running is joined rather than doubled.
+ */
+export function recheckClaudeAuthStatus(profileId?: string, envOverrides?: Record<string, string>): Promise<ClaudeAuthStatus | null> {
+  if (profileId) {
+    const cache = profileAuthCaches.get(profileId)
+    if (cache) cache.at = 0
+  } else {
+    cachedAuthStatusAt = 0
+  }
+  const answered = getClaudeAuthStatusAsync(profileId, envOverrides)
+  // Registered synchronously by the read above (startAuthStatusRefresh).
+  return authRefreshes.get(profileId ?? "")?.promise ?? answered
+}
+
 /** The auth-status refresh currently in flight, if any - for testing only. */
 export function pendingAuthStatusRefresh(profileId?: string): Promise<ClaudeAuthStatus | null> | null {
   if (!profileId) return cachedAuthStatusPromise

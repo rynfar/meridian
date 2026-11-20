@@ -19,6 +19,7 @@ import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "./profi
 import { freeResetView } from "./freeResets"
 import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
+import { ICON_REFRESH_SVG, profileActionsCss, profileActionsJs } from "./profileActions"
 import { textSelectionJs } from "./textSelection"
 
 export const landingHtml = `<!DOCTYPE html>
@@ -96,6 +97,9 @@ export const landingHtml = `<!DOCTYPE html>
   .profile-card.active.spend-fading > .profile-head, .profile-card.active.spend-spent > .profile-head { filter: none; opacity: 1; }
   .profile-card.active.spend-fading > .card-strip, .profile-card.active.spend-spent > .card-strip { filter: none; opacity: 1; }
   .profile-card.spend-fading > .profile-head:focus-within, .profile-card.spend-spent > .profile-head:focus-within { filter: none; opacity: 1; }
+  /* A refresh's outcome is what someone just asked for, and its states are
+     told apart by colour, so the fade never reaches it. */
+  .profile-card.spend-fading > .refresh-outcome, .profile-card.spend-spent > .refresh-outcome { filter: none; opacity: 1; }
   .profile-card.needs-login { border-color: var(--red); }
   .profile-card.needs-login .prof-dot { background: var(--red); }
   .spend-pill { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
@@ -109,6 +113,15 @@ export const landingHtml = `<!DOCTYPE html>
   ${profileProvidersCss}
   ${profileLoginStatesCss}
   ${profileCardStatusCss}
+  ${profileActionsCss}
+  /* Refresh: a small control at the end of the card's name row. The card
+     itself is the switch button, so the click handler lets it opt out. */
+  .profile-refresh {
+    background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 5px; margin-left: 8px; cursor: pointer; display: inline-flex; align-items: center; flex-shrink: 0; align-self: center;
+  }
+  .profile-refresh:hover, .profile-refresh:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+  @media (max-width: 720px) { .profile-refresh { min-width: 32px; min-height: 32px; justify-content: center; } }
   /* The name row carries every badge the card can earn - Active, the plan
      chip, pool position, exhausted/refused, needs login, spent - and on a
      narrow card they do not fit beside the cost. The row wraps its badges
@@ -422,6 +435,7 @@ ${profileProvidersJs}
 ${profileLoginStatesJs}
 ${domPatchJs}
 ${profileCardStatusJs}
+${profileActionsJs}
 ${textSelectionJs}
 
 var providersPresent=[];
@@ -731,8 +745,9 @@ function profileSection(q,s,pl,h){
       +(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +cardStrip
       +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,slot.place,slot.size):'')+'<span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+''+esc(p.label||p.id)+' '+meridianProviders.badgeHtml(slot.provider,'provider-pill')+badge+'</span>'
-      +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
+      +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span>'+refreshButton(p)+'</div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
+      +refreshOutcome(p.id)
       +meridianCardStatus.updateHtml(update)+rows+'</div>';
     if(p.configured)pos++;
   }
@@ -810,9 +825,23 @@ function render(h,s,q,pl){
 
 function switchProfile(id){
   fetch('/profiles/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:id})})
-    .then(function(r){return r.json()})
-    .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}else if(data.error)alert(data.error)})
-    .catch(function(){});
+    .then(function(r){return r.json().catch(function(){return null}).then(function(data){
+      if(r.ok&&data&&data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}
+      else meridianDialog.fail('Could not activate ' + id, data, 'Meridian refused the switch (HTTP ' + r.status + ').');
+    })})
+    .catch(function(){meridianDialog.fail('Could not activate ' + id, null, 'Could not reach Meridian.')});
+}
+var ICON_REFRESH='${ICON_REFRESH_SVG}';
+// A subscription login, a fixed token or a ChatGPT seat has a login to
+// re-check; an API-key profile has nothing Meridian re-reads.
+function refreshButton(p){
+  if((p.type||'claude-max')==='api')return '';
+  var busy=meridianProfileActions.refreshing(p.id);
+  return '<button type="button" class="profile-refresh'+(busy?' spinning':'')+'" data-refresh="'+esc(p.id)+'" title="Refresh this profile: login and usage" aria-label="Refresh '+esc(p.label||p.id)+'"'+(busy?' disabled':'')+'>'+ICON_REFRESH+'</button>';
+}
+function refreshOutcome(id){return meridianProfileActions.outcomeHtml(id)}
+function refreshProfile(id){
+  meridianProfileActions.refreshProfile(id,function(finished){if(finished)return refresh();if(lastData)render.apply(null,lastData)});
 }
 // The handle sits inside a card that is itself a switch button, so without
 // this every grab of the handle would also change the active account.
@@ -836,6 +865,8 @@ document.getElementById('content').addEventListener('click',function(e){
     return;
   }
   if(onHandle(e))return;
+  var refreshBtn=e.target.closest('.profile-refresh');
+  if(refreshBtn){if(!refreshBtn.disabled)refreshProfile(refreshBtn.dataset.refresh);return}
   // The card is itself the switch button, so the icon inside one has to opt
   // out of it or reading an account would move all traffic to that account.
   if(e.target.closest('.prof-info, .spent-tip'))return;
@@ -852,7 +883,7 @@ document.getElementById('content').addEventListener('click',function(e){
 document.getElementById('content').addEventListener('keydown',function(e){
   if(e.key!=='Enter'&&e.key!==' ')return;
   if(onHandle(e))return;
-  if(e.target.closest('.prof-info, .spent-tip')||e.target.closest('a'))return;
+  if(e.target.closest('.prof-info, .spent-tip, .profile-refresh')||e.target.closest('a'))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile){e.preventDefault();switchProfile(card.dataset.profile)}
 });
@@ -860,7 +891,7 @@ viewSort=readStoredSort()||viewSort;
 meridianReorder.init({onSaved:refresh});
 refresh();
 function pollRefresh(){
-  if(document.visibilityState!=='visible'||meridianReorder.dragging()||infoPopOpen())return;
+  if(document.visibilityState!=='visible'||meridianReorder.dragging()||infoPopOpen()||meridianProfileActions.busy())return;
   refresh();
 }
 setInterval(pollRefresh,10000);

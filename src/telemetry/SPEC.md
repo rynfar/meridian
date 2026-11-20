@@ -132,6 +132,9 @@ Record what Meridian did and show it to the operator:
   route clears the profile's cached usage after a reset, so the next read of
   `/v1/usage/quota/all` (the page's refresh, or Vibeterm's re-check) shows
   the new state.
+- **Refresh is one click per card.** Every profile card and ChatGPT seat on `/` and `/profiles` except an API-key profile's carries a refresh icon that posts `POST /profiles/:id/refresh` (`profileActions.ts`): the login, then usage. The icon spins and is disabled while the reads run, the poll is held meanwhile, and the outcome stays on the card for a minute as one inline line per part (`outcomeHtml`): the part, its state in words and colour, and the route's note. Never a dialog.
+
+- **No native dialogs.** No page calls `alert`, `confirm` or `prompt`. The shared header carries `window.meridianDialog` (`dialog.ts`): a queued, focus-trapped modal and a corner toast, text set with `textContent`. Error replies are read with `dialogErrorText`, which takes both envelopes (`{error: "...", code}` and `{error: {type, message}}`), so an object is never shown as `[object Object]`. `no-native-dialogs.test.ts` fails on a native dialog call in any served page.
 
 - **Keepalive beats are not requests.** Rows with
   `requestSource: "cache-keepalive"` answered no client, so `computeSummary`
