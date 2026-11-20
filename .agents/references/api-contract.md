@@ -113,6 +113,12 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+Antigravity token counts are planning estimates. `estimation.method` now
+identifies the ASCII byte/4 estimate plus a conservative non-ASCII UTF-8 byte
+allowance. Dense Unicode input can return a higher estimate and hit the per-step
+guard at a lower byte count than under the previous byte-only policy. The
+estimate does not include hidden CLI context or establish an exact tokenizer.
+
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
 usage without a new model invocation. This cache is separate from OpenAI Responses

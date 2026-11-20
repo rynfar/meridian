@@ -232,7 +232,8 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
           if (status === 499 && !emittedTool && !runtime.options.allowNativeBrowser && !runtime.options.allowNativeSubagents && suffix.flatMap(blocks).some(block => block.type === "tool_result")) {
             await runtime.recordInterruptedAfterJoin(body, run.settled)
           }
-          const metric = { conversationId: run.conversationId ?? run.id, continuation: run.continuation, requestId: id, timestamp: started, durationMs: Date.now() - started, model: body.model, status, error: failure, inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, cacheReadTokens: usage.cache_read_input_tokens }
+          const priming = run.historyUsage()
+          const metric = { conversationId: run.conversationId ?? run.id, continuation: run.continuation, requestId: id, timestamp: started, durationMs: Date.now() - started, model: body.model, status, error: failure, inputTokens: usage.input_tokens + priming.input, outputTokens: usage.output_tokens + priming.output, cacheReadTokens: usage.cache_read_input_tokens + priming.cache }
           runtime.record(metric)
           await runtime.plugins.observe("onTelemetry", metric, request.signal)
         } finally {
