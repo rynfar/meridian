@@ -164,8 +164,10 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     session store maps or a request has pinned in that root, and that the
     cleanup could reach, gets a current mtime, its sidecar directory included
     (`transcriptSweep.ts` → `protectPinnedTranscripts`). Files are found by
-    session id under `projects/`. If that fails the request child runs
-    without a period, so the cleanup never runs unprotected. Cost: one walk of
+    session id under `projects/`; roots are compared after resolving
+    symlinks. If any pinned file cannot be read or touched (other than being
+    gone), the request child runs without a period and the idle sweep skips
+    the root, so the cleanup never runs unprotected. Cost: one walk of
     `projects/` per root per day, at most once an hour.
   - *Idle sweep* (`transcriptSweep.ts`, only where retention is on). The
     cleanup runs only inside a CLI process, so a root that serves no requests,
@@ -187,6 +189,8 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     - every outbound connection goes to a loopback proxy that refuses it, a
       login due for refresh within 30 minutes is skipped, and
       `MERIDIAN_CREDENTIALS_READONLY` starts nothing;
+    - an instance under `MERIDIAN_FOLLOW_ACTIVE` sweeps nothing: it shares
+      the followed instance's directories, whose pins live in that store;
     - the stored login is compared before and after; a login that is usable
       and expires no earlier afterwards was renewed elsewhere (the child has
       no network) and is logged, any other change stops the sweep until

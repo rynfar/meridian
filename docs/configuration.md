@@ -989,7 +989,9 @@ interactive Claude Code.
   held until the process has exited. It skips a directory whose login is due
   for renewal within 30 minutes, starts nothing under
   `MERIDIAN_CREDENTIALS_READONLY`, and stops until restart, with a log line, if a
-  stored login changes during a run in a way no renewal explains.
+  stored login changes during a run in a way no renewal explains. An instance
+  under `MERIDIAN_FOLLOW_ACTIVE` runs no idle sweep; the followed instance does. If a transcript Meridian still needs cannot be refreshed, it runs no
+  cleanup in that directory and logs why.
 - **The first cleanup can wait a day.** Claude Code stamps `.last-cleanup`
   even when retention is off and it skips the deletion, so after you turn
   retention on, a config directory that served a request in the previous

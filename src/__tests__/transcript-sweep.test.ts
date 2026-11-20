@@ -11,7 +11,7 @@
  * transcripts Meridian still needs survive the cleanup.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { AbortableSemaphore } from "../proxy/concurrency"
@@ -531,6 +531,39 @@ describe("idle transcript sweep", () => {
       expect(await protectPinnedTranscripts(configDir, pins, 0)).toBe(0)
       expect(await protectPinnedTranscripts(join(dir, "missing"), pins, 30)).toBe(0)
     })
+
+    it("keeps a transcript pinned under a symlink to the root", async () => {
+      const configDir = root("linked").configDir
+      const pinned = transcript(configDir, "linked-session", 40)
+      const alias = join(dir, "linked-alias")
+      symlinkSync(configDir, alias)
+      expect(await protectPinnedTranscripts(configDir, [{ sessionId: "linked-session", configDir: alias }], 30)).toBe(1)
+      expect(Date.now() - statSync(pinned.file).mtimeMs).toBeLessThan(HOUR)
+    })
+
+    it.skipIf(process.getuid?.() === 0)("runs no cleanup when a pinned transcript cannot be refreshed", async () => {
+      const sweepRoot = root("unreadable-pin", 2 * DAY)
+      transcript(sweepRoot.configDir, "stuck-session", 40)
+      const sidecarDir = join(sweepRoot.configDir, "projects", "-work-repo", "stuck-session")
+      chmodSync(sidecarDir, 0o000)
+      let started = false
+      try {
+        const { sweep } = sweepWith([sweepRoot], {
+          pinnedTranscripts: () => [{ sessionId: "stuck-session", configDir: sweepRoot.configDir }],
+          runChild: async (_child, _days, slot) => {
+            started = true
+            slot.release()
+            return { refusedConnections: 0 }
+          },
+        })
+        const [result] = await sweep.runPass()
+        expect(result?.outcome).toMatchObject({ kind: "failed" })
+        expect(result?.outcome.kind === "failed" ? result.outcome.error : "").toContain("pins not protected")
+        expect(started).toBe(false)
+      } finally {
+        chmodSync(sidecarDir, 0o755)
+      }
+    })
   })
 
   it("never starts a child under MERIDIAN_CREDENTIALS_READONLY", async () => {
@@ -592,6 +625,21 @@ describe("listSweepRoots", () => {
       { configDir: "/profiles/b", explicitConfigDir: true, profileIds: ["b"] },
       { configDir: "/home/test/.claude", explicitConfigDir: false, profileIds: ["api"] },
     ])
+  })
+
+  it("names a directory reached through a symlink once", () => {
+    const base = mkdtempSync(join(tmpdir(), "meridian-sweep-roots-"))
+    try {
+      mkdirSync(join(base, "real"))
+      symlinkSync(join(base, "real"), join(base, "alias"))
+      const roots = listSweepRoots([
+        { id: "a", type: "claude-max", env: { CLAUDE_CONFIG_DIR: join(base, "real") } },
+        { id: "b", type: "claude-max", env: { CLAUDE_CONFIG_DIR: join(base, "alias") } },
+      ], { HOME: "/home/test" })
+      expect(roots).toEqual([{ configDir: join(base, "real"), explicitConfigDir: true, profileIds: ["a", "b"] }])
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
   })
 
   it("uses the process's own CLAUDE_CONFIG_DIR where a profile names none", () => {

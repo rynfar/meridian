@@ -32,7 +32,7 @@ import { serve, createAdaptorServer } from "@hono/node-server"
 import { getConnInfo } from "@hono/node-server/conninfo"
 import { socketActivationFd, parseIdleExitSeconds, isModelRequestPath } from "./socketActivation"
 import type { Server } from "node:http"
-import { join, resolve } from "node:path"
+import { join } from "node:path"
 import { configPath } from "../configDir"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
@@ -157,6 +157,7 @@ import { rootSessionIdOf } from "./adapter"
 import { buildQueryOptions, isCliThinkingDisplay, promptCachingDisabled, passthroughThinking, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
 import { resolveTranscriptRetention } from "./transcriptRetention"
 import {
+  canonicalConfigDir,
   cleanupDue,
   createTranscriptSweep,
   DEFAULT_TRANSCRIPT_SWEEP_INTERVAL_MS,
@@ -178,7 +179,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { authKeepaliveTargets, resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
-import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { followStatus, isFollowEnabled, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
@@ -1081,7 +1082,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const busySdkRoots = new Map<string, number>()
   let sweepReservation: { readonly configDir: string; readonly preempt: AbortController } | undefined
   const markSdkRootBusy = (options: Parameters<typeof query>[0]["options"]): (() => void) => {
-    const root = resolveQueryConfigDir(options?.env ?? process.env, false, options?.cwd)
+    const root = canonicalConfigDir(resolveQueryConfigDir(options?.env ?? process.env, false, options?.cwd))
     busySdkRoots.set(root, (busySdkRoots.get(root) ?? 0) + 1)
     if (sweepReservation?.configDir === root) sweepReservation.preempt.abort()
     let released = false
@@ -1094,7 +1095,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
   }
   const reserveSweepRoot = (configDir: string): RootReservation | undefined => {
-    const root = resolve(configDir)
+    const root = canonicalConfigDir(configDir)
     if (sweepReservation || busySdkRoots.has(root)) return undefined
     const reservation = { configDir: root, preempt: new AbortController() }
     sweepReservation = reservation
@@ -1514,6 +1515,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // a client turn, and holds it until the process is joined.
   const transcriptSweep = createTranscriptSweep({
     listRoots: () => {
+      // A follower shares the followed instance's directories, whose pins live
+      // in that instance's store; it alone sweeps them.
+      if (isFollowEnabled()) return []
       const profiles = getEffectiveProfiles(finalConfig.profiles)
       const resolved = profiles.length === 0
         ? [resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)]

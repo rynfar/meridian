@@ -125,7 +125,7 @@ function postMessage(proxy: ReturnType<typeof createProxyServer>, profile: strin
 /** Each test drives whole requests through the proxy, slow on a loaded host. */
 const PROXY_TEST_TIMEOUT_MS = 60_000
 
-const ENV_KEYS = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "MERIDIAN_CREDENTIALS_READONLY"]
+const ENV_KEYS = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "MERIDIAN_CREDENTIALS_READONLY", "MERIDIAN_FOLLOW_ACTIVE"]
 
 describe.skipIf(process.platform === "darwin")("idle transcript sweep through the proxy", () => {
   let dir: string
@@ -316,6 +316,12 @@ describe.skipIf(process.platform === "darwin")("idle transcript sweep through th
 
   it("starts nothing under MERIDIAN_CREDENTIALS_READONLY", async () => {
     process.env.MERIDIAN_CREDENTIALS_READONLY = "1"
+    expect(await sweepOf(server()).runPass()).toEqual([])
+    expect(sweepChildren).toHaveLength(0)
+  }, PROXY_TEST_TIMEOUT_MS)
+
+  it("starts nothing in an instance that follows another one", async () => {
+    process.env.MERIDIAN_FOLLOW_ACTIVE = "http://127.0.0.1:9"
     expect(await sweepOf(server()).runPass()).toEqual([])
     expect(sweepChildren).toHaveLength(0)
   }, PROXY_TEST_TIMEOUT_MS)

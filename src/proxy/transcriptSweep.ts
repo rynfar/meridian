@@ -45,7 +45,7 @@
  */
 
 import { createHash } from "node:crypto"
-import { existsSync, statSync } from "node:fs"
+import { existsSync, realpathSync, statSync } from "node:fs"
 import { readdir, stat, utimes } from "node:fs/promises"
 import { createServer, type Socket } from "node:net"
 import { join, resolve } from "node:path"
@@ -102,15 +102,16 @@ export function listSweepRoots(
   profiles: readonly ResolvedProfile[],
   processEnv: NodeJS.ProcessEnv,
 ): SweepRoot[] {
-  const roots = new Map<string, { explicitConfigDir: boolean; profileIds: string[] }>()
+  const roots = new Map<string, { configDir: string; explicitConfigDir: boolean; profileIds: string[] }>()
   for (const profile of profiles) {
     const env: Record<string, string | undefined> = { ...processEnv, ...profile.env }
     const configDir = resolveQueryConfigDir(env, false)
-    const known = roots.get(configDir)
+    const key = canonicalConfigDir(configDir)
+    const known = roots.get(key)
     if (known) known.profileIds.push(profile.id)
-    else roots.set(configDir, { explicitConfigDir: Boolean(env.CLAUDE_CONFIG_DIR), profileIds: [profile.id] })
+    else roots.set(key, { configDir, explicitConfigDir: Boolean(env.CLAUDE_CONFIG_DIR), profileIds: [profile.id] })
   }
-  return [...roots].map(([configDir, root]) => ({ configDir, ...root }))
+  return [...roots.values()]
 }
 
 export type StoredLogin =
@@ -193,8 +194,17 @@ function cleanupAdvanced(configDir: string, before: number | undefined): boolean
   return after !== undefined && (before === undefined || after > before)
 }
 
-function canonical(path: string): string {
-  return resolve(path)
+/** One key per directory, however a profile spells it: symlinks resolved. */
+export function canonicalConfigDir(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
+function isMissing(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT"
 }
 
 /**
@@ -204,7 +214,9 @@ function canonical(path: string): string {
  * Claude Code keeps transcripts by mtime, so a pinned one now survives the
  * cleanup like any conversation in use. Files are found by session id under
  * `projects/`, without decoding Claude Code's directory naming. Returns how
- * many transcripts were refreshed; never throws for a missing file.
+ * many transcripts were refreshed. Throws when a pinned transcript could not be
+ * found or touched for any reason other than its absence: the caller then
+ * runs no cleanup there.
  */
 export async function protectPinnedTranscripts(
   configDir: string,
@@ -212,8 +224,8 @@ export async function protectPinnedTranscripts(
   retentionDays: number,
   now = Date.now(),
 ): Promise<number> {
-  const root = canonical(configDir)
-  const sessionIds = new Set(pins.filter((pin) => canonical(pin.configDir) === root).map((pin) => pin.sessionId))
+  const root = canonicalConfigDir(configDir)
+  const sessionIds = new Set(pins.filter((pin) => canonicalConfigDir(pin.configDir) === root).map((pin) => pin.sessionId))
   if (sessionIds.size === 0 || retentionDays <= 0) return 0
   // A file this close to the period could be deleted before the next look.
   const period = retentionDays * DAY_MS
@@ -223,8 +235,9 @@ export async function protectPinnedTranscripts(
   try {
     projectDirs = (await readdir(projects, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory()).map((entry) => join(projects, entry.name))
-  } catch {
-    return 0
+  } catch (error) {
+    if (isMissing(error)) return 0
+    throw error
   }
   const at = new Date(now)
   let refreshed = 0
@@ -232,17 +245,21 @@ export async function protectPinnedTranscripts(
     let names: string[]
     try {
       names = await readdir(projectDir)
-    } catch {
-      continue
+    } catch (error) {
+      if (isMissing(error)) continue
+      throw error
     }
     for (const name of names) {
       if (!name.endsWith(".jsonl")) continue
       const sessionId = name.slice(0, -".jsonl".length)
       if (!sessionIds.has(sessionId)) continue
       const transcript = join(projectDir, name)
-      const info = await stat(transcript).catch(() => undefined)
+      const info = await stat(transcript).catch((error: unknown) => {
+        if (isMissing(error)) return undefined
+        throw error
+      })
       if (!info || info.mtimeMs >= reachableBefore) continue
-      await utimes(transcript, at, at).catch(() => undefined)
+      await utimes(transcript, at, at)
       await touchTree(join(projectDir, sessionId), at)
       refreshed++
     }
@@ -254,15 +271,16 @@ async function touchTree(path: string, at: Date): Promise<void> {
   let entries
   try {
     entries = await readdir(path, { withFileTypes: true })
-  } catch {
-    return
+  } catch (error) {
+    if (isMissing(error)) return
+    throw error
   }
   for (const entry of entries) {
     const child = join(path, entry.name)
     if (entry.isDirectory()) await touchTree(child, at)
-    else await utimes(child, at, at).catch(() => undefined)
+    else await utimes(child, at, at)
   }
-  await utimes(path, at, at).catch(() => undefined)
+  await utimes(path, at, at)
 }
 
 function errorText(error: unknown): string {
