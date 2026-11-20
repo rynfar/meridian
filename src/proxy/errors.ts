@@ -211,7 +211,7 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * always, the harmless "custom betas" warning being emitted first. Both shapes
  * then fell through to the code-1 branch, which tells the operator to run
  * `claude login` for what is actually a quota refusal. */
-const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:,[ \t]+or[ \t]+manage[ \t]+usage[ \t]+credits[ \t]+at[ \t]+https:\/\/claude\.ai\/[^\s,]+,)?(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
+const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api[ _]error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:,[ \t]+or[ \t]+manage[ \t]+usage[ \t]+credits[ \t]+at[ \t]+https:\/\/claude\.ai\/[^\s,]+,)?(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
 
 /**
  * The CLI's refusal when a turn hit the output-token maximum.
@@ -368,6 +368,14 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     }
   }
 
+  if (REACHED_YOUR_TIER_LIMIT.test(lower)) {
+    return {
+      status: 429,
+      type: "rate_limit_error",
+      message: "Claude reported a model usage limit. Switch to another model or manage usage credits."
+    }
+  }
+
   // Rate limiting. All quota exhaustion must classify as rate_limit_error
   // (429), not generic api_error: clients back off correctly and priority
   // routing's failover keys off this class. Misclassifying costs a 500 and a
@@ -381,7 +389,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
-    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower) || REACHED_YOUR_TIER_LIMIT.test(lower)
+    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower)
     || lower.includes("usage limit reached")
     || OUT_OF_USAGE_CREDITS.test(lower)) {
     const hint = lower.includes("1m") || lower.includes("context")
