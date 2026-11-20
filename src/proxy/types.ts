@@ -29,10 +29,23 @@ export interface AntigravityOptions {
   idleConversationMs?: number
 }
 
+/** Opt-in Copilot preview (MERIDIAN_COPILOT=1), served under /copilot. */
+export interface CopilotOptions {
+  /** Absolute path of an installed @microsoft/copilot-sdk package directory. */
+  sdkPath?: string
+  /** Restrict served models; default is every enabled model on the account. */
+  models?: string[]
+  maxSessions?: number
+  turnTimeoutMs?: number
+  pendingToolTimeoutMs?: number
+}
+
 export interface ProxyConfig {
   /** Defaults to Claude. Antigravity is an opt-in, subscription-account CLI backend. */
   backend?: "claude" | "antigravity" | "combined"
   antigravity?: AntigravityOptions
+  /** Present only when the Copilot preview is enabled; independent of `backend`. */
+  copilot?: CopilotOptions
   port: number
   host: string
   debug: boolean
@@ -70,6 +83,7 @@ export interface ProxyConfig {
 export function resolveBackendConfig(config: Partial<ProxyConfig>): ProxyConfig {
   const backend = config.backend ?? process.env.MERIDIAN_BACKEND ?? "claude"
   if (backend !== "claude" && backend !== "antigravity" && backend !== "combined") throw new Error("MERIDIAN_BACKEND must be claude, antigravity or combined")
+  if (backend === "antigravity" && (config.copilot !== undefined || process.env.MERIDIAN_COPILOT === "1")) throw new Error("MERIDIAN_COPILOT needs MERIDIAN_BACKEND claude or combined; the standalone Antigravity server has no /copilot routes")
   return {
     ...DEFAULT_PROXY_CONFIG, ...config, backend,
     ...(backend !== "claude" ? { antigravity: {
@@ -87,6 +101,7 @@ export function resolveBackendConfig(config: Partial<ProxyConfig>): ProxyConfig 
       idleConversationMs: process.env.MERIDIAN_AGY_IDLE_CONVERSATION_MS === undefined ? undefined : Number(process.env.MERIDIAN_AGY_IDLE_CONVERSATION_MS),
       ...config.antigravity,
     } } : {}),
+    ...(config.copilot === undefined && process.env.MERIDIAN_COPILOT === "1" ? { copilot: resolveCopilotOptions() } : {}),
   }
 }
 
@@ -161,4 +176,22 @@ function parseAgPluginPaths(value: string): string[] {
   const paths: unknown = JSON.parse(value)
   if (!Array.isArray(paths) || paths.some(path => typeof path !== 'string' || !path) || paths.length > 16) throw new Error('MERIDIAN_AGY_PLUGIN_PATHS must be a JSON array of at most 16 module paths')
   return paths
+}
+
+function resolveCopilotOptions(env: NodeJS.ProcessEnv = process.env): CopilotOptions {
+  const positive = (name: string) => {
+    const value = env[name]
+    if (value === undefined || value === "") return undefined
+    const number = Number(value)
+    if (!Number.isInteger(number) || number < 1) throw new Error(`${name} must be a positive integer`)
+    return number
+  }
+  const models = env.MERIDIAN_COPILOT_MODELS?.split(",").map(model => model.trim()).filter(Boolean)
+  return {
+    sdkPath: env.MERIDIAN_COPILOT_SDK_PATH || undefined,
+    models: models?.length ? models : undefined,
+    maxSessions: positive("MERIDIAN_COPILOT_MAX_SESSIONS"),
+    turnTimeoutMs: positive("MERIDIAN_COPILOT_TURN_TIMEOUT_MS"),
+    pendingToolTimeoutMs: positive("MERIDIAN_COPILOT_TOOL_TIMEOUT_MS"),
+  }
 }

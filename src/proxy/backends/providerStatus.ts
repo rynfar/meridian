@@ -25,8 +25,8 @@ export function claudeProvider(healthValue: unknown, summaryValue: unknown, quot
 }
 export function providerSnapshot(providers: ProviderUsage[]): ProviderSnapshot { return { providers, fetchedAt: Date.now() } }
 export function disabledProvider(id: ProviderId): ProviderUsage {
-  const names = { claude: 'Claude', antigravity: 'Antigravity', chatgpt: 'ChatGPT' } as const
-  const endpoints = { claude: '/v1/messages', antigravity: '/antigravity/v1/messages', chatgpt: '/v1/responses' } as const
+  const names = { claude: 'Claude', antigravity: 'Antigravity', chatgpt: 'ChatGPT', copilot: 'Copilot' } as const
+  const endpoints = { claude: '/v1/messages', antigravity: '/antigravity/v1/messages', chatgpt: '/v1/responses', copilot: '/copilot/v1/chat/completions' } as const
   return { id, name: names[id], enabled: false, status: 'disabled', endpoint: endpoints[id], accounts: [] }
 }
 
