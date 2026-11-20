@@ -169,7 +169,11 @@ if (process.argv[2] !== "worker") {
       !diagnostics.some(text => /synthetic-access|synthetic-refresh|synthetic-code|synthetic-verifier/.test(text)),
       "Credential values reached diagnostics",
     )
-    assert(!existsSync(join(root, "config", "auth-lifecycle.json")), "Exchange added unapproved auth history")
+    // A completed login is recorded in the login history (#1543), which must
+    // never hold a credential value.
+    const history = readFileSync(join(root, "config", "auth-lifecycle.json"), "utf8")
+    assert(/"authObtainedVia": "login"/.test(history), "The completed login was not recorded")
+    assert(!/synthetic-access|synthetic-refresh|synthetic-code|synthetic-verifier/.test(history), "Credential values reached the login history")
     assert.equal(nativeCalls, 0)
     assert.equal(sdkCalls, 0)
     assertions += 9
