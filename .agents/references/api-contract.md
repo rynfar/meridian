@@ -113,6 +113,13 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+When Antigravity Messages (`/v1/messages`, `/v1/messages/count_tokens`) drops
+unsupported hosted server tools without `input_schema` (`web_search_*`,
+`web_fetch_*`, `code_execution_*`), the response exposes the comma-separated
+`x-meridian-dropped-tools` header (the first 16 names) and total in
+`x-meridian-dropped-tools-count` (and emits one bounded warning per request) without
+changing `contractKey` or prompt rendering.
+
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
 usage without a new model invocation. This cache is separate from OpenAI Responses

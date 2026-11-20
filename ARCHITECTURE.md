@@ -58,8 +58,17 @@ plugins or background maintenance start. Claude remains the default. The
 existing `AgentAdapter` describes incoming clients and is not reused as a
 backend selector.
 
-`backends/antigravityProtocol.ts` owns pure validation, history identity and
-prompt rendering. Its opt-in numeric thinking-budget normalization maps to Gemini
+`backends/antigravityProtocol.ts` owns pure request normalization, validation, history identity and
+prompt rendering. Before strict schema validation, it renders non-empty `role: "system"`
+messages in-place as `[system]`-tagged `role: "user"` content (coalescing into an immediately
+following `user` message when needed to preserve `tool_use`/`tool_result` pairing, without
+changing `system` or `contractKey`), drops historical `thinking`/`redacted_thinking` blocks (along
+with `assistant` and historical `user` messages left empty afterward, while rejecting final `user` messages empty after coalescing),
+renders unknown content blocks as text (preserving strict malformed known-block rejection), drops
+valid hosted server tools without `input_schema` (converting matching `tool_choice` to serial-constraint-preserving `auto`, exposed by
+`antigravity.ts` via `x-meridian-dropped-tools` and one warning log per request), and ignores
+numeric `temperature`/`top_p`/`top_k`.
+Its opt-in numeric thinking-budget normalization maps to Gemini
 effort variants before continuation identity is calculated; runtime model discovery
 checks availability, and responses expose the effective model.
 `antigravityRuntime.ts` owns the official CLI subprocesses and loopback MCP transport.
