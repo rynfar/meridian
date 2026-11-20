@@ -15,6 +15,8 @@
  *   session ID, `x-meridian-source: fork-side-call` for side calls and
  *   `subagent-*` for delegated children, and signed human-turn attestations. Without it: no session
  *   header, so continuity relies on the fingerprint-based session cache
+ * - Oh My Pi: its session ID in `metadata.user_id`, and `X-Claude-Code-Session-Id`
+ *   with that ID, or `<session>:side:<id>` on a side call
  * - CWD in system prompt: "Current working directory: /path/to/project"
  * - 7 lowercase tools: read, write, edit, bash, grep, find, ls
  * - Always streams (stream: true)
@@ -71,6 +73,31 @@ function extractPiCwd(body: any): string | undefined {
   return match?.[1]?.trim() || undefined
 }
 
+/**
+ * Whether a request is one of Oh My Pi's side calls: the idle recap, composer
+ * predictions and other one-off turns it runs beside the conversation.
+ *
+ * omp sends them with the conversation's own `metadata.user_id` session id,
+ * so they arrive under the conversation's key, but its Anthropic client sets
+ * `X-Claude-Code-Session-Id` to the side call's own id, `<session>:side:<id>`.
+ * Only a side id of the request's own session key counts: a header naming
+ * another session, or a request without a key, is not a side call of the
+ * conversation it would be handled under. An omp extension can extend the
+ * body's session id (an account-rotation suffix, `<session>~<suffix>`) but not
+ * the header, so the key may continue after the header's session id with `~`;
+ * a key that merely shares a prefix with it does not match.
+ */
+export function isOhMyPiSideCall(headerSessionId: string | undefined, sessionKey: string | undefined): boolean {
+  const side = headerSessionId?.indexOf(":side:") ?? -1
+  if (sessionKey === undefined || side <= 0) return false
+  const session = headerSessionId!.slice(0, side)
+  return sessionKey === session || sessionKey.startsWith(`${session}~`)
+}
+
+function piSessionKey(c: Context, body?: unknown): string | undefined {
+  return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
+}
+
 export const piAdapter: AgentAdapter = {
   name: "pi",
 
@@ -115,8 +142,28 @@ export const piAdapter: AgentAdapter = {
    * envelope are unaffected.
    */
   getSessionId(c: Context, body?: unknown): string | undefined {
-    return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
+    return piSessionKey(c, body)
   },
+
+  /**
+   * NOTE: agent-specific (pi) — Oh My Pi's side calls share the conversation's
+   * session key (see `isOhMyPiSideCall`). As turns they resumed the
+   * conversation's SDK session and became its newest state, so the next side
+   * call, which shares only the history before the last one, diverged
+   * (`undo-gap`) and replayed the whole history. As auxiliary requests they
+   * never touch the conversation's session or mapping.
+   */
+  isAuxiliaryRequest(c: Context, body?: unknown): boolean {
+    return isOhMyPiSideCall(c.req.header("x-claude-code-session-id"), piSessionKey(c, body))
+  },
+
+  /**
+   * NOTE: agent-specific (pi) — omp runs a side call (`runEphemeralTurn`) on
+   * the conversation's own context: same system prompt, and the same tool
+   * catalog, which it sends only to keep the prompt cache warm. A fork of the
+   * conversation's session therefore reads that cache.
+   */
+  forksAuxiliaryRequests: true,
 
   /**
    * NOTE: agent-specific (pi) — only the Meridian Pi extension's final-hook

@@ -60,6 +60,16 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   child is joined; collectors in other processes ignore that private pin, but
   the published mapping retains the source, and if another process retires it
   anyway the beat only fails and is retried or stopped.
+- An auxiliary fork (an adapter's `forksAuxiliaryRequests` side call that
+  `auxiliaryLineage` accepts: user text after a completed turn) also only
+  **reads** the mapping. It resumes the mapping's current transcript into a
+  managed fork target, holds no turn lease, takes the writer lease on its
+  target alone (the conversation's own turn may hold the source's), neither
+  attaches nor re-registers the source, writes no mapping, and abandons the
+  target when it ends. Like a beat, its source is pinned only against this
+  process's GC; a source retired meanwhile is refused by the SDK and the side
+  call replays fresh without evicting anything. A legacy mapping without a
+  transcript locator, or any other shape, is answered from a fresh replay.
 - Transcript GC here is the only Meridian-owned transcript deletion. Opt-in
   transcript retention (`proxy/transcriptRetention.ts`, off by default) hands
   Claude Code's own cleanup a period; that cleanup is outside this module's

@@ -1,0 +1,6 @@
+[PROXY] 45dd998d-1b12-4000-b3a3-d9929692f1b2 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1
+[PROXY] 45dd998d-1b12-4000-b3a3-d9929692f1b2 usage: input=10 output=42 cache_read=14k cache_write=1k cache=91%
+[PROXY] 6a7418eb-8780-4dd8-bfff-a90ceffa9bbc adapter=pi model=opus stream=true tools=12 lineage=continuation session=21cabaca auxiliary=fork sessionWait=0ms msgCount=4
+[PROXY] c8a6f1f9-d60f-427f-8100-768ba6e48d2d adapter=pi model=opus stream=true tools=12 lineage=continuation session=21cabaca sessionWait=0ms msgCount=3
+[PROXY] 6a7418eb-8780-4dd8-bfff-a90ceffa9bbc usage: input=10 output=1 cache_read=15k cache_write=125 cache=99%
+[PROXY] c8a6f1f9-d60f-427f-8100-768ba6e48d2d usage: input=10 output=43 cache_read=15k cache_write=63 cache=100%
