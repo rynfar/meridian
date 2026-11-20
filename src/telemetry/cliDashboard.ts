@@ -397,8 +397,8 @@ function buildAccounts(input: CliDashboardInput, now: number): AccountBlock[] {
         })
       }
     } else if (candidate.isActive) {
-      // `.active-pill` — the one badge the page shows in the default mode.
-      // Its sibling, the "Click to activate" hover hint, is a browser
+      // The page's "Active" strip across the active card's top edge.
+      // Its sibling, the "Click to activate" hover strip, is a browser
       // affordance and has no terminal equivalent, so it is dropped.
       badges.push({ text: "ACTIVE", color: "accent" })
     }

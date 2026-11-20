@@ -2901,6 +2901,36 @@ describe("per-model weekly bench", () => {
     expect(await attempts(app, "claude-mythos-5", "mythos after the fable refusal")).toEqual(["personal"])
   }, 20_000)
 
+  it("benches only Fable when the refusal is the credits-era 'reached your Fable limit' banner", async () => {
+    const fableReset = Date.now() + 5 * DAY_MS
+    __setFetchOAuthUsageOverride(async (opts) => opts?.profileId === "work"
+      ? {
+          windows: [
+            { type: "five_hour", utilization: 0.2, resetsAt: Date.now() + 60 * 60_000 },
+            { type: "seven_day", utilization: 0.4, resetsAt: Date.now() + 6 * DAY_MS },
+            { type: "seven_day_fable", utilization: 1, resetsAt: fableReset },
+          ],
+          extraUsage: null,
+          bankedResets: null,
+          fetchedAt: Date.now(),
+        }
+      : null)
+    // Verbatim from Claude Code 2.1.322, betas warning appended as server.ts does.
+    failureMessage = "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."
+    failingModelDirs.set("prof-work", "fable")
+    const app = createTestApp()
+
+    const first = await attempts(app, "claude-fable-5-2", "fable refused on work with the reached banner")
+    expect(first[0]).toBe("work")
+    expect(first.at(-1)).toBe("personal")
+    await Bun.sleep(20)
+    const after = await health(app)
+    expect(after.exhausted).toEqual([])
+    expect(after.exhaustedModels).toEqual([{ id: "work", modelFamily: "fable", until: fableReset, reason: "rate_limit_error" }])
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: "fable" })
+    expect(await attempts(app, "claude-opus-4-1", "opus after the reached-banner refusal")).toEqual(["work"])
+  }, 20_000)
+
   it("benches the whole profile when a reported Fable bucket comes back on an Opus refusal", async () => {
     failureMessage = FABLE_LIMIT
     failingModelDirs.set("prof-work", "opus")

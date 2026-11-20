@@ -831,7 +831,7 @@ An SDK writer lease is released once its writer has been joined. If the lifecycl
 
 `session/lifecycleLockQueue.ts` admits lifecycle transactions in a per-lock-path
 FIFO with at most 256 waiting callers. Local waiting does not consume the
-two-second external-lock acquisition budget; only the head creates a durable
+two-second external-lock acquisition budget; only the head creates a lock
 candidate. A holder stalled for 60 seconds rejects queued/new callers without
 unlocking or abandoning its transaction. A stall deadline that runs more than a
 second late was delayed by a blocked event loop, which delayed the holder too, so
@@ -911,6 +911,14 @@ per-request alerts. Recovery exhaustion is critical; individual child exits rema
 in the in-app history.
 
 ## Auth-status refresh lifetime
+
+`planRecheck.ts` bounds Claude plan readings to six-hour freshness and a
+five-minute retry floor. Plan-only writes and token rotations share per-store
+maintenance admission; a forced rotation waits for a plan write rather than
+joining its result. A reported plan field replaces the stored one, an omitted
+field survives, and the facts cache is fenced against reads older than a
+write. Only the 45-second profile maintenance loop asks for plan-only
+readings; request admission with a valid token stays network-free.
 
 Auth-status caches remain shared by profile/default context. Each proxy instance
 owns only the refreshes its routes or keepalive requested; closing one owner

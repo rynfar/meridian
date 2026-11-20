@@ -234,9 +234,9 @@ describe("SDK process gate", () => {
     roots.push(root)
     const gate = await createSdkProcessGate(root, async () => undefined)
     const disk = holdDisk()
-    const restore = await replaceFileHandleSync(root, async (sync) => {
+    const restore = await replaceFileHandleWrite(root, async (write) => {
       await disk.held
-      return sync()
+      return write()
     })
     let ticks = 0
     const heartbeat = setInterval(() => { ticks++ }, 5)
@@ -270,9 +270,9 @@ describe("SDK process gate", () => {
     const marker = join(root, "command-ran")
     const gate = await createSdkProcessGate(root, async () => undefined)
     const disk = holdDisk()
-    const restore = await replaceFileHandleSync(root, async (sync) => {
+    const restore = await replaceFileHandleWrite(root, async (write) => {
       await disk.held
-      return sync()
+      return write()
     })
     try {
       const controller = new AbortController()
@@ -303,9 +303,9 @@ describe("SDK process gate", () => {
     const marker = join(root, "must-not-run")
     const gate = await createSdkProcessGate(root, async () => undefined)
     const disk = holdDisk()
-    const restore = await replaceFileHandleSync(root, async (sync) => {
+    const restore = await replaceFileHandleWrite(root, async (write) => {
       await disk.held
-      return sync()
+      return write()
     })
     let joining: Promise<boolean> | undefined
     try {
@@ -340,8 +340,8 @@ describe("SDK process gate", () => {
     const marker = join(root, "command-ran")
     const gate = await createSdkProcessGate(root, async () => undefined)
     const errorSpy = spyOn(console, "error").mockImplementation(() => {})
-    const restore = await replaceFileHandleSync(root, async () => {
-      throw new Error("injected sync failure")
+    const restore = await replaceFileHandleWrite(root, async () => {
+      throw new Error("injected write failure")
     })
     try {
       const child = gate.spawnClaudeCodeProcess({
@@ -368,19 +368,20 @@ function holdDisk(): { held: Promise<void>; release: () => void } {
   return { held, release }
 }
 
-async function replaceFileHandleSync(
+/** Stand in for the gate's one slow disk step, writing its contents. */
+async function replaceFileHandleWrite(
   dir: string,
-  replacement: (sync: () => Promise<void>) => Promise<void>,
+  replacement: (write: () => Promise<void>) => Promise<void>,
 ): Promise<() => void> {
-  const probe = await open(join(dir, "sync-probe"), "w")
+  const probe = await open(join(dir, "write-probe"), "w")
   const prototype = Object.getPrototypeOf(probe) as FileHandle
   await probe.close()
-  rmSync(join(dir, "sync-probe"), { force: true })
-  const sync = prototype.sync
-  prototype.sync = function (this: FileHandle) {
-    return replacement(() => sync.call(this))
+  rmSync(join(dir, "write-probe"), { force: true })
+  const writeFile = prototype.writeFile
+  prototype.writeFile = function (this: FileHandle, ...args: Parameters<FileHandle["writeFile"]>) {
+    return replacement(() => writeFile.apply(this, args))
   }
-  return () => { prototype.sync = sync }
+  return () => { prototype.writeFile = writeFile }
 }
 
 /** True once the pid is gone, which on POSIX means its parent reaped it. */
