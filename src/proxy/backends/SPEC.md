@@ -53,6 +53,27 @@ provider service*; public routes and headers are in
 [`api-contract`](../../../.agents/references/api-contract.md); feature status in
 `docs/antigravity-support.md`.
 
+## Completed-history recovery
+
+This deliberately relaxes #1074's rule that a changed delivered history/batch
+must keep the pending process and return 409. Production Claude Code stream loss
+left complete client histories stuck behind that rule. A validated complete
+history with known completed results is authoritative for the narrow joined
+replay below; active or uncertain client actions retain their existing guards.
+
+With native capabilities disabled, a complete validated tool history that changes
+one idle pending owner's delivered prefix or batch retires and joins that owner
+before cold replay. Model, session and execution controls must still match.
+Mixed owners and active HTTP responses remain conflicts. Replay sends the supplied
+results as history; it never invokes the old pending client calls.
+
+Exact completed-result continuations interrupted by cancellation or retryable
+failure (401, 408, 429, 499 or 5xx) can retry only after the failed process joins
+and before another client tool was emitted. Other deterministic failures retain
+the consumed-result conflict. Failure to record the recovery fingerprint logs an
+error but cannot replace the original response status or Retry-After. Successful
+result duplicate guards and response snapshots remain in force; native-capability work is never made replayable this way.
+
 ## Known limitations
 
 - **Platform verification.** Authenticated acceptance exists on macOS arm64

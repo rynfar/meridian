@@ -132,15 +132,18 @@ responsibility.
 
 ## State and recovery
 
-Pending tool calls retain a live `agy` process. Each continuation must preserve
-the delivered conversation prefix, model, session identity and execution controls.
-Results must match the entire delivered tool batch. A client plugin may update
+Pending tool calls retain a live `agy` process. Exact continuations preserve the
+delivered prefix and batch. A complete changed history or batch can instead retire
+and join its single idle owner before replay (`history-replay`), with native grants
+disabled. Some completed IDs may have no live owner; two different live owners
+remain a conflict. Model, session identity and execution controls must still match. A client plugin may update
 system instructions or tool definitions: Meridian claims the completed results,
 stops and joins the old CLI, then replays the completed history through a fresh
 official CLI with the new context. Telemetry labels this `client-context-replay`.
-The old pending action is never resumed under the changed tool policy. Other
-changed live continuations and recently consumed duplicate results without a saved
-completed answer receive HTTP 409.
+The old pending action is never resumed under the changed tool policy. Active
+responses, mixed live owners, incompatible execution controls and native-capability
+history changes remain HTTP 409 conflicts. Recently consumed duplicate results
+require a saved answer or an eligible exact failed-continuation retry.
 Unpaired or malformed historical results receive HTTP 400. New user text
 may accompany the exact result or follow it in another user message. This steering
 continues the same pending process and is delivered separately from tool output. Independent upstream calls are coalesced into one response, preserving every
@@ -695,7 +698,8 @@ Only input/output items carry forward through a response ID: resend the desired
 `instructions`, tools and controls on each call. Ordinary forks are independent;
 changing instructions or model causes full-history replay. Pending tool results
 may refresh instructions and tool definitions through completed-history replay;
-delivered history, model, session and execution controls must still match. JSON and
+a changed complete history/batch may retire a single idle owner with native grants
+disabled; model, session and execution controls must still match. JSON and
 streaming responses are stored only on successful completion; failed/cancelled
 foreground streams are not published. Deleting an ancestor does not delete
 already-created descendants. `background: true` requires storage and returns a
@@ -824,8 +828,12 @@ not arbitrary third-party plugin code or TUI-only extension rendering.
 
 ### Disconnect after a completed client action
 
-If a tool-result continuation is cancelled before Meridian emits another client
-call, an exact retry can replay its completed history after the old CLI exits.
+If a tool-result continuation fails or is cancelled before Meridian emits another
+client call, an exact retry can replay its completed history after the old CLI exits.
+Eligible statuses are 401, 408, 429, 499 and 5xx; normal backoff or account
+correction is still required before retrying. Other deterministic failures keep
+the consumed-result 409. A recovery-state write failure is logged while the
+original failure and Retry-After are preserved.
 Retries arriving during cleanup wait for that exit. The result IDs stay consumed;
 a bounded exception binds the entire history, tool result, instructions, tools,
 model, session, execution controls and tool choice. Concurrent retries cannot
