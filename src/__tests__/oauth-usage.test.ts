@@ -8,7 +8,7 @@
  * token-refresh.test.ts and other tests that swap globalThis.fetch.
  */
 
-import { describe, expect, test, beforeEach, afterEach, setSystemTime } from "bun:test"
+import { describe, expect, test, beforeEach, afterEach, setSystemTime, spyOn } from "bun:test"
 import { clearOAuthUsageForProfile, fetchOAuthUsage, fetchOAuthUsageResult, oauthUserAgent, peekOAuthUsage, resetOAuthUsageCache, toUsageEntry } from "../proxy/oauthUsage"
 import { bundledClaudeCodeVersion } from "../proxy/models"
 import type { CredentialStore } from "../proxy/tokenRefresh"
@@ -483,10 +483,7 @@ describe("oauthUsage", () => {
     expect(getCalls()).toBe(2)
   })
 
-  // A cooldown longer than the stale window is self-defeating: it suppresses
-  // every fetch, so the last-good snapshot ages out with nothing able to
-  // refresh it and the display blanks until the cooldown lapses. Cap it.
-  test("caps a long Retry-After at the stale window so the snapshot can refresh", async () => {
+  test("honours Retry-After independently of a shorter stale window", async () => {
     const { fetchImpl, getCalls } = countingFetch((calls) =>
       calls === 1
         ? new Response("rate limited", { status: 429, headers: { "Retry-After": "3600" } })
@@ -500,10 +497,22 @@ describe("oauthUsage", () => {
       staleMaxMs: 20,
     }
 
-    expect(await fetchOAuthUsage(opts)).toBeNull()
-    await new Promise(resolve => setTimeout(resolve, 30))
-    expect(await fetchOAuthUsage(opts)).not.toBeNull()
-    expect(getCalls()).toBe(2)
+    let now = Date.now()
+    const clock = spyOn(Date, "now").mockImplementation(() => now)
+    try {
+      // Given a one-hour hint and a stale window of only 20ms.
+      expect(await fetchOAuthUsage(opts)).toBeNull()
+      // When that display window has expired, the upstream wait still applies.
+      now += 30
+      expect(await fetchOAuthUsage(opts)).toBeNull()
+      expect(getCalls()).toBe(1)
+      // Then only expiry of Retry-After permits another upstream call.
+      now += 3_600_000 - 30
+      expect(await fetchOAuthUsage(opts)).not.toBeNull()
+      expect(getCalls()).toBe(2)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   // A null return is overloaded — "no credentials" vs "throttled with nothing
