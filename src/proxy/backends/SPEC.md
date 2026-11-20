@@ -53,6 +53,19 @@ provider service*; public routes and headers are in
 [`api-contract`](../../../.agents/references/api-contract.md); feature status in
 `docs/antigravity-support.md`.
 
+## Turn deadlines
+
+`turnTimeoutMs` bounds each model and preprocessing phase independently. Delivering
+client tools pauses the phase clock; accepting a complete result batch starts a
+new phase with the full allowance. This lets long client-tool loops continue when
+each model phase is healthy, even if their combined model time exceeds one budget.
+`pendingToolTimeoutMs` independently limits each client wait. `turnMaxDurationMs`
+is an absolute per-turn cap including all phases and waits (default two hours),
+also passed as the CLI print timeout. It is not reset on tool-result acceptance.
+Successful completion clears both clocks; a warm user turn starts fresh clocks.
+Timer replacement clears the prior handle first, and the phase deadline is
+validated before the absolute cap so invalid phase settings name the right option.
+
 ## Known limitations
 
 - **Platform verification.** Authenticated acceptance exists on macOS arm64
