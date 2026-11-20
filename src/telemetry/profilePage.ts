@@ -2201,7 +2201,17 @@ function renderChatGptDevicePanel(data, o) {
     + '</div>';
 }
 
-function renderChatGptRedirectPanel(authorizeUrl, loopback, o) {
+// One line per event hook told about the redirect listener: a relay on another
+// machine says there whether it now forwards that machine's 127.0.0.1:1455.
+function renderChatGptAnnouncements(announcements) {
+  if (!announcements || !announcements.length) return '';
+  return announcements.map(function (a) {
+    var verdict = a.ok === true ? '' : a.ok === false ? 'failed: ' : 'still running: ';
+    return '<div class="login-note">' + esc(a.target) + ': ' + esc(verdict + (a.detail || '')) + '</div>';
+  }).join('');
+}
+
+function renderChatGptRedirectPanel(authorizeUrl, loopback, o, announcements) {
   return '<div class="login-panel">'
     + '<div class="login-panel-title">' + esc(o.title) + '</div>'
     + (o.note ? '<div class="login-note">' + esc(o.note) + '</div>' : '')
@@ -2212,6 +2222,7 @@ function renderChatGptRedirectPanel(authorizeUrl, loopback, o) {
     +   '<li>Sign in with ' + esc(o.account) + '.</li>'
     +   (loopback ? '<li>On this machine the tab then ends on a Meridian page saying the seat is connected, and this panel finishes by itself.</li>' : '')
     + '</ol>'
+    + renderChatGptAnnouncements(announcements)
     + '<label class="paste-label" for="' + o.inputId + '">' + (loopback ? 'Signed in from another machine? ' : '')
     +   'Paste the whole address the sign-in tab ended on. It starts with http://127.0.0.1:1455 and that page does not load \\u2014 that is expected.</label>'
     + '<div class="login-row">'
@@ -2269,7 +2280,7 @@ async function startChatGptRedirect(note) {
   setAddFormLocked(true);
   activeChatGptConnect = { connectId: data.connectId, name: name };
   var flow = addFlow();
-  flow.innerHTML = renderChatGptRedirectPanel(data.authorizeUrl, data.loopback, CHATGPT_ADD_PANEL);
+  flow.innerHTML = renderChatGptRedirectPanel(data.authorizeUrl, data.loopback, CHATGPT_ADD_PANEL, data.announcements);
   var input = flow.querySelector('.login-input');
   if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitChatGptConnect(); });
   window.open(data.authorizeUrl, '_blank', 'noopener');
@@ -2409,7 +2420,7 @@ async function startChatGptReloginRedirect(id, note) {
   activeChatGptRelogin = { profile: id, connectId: reply.data.connectId };
   var slot = loginSlot(id);
   if (slot) {
-    slot.innerHTML = renderChatGptRedirectPanel(reply.data.authorizeUrl, reply.data.loopback, chatGptReloginPanel(id, note));
+    slot.innerHTML = renderChatGptRedirectPanel(reply.data.authorizeUrl, reply.data.loopback, chatGptReloginPanel(id, note), reply.data.announcements);
     var input = slot.querySelector('.login-input');
     if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitChatGptRelogin(); });
   }

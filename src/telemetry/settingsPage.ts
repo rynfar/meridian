@@ -306,6 +306,21 @@ ${profileBarHtml}
     <div id="header-body">Loading…</div>
   </div>
 
+  <h1 style="margin-top:40px">Event Hooks</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    Tell other programs when something happens here. A <strong style="color:var(--text)">webhook</strong> gets each
+    event as a JSON <code>POST</code>; a <strong style="color:var(--text)">command</strong> runs through the shell with
+    the event as JSON on stdin, never on its command line. Each delivery is tried once, with a 5s (webhook) or 10s
+    (command) limit. The command's first line of output is shown below, so it must not print secrets.
+    <code>oauth.callback.listening</code> and <code>oauth.callback.closed</code> announce a sign-in redirect listener
+    and its public address, <code>&lt;public URL&gt;/callback/&lt;id&gt;</code>: a relay on the browser's machine can
+    forward the provider's loopback redirect there, so a sign-in started from another machine finishes by itself.
+    No event carries a code, state or token. Changes apply to the next event.
+  </p>
+  <div class="adapter-card" id="hooks-card">
+    <div id="hooks-body">Loading…</div>
+  </div>
+
   <h1 style="margin-top:40px">Layout</h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
     How much of the window these pages use. <strong style="color:var(--text)">Contained</strong> keeps every page in
@@ -1190,6 +1205,149 @@ async function putHeaderSettings(showHostname) {
   }
 }
 
+// Event hooks (/settings/api/hooks). Targets are edited in place and saved
+// together; each keeps the events it was saved with.
+let hooksState = null;
+
+const hookInputStyle = 'flex:1;min-width:220px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-family:var(--mono, monospace);font-size:12px';
+
+function hookEventsNote(events) {
+  return '<span style="color:var(--muted);font-size:11px;white-space:nowrap">'
+    + (events && events.length ? telemetryEsc(events.join(', ')) : 'all events') + '</span>';
+}
+
+function hookRows(kind, field, placeholder) {
+  const list = hooksState.draft[kind];
+  return list.map(function (entry, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
+      + '<input type="text" data-hook-kind="' + kind + '" data-hook-i="' + i + '" value="' + telemetryEsc(entry[field] || '') + '" placeholder="' + placeholder + '" style="' + hookInputStyle + '">'
+      + hookEventsNote(entry.events)
+      + '<button class="reset-btn" data-hook-remove="' + kind + '" data-hook-i="' + i + '">Remove</button>'
+      + '</div>';
+  }).join('');
+}
+
+function renderHooks() {
+  const cfg = hooksState.cfg;
+  const el = document.getElementById('hooks-body');
+  const pub = cfg.publicUrl || {};
+  const pubEnvName = (pub.envSource && pub.envSource.name) || 'MERIDIAN_PUBLIC_URL';
+  let h = settingRowHtml({
+    label: 'Public URL',
+    forId: 'hooks-public-url',
+    controlHtml: '<input type="text" class="setting-input" id="hooks-public-url" value="' + telemetryEsc(pub.saved || '') + '" placeholder="https://meridian.example" style="width:320px;font-family:var(--mono, monospace)">',
+    statusHtml: [nowLine(pub.effective ? telemetryEsc(pub.effective) : 'the address each sign-in is started from')],
+    envText: pub.env === '(invalid)'
+      ? pubEnvName + ' is set but is not a valid public URL, so it is ignored' + (pub.saved ? '; saved setting ' + pub.saved + ' is in use' : '')
+      : pub.env ? envOverrideText(pub.envSource, pub.effective, pub.saved || null) : null,
+  });
+
+  h += '<div style="color:var(--muted);font-size:13px;margin:6px 0 8px">Webhooks</div>'
+    + hookRows('webhooks', 'url', 'https://hooks.example/meridian')
+    + '<button class="reset-btn" id="hooks-add-webhook">Add webhook</button>';
+  h += '<div style="color:var(--muted);font-size:13px;margin:16px 0 8px">Commands</div>'
+    + hookRows('commands', 'command', '/path/to/program --flag')
+    + '<button class="reset-btn" id="hooks-add-command">Add command</button>';
+
+  const envTargets = [cfg.environment && cfg.environment.webhook, cfg.environment && cfg.environment.command].filter(Boolean);
+  if (envTargets.length) {
+    h += '<div class="pricing-note" style="margin-top:14px">From the environment (MERIDIAN_HOOK_URL / MERIDIAN_HOOK_COMMAND), all events: <strong style="color:var(--text)">'
+      + envTargets.map(telemetryEsc).join('</strong>, <strong style="color:var(--text)">') + '</strong></div>';
+  }
+
+  h += '<div style="display:flex;gap:8px;margin-top:16px">'
+    + '<button class="add-btn" id="hooks-save">Save</button>'
+    + '<button class="reset-btn" id="hooks-test">Send test event</button>'
+    + '</div><div id="hooks-msg" class="pricing-note"></div>';
+
+  const recent = cfg.recent || [];
+  h += '<div style="color:var(--muted);font-size:13px;margin:18px 0 6px">Recent deliveries</div>';
+  if (!recent.length) {
+    h += '<div class="pricing-note" style="margin-top:0">None since this proxy started.</div>';
+  } else {
+    h += '<div class="pricing-scroll"><table class="pricing-table"><thead><tr><th>When</th><th>Event</th><th>Target</th><th>Result</th></tr></thead><tbody>'
+      + recent.map(function (d) {
+        const color = d.ok === true ? 'var(--green)' : d.ok === false ? 'var(--red)' : 'var(--muted)';
+        const verdict = d.ok === true ? 'ok' : d.ok === false ? 'failed' : 'running';
+        return '<tr><td style="white-space:nowrap">' + new Date(d.at).toLocaleTimeString() + '</td>'
+          + '<td class="pricing-model">' + telemetryEsc(d.event) + '</td>'
+          + '<td>' + telemetryEsc(d.target) + (d.source === 'env' ? ' <span style="color:var(--muted)">(env)</span>' : '') + '</td>'
+          + '<td><span style="color:' + color + '">' + verdict + '</span>' + (d.ms != null ? ' <span style="color:var(--muted)">' + d.ms + 'ms</span>' : '')
+          + (d.detail ? '<div style="color:var(--muted);font-size:11px">' + telemetryEsc(d.detail) + '</div>' : '') + '</td></tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  }
+  el.innerHTML = h;
+
+  el.querySelectorAll('input[data-hook-kind]').forEach(function (input) {
+    input.addEventListener('input', function () {
+      const entry = hooksState.draft[input.dataset.hookKind][Number(input.dataset.hookI)];
+      entry[input.dataset.hookKind === 'webhooks' ? 'url' : 'command'] = input.value;
+    });
+  });
+  el.querySelectorAll('button[data-hook-remove]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      hooksState.draft[btn.dataset.hookRemove].splice(Number(btn.dataset.hookI), 1);
+      renderHooks();
+    });
+  });
+  document.getElementById('hooks-add-webhook').addEventListener('click', function () { hooksState.draft.webhooks.push({ url: '' }); renderHooks(); });
+  document.getElementById('hooks-add-command').addEventListener('click', function () { hooksState.draft.commands.push({ command: '' }); renderHooks(); });
+  document.getElementById('hooks-public-url').addEventListener('input', function (e) { hooksState.publicUrl = e.target.value; });
+  document.getElementById('hooks-save').addEventListener('click', saveHooks);
+  document.getElementById('hooks-test').addEventListener('click', testHooks);
+}
+
+function setHooksMsg(text, isError) {
+  const msg = document.getElementById('hooks-msg');
+  if (!msg) return;
+  msg.textContent = text;
+  msg.style.color = isError ? 'var(--red)' : 'var(--muted)';
+}
+
+async function loadHooks() {
+  const res = await fetch('/settings/api/hooks');
+  const cfg = await res.json();
+  const saved = cfg.saved || {};
+  hooksState = {
+    cfg: cfg,
+    publicUrl: (cfg.publicUrl && cfg.publicUrl.saved) || '',
+    draft: {
+      webhooks: (saved.webhooks || []).map(function (w) { return { url: w.url, events: w.events }; }),
+      commands: (saved.commands || []).map(function (c) { return { command: c.command, events: c.events }; }),
+    },
+  };
+  renderHooks();
+}
+
+async function saveHooks() {
+  const keep = function (entry) { return entry.events && entry.events.length ? { events: entry.events } : {}; };
+  const body = {
+    publicUrl: hooksState.publicUrl.trim() || null,
+    hooks: {
+      webhooks: hooksState.draft.webhooks.filter(function (w) { return w.url.trim(); }).map(function (w) { return Object.assign({ url: w.url.trim() }, keep(w)); }),
+      commands: hooksState.draft.commands.filter(function (c) { return c.command.trim(); }).map(function (c) { return Object.assign({ command: c.command.trim() }, keep(c)); }),
+    },
+  };
+  const res = await fetch('/settings/api/hooks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const err = await res.json().catch(function () { return {}; });
+    setHooksMsg(err.error || 'Failed to save event hooks', true);
+    return;
+  }
+  showSaved();
+  await loadHooks();
+}
+
+async function testHooks() {
+  setHooksMsg('Sending\\u2026', false);
+  const res = await fetch('/settings/api/hooks/test', { method: 'POST' });
+  const data = await res.json().catch(function () { return {}; });
+  await loadHooks();
+  const deliveries = data.deliveries || [];
+  setHooksMsg(deliveries.length ? deliveries.length + ' target(s) tried; results below.' : 'No target takes hooks.test. Save a target first.', false);
+}
+
 async function loadLayout() {
   const cfg = await (await fetch('/settings/api/layout')).json();
   const el = document.getElementById('layout-body');
@@ -1230,6 +1388,7 @@ loadTranscripts();
 loadUpdates();
 loadClaudeExecutable();
 loadHeaderSettings();
+loadHooks();
 loadLayout();
 ${profileBarJs}
 </script>

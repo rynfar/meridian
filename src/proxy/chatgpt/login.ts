@@ -26,6 +26,13 @@
  * separate login command could only write while the instance is stopped, and
  * one that wrote anyway would be the second writer this whole design forbids.
  *
+ * A BROWSER ON ANOTHER MACHINE CAN STILL COME BACK BY ITSELF when something
+ * there relays its 1455 to this instance: while the listener is open it is
+ * also registered as a public callback (oauthCallbacks.ts), which announces it
+ * to the operator's hooks and serves it at `/callback/<id>/auth/callback`.
+ * The start waits briefly for that announcement, so a relay is up before the
+ * sign-in tab opens, and hands each hook's one-line answer to the page.
+ *
  * Nothing here logs a code, a verifier, a user code or a token. The exchange's
  * result goes straight into `connect`, which commits it under the lease.
  */
@@ -33,6 +40,8 @@
 import { createHash, randomBytes } from "node:crypto"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { decodeCodexToken } from "../codex/token"
+import type { HookDelivery } from "../hooks"
+import type { OAuthCallbackCloseReason, OAuthCallbackHandle, OAuthCallbackRegistry, OAuthCallbackRequest } from "../oauthCallbacks"
 import { CHATGPT_OAUTH_CLIENT_ID, CHATGPT_TOKEN_URL, type TokenExchangeFetch } from "./refresh"
 import type { ChatGptConnectedAccount } from "./source"
 
@@ -70,6 +79,8 @@ export interface ChatGptLoginStart {
   /** Whether this process is listening for the redirect; false means the address must be pasted back. */
   loopback: boolean
   expiresAt: number
+  /** What each hook said when told about the redirect listener; `ok: null` = still running. */
+  announcements: Array<{ target: string; ok: boolean | null; detail: string }>
 }
 
 export type ChatGptDeviceStart =
@@ -114,10 +125,13 @@ export interface ChatGptLoginOptions {
   /** Schedules the next device-code poll; tests drive it by hand. */
   schedule?: (run: () => void, ms: number) => { cancel(): void }
   log?: (line: string) => void
+  /** Publishes the redirect listener at `/callback/<id>/...` and announces it to hooks. */
+  callbacks?: OAuthCallbackRegistry
 }
 
 export interface ChatGptLogin {
-  start(options?: { returnTo?: string | null; name?: string | null; expect?: ChatGptExpectedSeat | null }): Promise<ChatGptLoginStart>
+  /** `publicBaseUrl` is where a relay on another machine can reach this instance. */
+  start(options?: { returnTo?: string | null; name?: string | null; expect?: ChatGptExpectedSeat | null; publicBaseUrl?: string | null }): Promise<ChatGptLoginStart>
   startDevice(options?: { name?: string | null; expect?: ChatGptExpectedSeat | null }): Promise<ChatGptDeviceStart>
   status(connectId: string): ChatGptLoginState | undefined
   /** Finish a browser-redirect sign-in from the address the browser landed on, pasted into the page. */
@@ -251,19 +265,24 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
   const log = options.log ?? ((line: string) => console.log(line))
   const logins = new Map<string, PendingLogin>()
   let listener: Promise<LoopbackListener | null> | undefined
+  let callback: OAuthCallbackHandle | undefined
+  // Why the last redirect sign-in stopped waiting: the reason the public
+  // callback gives when it closes with nothing left to wait for.
+  let lastRedirectEnd: OAuthCallbackCloseReason = "expired"
   let sweepTimer: ReturnType<typeof setTimeout> | undefined
 
   const waiting = (login: PendingLogin) => login.outcome.status === "waiting" || login.outcome.status === "exchanging"
   const redirectWaiting = () => [...logins.values()].filter(login => login.kind === "redirect" && waiting(login))
 
-  const settle = (login: PendingLogin, outcome: ChatGptLoginState) => {
+  const settle = (login: PendingLogin, outcome: ChatGptLoginState, end?: OAuthCallbackCloseReason) => {
     login.outcome = outcome
     login.stopPolling?.()
     login.stopPolling = undefined
+    if (login.kind === "redirect") lastRedirectEnd = end ?? (outcome.status === "completed" ? "completed" : "failed")
   }
 
   // Expiry is otherwise noticed only when the page polls; a closed tab would
-  // keep the listener open past it.
+  // keep the listener, its public callback and every relay open past it.
   const armSweep = () => {
     if (sweepTimer) clearTimeout(sweepTimer)
     sweepTimer = undefined
@@ -276,7 +295,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
   const sweep = () => {
     const at = now()
     for (const [id, login] of logins) {
-      if (waiting(login) && login.expiresAt <= at) settle(login, { status: "failed", message: "This sign-in expired. Start it again." })
+      if (waiting(login) && login.expiresAt <= at) settle(login, { status: "failed", message: "This sign-in expired. Start it again." }, "expired")
       // A finished login is kept long enough for the page's poll to read it.
       if (!waiting(login) && login.expiresAt + LOGIN_TTL_MS <= at) logins.delete(id)
     }
@@ -285,6 +304,11 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       const closing = listener
       listener = undefined
       void closing.then(open => open?.close())
+    }
+    if (callback && !stillWaiting) {
+      const closing = callback
+      callback = undefined
+      closing.close(lastRedirectEnd)
     }
     armSweep()
   }
@@ -390,10 +414,29 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       : { status: result.status, html: options.renderPage({ ok: false, message: result.message, returnTo: login.returnTo }) }
   }
 
+  // The public door opens exactly what the loopback listener serves.
+  const handleRelayed = (request: OAuthCallbackRequest) =>
+    request.method === "GET" && request.path === CHATGPT_LOGIN_CALLBACK_PATH ? handleCallback(request.query) : Promise.resolve(null)
+
+  const announce = (expiresAt: number, loopback: boolean, publicBaseUrl: string | null): Promise<HookDelivery[]> => {
+    if (!options.callbacks) return Promise.resolve([])
+    if (callback) return callback.extend(expiresAt)
+    const opened = options.callbacks.open({
+      provider: "chatgpt",
+      redirect: { host: "127.0.0.1", port: redirectPort, path: CHATGPT_LOGIN_CALLBACK_PATH },
+      expiresAt,
+      localListener: loopback,
+      publicBaseUrl,
+      handle: handleRelayed,
+    })
+    callback = opened.handle
+    return opened.announced
+  }
+
   const retireOldest = () => {
     const open = [...logins.values()].filter(waiting)
     for (const stale of open.slice(0, Math.max(0, open.length - MAX_OPEN_LOGINS + 1))) {
-      settle(stale, { status: "failed", message: "A newer sign-in replaced this one." })
+      settle(stale, { status: "failed", message: "A newer sign-in replaced this one." }, "replaced")
     }
   }
 
@@ -464,6 +507,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       listener ??= listen(handleCallback)
       const loopback = (await listener) !== null
       if (!loopback) listener = undefined
+      const announced = await announce(expiresAt, loopback, startOptions?.publicBaseUrl ?? null)
       armSweep()
       const authorize = new URL(AUTHORIZE_URL)
       authorize.search = new URLSearchParams({
@@ -478,7 +522,13 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
         state: login.state,
         originator: ORIGINATOR,
       }).toString()
-      return { connectId: login.id, authorizeUrl: authorize.toString(), loopback, expiresAt }
+      return {
+        connectId: login.id,
+        authorizeUrl: authorize.toString(),
+        loopback,
+        expiresAt,
+        announcements: announced.map(({ target, ok, detail }) => ({ target, ok, detail })),
+      }
     },
 
     async startDevice(startOptions) {
@@ -550,7 +600,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
     cancel(connectId) {
       const login = logins.get(connectId)
       if (!login || login.outcome.status !== "waiting") return false
-      settle(login, { status: "failed", message: "This sign-in was cancelled." })
+      settle(login, { status: "failed", message: "This sign-in was cancelled." }, "cancelled")
       sweep()
       return true
     },
@@ -563,6 +613,8 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       const closing = listener
       listener = undefined
       void closing?.then(open => open?.close())
+      callback?.close("shutdown")
+      callback = undefined
       return Promise.allSettled([...exchanges]).then(() => undefined)
     },
   }
