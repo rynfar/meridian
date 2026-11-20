@@ -250,6 +250,13 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   and `ineligibleReason`, and per grant `startsAt`, `paused` and `usableNow`;
   malformed values become `null`. Meridian never picks a grant itself.
 
+### Banked reset scope
+
+- `kind: "full"` means the provider lists `seven_day` in `clears`. For example, `full-reset-2611` has `type: "weekly"` and clears `seven_day` and `seven_day_overage_included`. A Team grant with `type: "full"` also counts as full if it clears `seven_day`; the raw type does not determine scope.
+- `kind: "fable"` identifies the known Fable launch grants (`launch-2610-fable`, `launch-2610-fable-6mo`, `launch-2610-fable-12mo`) when `clears` contains `seven_day_overage_included` and no other window except optional `five_hour`, and `gives_back_weekly` is not explicitly false. Personal grants have been observed clearing only the former; Team grants clear both. The observed grants have `type: "full"` and `gives_back_weekly: true`. Order and repeated window IDs do not affect classification or change the reported `clears`. Other grant IDs do not become Fable grants just because they share these windows and flags.
+- If `clears` is absent or null, those exact IDs are a fallback when `gives_back_weekly` does not contradict the known scope. An explicit empty or different list, or an unreadable list, does not trigger that fallback. If no rule identifies the scope, `kind` is `"unknown"` and the provider's ID, type and label remain available.
+- `providerType`, `clears`, `givesBackWeekly`, `description` and `percentUsed` preserve the corresponding readable provider metadata. `description` is the provider's `label`, not a scope rule. `percentUsed` keeps finite numeric values from 0 through 100 inclusive, including `seven_day_overage_included` and unfamiliar window IDs, without rescaling or coercing them. These fields describe the inventory only; 0% does not override the provider's `usableNow` flag.
+
 ## Known limitations
 
 - Exhaustion and cooldown state is in memory; a restart forgets it.

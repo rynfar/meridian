@@ -9,6 +9,7 @@ import { profileFindJs } from "./profileFind"
 import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 import { PROVIDERS_NONE_SHOWN_HTML, profileProvidersCss, profileProvidersJs } from "./profileProviders"
 import { LOGIN_STATES_NONE_SHOWN_HTML, profileLoginStatesCss, profileLoginStatesJs } from "./profileLoginStates"
+import { freeResetOutcomeText, freeResetView } from "./freeResets"
 import { isUnusableJs } from "./profileSpent"
 import { WINDOW_LABELS } from "./profileUsage"
 import { domPatchJs } from "./domPatch"
@@ -322,6 +323,13 @@ export const profilePageHtml = `<!DOCTYPE html>
   .usage-extra.status-high .usage-pct { color: var(--red); }
   .usage-extra .usage-note { font-size: 10px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; min-width: 0; }
   .badge-credits { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  /* Banked free resets, one block per kind: green while one can be redeemed, muted otherwise. */
+  .usage-extra.free-resets .usage-pct { color: var(--green); }
+  .usage-extra.free-resets.held .usage-pct { color: var(--muted); }
+  .usage-extra.free-resets .usage-extra-row { align-items: center; }
+  .switch-btn.reset-btn { margin-top: 0; padding: 3px 10px; font-size: 11px; flex: none; }
+  .usage-extra .reset-outcome { margin-top: 4px; }
+  .usage-extra .reset-outcome.err { color: var(--red); }
   .usage-empty {
     font-size: 11px; color: var(--muted); padding: 6px 0; font-style: italic;
   }
@@ -504,6 +512,10 @@ function formatExtraUsage(eu) {
 
 // Shared with / (profileSpent.ts), so both pages flag the same accounts.
 ${isUnusableJs}
+
+// Shared with / (freeResets.ts), so both pages count an account's resets alike.
+var freeResetView = ${freeResetView.toString()};
+var freeResetOutcomeText = ${freeResetOutcomeText.toString()};
 
 ${reorderClientJs}
 ${profileProvidersJs}
@@ -999,12 +1011,13 @@ function renderUsageSection(profileQuota, p) {
   var usageTag = cachedTag(profileQuota.stale ? 'cached' : 'live');
   var chatgpt = isChatGptProfile(p);
   var credits = chatgpt ? codexCreditsView(profileQuota.credits, profileQuota) : null;
+  var resets = chatgpt ? null : freeResetView(profileQuota.bankedResets, Date.now(), profileQuota);
 
   // No figures at all means this profile has never been read successfully —
   // the route serves the last good reading at any age, so an empty windows
   // array is no longer "the stale window lapsed". Saying so keeps it distinct
   // from a profile genuinely sitting at 0%.
-  if (windows.length === 0 && !extra && !credits) {
+  if (windows.length === 0 && !extra && !credits && !resets) {
     if (chatgpt) {
       var gap = chatGptUsageGap(profileQuota.error);
       return gap
@@ -1098,7 +1111,46 @@ function renderUsageSection(profileQuota, p) {
     + staleNote
     + (cards ? '<div class="usage-grid">' + cards + '</div>' : '')
     + extraBlock
+    + renderFreeResets(resets, p)
     + '</div>';
+}
+
+// One block per kind of reset, since each clears something different. A
+// block offers its own redeem only while the view names a grant of that kind,
+// and the click only acts after a confirmation naming the kind and the grant.
+// A redeem's outcome stays in the block of the kind it was for.
+function renderFreeResets(resets, p) {
+  var outcome = resetOutcomes[p.id];
+  if (outcome && Date.now() - outcome.at > 120000) outcome = null;
+  function said(label) {
+    return '<div class="usage-note reset-outcome' + (outcome.ok ? '' : ' err') + '" role="status">' + esc(label + ': ' + outcome.text) + '</div>';
+  }
+  var placed = false;
+  var html = (resets ? resets.groups : []).map(function (g) {
+    var mine = !!outcome && outcome.kind === g.kind;
+    if (mine) placed = true;
+    var button = g.grantId
+      ? '<button type="button" class="switch-btn reset-btn" data-profile="' + attr(p.id) + '" data-name="' + attr(p.label || p.id)
+        + '" data-kind="' + attr(g.kind) + '" data-label="' + attr(g.name) + '" data-kind-name="' + attr(g.shortName)
+        + '" data-grant="' + attr(g.grantId) + '" data-grant-name="' + attr(g.grantName) + '" data-fable-used="' + attr(g.fableUsed)
+        + '" data-clears-five-hour="' + (g.clearsFiveHour ? 'true' : 'false')
+        + '" data-usable="' + g.usable + '" onclick="redeemFreeReset(this)"'
+        + (redeemingReset ? ' disabled' : '') + '>' + esc('Redeem ' + g.shortName) + '</button>'
+      : '';
+    return '<div class="usage-extra free-resets' + (g.muted ? ' held' : '') + '" title="' + attr(g.title) + '">'
+      +   '<div class="usage-extra-row">'
+      +     '<span class="usage-label">' + esc(g.name) + '</span>'
+      +     '<span class="usage-pct">' + esc(g.value) + '</span>'
+      +   '</div>'
+      +   '<div class="usage-extra-row" style="margin-top:4px">'
+      +     '<span class="usage-note">' + esc(g.note) + '</span>' + button
+      +   '</div>'
+      +   (mine ? said(g.name) : '')
+      + '</div>';
+  }).join('');
+  // The redeem spent the last reset of its kind, so its block is gone.
+  if (outcome && !placed) html += '<div class="usage-extra free-resets">' + said(outcome.label) + '</div>';
+  return html;
 }
 
 function render(data, quotaData) {
@@ -2440,6 +2492,55 @@ async function switchChatGptReloginToRedirect() {
   if (id) startChatGptReloginRedirect(id, '');
 }
 
+// Set while a redeem is in flight, so a poll neither redraws its button
+// enabled nor lets a second click send another one.
+var redeemingReset = null;
+// The last redeem's outcome per profile, drawn in its free-reset block for two
+// minutes so the poll that follows the redeem does not wipe it.
+var resetOutcomes = Object.create(null);
+
+async function redeemFreeReset(button) {
+  if (redeemingReset) return;
+  var id = button.getAttribute('data-profile');
+  var kind = button.getAttribute('data-kind');
+  var noun = button.getAttribute('data-kind-name');
+  var grantId = button.getAttribute('data-grant');
+  var fableUsed = button.getAttribute('data-fable-used');
+  var usable = Number(button.getAttribute('data-usable')) || 0;
+  var after = Math.max(0, usable - 1);
+  // Each kind says only what it does: a Fable reset never promises the week back,
+  // and the 5-hour window is named only when the spent grant's scope lists it.
+  var effect = (kind === 'fable'
+    ? 'Anthropic gives back only this account\\u2019s Fable usage' + (fableUsed ? ' (now ' + fableUsed + ' used)' : '')
+      + ' to its weekly allowance; the rest of the week\\u2019s usage stays as it is.'
+    : 'Anthropic clears this account\\u2019s weekly usage right away.')
+    + (button.getAttribute('data-clears-five-hour') === 'true' ? ' It also clears the 5-hour window.' : '');
+  if (!confirm('Redeem a ' + noun + ' on ' + button.getAttribute('data-name') + ' now?\\n\\n'
+    + 'This spends \\u201c' + (button.getAttribute('data-grant-name') || grantId) + '\\u201d. ' + effect
+    + ' It cannot be undone. '
+    + after + ' usable ' + noun + (after === 1 ? '' : 's') + ' would be left.')) return;
+  redeemingReset = id;
+  button.disabled = true;
+  button.textContent = 'Redeeming\\u2026';
+  var requestId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  var status = 0, data = null;
+  try {
+    var res = await fetch('/v1/usage/quota/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: id, grantId: grantId, requestId: requestId })
+    });
+    status = res.status;
+    try { data = await res.json(); } catch (_) { data = null; }
+  } catch (_) {
+    status = 0;
+  }
+  redeemingReset = null;
+  var outcome = freeResetOutcomeText(status, data, labelForWindow);
+  resetOutcomes[id] = { ok: outcome.ok, text: outcome.text, at: Date.now(), kind: kind, label: button.getAttribute('data-label') };
+  await refresh();
+}
+
 async function renewChatGptSeat(button) {
   var id = button.getAttribute('data-profile');
   button.disabled = true;
@@ -2474,7 +2575,7 @@ if (!restorePendingAdd()) resetAddForm('');
 // polls and catches up when it is shown again.
 function pollRefresh() {
   if (document.visibilityState !== 'visible' || meridianReorder.dragging()
-    || activeLogin || activeAdd || activeChatGptRelogin) return;
+    || activeLogin || activeAdd || activeChatGptRelogin || redeemingReset) return;
   refresh();
 }
 // The 1.5s poll while a card updates: a hidden tab keeps the timer, not the
