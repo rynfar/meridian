@@ -107,11 +107,20 @@ contracts. Persistence is opt-in and bounded; background jobs are not restart
 resumable. `AntigravityPlugin` request results are revalidated and response/telemetry
 observers cannot mutate saved responses. Owner authorization is tracked in #1073.
 
-`antigravity.adaptThinkingBudgets` (environment
-`MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1`) explicitly enables approximate mapping
-of Anthropic numeric thinking budgets to Gemini effort variants. Response headers
-and health expose adaptation; effective model IDs appear in responses and telemetry.
-Strict rejection remains the default; this does not provide native token limits.
+`antigravity.adaptThinkingBudgets` (default `false`; opt in via `true` or
+`MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1`) enables approximate mapping of
+Anthropic numeric thinking budgets to the closest discovered Gemini effort
+variant (preferring `-high` over `-low` when `-medium` is absent). Without
+enabled numeric thinking, explicit `-low`/`-medium`/`-high` suffixes in the
+requested Gemini model remain authoritative over `output_config.effort` and set
+effective effort to the suffix; for unsuffixed Gemini models, explicit effort
+levels (`minimal` -> `low`, `xhigh`/`max` -> `high`) clamp and select the
+closest discovered Gemini effort variant even when numeric budget adaptation is
+off. Responses emit `x-meridian-thinking-budgets: approximate-effort` only when
+numeric budget adaptation occurred, and `x-meridian-effective-model` /
+`x-meridian-effective-effort` only when model or effort adaptation occurred;
+health exposes `thinkingBudgets`, and effective model IDs appear in responses
+and telemetry. This does not provide native token limits.
 
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and

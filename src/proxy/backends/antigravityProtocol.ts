@@ -45,6 +45,36 @@ const resultBlock = z.object({
 const block = z.discriminatedUnion("type", [textBlock, imageBlock, documentBlock, audioBlock, videoBlock, callBlock, resultBlock])
 const message = z.object({ role: z.enum(["user", "assistant"]), content: z.union([z.string(), z.array(block)]) })
 const outputFormat = z.object({ type: z.literal("json_schema"), schema: z.record(z.string(), z.unknown()) }).strict()
+const EFFORT_INPUT = z.enum(["minimal", "low", "medium", "high", "xhigh", "max"])
+export type AgEffort = "low" | "medium" | "high"
+const EFFORT_FALLBACK: Record<AgEffort, readonly AgEffort[]> = {
+  low: ["low", "medium", "high"],
+  medium: ["medium", "high", "low"],
+  high: ["high", "medium", "low"],
+}
+function clampAgEffort(effort: z.infer<typeof EFFORT_INPUT>): AgEffort {
+  if (effort === "minimal") return "low"
+  if (effort === "xhigh" || effort === "max") return "high"
+  return effort
+}
+const GEMINI_SUFFIXED = /^(gemini-[a-zA-Z0-9._-]+)-(low|medium|high)$/
+const GEMINI_UNSUFFIXED = /^(gemini-[a-zA-Z0-9._-]+)$/
+function parseGeminiModel(model: string): { family: string; suffix?: AgEffort } | undefined {
+  const suffixed = GEMINI_SUFFIXED.exec(model)
+  if (suffixed) return { family: suffixed[1]!, suffix: suffixed[2] as AgEffort }
+  const unsuffixed = GEMINI_UNSUFFIXED.exec(model)
+  return unsuffixed ? { family: unsuffixed[1]! } : undefined
+}
+function hasGeminiFamilyVariant(family: string, availableModels: readonly string[]): boolean {
+  return (["low", "medium", "high"] as const).some(level => availableModels.includes(`${family}-${level}`))
+}
+function resolveFamilyEffort(family: string, desired: AgEffort, availableModels?: readonly string[]): { model: string; effort: AgEffort } {
+  if (availableModels?.length && hasGeminiFamilyVariant(family, availableModels)) {
+    const matched = EFFORT_FALLBACK[desired].find(level => availableModels.includes(`${family}-${level}`))
+    if (matched) return { model: `${family}-${matched}`, effort: matched }
+  }
+  return { model: `${family}-${desired}`, effort: desired }
+}
 const schema = z.object({
   meridian_tool_grammars: z.record(z.string(), z.object({ syntax: z.enum(['lark', 'regex']), definition: z.string().max(65536) }).strict()).refine(value => Object.keys(value).length <= 16, 'At most 16 custom grammars').optional(),
   meridian_session_key: z.string().max(512).optional(),
@@ -66,7 +96,7 @@ const schema = z.object({
     z.object({ type: z.literal("adaptive"), display: z.enum(["summarized", "omitted"]).optional() }),
   ]).optional(),
   output_config: z.object({
-    effort: z.enum(["low", "medium", "high"]).optional(),
+    effort: EFFORT_INPUT.transform(clampAgEffort).optional(),
     format: outputFormat.optional(),
   }).strict().optional(),
   output_format: outputFormat.optional(),
@@ -79,20 +109,12 @@ export type AgMessage = z.infer<typeof message>
 export type AgBlock = z.infer<typeof block>
 export type AgCall = z.infer<typeof callBlock>
 export type AgResult = z.infer<typeof resultBlock>
-export function parseAgRequest(value: unknown, adaptThinkingBudgets = false): AgRequest {
+function validateAgBase(value: unknown, adaptThinkingBudgets: boolean): AgRequest {
   const parsed = schema.safeParse(value)
   if (!parsed.success) throw new AntigravityError("Antigravity supports text, images, documents and adapted media; invalid or unsupported request: " + parsed.error.issues.map(i => i.path.join(".") + " " + i.message).join("; "))
   const request = parsed.data
-  if (request.thinking?.type === "enabled") {
-    if (!adaptThinkingBudgets) throw new AntigravityError("Numeric thinking budgets require MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1; this maps budgets to approximate Gemini effort, not token limits")
-    const family = /^(gemini-[a-zA-Z0-9._-]+)-(low|medium|high)$/.exec(request.model)?.[1]
-    if (!family) throw new AntigravityError("Thinking-budget adaptation requires a Gemini low/medium/high model slug from /v1/models")
-    const budget = request.thinking.budget_tokens
-    const effort = budget <= 2048 ? "low" : budget <= 8192 ? "medium" : "high"
-    if (request.output_config?.effort && request.output_config.effort !== effort) throw new AntigravityError("Explicit effort conflicts with the adapted thinking budget")
-    request.model = `${family}-${effort}`
-    request.thinking = { type: "adaptive", ...(request.thinking.display ? { display: request.thinking.display } : {}) }
-    request.output_config = { ...request.output_config, effort }
+  if (request.thinking?.type === "enabled" && !adaptThinkingBudgets) {
+    throw new AntigravityError("Numeric thinking budgets require MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1; this maps budgets to approximate Gemini effort, not token limits")
   }
   if (request.output_format) {
     if (request.output_config?.format) throw new AntigravityError("Use only one of output_format and output_config.format")
@@ -102,7 +124,6 @@ export function parseAgRequest(value: unknown, adaptThinkingBudgets = false): Ag
   for (const key of ["temperature", "top_p", "top_k", "betas"]) {
     if (request[key] !== undefined) throw new AntigravityError(`Antigravity does not support ${key}`)
   }
-  if (request.output_config?.effort && !request.model.endsWith("-" + request.output_config.effort)) throw new AntigravityError("This agy model does not support the requested effort override; select the matching low/medium/high model slug from /v1/models")
   const choice = request.tool_choice
   if (choice?.type === "tool" && !request.tools.some(t => t.name === choice.name)) throw new AntigravityError("tool_choice names an unknown tool")
   if (request.tool_choice?.type === "any" && !request.tools.length) throw new AntigravityError("tool_choice any requires tools")
@@ -129,6 +150,55 @@ export function parseAgRequest(value: unknown, adaptThinkingBudgets = false): Ag
     pending = new Set(content.filter(b => b.type === "tool_use").map(b => b.id))
   }
   return request
+}
+function applyAgEffortAndBudget(request: AgRequest, availableModels?: readonly string[]): AgRequest {
+  const gemini = parseGeminiModel(request.model)
+  if (request.thinking?.type === "enabled") {
+    const family = gemini && (gemini.suffix || availableModels === undefined || hasGeminiFamilyVariant(gemini.family, availableModels)) ? gemini.family : undefined
+    if (!family) throw new AntigravityError("Thinking-budget adaptation requires a Gemini low/medium/high model slug from /v1/models")
+    const budget = request.thinking.budget_tokens
+    const desired: AgEffort = budget <= 2048 ? "low" : budget <= 8192 ? "medium" : "high"
+    if (request.output_config?.effort && request.output_config.effort !== desired) {
+      throw new AntigravityError("Explicit effort conflicts with the adapted thinking budget")
+    }
+    const resolved = resolveFamilyEffort(family, desired, availableModels)
+    request.model = resolved.model
+    request.thinking = { type: "adaptive", ...(request.thinking.display ? { display: request.thinking.display } : {}) }
+    request.output_config = { ...request.output_config, effort: resolved.effort }
+    return request
+  }
+  if (request.output_config?.effort) {
+    if (gemini) {
+      if (gemini.suffix) {
+        request.output_config = { ...request.output_config, effort: gemini.suffix }
+        return request
+      }
+      if (availableModels === undefined || hasGeminiFamilyVariant(gemini.family, availableModels)) {
+        const resolved = resolveFamilyEffort(gemini.family, request.output_config.effort, availableModels)
+        request.model = resolved.model
+        request.output_config = { ...request.output_config, effort: resolved.effort }
+        return request
+      }
+    }
+    if (!request.model.endsWith("-" + request.output_config.effort)) {
+      throw new AntigravityError("This agy model does not support the requested effort override; select the matching low/medium/high model slug from /v1/models")
+    }
+  }
+  return request
+}
+export function parseAgRequest(value: unknown, adaptThinkingBudgets = false, availableModels?: readonly string[]): AgRequest {
+  return applyAgEffortAndBudget(validateAgBase(value, adaptThinkingBudgets), availableModels)
+}
+export async function resolveAgRequest(
+  value: unknown,
+  adaptThinkingBudgets: boolean,
+  discoverModels: () => Promise<readonly string[]>,
+): Promise<AgRequest> {
+  const request = validateAgBase(value, adaptThinkingBudgets)
+  const gemini = parseGeminiModel(request.model)
+  const needsDiscovery = Boolean(gemini && ((adaptThinkingBudgets && request.thinking?.type === "enabled") || (!gemini.suffix && request.output_config?.effort !== undefined)))
+  const availableModels = needsDiscovery ? await discoverModels() : undefined
+  return applyAgEffortAndBudget(request, availableModels)
 }
 export function blocks(message: AgMessage): AgBlock[] {
   return typeof message.content === "string" ? [{ type: "text", text: message.content }] : message.content

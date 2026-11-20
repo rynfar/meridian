@@ -59,9 +59,15 @@ existing `AgentAdapter` describes incoming clients and is not reused as a
 backend selector.
 
 `backends/antigravityProtocol.ts` owns pure validation, history identity and
-prompt rendering. Its opt-in numeric thinking-budget normalization maps to Gemini
-effort variants before continuation identity is calculated; runtime model discovery
-checks availability, and responses expose the effective model.
+prompt rendering. Under explicit opt-in (`MERIDIAN_AGY_ADAPT_THINKING_BUDGETS=1`),
+numeric thinking-budget normalization retains baseline threshold remapping to the
+closest discovered Gemini effort variant for both suffixed and unsuffixed Gemini
+slugs; without enabled numeric thinking, effort clamping (`minimal` -> `low`,
+`xhigh`/`max` -> `high`) maps unsuffixed Gemini models to the closest discovered
+variant while keeping explicit `-low`/`-medium`/`-high` suffixes authoritative
+over `output_config.effort`, all before continuation identity is calculated.
+Runtime model discovery checks availability, and responses expose the effective
+model when adapted.
 `antigravityRuntime.ts` owns the official CLI subprocesses and loopback MCP transport.
 Its bounded interrupted-continuation fingerprints permit only exact completed-result
 replay after cancellation joins the old process, before any subsequent client
