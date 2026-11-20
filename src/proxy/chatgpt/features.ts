@@ -31,6 +31,25 @@ export interface ChatGptFeatures {
   seatCreditsPolicy: Record<string, ChatGptCreditsPolicy>
   /** Where a free-plan seat ranks for unpinned work: before any seat spends credits, or after. */
   freeSeatOrder: ChatGptFreeSeatOrder
+  /**
+   * Per-seat renewal intervals in hours, keyed by seat id (accountUserId). A
+   * seat named here is renewed this long after its access token was issued
+   * instead of 80% into the token's life (owned.ts `renewalDueAt`).
+   */
+  seatRenewalHours: Record<string, number>
+}
+
+/** The range a seat's renewal interval may take: an hour, up to the ten days a token lasts. */
+export const CHATGPT_RENEWAL_HOURS_MIN = 1
+export const CHATGPT_RENEWAL_HOURS_MAX = 240
+
+function isRenewalHours(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= CHATGPT_RENEWAL_HOURS_MIN && value <= CHATGPT_RENEWAL_HOURS_MAX
+}
+
+/** Each seat's own renewal interval in milliseconds, as owned.ts reads it. */
+export function chatGptRenewalIntervals(features: ChatGptFeatures): Record<string, number> {
+  return Object.fromEntries(Object.entries(features.seatRenewalHours).map(([seat, hours]) => [seat, hours * 3_600_000]))
 }
 
 /**
@@ -112,6 +131,7 @@ export const CHATGPT_FEATURE_DEFAULTS: Readonly<ChatGptFeatures> = {
   creditsPolicy: "never",
   seatCreditsPolicy: {},
   freeSeatOrder: "before-credits",
+  seatRenewalHours: {},
 }
 
 /**
@@ -137,7 +157,13 @@ export function getChatGptFeatures(): ChatGptFeatures {
     creditsPolicy: isChatGptCreditsPolicy(saved.creditsPolicy) ? saved.creditsPolicy : CHATGPT_FEATURE_DEFAULTS.creditsPolicy,
     seatCreditsPolicy: savedSeatPolicies(saved.seatCreditsPolicy),
     freeSeatOrder: isChatGptFreeSeatOrder(saved.freeSeatOrder) ? saved.freeSeatOrder : CHATGPT_FEATURE_DEFAULTS.freeSeatOrder,
+    seatRenewalHours: savedRenewalHours(saved.seatRenewalHours),
   }
+}
+
+function savedRenewalHours(value: unknown): Record<string, number> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).filter((entry): entry is [string, number] => isRenewalHours(entry[1])))
 }
 
 function savedSeatPolicies(value: unknown): Record<string, ChatGptCreditsPolicy> {
@@ -150,11 +176,13 @@ function savedSeatPolicies(value: unknown): Record<string, ChatGptCreditsPolicy>
 }
 
 /**
- * A validated update. `seatCreditsPolicy` is a patch of its own: each named
- * seat is set, and one set to `inherit` loses its override.
+ * A validated update. `seatCreditsPolicy` and `seatRenewalHours` are patches
+ * of their own: each named seat is set, and one set to `inherit` (credits) or
+ * null (renewal) loses its override.
  */
-export type ChatGptFeatureUpdate = Partial<Omit<ChatGptFeatures, "seatCreditsPolicy">> & {
+export type ChatGptFeatureUpdate = Partial<Omit<ChatGptFeatures, "seatCreditsPolicy" | "seatRenewalHours">> & {
   seatCreditsPolicy?: Record<string, ChatGptCreditsPolicy | typeof CHATGPT_CREDITS_INHERIT>
+  seatRenewalHours?: Record<string, number | null>
 }
 
 /**
@@ -203,6 +231,18 @@ export function validateChatGptFeatureUpdate(
         seats[seat] = policy
       }
       result.seatCreditsPolicy = seats
+    } else if (key === "seatRenewalHours") {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("seatRenewalHours must be an object of profile id -> hours")
+      const seats: NonNullable<ChatGptFeatureUpdate["seatRenewalHours"]> = {}
+      for (const [id, hours] of Object.entries(value as Record<string, unknown>)) {
+        const seat = resolveSeat(id)
+        if (!seat) throw new Error(`seatRenewalHours: unknown ChatGPT profile "${id}"`)
+        if (hours !== null && !isRenewalHours(hours)) {
+          throw new Error(`seatRenewalHours.${id} must be a number of hours from ${CHATGPT_RENEWAL_HOURS_MIN} to ${CHATGPT_RENEWAL_HOURS_MAX}, or null`)
+        }
+        seats[seat] = hours
+      }
+      result.seatRenewalHours = seats
     } else if (key === "freeSeatOrder") {
       if (!isChatGptFreeSeatOrder(value)) throw new Error(`freeSeatOrder must be one of: ${CHATGPT_FREE_SEAT_ORDERS.join(", ")}`)
       result.freeSeatOrder = value
@@ -262,8 +302,16 @@ const CREDITS_POLICY_DETAIL: Record<ChatGptCreditsPolicy, string> = {
 
 export function updateChatGptFeatures(patch: ChatGptFeatureUpdate): ChatGptFeatures {
   const saved = getSetting("chatgpt") ?? {}
-  const { seatCreditsPolicy: seatPatch, ...rest } = patch
+  const { seatCreditsPolicy: seatPatch, seatRenewalHours: renewalPatch, ...rest } = patch
   const next = { ...saved, ...rest }
+  if (renewalPatch) {
+    const seats = savedRenewalHours(saved.seatRenewalHours)
+    for (const [seat, hours] of Object.entries(renewalPatch)) {
+      if (hours === null) delete seats[seat]
+      else seats[seat] = hours
+    }
+    next.seatRenewalHours = seats
+  }
   if (seatPatch) {
     const seats: Record<string, ChatGptCreditsPolicy> = savedSeatPolicies(saved.seatCreditsPolicy)
     for (const [seat, policy] of Object.entries(seatPatch)) {
