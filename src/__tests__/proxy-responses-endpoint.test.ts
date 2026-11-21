@@ -85,11 +85,11 @@ function createTestApp() {
   return app
 }
 
-function postResponses(app: any, body: any) {
+function postResponses(app: any, body: any, headers: Record<string, string> = {}) {
   return app.fetch(
     new Request("http://localhost/v1/responses", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     })
   )
@@ -339,5 +339,32 @@ describe("/v1/responses cost estimate for GPT model ids", () => {
     const estimate = computeCostEstimate([metric!])
     expect(estimate.byModel["gpt-5.5"]!.estimatedUsd).toBeNull()
     expect(estimate.unpricedRequestCount).toBe(1)
+  })
+})
+
+describe("Claude Responses telemetry attribution", () => {
+  it.each([
+    { label: "prefers the original OpenCode conversation", openCodeId: "oc-on-responses", threadId: "other-thread", expected: "oc-on-responses" },
+    { label: "uses the Codex thread without the side-call scope", openCodeId: undefined, threadId: "actual-thread", expected: "actual-thread" },
+    { label: "omits the ID for a prompt cache key alone", openCodeId: undefined, threadId: undefined, expected: undefined },
+  ])("$label", async ({ openCodeId, threadId, expected }) => {
+    const app = createTestApp()
+    const requestId = crypto.randomUUID()
+    const response = await postResponses(app, {
+      model: "claude-sonnet-5", input: "Continue", stream: false, prompt_cache_key: "different-routing-key",
+    }, {
+      "x-request-id": requestId,
+      ...(openCodeId ? { "x-opencode-session": openCodeId } : {}),
+      ...(threadId ? { "x-codex-turn-metadata": JSON.stringify({ thread_id: threadId, request_kind: "compact" }) } : {}),
+    })
+    expect(response.status).toBe(200)
+
+    const history = await app.fetch(new Request("http://localhost/telemetry/requests?limit=20"))
+    const rows: unknown = await history.json()
+    if (!Array.isArray(rows)) throw new TypeError("Expected telemetry request rows")
+    const row = rows.find(metric => metric?.requestId === requestId)
+    expect(row).toMatchObject({ adapter: "codex" })
+    if (expected === undefined) expect(row).not.toHaveProperty("clientSessionId")
+    else expect(row).toMatchObject({ clientSessionId: expected })
   })
 })

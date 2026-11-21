@@ -37,4 +37,5 @@ export const codexAdapter: AgentAdapter = {
   getSessionId(c) {
     return c.req.header("x-codex-session")
   },
+  getClientSessionId: undefined,
 }

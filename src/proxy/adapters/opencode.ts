@@ -16,6 +16,10 @@ import { buildAgentDefinitionsFromTool, mapModelTier } from "../agentDefs"
 import { fuzzyMatchAgentName } from "../agentMatch"
 import { resolvePassthrough } from "../../env"
 
+function openCodeConversationId(c: Context): string | undefined {
+  return (c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")) || undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -137,7 +141,7 @@ export const openCodeAdapter: AgentAdapter = {
    * parent's competed for one lease and one lineage.
    */
   getSessionId(c: Context): string | undefined {
-    const base = c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")
+    const base = openCodeConversationId(c)
     if (!base) return undefined
     // Only non-primary agents are scoped, and only when the plugin says so.
     // Inferring the agent from the request's shape was tried and reverted: the
@@ -149,6 +153,8 @@ export const openCodeAdapter: AgentAdapter = {
     const agent = c.req.header("x-opencode-agent-name")?.trim()
     return agent ? `${base}#${agent}` : base
   },
+
+  getClientSessionId: openCodeConversationId,
 
   /** NOTE: OpenCode-specific. The plugin marks client-managed subagent turns. */
   getAgentMode(c: Context): string | undefined {

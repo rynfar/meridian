@@ -235,6 +235,57 @@ describe("Thinking Passthrough", () => {
 })
 
 describe("telemetry", () => {
+  it("attributes an OpenCode subagent request to its unscoped client conversation", async () => {
+    const { app } = makeServer()
+    upstream = () => streamResponse(completedStream("gpt-5.6-sol"))
+
+    const turn = await post(app, codexBody("gpt-5.6-sol"), {
+      "x-opencode-agent-mode": "subagent",
+      "x-opencode-agent-name": "explore",
+    })
+    expect(turn.status).toBe(200)
+    await turn.text()
+
+    const history = await app.fetch(new Request("http://localhost/telemetry/requests?limit=1"))
+    expect(await history.json()).toMatchObject([{ adapter: "chatgpt", clientSessionId: "sess-parity" }])
+  })
+
+  it("attributes native Codex turns and side requests to the same thread, not their inherited cache key", async () => {
+    const { app } = makeServer()
+    upstream = () => streamResponse(completedStream("gpt-5.6-sol"))
+
+    for (const requestKind of ["turn", "compact"]) {
+      const turn = await post(app, codexBody("gpt-5.6-sol"), {
+        "user-agent": "codex_cli_rs/0.150.0",
+        "x-opencode-session": "",
+        "x-codex-turn-metadata": JSON.stringify({ thread_id: "child-thread", request_kind: requestKind }),
+      })
+      expect(turn.status).toBe(200)
+      await turn.text()
+    }
+
+    const history = await app.fetch(new Request("http://localhost/telemetry/requests?limit=2"))
+    expect(await history.json()).toMatchObject([
+      { adapter: "chatgpt", clientSessionId: "child-thread" },
+      { adapter: "chatgpt", clientSessionId: "child-thread" },
+    ])
+  })
+
+  it("omits client attribution when no key other than the prompt cache key is sent", async () => {
+    const { app } = makeServer()
+    upstream = () => streamResponse(completedStream("gpt-5.6-sol"))
+
+    const turn = await post(app, codexBody("gpt-5.6-sol"), { "user-agent": "generic-client", "x-opencode-session": "" })
+    expect(turn.status).toBe(200)
+    await turn.text()
+
+    const history = await app.fetch(new Request("http://localhost/telemetry/requests?limit=1"))
+    const rows: unknown = await history.json()
+    if (!Array.isArray(rows)) throw new TypeError("Expected telemetry request rows")
+    expect(rows[0]).toMatchObject({ adapter: "chatgpt" })
+    expect(rows[0]).not.toHaveProperty("clientSessionId")
+  })
+
   it("records provider tokens with cached and reasoning tokens counted once, and values them at the built-in OpenAI rate", async () => {
     const { app } = makeServer()
     upstream = () => streamResponse(completedStream("gpt-5.6-sol"))

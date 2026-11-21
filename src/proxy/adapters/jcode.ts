@@ -43,6 +43,7 @@ export const jcodeAdapter: AgentAdapter = {
   getSessionId(c): string | undefined {
     return normalizeJcodeSessionId(c.req.header("x-jcode-session"))
   },
+  getClientSessionId: undefined,
 
   extractWorkingDirectory(body): string | undefined {
     return extractJcodeWorkingDirectory(body)

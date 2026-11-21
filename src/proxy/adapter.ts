@@ -32,6 +32,9 @@ export interface AgentIdentity {
    */
   getSessionId(c: Context, body?: unknown): string | undefined
 
+  /** Telemetry-only conversation ID when getSessionId adds internal scoping. */
+  getClientSessionId?(c: Context, body?: unknown): string | undefined
+
   /**
    * Optional IMMEDIATE parent session key, for clients that declare a subagent
    * tree (Prime Agent's RLM children stamp it in `metadata.user_id`).

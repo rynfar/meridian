@@ -146,6 +146,9 @@ export interface RequestMetric {
   /** SDK session ID used for this request (for correlating across turns) */
   sdkSessionId?: string
 
+  /** Client conversation ID when the adapter has one, independent of the SDK session. */
+  readonly clientSessionId?: string
+
   /** HTTP status code returned to the client */
   status: number
 
