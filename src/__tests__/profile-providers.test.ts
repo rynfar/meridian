@@ -457,6 +457,37 @@ function cardsOf(html: string) {
 const headingsOf = (html: string) => [...html.matchAll(/<div class="provider-group-head provider-(\w+)" data-group="\w+" role="heading" aria-level="3"( hidden)?>/g)].map(m => [m[1], !!m[2]])
 const orderIndexes = (html: string) => [...html.matchAll(/<span class="order-index">(\d+)<\/span>/g)].map(m => Number(m[1]))
 
+for (const [view, template] of Object.entries({ home: landingHtml, profiles: profilePageHtml })) {
+  test(`${view} sorts credits by numerical balance and retains labels without a balance`, async () => {
+    const balances = [
+      { id: "unlimited", balance: 500, unlimited: true, hasCredits: true },
+      { id: "ten", balance: 10, hasCredits: true },
+      { id: "available", balance: null, hasCredits: true },
+      { id: "two", balance: 2, hasCredits: true },
+      { id: "empty", balance: 0, hasCredits: false },
+    ]
+    const profiles = JSON.stringify({ profiles: balances.map(({ id }) => seat(id)), routing: "active" })
+    const quota = JSON.stringify({ profiles: balances.map(({ id, ...credits }) => ({ id, credits })) })
+    for (const direction of ["asc", "desc"]) {
+      const storage = new MemoryStorage()
+      storage.setItem(`meridian.profileTable.${view}`, JSON.stringify({
+        view: "table", order: ["name", "credits"], hidden: [], sort: [{ id: "credits", direction }],
+      }))
+      const page = loadPage(template, storage)
+      if (view === "profiles") page.run(`lastProfiles = ${profiles}; render(lastProfiles, ${quota})`)
+      const markup = view === "home"
+        ? page.run<string>(`profileSection(${quota}, {}, ${profiles}, {}).html`)
+        : page.element("content").innerHTML
+      const labels: string[] = []
+      await new HTMLRewriter().on('td[data-key="credits"]', {
+        text(chunk) { if (chunk.text) labels.push(chunk.text) },
+      }).transform(new Response(markup)).text()
+      expect(labels).toEqual(direction === "asc" ? ["0 credits", "2 credits", "10 credits", "unlimited", "available"]
+        : ["10 credits", "2 credits", "0 credits", "unlimited", "available"])
+    }
+  })
+}
+
 describe("the landing page draws one grid, grouped by provider", () => {
   const section = (storage: MemoryStorage, profiles: unknown[]) =>
     loadPage(landingHtml, storage).run<{ html: string }>(
@@ -722,7 +753,7 @@ describe("the profiles page draws the same groups", () => {
 
   test("every card can be removed, each through its own provider's route", () => {
     const { page, html } = rendered(new MemoryStorage(), mixed())
-    const removeButtons = [...html.matchAll(/title="(Remove [a-z]+)" onclick="startRemove\(&quot;([^&]+)&quot;\)"/g)].map(m => [m[2], m[1]])
+    const removeButtons = [...html.matchAll(/title="(Remove [a-z]+)" data-profile="([^"]+)" onclick="startRemove\(this.dataset.profile\)"/g)].map(m => [m[2], m[1]])
     expect(removeButtons).toEqual([["c1", "Remove profile"], ["c2", "Remove profile"], ["g1", "Remove seat"], ["g2", "Remove seat"]])
 
     page.run("var removeRoutes = []; fetch = function (url, init) { removeRoutes.push([url, init.body]); return new Promise(function () {}); }")
