@@ -113,6 +113,13 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+An Antigravity turn that reports success without final text can return a
+validated answer recovered from its current agy 1.2.7 record. This does not
+replay a model request or restore history. Recovery may deliver final text as
+one chunk; structured results must still pass the original schema. Ordinary
+turns with no recoverable answer return an upstream 502 rather than empty
+success.
+
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
 usage without a new model invocation. This cache is separate from OpenAI Responses

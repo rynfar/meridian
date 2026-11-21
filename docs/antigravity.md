@@ -157,7 +157,13 @@ can restore through the official `--conversation` flag after restart. Active wor
 media, native browser/subagents and structured/stopped turns are not eligible. Schema/stopped responses use fresh processes. Embedders can disable warm
 reuse with `antigravity.reuseConversations: false`. Replay is explicit JSON
 context, not native role-preserving transcript import. Native restore never reads
-or edits private CLI transcripts.
+or edits private CLI transcripts. Separately, if agy 1.2.7 completes a turn
+without visible final text, Meridian can recover the final answer from that
+conversation's local record. It reads the record in read-only mode and requires
+an exact conversation match, a new input step and a completed response from the
+same execution. Missing, stale or unsupported records cannot supply an answer.
+Recovered text may arrive at completion instead of incrementally. The private
+record format must be verified again before this fallback can support agy 1.5.x.
 
 Repeated MCP request IDs reuse their original result within their MCP session;
 conflicting reuse is rejected. Native children have independent MCP sessions. Each
@@ -562,8 +568,10 @@ schema to the official `--json-schema` option through a temporary file.
 Non-string enums are omitted from native transport where Gemini rejects them,
 while the original exact schema remains in the prompt and local validator. Legacy `output_format` accepts the same shape; sending both is rejected.
 Intermediate prose is withheld, while client tool calls still pass through.
-Only the CLI's `structured_output` is returned after local schema validation and
-clean exit. Tool arguments are also validated before client delivery; invalid
+The CLI's `structured_output` is preferred. If it is absent on normal completion,
+final text from the stream or the verified current native record is parsed as
+JSON and checked against the original schema before delivery. Tool arguments
+are also validated before client delivery; invalid
 arguments return to the model for correction. Draft 7, 2019-09 and 2020-12
 schemas use request-local validators without coercion or remote reference fetches. A missing result
 fails explicitly. Numeric enum output has passed a live gate after this transport

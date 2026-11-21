@@ -115,7 +115,13 @@ It is bounded to 128 entries/30 minutes, refuses admission instead of eviction,
 and releases guards after joined cleanup. Backend shutdown waits for identified
 request finalizers, including bounded telemetry observers, before closing SQLite.
 It does not record external tool outcomes.
-In-flight processes never enter that durable session cache; private CLI transcripts are never read.
+In-flight processes never enter that durable session cache. History replay and
+restoration do not read private CLI transcripts. For agy 1.2.7 only,
+`antigravityNativeRecord.ts` can read the current conversation record to recover
+missing final text after normal completion. It opens the database read-only,
+validates input and execution ownership, and uses a consumed-step watermark to
+keep prior responses out of later phases. It never imports history or writes
+native records. The record format must be revalidated for other CLI versions.
 `antigravitySetup.ts` owns explicit Pi/OpenCode client configuration, separate from
 server orchestration. The build packages self-contained retry integrations under
 `dist/antigravity-clients`; npm, Nix and Docker installations carry those assets.

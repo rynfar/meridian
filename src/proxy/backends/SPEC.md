@@ -37,7 +37,10 @@ belong to [`chatgpt-backend`](../chatgpt/SPEC.md).)
   `server.ts` binds the listener. It may use the pure OpenAI translators, `auth`,
   `buildRuntime`, `headerSettings` and shared `telemetry-ui` presentation.
 - Generation runs only through the official CLI — no Google API key or model-SDK
-  fallback, and private CLI transcripts are never read.
+  fallback. Private CLI transcripts are never read for history replay, session
+  restoration or credentials; the sole narrow exception is read-only current-turn
+  final-text recovery on verified `agy` `1.2.7` records when a normally
+  completed final turn emits no visible stream text (below).
 - Client tools execute with the **client's** permissions via
   `MERIDIAN_AGY_ALLOW_TOOL_BRIDGE`; native browser/subagent capabilities need a
   separate explicit operator grant.
@@ -52,6 +55,25 @@ The full runtime, replay, recovery and persistence contract is in
 provider service*; public routes and headers are in
 [`api-contract`](../../../.agents/references/api-contract.md); feature status in
 `docs/antigravity-support.md`.
+
+## Final response recovery
+
+Native record reads are confined to the current valid conversation ID on
+agy 1.2.7. A read-only snapshot supplies an input/response step watermark and,
+after normal terminal success with missing stream text, a completed final
+answer belonging to the current input and execution. Recovery requires matching
+conversation and trajectory identifiers, input text and time, and a response
+step after the current phase boundary. Cancelled, denied, stale, ambiguous or
+unsupported records do not supply an answer. Polling is bounded and joined on
+shutdown. The cursor never moves backwards across reused turns or delivered
+tool batches; stale indexed frames and unowned text after an indexed boundary
+are ignored.
+
+Structured recovery validates the original schema before returning JSON.
+A recovered answer can be delivered at the end of a stream. A successful
+ordinary turn with neither visible nor recoverable text fails explicitly.
+The fallback is disabled for other CLI versions until their native records
+are verified.
 
 ## Known limitations
 

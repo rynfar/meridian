@@ -1,16 +1,35 @@
 #!/usr/bin/env node
 // Deterministic official-CLI protocol fixture. Never contacts a model service.
 const { spawnSync } = require('node:child_process')
-const { readFileSync } = require('node:fs')
+const { readFileSync, existsSync, writeFileSync } = require('node:fs')
 const args = process.argv.slice(2)
-const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
+let nativeStreamStep, nativeStreamCid, deferredNativeText
+const emit = value => {
+  if (nativeStreamStep !== undefined && value.event === 'step_update') value = { ...value, step_update: { conversation_id: nativeStreamCid, step_index: nativeStreamStep, ...value.step_update } }
+  process.stdout.write(JSON.stringify(value) + '\n')
+}
 const nativePrompts = []
+const nativeConversationId = args.includes('--conversation') ? args[args.indexOf('--conversation') + 1] : require('node:crypto').randomUUID()
 async function main(inputPrompt) {
   if (args[0] === '--version') return console.log(process.env.AGY_FIXTURE_VERSION || '1.5.5')
   if (args[0] === 'models') return console.log('fixture-model\tFixture Model\nfixture-model-high\tFixture High\ngemini-fixture-low\tGemini Low\ngemini-fixture-medium\tGemini Medium\ngemini-fixture-high\tGemini High')
   let prompt = args[args.indexOf('-p') + 1]
   if (inputPrompt !== undefined) prompt = inputPrompt
   nativePrompts.push(prompt)
+  const native = inputPrompt !== undefined && process.env.AGY_FIXTURE_NATIVE_RECORDS ? require('./agy-native-record.cjs') : undefined
+  const nativeTurn = native?.input(process.env.HOME, nativeConversationId, prompt)
+  if (nativeTurn) {
+    nativeStreamStep = nativeTurn.inputIdx; nativeStreamCid = nativeConversationId
+    emit({ event: 'init', conversation_id: nativeConversationId })
+    const stale = deferredNativeText; deferredNativeText = undefined
+    if (stale) emit({ event: 'step_update', step_update: { step_type: 'agent_response', step_index: stale.step, text_delta: stale.text + '\n' } })
+    emit({ event: 'step_update', step_update: { step_type: 'user_input', state: 'DONE' } })
+    if (stale && !stale.taggedOnly) {
+      emit({ event: 'step_update', step_update: { step_type: 'agent_response', step_index: stale.step, planner_response: { response: stale.text } } })
+      // Untagged delayed output cannot establish ownership in the next turn.
+      process.stdout.write(JSON.stringify({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: stale.text + '\n' } }) + '\n')
+    }
+  } else { nativeStreamStep = undefined; nativeStreamCid = undefined }
   if (prompt === '/config' && process.env.AGY_FIXTURE_CONFIG_EXIT) return process.exit(2)
   if (prompt === '/config') return emit({ conversation_id: '', status: 'SUCCESS', duration_seconds: 0, num_turns: 0, response: 'customModelsConfig\t' + (process.env.AGY_FIXTURE_CUSTOM ? '{"fixture":{}}' : '') + '\nmodelProvider\t' + (process.env.AGY_FIXTURE_API ? 'gemini' : '') + '\nuseG1Credits\tfalse' })
   if (prompt === '/usage') return emit({command:{data:{groups:[{name:'Gemini Models',buckets:[{id:'gemini-5h',window:'5h',remaining_fraction:0.75,reset_time:'2099-01-01T00:00:00Z'}]}]}}})
@@ -35,11 +54,12 @@ async function main(inputPrompt) {
     }
   }
   if (prompt.includes('EFFORT_PROBE') && args[args.indexOf('--effort') + 1] !== 'high') throw new Error('Native effort flag missing')
-  emit({ event: 'init' })
+  if (!nativeTurn) emit({ event: 'init' })
   if (prompt.includes('RATE_LIMIT')) return emit({event:'result',result:{status:'ERROR',error:'Quota exhausted; retry in 45 seconds'}})
   if (prompt.includes('HANG')) { setInterval(() => {}, 1000); return }
   if (prompt.includes('MALFORMED')) { console.log('not JSON'); return }
   if (prompt.includes('DENIED')) return emit({ event: 'result', result: { status: 'SUCCESS', denied_actions: [{ action: 'mcp' }] } })
+  if (prompt.includes('FOREIGN_CID_RESULT')) return emit({ event: 'result', result: { status: 'SUCCESS', conversation_id: require('node:crypto').randomUUID() } })
   const config = JSON.parse(readFileSync('.agents/mcp_config.json', 'utf8'))
   const url = config.mcpServers.meridian_client.serverUrl
   let nextId = 0
@@ -103,10 +123,23 @@ async function main(inputPrompt) {
   const replayedResults = Array.isArray(lastContent) ? lastContent.filter(b => b.type === 'tool_result') : []
   let answer = replayedResults.length ? replayedResults.map(b => (b.is_error ? 'FAILED:' : '') + b.content).join('|') : 'READY'
   if (!replayedResults.length && tools.length && !prompt.includes("SKIP_TOOLS")) {
+    const priorToolStep = nativeTurn ? native.answer(nativeTurn, 'Prior tool narration', { tool: true }) : undefined
+    if (priorToolStep !== undefined) nativeStreamStep = priorToolStep
+    if (prompt.includes('STRUCTURED_PROSE')) emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'I will look this up before answering.' } })
     emit({ event: 'step_update', step_update: { state: 'DONE', step_type: 'agent_response', usage: { input_tokens: 100, output_tokens: 5 } } })
     const calls = Array.from({ length: prompt.includes('PARALLEL2') ? 2 : 1 }, (_, n) => rpc('tools/call', { name: tools[0].name, arguments: { key: `probe${n}` } }))
     if (prompt.includes('RPC_RETRY')) calls.push(rpc('tools/call', {name:tools[0].name,arguments:{key:'probe0'}},2))
+    if (priorToolStep !== undefined && prompt.includes('DEFER_TOOL_TEXT')) {
+      void (async () => {
+        const gate = process.env.AGY_FIXTURE_TOOL_GATE
+        if (!gate) throw new Error('Missing deferred-tool fixture gate')
+        while (!existsSync(gate)) await new Promise(resolve => setTimeout(resolve, 1))
+        emit({ event: 'step_update', step_update: { step_type: 'agent_response', step_index: priorToolStep, text_delta: 'QUEUED_PRE_TOOL' } })
+        writeFileSync(gate + '.emitted', '')
+      })()
+    }
     const results = await Promise.all(calls)
+    if (priorToolStep !== undefined && prompt.includes('DEFER_TOOL_TEXT')) emit({ event: 'step_update', step_update: { step_type: 'agent_response', step_index: priorToolStep, text_delta: 'STALE_PRE_TOOL' } })
     if (prompt.includes('NEXT_TOOL')) await rpc('tools/call', { name: tools[0].name, arguments: { key: 'next' } })
     if (prompt.includes('STEERING')) {
       const followup = JSON.parse(results[0].content[0].text).meridian_client_followup
@@ -117,11 +150,30 @@ async function main(inputPrompt) {
     if (nativePrompts.length !== 2 || prompt.includes('NATIVE_FIRST')) throw new Error('Native continuation replayed history or spawned another process')
     answer = 'NATIVE_REUSED'
   }
-  emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: answer } })
+  const exact = [...prompt.matchAll(/TURN_ANSWER_([A-Z0-9_]+)/g)].at(-1)
+  if (exact) answer = exact[1]
+  const schemaTransport = args.includes('--json-schema')
+  if (nativeTurn && !prompt.includes('NATIVE_EMPTY_AFTER_TOOL')) nativeStreamStep = native.answer(nativeTurn, prompt.includes('NATIVE_RECORD_EMPTY') ? '' : prompt.includes('BAD_NATIVE_JSON') ? 'PRIVATE_INVALID_JSON' : prompt.includes('WRONG_NATIVE_SCHEMA') ? '{"answer":123}' : schemaTransport ? JSON.stringify({ answer }) : answer, { thinking: 'PRIVATE_REASONING_NEVER_RETURN', ...(prompt.includes('NATIVE_RECORD_WRONG_EXEC') ? { execution: require('node:crypto').randomUUID() } : {}) })
+  const hidden = /NATIVE_RECORD_ONLY|NATIVE_RECORD_EMPTY|NATIVE_RECORD_WRONG_EXEC|NATIVE_EMPTY_AFTER_TOOL|FINAL_RESPONSE_SNAPSHOT|FINAL_RESULT_SNAPSHOT|FINAL_LATE_RESPONSE|FINAL_UNRECOGNIZED/.test(prompt)
+  if (prompt.includes('FINAL_MULTISTEP_SNAPSHOT')) {
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'First planner step. ' } })
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', planner_response: { response: 'First planner step. ' } } })
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: answer } })
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', planner_response: { response: answer } } })
+  }
+  else if (prompt.includes('FINAL_RESPONSE_SNAPSHOT')) emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', planner_response: { response: answer, modified_response: answer } } })
+  else if (prompt.includes('FINAL_UNRECOGNIZED')) emit({ event: 'step_update', step_update: { step_type: 'assistant_output', final_content: { public_text: answer } } })
+  else if (!hidden) {
+    const frame = { event: 'step_update', step_update: { step_type: 'agent_response', text_delta: answer + (prompt.includes('CURRENT_NEWLINE') ? '\n' : '') } }
+    if (prompt.includes('UNSCOPED_CURRENT_TEXT')) process.stdout.write(JSON.stringify(frame) + '\n')
+    else emit(frame)
+  }
   emit({ event: 'step_update', step_update: { state: 'DONE', step_type: 'agent_response', usage: { input_tokens: 120, output_tokens: 10, cache_read_tokens: 20 } } })
   const schemaPath = args.includes('--json-schema') && args[args.indexOf('--json-schema') + 1]
   if (schemaPath) JSON.parse(readFileSync(schemaPath, 'utf8'))
-  emit({ event: 'result', result: { status: 'SUCCESS', ...(schemaPath && !prompt.includes('MISSING_STRUCTURED') ? { structured_output: prompt.includes('BAD_STRUCTURED') ? { output: { answer } } : { answer } } : {}) } })
+  emit({ event: 'result', result: { status: 'SUCCESS', ...(prompt.includes('FINAL_RESULT_SNAPSHOT') ? { planner_response: { response: answer } } : {}), ...(prompt.includes('STALE_RESULT_SNAPSHOT') ? { response: 'FIRST_ONLY\n' + answer + '\n' } : {}), ...(schemaPath && !prompt.includes('MISSING_STRUCTURED') ? { structured_output: prompt.includes('BAD_STRUCTURED') ? { output: { answer } } : { answer } } : {}) } })
+  if (prompt.includes('FINAL_LATE_RESPONSE')) { await new Promise(resolve => setTimeout(resolve, 5)); emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', planner_response: { response: answer } } }) }
+  if (nativeTurn && prompt.includes('NATIVE_DEFERRED_CURSOR')) deferredNativeText = { step: nativeStreamStep, text: answer, taggedOnly: prompt.includes('NATIVE_DEFERRED_TAGGED_ONLY') }
   if (prompt.includes('BAD_EXIT')) process.exitCode = 1
   if (prompt.includes('LINGER')) setInterval(() => {}, 1000)
 }
