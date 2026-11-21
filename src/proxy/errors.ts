@@ -240,8 +240,11 @@ export function isOutputTokenCapExceeded(message: string | undefined | null): bo
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
- * cannot exhaust every profile in a priority pool. */
-const OUT_OF_USAGE_CREDITS = /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)re out of usage credits(?:[.!]\s*)?(?:\/model to switch models\.?)?\s*$/
+ * cannot exhaust every profile in a priority pool. The CLI ends it either with
+ * "/model to switch models." or, like REACHED_YOUR_TIER_LIMIT, with "Switch to
+ * another model[, or manage usage credits at <claude.ai url>,] to continue."
+ * Only those enumerated tails and a claude.ai URL are accepted. */
+const OUT_OF_USAGE_CREDITS = /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)re out of usage credits(?:[.!]\s*)?(?:\/model to switch models\.?|switch to another model(?:, or manage usage credits at https:\/\/claude\.ai\/[^\s,]+,)? to continue\.?)?\s*$/
 
 /** Bare HTTP codes are useful SDK signals only when they are not embedded in
  * an opaque hexadecimal identity. Managed transcript errors include random

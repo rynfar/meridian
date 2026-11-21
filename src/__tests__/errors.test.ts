@@ -1073,6 +1073,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
   it.each([
     ["bare banner", "You're out of usage credits"],
     ["nested SDK wrappers", "Error: API Error: You’re out of usage credits! /model to switch models."],
+    ["usage-credits link tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue."],
+    ["plain switch tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model to continue."],
   ])("maps the canonical usage-credit %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -1087,6 +1089,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["unfinished quotation", "Claude Code returned an error result: You're out of usage credits is a test string"],
     ["punctuated documentation suffix", "Error: You're out of usage credits. This is only a documentation example, account healthy."],
     ["punctuated MCP suffix", "Claude Code returned an error result: You're out of usage credits. (quoted by an MCP error, not account state)"],
+    ["non-claude.ai link tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at https://example.com/usage, to continue."],
+    ["switch tail with documentation suffix", "Error: You're out of usage credits. Switch to another model to continue. This is only a documentation example."],
   ])("does not classify usage-credit %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).not.toBe("rate_limit_error")
   })
