@@ -62,6 +62,8 @@ export interface ChatGptProfileSurfaceDeps {
   spent: (profileId: string) => SpentRecord | undefined
   /** Where a free-plan seat ranks among the others for unpinned work (chatgpt/features.ts). */
   freeSeatOrder?: () => ChatGptFreeSeatOrder
+  /** The seat's own renewal interval in hours (features.ts `seatRenewalHours`); null for the default. */
+  renewalHours?: (seat: string) => number | null
 }
 
 export type ChatGptActivation =
@@ -160,13 +162,19 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
     /**
      * Where one turn may go. `pin` is the request's own profile header and is
      * obeyed only when it names a ChatGPT seat - on an instance serving both
-     * providers it may name a Claude profile, which says nothing here. A warm
-     * may use an excluded seat, as a Claude warm may; work may not.
+     * providers it may name a Claude profile, which says nothing here. A pin
+     * naming neither is `unknown`: the client asked for one account, and the
+     * pool would serve it from another. A warm may use an excluded seat, as a
+     * Claude warm may; work may not.
      */
     route(pin: string | undefined, purpose: "work" | "warm") {
       const list = profiles()
       const excluded = excludedSeats(list)
       const pinned = findChatGptProfile(list, pin)
+      const named = pin?.trim()
+      if (!pinned && named && !deps.reserved().has(named)) {
+        return { kind: "unknown" as const, id: named }
+      }
       if (pinned) {
         if (purpose === "work" && excluded.has(pinned.seat)) {
           return { kind: "refuse" as const, profile: pinned }
@@ -265,7 +273,10 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
           // same evidence Claude's "Last Verified" rests on.
           lastCheckedAt: reading?.failure?.lastFailureAt ?? reading?.fetchedAt ?? null,
           lastSuccessAt: reading?.fetchedAt ?? null,
-          renewalRetryAt: profile.renewalRetryAt,
+          // Meridian renews only the seats in its own store, so a followed
+          // seat has neither an interval nor a history.
+          renewalHours: owner.mode === "owned" ? deps.renewalHours?.(profile.seat) ?? null : null,
+          renewals: profile.renewals,
           authProvenance: "live" as const,
           credentialDir: null,
         }
