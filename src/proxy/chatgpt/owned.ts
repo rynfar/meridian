@@ -431,7 +431,9 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
       known.acceptedAt = null
       if (known.exhausted || known.nextAt !== null) return
       schedule(seat, known, known.lastAttemptAt === null ? now() : Math.max(now(), known.lastAttemptAt + retryStep(known.attempts)))
-      if (known.nextAt !== null) console.log(`[chatgpt] chatgpt.com refused account ${seat}'s renewed access token too; renewing again at ${new Date(known.nextAt).toISOString()}`)
+      if (known.nextAt === null) return
+      if (known.attempts === 0) console.log(`[chatgpt] chatgpt.com refused account ${seat}'s access token again; renewing it`)
+      else console.log(`[chatgpt] chatgpt.com refused account ${seat}'s renewed access token too; renewing again at ${new Date(known.nextAt).toISOString()}`)
     },
 
     accessAccepted(seat, observedAt) {
