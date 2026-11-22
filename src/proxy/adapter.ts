@@ -165,9 +165,15 @@ export interface AgentIdentity {
 
   /**
    * Remove request-scoped client metadata before lineage hashing while keeping
-   * the original request body untouched for model execution. Implementations
-   * must preserve message count and order because SDK UUIDs and resume indexes
-   * are aligned by message position.
+   * the original request body untouched for model execution.
+   *
+   * SDK UUIDs and resume indexes are aligned by message position, so
+   * implementations must preserve message count and order (#879). The one
+   * owner-approved exception (2026-11-22, #1396) is the Claude Code adapter
+   * dropping a trailing `system` turn that holds only its one-request batching
+   * reminder; no other adapter may drop a message. The server records the
+   * reply's SDK UUID at the returned array's length (`replyPosition`), which is
+   * where the client puts the reply in its next request.
    */
   canonicalizeMessagesForLineage?(
     messages: Array<{ role: string; content: unknown }>,
