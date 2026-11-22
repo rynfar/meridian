@@ -319,6 +319,8 @@ src/
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
 │   ├── profileConfigStore.ts  ← cross-process profile writer lock and atomic snapshots (leaf, I/O)
+│   ├── lockedFile.ts          ← Cross-process writer lock and atomic snapshot publication for Meridian's own files (leaf, I/O)
+│   ├── authLifecycle.ts       ← Per-credential login history: logins, renewals, logouts (leaf, I/O)
 │   ├── profileLogin.ts        ← Browser re-authentication state, redirect/paste completion and status
 │   ├── profileAdd.ts          ← Browser profile creation and isolated credential persistence
 │   ├── profileOAuthBody.ts    ← Runtime schemas for browser OAuth request bodies (pure)
@@ -868,6 +870,8 @@ Existing v1 digests cannot establish a v2 prefix. Their next request on an upgra
 A trailing user tool-result slot may gain new content while every stored block remains an exact prefix. Lineage verification allows that continuation and sends only the appended canonical blocks; duplicate result IDs, edits and meaningful removals still replay. This supports text, images and other appended content without treating an ordinary user-message edit as an append-only tool continuation.
 
 The OpenCode adapter separately recognizes complete `user-prompt-submit-hook` JSON envelopes for UserPromptSubmit additional context and common SDK hook-control fields, including `continue`. These per-turn blocks remain in the original SDK request but are excluded from durable lineage comparisons when a durable block remains. Unknown/malformed envelopes, surrounding prose, hook-only messages and assistant-authored lookalikes remain significant. Other adapters do not inherit this rule. A subset of arbitrary user blocks is never sufficient proof of a continuation.
+
+The Claude Code adapter has a rule of its own, for mid-conversation `system` turns only. claude-cli ends a tool-result request with one, and on some models appends a reminder that it sends with that request and never again (`claude-fable-5-1` on 2.1.284 through 2.1.301). Only the exact known batching reminder at the end of a `system` turn is excluded from lineage; every other block remains significant, including durable instructions after a cache breakpoint. The turn keeps its position, and user and assistant turns are never trimmed. A `system` turn holding the reminder alone (seen on 2.1.294) is left out of the lineage only when it ends the request, so no other message moves; the reply's SDK message UUID is then recorded at the lineage's length, where the client puts the reply next time. A reminder-only turn anywhere else is kept whole. This trailing drop is the only owner-approved exception (2026-11-22, #1396) to #879's rule that lineage canonicalization preserves message count; no other adapter may drop a message. The original request still reaches the SDK with the reminder in it. The E2E.md section "Claude Code system turns across tool rounds" has the captured shapes.
 
 Structured resume deltas are delivered in one SDK user input, matching text-delta delivery. SDK streamed inputs are independently answered live turns; splitting a growing request's appended context from its final question can yield concatenated answers. The shared pure coalescer preserves result wrappers and media order, and also backs fresh replay framing.
 

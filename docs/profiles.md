@@ -185,8 +185,46 @@ stored-Claude profile's own credential:
 API-key and supplied setup-token profiles report null timestamps/day count and
 false without consulting the host's stored login. Failed credential reads also
 return unavailable expiry facts and preserve the existing authentication
-provenance. A changed or missing current deadline replaces the displayed value;
-Meridian does not infer a new login or retain a separate login-history file.
+provenance. A changed or missing current deadline replaces the displayed value.
+
+### Login history
+
+Claude Code wipes `.credentials.json` once a refresh is refused, and with it
+everything about the login. Meridian keeps its own record of each stored
+credential in `auth-lifecycle.json` beside `settings.json`: when the login
+happened, when Meridian last renewed it, and when the account was first found
+logged out and why. It never holds a token. Every transition is logged
+(`[PROXY] Profile "work" logged out: ...`, naming the deadline and how long
+the login lasted) and kept in the diagnostics log under `auth`.
+
+`GET /profiles/list` adds five fields to every profile, `null` when nothing is
+on record or the profile has no stored login:
+
+| Field | Meaning |
+| --- | --- |
+| `authObtainedAt` | When the current login happened (epoch ms); `null` when a replaced credential cannot be dated |
+| `authObtainedVia` | `login` when Meridian performed it, `observed` when a new login was found on disk (then `authObtainedAt` is when Meridian noticed it) |
+| `lastRefreshAt` | Meridian's last renewal of this login; a renewal by a Claude Code process is not seen |
+| `firstUnauthedAt` | When authentication was first found failing; cleared by a new login or a renewal that works |
+| `unauthedReason` | `refresh_rejected` (Anthropic answered `invalid_grant` for the stored refresh token) or `credentials_cleared` (the stored credential has no access token) |
+
+A refused renewal is not yet a logout: the account keeps serving until its
+access token expires, so `loggedIn` stays as `claude auth status` reports it
+and the card shows **Renewal refused, stops in …**. After that expiry, or once
+the credential is cleared, `loggedIn` is `false` and the card shows
+**Logged out … ago** with the reason on hover. Cards also show **Logged in …
+ago**, saying on hover whether Meridian performed the login or found it.
+
+Other OAuth errors, outages and stores that cannot be read record nothing. A
+different refresh token with a different deadline is a new login; one that
+cannot be told apart from a rotation of the old login is recorded without a
+login time instead of a wrong one.
+
+The history is best-effort. Renewals and `/profiles/list` write it in the
+background and never wait for it, so a problem with `auth-lifecycle.json`
+(such as a lock file left by a crashed process) only drops history entries; it
+never slows a request. Removing a profile deletes the history of the
+credentials it removes, and renaming one carries the history to the new name.
 
 ### Duplicate profiles
 
