@@ -100,11 +100,16 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   it moves on its next turn; when no account with plan allowance can take
   work, the pool keeps its order. The evidence is already observed, never
   fetched (the usage endpoint rate-limits): the newest of the SDK's
-  `isUsingOverage` and a cached OAuth snapshot whose `five_hour` or
-  `seven_day` window is at 100% with `extraUsage.isEnabled`. A reading past
-  its reset, or one with no reset older than an hour, says nothing. `never`
-  drops such accounts and answers 429 with the earliest plan reset as
-  `Retry-After` when none is left; `immediately` changes nothing. Retain-only
+  `isUsingOverage` from an account-wide bucket (`five_hour`, `seven_day`,
+  `default`, `overage`; a per-model bucket such as `seven_day_opus` says
+  nothing about other models, as in #1524) and a cached OAuth snapshot whose
+  `five_hour` or `seven_day` window is at 100%. `extraUsage.isEnabled` is not
+  consulted: Team seats can report it off while organisation overage serves
+  them (#1347). A reading past its reset, or one with no reset older than an
+  hour, says nothing. `never` drops such accounts and answers 429 with the
+  earliest plan reset as `Retry-After` when none is left; it is not a spend
+  cap, because evidence arrives only after a paid turn and retain-only work
+  still runs on the account. `immediately` changes nothing. Retain-only
   work keeps its route, as with the weekly reserve. Cache-keepalive beats
   skip such accounts under every mode. The three words match the ChatGPT
   Codex credits policy.

@@ -112,7 +112,7 @@ export interface CacheKeepaliveAccountFacts {
   spent: boolean
   /** The account is holding its weekly reserve. */
   reserveHeld?: boolean
-  /** Its plan is spent and Extra Usage is on, as the cached usage snapshot says. */
+  /** By what Meridian has observed, its next turn would be paid with Extra Usage. */
   drawsExtraUsage?: boolean
   /** The session's [1m] model is benched, so the next turn uses another model. */
   benched: boolean

@@ -731,23 +731,27 @@ export function getClaudeExtraUsagePolicy(raw: string | undefined): ClaudeExtraU
 /** Account-wide plan windows; a spent per-model bucket does not put a turn on Extra Usage. */
 const PLAN_WINDOWS: readonly string[] = ["five_hour", "seven_day"]
 
+/** SDK buckets whose `isUsingOverage` speaks for the whole account. */
+const SDK_ACCOUNT_BUCKETS: readonly string[] = [...PLAN_WINDOWS, "default", "overage"]
+
 /** What has been observed about one account, from either source. Never fetches. */
 export interface ExtraUsageEvidence {
   /** SDK rate-limit events: `isUsingOverage` says whether the last turn drew Extra Usage. */
-  sdk: ReadonlyArray<{ isUsingOverage?: boolean; resetsAt?: number; observedAt: number }>
+  sdk: ReadonlyArray<{ rateLimitType?: string; isUsingOverage?: boolean; resetsAt?: number; observedAt: number }>
   /** The cached OAuth usage snapshot, when there is one. */
   oauth?: {
     fetchedAt: number
-    extraUsageEnabled: boolean
     windows: ReadonlyArray<{ type: string; utilization: number | null; resetsAt: number | null }>
   }
 }
 
 /**
  * Whether the account's next turn would be paid for with Extra Usage: the
- * newest observation says so. An SDK event names it directly; an OAuth
- * snapshot implies it when an account-wide plan window is spent and Extra
- * Usage is on, because Anthropic then keeps serving instead of refusing.
+ * newest observation says so. An SDK event from an account-wide bucket names
+ * it directly; a per-model bucket says nothing about other models (#1524). An
+ * OAuth snapshot implies it when an account-wide plan window is spent. Its
+ * `extra_usage.is_enabled` is not consulted: Team seats can report it off
+ * while organisation overage serves them (#1347).
  * A reading past its window's reset, or one with no reset older than an hour,
  * says nothing about now.
  */
@@ -758,6 +762,7 @@ export function drawsExtraUsage(evidence: ExtraUsageEvidence, now: number): bool
   }
   for (const entry of evidence.sdk) {
     if (typeof entry.isUsingOverage !== "boolean") continue
+    if (entry.rateLimitType !== undefined && !SDK_ACCOUNT_BUCKETS.includes(entry.rateLimitType)) continue
     const live = typeof entry.resetsAt === "number"
       ? entry.resetsAt > now
       : now - entry.observedAt <= WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS
@@ -768,7 +773,7 @@ export function drawsExtraUsage(evidence: ExtraUsageEvidence, now: number): bool
     const planSpent = oauth.windows.some(w => PLAN_WINDOWS.includes(w.type)
       && typeof w.utilization === "number" && w.utilization >= 1
       && typeof w.resetsAt === "number" && w.resetsAt > now)
-    consider(oauth.fetchedAt, oauth.extraUsageEnabled && planSpent)
+    consider(oauth.fetchedAt, planSpent)
   }
   return newest?.drawing ?? false
 }

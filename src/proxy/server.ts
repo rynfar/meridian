@@ -1588,7 +1588,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       sdk: rateLimitStore.getAll(profileId),
       oauth: oauth && {
         fetchedAt: oauth.fetchedAt,
-        extraUsageEnabled: oauth.extraUsage?.isEnabled === true,
         windows: oauth.windows,
       },
     }, Date.now())

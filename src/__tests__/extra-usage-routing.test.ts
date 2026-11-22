@@ -16,8 +16,8 @@ import {
 const NOW = 1_800_000_000_000
 const HOUR = 60 * 60_000
 
-function oauth(utilization: number, extraUsageEnabled: boolean, fetchedAt = NOW - 1000, type = "five_hour"): ExtraUsageEvidence["oauth"] {
-  return { fetchedAt, extraUsageEnabled, windows: [{ type, utilization, resetsAt: NOW + HOUR }] }
+function oauth(utilization: number, fetchedAt = NOW - 1000, type = "five_hour"): ExtraUsageEvidence["oauth"] {
+  return { fetchedAt, windows: [{ type, utilization, resetsAt: NOW + HOUR }] }
 }
 
 describe("getClaudeExtraUsagePolicy", () => {
@@ -41,21 +41,29 @@ describe("drawsExtraUsage", () => {
     expect(drawsExtraUsage({ sdk: [{ isUsingOverage: true, observedAt: NOW - WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS - 1 }] }, NOW)).toBe(false)
   })
 
-  it("infers it from a spent account-wide plan window with Extra Usage on", () => {
-    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, true) }, NOW)).toBe(true)
-    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, true, NOW - 1000, "seven_day") }, NOW)).toBe(true)
+  it("infers it from a spent account-wide plan window, whatever the snapshot says about Extra Usage", () => {
+    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1) }, NOW)).toBe(true)
+    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, NOW - 1000, "seven_day") }, NOW)).toBe(true)
   })
 
-  it("does not infer it with Extra Usage off, below the limit, or from a per-model bucket", () => {
-    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, false) }, NOW)).toBe(false)
-    expect(drawsExtraUsage({ sdk: [], oauth: oauth(0.97, true) }, NOW)).toBe(false)
-    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, true, NOW - 1000, "seven_day_opus") }, NOW)).toBe(false)
+  it("does not infer it below the limit or from a per-model bucket", () => {
+    expect(drawsExtraUsage({ sdk: [], oauth: oauth(0.97) }, NOW)).toBe(false)
+    expect(drawsExtraUsage({ sdk: [], oauth: oauth(1, NOW - 1000, "seven_day_opus") }, NOW)).toBe(false)
+  })
+
+  it("takes the SDK's isUsingOverage only from an account-wide bucket", () => {
+    const live = { isUsingOverage: true, resetsAt: NOW + HOUR, observedAt: NOW - 1000 }
+    for (const rateLimitType of ["five_hour", "seven_day", "default", "overage"]) {
+      expect(drawsExtraUsage({ sdk: [{ ...live, rateLimitType }] }, NOW)).toBe(true)
+    }
+    expect(drawsExtraUsage({ sdk: [{ ...live, rateLimitType: "seven_day_opus" }] }, NOW)).toBe(false)
+    expect(drawsExtraUsage({ sdk: [{ ...live, rateLimitType: "seven_day_sonnet" }] }, NOW)).toBe(false)
   })
 
   it("lets the newest observation win", () => {
     const stillOnPlan = { isUsingOverage: false, resetsAt: NOW + HOUR, observedAt: NOW - 10 }
-    expect(drawsExtraUsage({ sdk: [stillOnPlan], oauth: oauth(1, true, NOW - 1000) }, NOW)).toBe(false)
-    expect(drawsExtraUsage({ sdk: [{ ...stillOnPlan, observedAt: NOW - 5000 }], oauth: oauth(1, true, NOW - 1000) }, NOW)).toBe(true)
+    expect(drawsExtraUsage({ sdk: [stillOnPlan], oauth: oauth(1, NOW - 1000) }, NOW)).toBe(false)
+    expect(drawsExtraUsage({ sdk: [{ ...stillOnPlan, observedAt: NOW - 5000 }], oauth: oauth(1, NOW - 1000) }, NOW)).toBe(true)
   })
 
   it("is false with nothing observed", () => {
