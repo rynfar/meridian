@@ -23,9 +23,11 @@
 import { existsSync, realpathSync, rmSync } from "node:fs"
 import { isAbsolute, join, relative, resolve } from "node:path"
 import { getSetting, saveSettings, type MeridianSettings } from "../settings"
+import { removeAuthLifecycleKeys } from "./authLifecycle"
 import { readProfileConfigForUpdate, withProfileConfigLockSync } from "./profileConfigStore"
 import type { ProfileConfig } from "./profiles"
 import { defaultProfilesConfigFile, defaultProfilesDir, saveProfileConfigTo } from "./profileRename"
+import { createPlatformCredentialStore } from "./tokenRefresh"
 
 /**
  * Which on-disk directories should be removed when this profile is deleted.
@@ -213,6 +215,13 @@ function applyProfileRemoveLocked(id: string, options: ApplyProfileRemoveOptions
       dirsOrphaned.push({ dir, reason: err instanceof Error ? err.message : String(err) })
     }
   }
+
+  // The login history is keyed by where a credential lives; a deleted
+  // directory's history describes a credential that no longer exists.
+  const orphaned = new Set(dirsOrphaned.map(entry => entry.dir))
+  removeAuthLifecycleKeys(plan.dirsToRemove
+    .filter(dir => !orphaned.has(dir))
+    .map(dir => createPlatformCredentialStore({ claudeConfigDir: dir }).refreshKey))
 
   return {
     ok: true,
