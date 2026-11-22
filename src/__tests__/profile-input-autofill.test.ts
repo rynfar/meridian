@@ -13,9 +13,9 @@ describe("profile page text fields", () => {
     }
   })
 
-  it("carry them on every input: search, rename, profile name and both paste boxes", () => {
+  it("carry them on every input: search, rename, profile name, both paste boxes and a seat's renewal interval", () => {
     const inputs = profilePageHtml.split("<input").slice(1).map(rest => rest.slice(0, 260))
-    expect(inputs.length).toBe(5)
+    expect(inputs.length).toBe(6)
     for (const input of inputs) expect(input.includes("PROFILE_INPUT_ATTRS") || input.includes('data-lpignore="true"')).toBe(true)
     expect(profilePageHtml).toContain(`var PROFILE_INPUT_ATTRS = '${PROFILE_INPUT_ATTRS}';`)
     expect(profilePageHtml).toContain('id=\\"rename-input\\" type=\\"text\\"')

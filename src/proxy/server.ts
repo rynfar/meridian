@@ -157,6 +157,20 @@ import { detectAdapter } from "./adapters/detect"
 import { rootSessionIdOf } from "./adapter"
 import { buildQueryOptions, isCliThinkingDisplay, promptCachingDisabled, passthroughThinking, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
 import { resolveTranscriptRetention } from "./transcriptRetention"
+import {
+  canonicalConfigDir,
+  cleanupDue,
+  createTranscriptSweep,
+  DEFAULT_TRANSCRIPT_SWEEP_INTERVAL_MS,
+  idleSweepQuery,
+  idleTranscriptSweeps,
+  listSweepRoots,
+  openRefusingProxy,
+  protectPinnedTranscripts,
+  type IdleChildOutcome,
+  type RefusingProxy,
+  type RootReservation,
+} from "./transcriptSweep"
 import { transcriptRetentionSettingsResponse } from "./transcriptRetentionSettings"
 import { normalizeEffort } from "./effort"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
@@ -167,7 +181,7 @@ import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { authKeepaliveTargets, resolveProfile, unknownPinnedProfile, unknownProfileResponse, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, hasProfiles, restoreActiveProfile, invalidateDiskProfileCache, shareableCredentialDir, type ResolvedProfile } from "./profiles"
 import { applyProfileRemove } from "./profileRemove"
-import { adoptedProfiles, followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
+import { adoptedProfiles, followStatus, isFollowEnabled, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
@@ -182,6 +196,7 @@ import {
   resolvePriorityOrder,
   choosePriorityProfile,
   chooseActivePriorityCandidates,
+  lastMappedProfile,
   isPoolRouting,
   ACTIVE_PRIORITY,
   ROUTING_MODES,
@@ -350,6 +365,10 @@ const PASSTHROUGH_SINGLE_STEP_ABORT_REASON = "passthrough single-step complete"
 // to abort the same hung model — see the coordination contract in
 // streamIdleGuard.ts.
 const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
+/** runGatedSdkQuery's mode for the idle transcript sweep's child. */
+const TRANSCRIPT_SWEEP_MODE = "transcript_sweep"
+/** Each further join budget for a sweep child that outlived the first. */
+const SWEEP_JOIN_RETRY_MS = 30_000
 
 // How long a held passthrough deny may wait for the turn-generation boundary
 // while the turn produces nothing. Derived from UPSTREAM_IDLE_MS, never a
@@ -972,6 +991,31 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   }
   sessionGcOptions.pinProvider = collectSessionGcPins
 
+  // Transcripts Meridian still needs, whichever store holds the mappings:
+  // what Claude Code's mtime-only retention cleanup must not delete.
+  const transcriptPinsNow = (): TranscriptLocator[] => [
+    ...[...activeSessionGcPins.values()].map((entry) => entry.locator),
+    ...readSessionTranscriptPins(),
+  ]
+  // Before a child that runs Claude Code's cleanup (at most once a day per
+  // root), give those transcripts a current mtime (transcriptSweep.ts). At
+  // most once an hour per root. False when it failed: that child then gets no
+  // retention period, so the cleanup cannot run unprotected.
+  const pinsProtectedAt = new Map<string, number>()
+  const protectPinsBeforeCleanup = async (configDir: string, retentionDays: number): Promise<boolean> => {
+    const now = Date.now()
+    if (!cleanupDue(configDir, now) || now - (pinsProtectedAt.get(configDir) ?? 0) < 60 * 60_000) return true
+    try {
+      const refreshed = await protectPinnedTranscripts(configDir, transcriptPinsNow(), retentionDays, now)
+      pinsProtectedAt.set(configDir, now)
+      if (refreshed > 0) claudeLog("transcript_retention.pins_protected", { refreshed })
+      return true
+    } catch (error) {
+      claudeLog("transcript_retention.pins_protect_failed", { error: error instanceof Error ? error.message : String(error) })
+      return false
+    }
+  }
+
   const profileCopyPruningEnabled = envBool("SESSION_PROFILE_COPY_PRUNE")
   const profileCopyGraceMs = Math.max(0, envInt("SESSION_PROFILE_COPY_GRACE_MS", DEFAULT_PROFILE_COPY_GRACE_MS))
   const pruneSupersededProfileCopies = async (): Promise<void> => {
@@ -1040,6 +1084,36 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     ? new AbortableSemaphore(finalConfig.maxConcurrent)
     : getProcessSdkSemaphore()
   const responseCompletions = new WeakMap<Response, Promise<void>>()
+
+  // Config roots a gated Claude Code process runs in, and the idle transcript
+  // sweep's reservation of one (transcriptSweep.ts). The sweep never reserves
+  // a root a request runs in, and a request entering the reserved root stops
+  // the sweep's child at once instead of waiting for it.
+  const busySdkRoots = new Map<string, number>()
+  let sweepReservation: { readonly configDir: string; readonly preempt: AbortController } | undefined
+  const markSdkRootBusy = (options: Parameters<typeof query>[0]["options"]): (() => void) => {
+    const root = canonicalConfigDir(resolveQueryConfigDir(options?.env ?? process.env, false, options?.cwd))
+    busySdkRoots.set(root, (busySdkRoots.get(root) ?? 0) + 1)
+    if (sweepReservation?.configDir === root) sweepReservation.preempt.abort()
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      const remaining = (busySdkRoots.get(root) ?? 1) - 1
+      if (remaining > 0) busySdkRoots.set(root, remaining)
+      else busySdkRoots.delete(root)
+    }
+  }
+  const reserveSweepRoot = (configDir: string): RootReservation | undefined => {
+    const root = canonicalConfigDir(configDir)
+    if (sweepReservation || busySdkRoots.has(root)) return undefined
+    const reservation = { configDir: root, preempt: new AbortController() }
+    sweepReservation = reservation
+    return {
+      preempted: reservation.preempt.signal,
+      release: () => { if (sweepReservation === reservation) sweepReservation = undefined },
+    }
+  }
 
   // Graceful shutdown (#drain): once true, handleWithQueue fast-fails new
   // requests instead of queueing them, and /health reports it so a fleet
@@ -1336,15 +1410,21 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
    * writes no transcript (a keepalive beat, `persistSession: false`); it is
    * still gated and joined, but takes no writer lease that would refuse a
    * real turn on the same transcript. The permit is released only after the
-   * child has been joined.
+   * child has been joined; with `joinUntilExit` a child that outlives the
+   * join budget keeps it until it does exit (the idle transcript sweep).
+   * `observeUpstream: false` skips the stall guard and reachability tracking
+   * for a child that asks nothing and has no network.
    */
   async function* runGatedSdkQuery(
     params: Parameters<typeof query>[0],
     signal: AbortSignal,
-    lease: SemaphoreLease,
+    lease: Pick<SemaphoreLease, "release">,
     mode: string,
     activeLocators: readonly TranscriptLocator[],
+    custody: { readonly observeUpstream?: boolean; readonly joinUntilExit?: boolean } = {},
   ) {
+    // The sweep reserves its own root; its child must not preempt itself.
+    const releaseSdkRoot = mode === TRANSCRIPT_SWEEP_MODE ? undefined : markSdkRootBusy(params.options)
     let sdkQuery: ReturnType<typeof query> | undefined
     let activeTranscriptLease: Awaited<ReturnType<typeof acquireActiveTranscriptLease>> | undefined
     let processGate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
@@ -1374,6 +1454,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
       signal.throwIfAborted()
       sdkQuery = query(params)
+      if (custody.observeUpstream === false) {
+        yield* sdkQuery
+        return
+      }
       // Read outside the idle guard, never between it and the query: the guard
       // tears its source down without awaiting it, and a generator in between
       // would hold that teardown behind a pull that may never settle.
@@ -1390,6 +1474,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // already invoked by guardUpstreamIdle.
         if (typeof sdkQuery?.close === "function") sdkQuery.close()
         if (processGate) writerJoined = await processGate.closeAndJoin()
+        if (!writerJoined && processGate && custody.joinUntilExit) {
+          claudeLog("sdk.join_pending", { mode })
+          while (!writerJoined) writerJoined = await processGate.closeAndJoin(SWEEP_JOIN_RETRY_MS)
+        }
         if (!writerJoined) {
           throw new SessionLifecycleError("SDK writer could not be joined; transcript remains fenced")
         }
@@ -1397,6 +1485,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           await releaseJoinedTranscriptLease(activeTranscriptLease, sessionGcOptions)
         }
       } finally {
+        releaseSdkRoot?.()
         lease.release()
       }
     }
@@ -1431,6 +1520,62 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         now: Date.now(),
       }),
     }),
+  })
+
+  // Idle transcript sweep (transcriptSweep.ts; src/proxy/SPEC.md). Only where
+  // opt-in retention is on; startProxyServer starts and stops it. Its child
+  // runs on the gated path above, takes only a free permit that leaves one for
+  // a client turn, and holds it until the process is joined.
+  const transcriptSweep = createTranscriptSweep({
+    listRoots: () => {
+      // A follower shares the followed instance's directories, whose pins live
+      // in that instance's store; it alone sweeps them.
+      if (isFollowEnabled()) return []
+      const profiles = getEffectiveProfiles(finalConfig.profiles)
+      const resolved = profiles.length === 0
+        ? [resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)]
+        : profiles.map((profile) => resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, profile.id))
+      return listSweepRoots(resolved, process.env)
+    },
+    reserveRoot: reserveSweepRoot,
+    isDraining: () => draining,
+    credentialsReadOnly: isCredentialsReadOnly,
+    tryAcquireSlot: () => sdkSemaphore.tryAcquire(1),
+    readCredentials: (root) => createPlatformCredentialStore(
+      root.explicitConfigDir ? { claudeConfigDir: root.configDir } : undefined,
+    ).read(),
+    pinnedTranscripts: transcriptPinsNow,
+    runChild: async (root, retentionDays, slot, signal): Promise<IdleChildOutcome> => {
+      let proxy: RefusingProxy | undefined
+      let handedOver = false
+      try {
+        const claudeExecutable = await executableProbeOwner.run(signal, resolveClaudeExecutableAsync)
+        proxy = await openRefusingProxy()
+        const abort = new AbortController()
+        const forward = (): void => abort.abort()
+        signal.addEventListener("abort", forward, { once: true })
+        if (signal.aborted) forward()
+        const params = idleSweepQuery({ root, retentionDays, claudeExecutable, abort, proxyEnv: proxy.env })
+        handedOver = true
+        try {
+          for await (const _message of runGatedSdkQuery(params, signal, slot, TRANSCRIPT_SWEEP_MODE, [], {
+            observeUpstream: false,
+            joinUntilExit: true,
+          })) {
+            // Nothing is asked, so nothing worth reading arrives.
+          }
+        } catch (error) {
+          // Stopping the child ends its query; only an unasked failure counts.
+          if (!signal.aborted) throw error
+        }
+        return { refusedConnections: proxy.refused }
+      } finally {
+        if (!handedOver) slot.release()
+        await proxy?.close()
+      }
+    },
+    log: plog,
+    intervalMs: Math.max(0, envInt("TRANSCRIPT_SWEEP_INTERVAL_MS", DEFAULT_TRANSCRIPT_SWEEP_INTERVAL_MS)),
   })
 
   const pluginDir = finalConfig.pluginDir ?? configPath("plugins")
@@ -2756,8 +2901,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // subagent keyed apart from its parent stays on the parent's
             // account (AgentIdentity.getRootSessionId).
             const adapterSessionId = adapter.getSessionId(c, body)
+            const rootSessionId = rootSessionIdOf(adapter, c, body)
             const sessionKey = getPriorityAssignmentKey(
-              rootSessionIdOf(adapter, c, body),
+              rootSessionId,
               lineageMessages,
               assignmentCwd,
             )
@@ -2851,8 +2997,35 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   publicationTurn = trustedTurn
                 } else if (sessionKey) {
                   // A process-local assignment preserves legacy/keyless affinity
-                  // but can never create durable promotion authority.
+                  // but can never create durable promotion authority. A restart
+                  // empties it; the account holding the conversation's most
+                  // recently used mapping stands in (see profiles-routing spec,
+                  // *A restart keeps a running conversation on its account*).
                   assignment = priorityAssignments.get(sessionKey)
+                  if (!assignment) {
+                    const lastUsed = new Map<string, number>()
+                    for (const id of configuredOrder) {
+                      for (const sessionId of new Set([rootSessionId ?? adapterSessionId, adapterSessionId])) {
+                        const mapped = lookupSharedSessionResult(mappingKeyOn(id, sessionId))
+                        if (mapped.status === "error") {
+                          return c.json({
+                            type: "error",
+                            error: { type: "overloaded_error", message: "Durable priority session state is unavailable" },
+                          }, 503, TRANSIENT_RETRY_AFTER_HEADERS)
+                        }
+                        if (mapped.status === "found") {
+                          lastUsed.set(id, Math.max(lastUsed.get(id) ?? 0, mapped.session.lastUsedAt))
+                        }
+                      }
+                    }
+                    const restored = lastMappedProfile(configuredOrder, id => lastUsed.get(id))
+                    if (restored !== undefined) {
+                      assignment = { profileId: restored, requestId: undefined }
+                      claudeLog("priority.assignment_restored", {
+                        routeKey, sessionKey, profileId: restored, lastUsedAt: lastUsed.get(restored),
+                      })
+                    }
+                  }
                 }
               } else if (sessionKey) {
                 assignment = priorityAssignments.get(sessionKey)
@@ -3233,7 +3406,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           sdkFeatures.sharedMemory,
           workingDirectory,
         )
-        const transcriptRetentionDays = resolveTranscriptRetention(transcriptConfigDir).days
+        const configuredRetentionDays = resolveTranscriptRetention(transcriptConfigDir).days
+        const transcriptRetentionDays = configuredRetentionDays > 0
+          && !(await protectPinsBeforeCleanup(transcriptConfigDir, configuredRetentionDays))
+          ? 0
+          : configuredRetentionDays
         const transcriptLocator = (sessionId: string): TranscriptLocator => ({
           sessionId,
           configDir: transcriptConfigDir,
@@ -9576,6 +9753,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     order: priorityProfileOrderSetting,
     spent: (profileId) => spentProfiles.get(profileId),
     freeSeatOrder: () => getChatGptFeatures().freeSeatOrder,
+    renewalHours: (seat) => getChatGptFeatures().seatRenewalHours[seat] ?? null,
   }) : undefined
   const orderableProfileIds = (): string[] => [
     ...listProfiles(finalConfig.profiles, finalConfig.defaultProfile).map(p => p.id),
@@ -10202,7 +10380,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
   // ChatGPT gateway features (chatgpt/features.ts), re-read per request.
   // `seats` lists every seat with its own credits-policy override (null =
-  // the instance's policy), for the per-seat controls.
+  // the instance's policy) and renewal interval (null = the default), for the
+  // per-seat controls.
   app.get("/settings/api/chatgpt", async (c) => {
     const models = (await chatGptOfferedModels()).map(model => model.slug)
     const features = getChatGptFeatures()
@@ -10210,6 +10389,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       id: profile.id,
       label: profile.label,
       creditsPolicy: features.seatCreditsPolicy[profile.seat] ?? null,
+      renewalHours: features.seatRenewalHours[profile.seat] ?? null,
     }))
     return c.json({ enabled: chatGptSource !== undefined, features, models, seats })
   })
@@ -10224,6 +10404,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       if (update.creditsPolicy || update.seatCreditsPolicy) {
         const overrides = Object.entries(features.seatCreditsPolicy).map(([seat, policy]) => `${chatGptProfiles?.profileIdFor(seat) ?? seat}=${policy}`)
         plog(`[PROXY] ChatGPT credits policy: ${features.creditsPolicy}${overrides.length > 0 ? ` overrides=${overrides.join(",")}` : ""}`)
+      }
+      if (update.seatRenewalHours) {
+        const intervals = Object.entries(features.seatRenewalHours).map(([seat, hours]) => `${chatGptProfiles?.profileIdFor(seat) ?? seat}=${hours}h`)
+        plog(`[PROXY] ChatGPT seat renewal intervals: ${intervals.length > 0 ? intervals.join(",") : "none (every seat renews 80% into its token's life)"}`)
       }
       return c.json({ ok: true, features })
     } catch (e) {
@@ -12509,7 +12693,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     chatGptLoginClosed = chatGptLogin?.close()
   }
   let backendClosePromise: Promise<void> | undefined
-  return {
+  const proxyServer: ProxyServer = {
     app,
     config: finalConfig,
     initPlugins: initPluginsAsync,
@@ -12563,6 +12747,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       },
     } } : {}),
   }
+  idleTranscriptSweeps.set(proxyServer, transcriptSweep)
+  return proxyServer
 }
 
 /**
@@ -12696,6 +12882,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     closeBackend,
     chatGpt,
   } = proxy
+  const transcriptSweep = idleTranscriptSweeps.get(proxy)
 
   // Only the owned HTTP-server lifecycle starts a periodic sweep. Embedders
   // using createProxyServer().app still sweep opportunistically after managed
@@ -12706,6 +12893,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     : undefined
   sessionGcInterval?.unref?.()
   if (sweepSessionGc) void sweepSessionGc()
+  transcriptSweep?.start()
 
   // Same ownership rule as the GC sweep: only the owned server runs the timer.
   // The tick only compares timestamps (and returns at once with nothing
@@ -12879,6 +13067,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
         if (sessionGcInterval) clearInterval(sessionGcInterval)
         if (cacheKeepaliveInterval) clearInterval(cacheKeepaliveInterval)
+        // Stops a running sweep child now; its join is awaited below.
+        const transcriptSweepStopped = transcriptSweep?.stop()
         // Refuse new work before potentially waiting for a deletion child.
         beginDrain?.()
         const chatGptRenewalStopped = chatGptRenewal?.stop()
@@ -12916,6 +13106,9 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
           await joinShutdownCleanup({
             idle: waitForShutdownIdle(() => (getInFlightCount?.() ?? 0) > 0),
             durable: async () => {
+              // Joined before the backend closes: close() never succeeds with
+              // the sweep's child still running.
+              await progress.run("transcript sweep stop", async () => { await transcriptSweepStopped })
               if (sweepSessionGc) await progress.run("session GC sweep", sweepSessionGc)
               if (closeBackend) await progress.run("backend close", closeBackend)
             },

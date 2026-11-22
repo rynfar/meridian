@@ -156,20 +156,49 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   Claude Code validates the key as a positive integer and older versions read
   `0` as "write no transcripts".
   - *Why opt-in:* the cleanup deletes every file of its kind older than the
-    period in the whole config directory (transcripts Meridian still maps or
-    pins, file history, plans, tasks, uploads, shell snapshots, debug logs,
-    backups…), by mtime only, and can race a resume (`session` → *Known
-    limitations*). That is a data-deletion choice for the operator.
-  - *Why no Meridian-owned sweep yet:* the proposed idle sweep launched a
-    promptless Claude Code child per profile root without process custody (its
-    SDK slot was released before the child was joined, `close()` could succeed
-    with it unjoined, root reservation raced) and exported
-    `ProxyServer.transcriptSweep` without contract approval. Retention
-    therefore runs only inside request children; a profile that serves no
-    requests is not cleaned.
-  - *Follow-ups:* a pin-aware transcript GC that honors durable mappings and
-    publication leases, then an idle sweep with full process custody (slot held
-    until the child is joined, joined on close, atomic root reservation).
+    period in the whole config directory (file history, plans, tasks, uploads,
+    shell snapshots, debug logs, backups…), by mtime only. That is a
+    data-deletion choice for the operator.
+  - *Transcripts Meridian still needs survive it.* Before a child whose
+    cleanup is due (`.last-cleanup` a day old) starts, every transcript the
+    session store maps or a request has pinned in that root, and that the
+    cleanup could reach, gets a current mtime, its sidecar directory included
+    (`transcriptSweep.ts` → `protectPinnedTranscripts`). Files are found by
+    session id under `projects/`; roots are compared after resolving
+    symlinks. If any pinned file cannot be read or touched (other than being
+    gone), the request child runs without a period and the idle sweep skips
+    the root, so the cleanup never runs unprotected. Cost: one walk of
+    `projects/` per root per day, at most once an hour.
+  - *Idle sweep* (`transcriptSweep.ts`, only where retention is on). The
+    cleanup runs only inside a CLI process, so a root that serves no requests,
+    or only requests shorter than ~5 s, is never cleaned. Every three hours
+    (`MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS`, `0` off) Meridian starts one
+    promptless, network-less CLI process per due root, one root at a time, and
+    stops it once `.last-cleanup` advances (10-minute cap). Its custody:
+    - the child runs on the same gated path as a request (SDK process gate,
+      close-and-join) without the stall guard or reachability tracking, and
+      takes only a free SDK permit that leaves one for a client turn;
+    - the permit is released only once the exact process is joined; a child
+      that outlives the join budget keeps it until it does exit;
+    - `close()` stops the child before draining and joins it before the
+      backend closes, so it never succeeds with the child alive (past the
+      shutdown deadline it rejects with ownership retained);
+    - the root is reserved before its login is read and kept until the join;
+      request admission refuses the reservation while a request runs there and
+      preempts it when one arrives, so the child is stopped, never started;
+    - every outbound connection goes to a loopback proxy that refuses it, a
+      login due for refresh within 30 minutes is skipped, and
+      `MERIDIAN_CREDENTIALS_READONLY` starts nothing;
+    - an instance under `MERIDIAN_FOLLOW_ACTIVE` sweeps nothing: it shares
+      the followed instance's directories, whose pins live in that store;
+    - the stored login is compared before and after; a login that is usable
+      and expires no earlier afterwards was renewed elsewhere (the child has
+      no network) and is logged, any other change stops the sweep until
+      restart.
+    The sweep is internal: neither `ProxyServer` nor `ProxyInstance` carries
+    it (`proxy-server-no-transcript-sweep` test); `startProxyServer` finds it
+    in a module-level `WeakMap`, so embedders using `createProxyServer().app`
+    get none.
   - Settings writes are same-origin only (`transcriptRetentionSettings.ts`).
 - **`max_tokens` is not enforced by default:** the Agent SDK exposes no output
   cap, and the CLI's cap counts thinking plus text, so an answer-sized cap can

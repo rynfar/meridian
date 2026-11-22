@@ -88,9 +88,9 @@ const report = { platform: process.platform, arch: process.arch, node: process.v
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 try {
   const version = await read(['--version'])
-  if (version?.trim() !== '1.5.5') report.result = 'UNSUPPORTED_OR_UNREADABLE_VERSION'
+  if (version?.trim() !== '1.5.13') report.result = 'UNSUPPORTED_OR_UNREADABLE_VERSION'
   else {
-    report.nativeVersion = '1.5.5'
+    report.nativeVersion = '1.5.13'
     const raw = await read(['-p', '/config', '--output-format', 'json'])
     if (raw === null) report.result = 'CONFIG_COMMAND_FAILED'
     else {
@@ -101,7 +101,7 @@ try {
       if (envelope) {
         if (envelope.status !== 'SUCCESS') report.result = 'CONFIG_STATUS_NOT_SUCCESS'
         else {
-          // agy 1.5.5 prints effective settings as a TSV block in `response`.
+          // agy 1.5.5 and 1.5.13 print effective settings as a TSV block in `response`.
           const rows = new Map(envelope.response.split('\n').filter(line => line.includes('\t')).map(line => [line.slice(0, line.indexOf('\t')), line.slice(line.indexOf('\t') + 1)]))
           report.fields = Object.fromEntries(['customModelsConfig', 'modelProvider', 'useG1Credits', 'gcp'].map(key => {
             const present = rows.has(key), value = rows.get(key)
