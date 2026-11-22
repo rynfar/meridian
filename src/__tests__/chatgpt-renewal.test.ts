@@ -91,13 +91,14 @@ async function seed(accounts: ChatGptAccount[]): Promise<void> {
 }
 
 /** An owned source over the seeded store, with a mock token endpoint that records which refresh tokens it was sent. */
-function owned(reply: (refreshToken: string) => Response | Promise<Response> = renewed) {
+function owned(reply: (refreshToken: string) => Response | Promise<Response> = renewed, renewalIntervals?: () => Record<string, number>) {
   const sent: string[] = []
   const source = createOwnedCredentialSource({
     storePath,
     staleMs: 400,
     heartbeatMs: 80,
     now: () => clock,
+    ...(renewalIntervals ? { renewalIntervals } : {}),
     fetchImpl: async (_url, init) => {
       const refreshToken = new URLSearchParams(String(init.body)).get("refresh_token") ?? ""
       sent.push(refreshToken)
@@ -126,6 +127,71 @@ describe("renewalDueAt", () => {
   it("is due at once for a seat with no access token or no expiry", () => {
     expect(renewalDueAt({ accessToken: null, expiresAt: NOW + DAY })).toBe(0)
     expect(renewalDueAt({ accessToken: token(NOW, NOW + DAY), expiresAt: null })).toBe(0)
+  })
+})
+
+describe("a seat's own renewal interval", () => {
+  it("falls due that long after the token was issued", () => {
+    expect(renewalDueAt(account("a", NOW), DAY)).toBe(NOW + DAY)
+  })
+
+  it("is never later than a request would renew the token", () => {
+    expect(renewalDueAt(account("a", NOW), 12 * DAY)).toBe(NOW + 10 * DAY - 5 * MINUTE)
+  })
+
+  it("leaves a token that does not say when it was issued to the request path", () => {
+    expect(renewalDueAt({ accessToken: "opaque", expiresAt: NOW + 5 * DAY }, DAY)).toBe(NOW + 5 * DAY - 5 * MINUTE)
+  })
+
+  it("renews only the seat that has one, every interval, and reads the intervals on every pass", async () => {
+    await seed([account("daily", NOW - 25 * HOUR), account("control", NOW - 25 * HOUR)])
+    let intervals: Record<string, number> = { daily: DAY }
+    const { source, sent } = owned(renewed, () => intervals)
+    await source.acquire()
+
+    expect(await source.renewDue!()).toMatchObject({ due: ["daily"], outcome: { status: "refreshed", accountUserId: "daily" } })
+    expect(await source.renewDue!()).toEqual(nothing)
+    clock = NOW + DAY
+    expect((await source.renewDue!()).due).toEqual(["daily"])
+    expect(sent).toEqual(["refresh-daily", "rotated-refresh-daily"])
+
+    intervals = {}
+    clock = NOW + 2 * DAY + MINUTE
+    expect(await source.renewDue!()).toEqual(nothing)
+    expect(onDisk("control")).toMatchObject({ refreshToken: "refresh-control" })
+  })
+
+  it("is never renewed by a read-only instance, however long past it is", async () => {
+    await seed([account("daily", NOW - 3 * DAY)])
+    let asked = 0
+    const source = createOwnedCredentialSource({
+      storePath, now: () => clock, readOnly: true,
+      renewalIntervals: () => ({ daily: HOUR }),
+      fetchImpl: async () => { asked++; return renewed("refresh-daily") },
+    })!
+    held.push(source)
+    await source.acquire()
+    expect(await source.renewDue!()).toEqual(nothing)
+    expect(asked).toBe(0)
+    expect(onDisk("daily")).toMatchObject({ refreshToken: "refresh-daily" })
+  })
+})
+
+describe("a seat's renewal history", () => {
+  it("is listed with the seat, kept when the seat signs in again, and read by a read-only instance", async () => {
+    await seed([account("daily", NOW - 25 * HOUR)])
+    const { source } = owned(renewed, () => ({ daily: DAY }))
+    await source.acquire()
+    await source.renewDue!()
+    const renewal = { at: NOW, outcome: "rotated" as const, issuedAt: NOW, expiresAt: NOW + 10 * DAY }
+    expect(source.seats().find(seat => seat.id === "daily")?.renewals).toEqual([renewal])
+
+    source.connectAccount!({ accountUserId: "daily", accountId: "workspace-daily", email: null, refreshToken: "signed-in", accessToken: token(NOW, NOW + 10 * DAY), expiresAt: NOW + 10 * DAY })
+    expect(onDisk("daily")).toMatchObject({ refreshToken: "signed-in", renewals: [renewal] })
+
+    const reader = createOwnedCredentialSource({ storePath, now: () => clock, readOnly: true })!
+    held.push(reader)
+    expect(reader.seats()[0]?.renewals).toEqual([renewal])
   })
 })
 

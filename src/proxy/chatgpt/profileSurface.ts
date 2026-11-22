@@ -62,6 +62,8 @@ export interface ChatGptProfileSurfaceDeps {
   spent: (profileId: string) => SpentRecord | undefined
   /** Where a free-plan seat ranks among the others for unpinned work (chatgpt/features.ts). */
   freeSeatOrder?: () => ChatGptFreeSeatOrder
+  /** The seat's own renewal interval in hours (features.ts `seatRenewalHours`); null for the default. */
+  renewalHours?: (seat: string) => number | null
 }
 
 export type ChatGptActivation =
@@ -271,6 +273,10 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
           // same evidence Claude's "Last Verified" rests on.
           lastCheckedAt: reading?.failure?.lastFailureAt ?? reading?.fetchedAt ?? null,
           lastSuccessAt: reading?.fetchedAt ?? null,
+          // Meridian renews only the seats in its own store, so a followed
+          // seat has neither an interval nor a history.
+          renewalHours: owner.mode === "owned" ? deps.renewalHours?.(profile.seat) ?? null : null,
+          renewals: profile.renewals,
           authProvenance: "live" as const,
           credentialDir: null,
         }
