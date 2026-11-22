@@ -334,12 +334,13 @@ describe("ChatGPT feature settings", () => {
     resetChatGptFeatures()
   })
 
-  it("keeps a per-seat renewal interval in hours, between 1 and 240, that null removes", () => {
+  it("keeps a per-seat renewal interval in hours, between 6 and 240, that null removes", () => {
     const resolve = (id: string) => id === "pro-abc123" ? "user-1__workspace-1" : undefined
     expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: { nobody: 24 } }, [], resolve)).toThrow('unknown ChatGPT profile "nobody"')
-    for (const bad of [0.5, 241, "24", Number.NaN, true]) {
-      expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": bad } }, [], resolve)).toThrow("seatRenewalHours.pro-abc123 must be a number of hours from 1 to 240, or null")
+    for (const bad of [0.5, 1, 5.99, 241, "24", Number.NaN, true]) {
+      expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": bad } }, [], resolve)).toThrow("seatRenewalHours.pro-abc123 must be a number of hours from 6 to 240, or null")
     }
+    expect(validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": 6 } }, [], resolve).seatRenewalHours).toEqual({ "user-1__workspace-1": 6 })
     expect(() => validateChatGptFeatureUpdate({ seatRenewalHours: [24] }, [], resolve)).toThrow("seatRenewalHours must be an object")
 
     updateChatGptFeatures(validateChatGptFeatureUpdate({ seatRenewalHours: { "pro-abc123": 24 } }, [], resolve))

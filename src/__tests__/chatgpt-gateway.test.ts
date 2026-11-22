@@ -1339,7 +1339,7 @@ describe("owned mode signs its own seats in", () => {
     const history = [{ at: NOW, outcome: "kept", expiresAt: NOW + 3_600_000 }]
     writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [{ ...seat(0, Date.now() + 3_600_000), renewals: history }] }), { mode: 0o600 })
     const before = readFileSync(storePath, "utf8")
-    saveSettings({ chatgpt: { seatRenewalHours: { "user-0__workspace-0": 1 } } })
+    saveSettings({ chatgpt: { seatRenewalHours: { "user-0__workspace-0": 6 } } })
     let refreshes = 0
     const serve = globalThis.fetch
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -1363,7 +1363,7 @@ describe("owned mode signs its own seats in", () => {
       // Its own renewal interval long past, the seat is still not renewed here.
       expect(await proxy.chatGpt!.renewDue()).toBe(false)
       const listed = await (await proxy.app.fetch(new Request("http://localhost/profiles/list"))).json() as { profiles: Array<{ seat?: string; renewalHours?: number | null; renewals?: unknown[] }> }
-      expect(listed.profiles.find(p => p.seat === "user-0__workspace-0")).toMatchObject({ renewalHours: 1, renewals: history })
+      expect(listed.profiles.find(p => p.seat === "user-0__workspace-0")).toMatchObject({ renewalHours: 6, renewals: history })
 
       // A token the owner has not renewed is not renewed here either.
       writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [seat(0, Date.now() - 1000)] }), { mode: 0o600 })

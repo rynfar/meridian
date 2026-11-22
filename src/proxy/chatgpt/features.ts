@@ -39,8 +39,13 @@ export interface ChatGptFeatures {
   seatRenewalHours: Record<string, number>
 }
 
-/** The range a seat's renewal interval may take: an hour, up to the ten days a token lasts. */
-export const CHATGPT_RENEWAL_HOURS_MIN = 1
+/**
+ * The range a seat's renewal interval may take: six hours, up to the ten days
+ * a token lasts. Each renewal spends the seat's refresh token, and one that
+ * auth.openai.com throttles or fails logs the seat out, so renewing more
+ * often than every six hours risks the sign-in it is meant to keep.
+ */
+export const CHATGPT_RENEWAL_HOURS_MIN = 6
 export const CHATGPT_RENEWAL_HOURS_MAX = 240
 
 function isRenewalHours(value: unknown): value is number {

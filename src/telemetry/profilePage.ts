@@ -808,7 +808,7 @@ function renderLoginRows(p) {
 function renderRenewalRow(p) {
   var own = typeof p.renewalHours === 'number';
   return '<div class="cmd-row"><span class="cmd-label">Renew every:</span> '
-    + '<input class="login-input renewal-hours" type="number" min="1" max="240" step="1" placeholder="default" ' + PROFILE_INPUT_ATTRS
+    + '<input class="login-input renewal-hours" type="number" min="6" max="240" step="1" placeholder="default" ' + PROFILE_INPUT_ATTRS
     + ' data-profile="' + attr(p.id) + '" aria-label="Renewal interval of ' + attr(p.id) + ' in hours" value="' + (own ? attr(p.renewalHours) : '') + '"> hours '
     + '<button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, false)">Save</button>'
     + (own ? ' <button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, true)">Use default</button>' : '')
