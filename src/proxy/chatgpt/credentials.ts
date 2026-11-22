@@ -57,7 +57,27 @@ export interface ChatGptAccount {
    * a state to report, never one to retry. See refresh.ts.
    */
   exchangeStartedAt: number | null
+  /** The seat's latest renewals, oldest first; absent until one is recorded. See refresh.ts. */
+  renewals?: ChatGptRenewal[]
 }
+
+/**
+ * One token exchange the provider saw, and what came back. `rotated` and
+ * `kept` say whether a new refresh token was issued; `refused` is the provider
+ * declining the grant, `unverified` an exchange whose result is unknown. No
+ * field is a credential.
+ */
+export interface ChatGptRenewal {
+  at: number
+  outcome: ChatGptRenewalOutcome
+  /** Which refusal, or which failed status, in refresh.ts's own words. */
+  cause?: string
+  /** The new access token's issue time and expiry, as far as they are known. */
+  issuedAt?: number
+  expiresAt?: number
+}
+
+export type ChatGptRenewalOutcome = "rotated" | "kept" | "refused" | "unverified"
 
 export class WriterLeaseRequiredError extends Error {
   readonly path: string
@@ -147,6 +167,29 @@ function nullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
+const RENEWAL_OUTCOMES: ReadonlySet<string> = new Set(["rotated", "kept", "refused", "unverified"])
+
+// The history is a record of what happened, never something a credential
+// depends on, so a malformed entry is dropped rather than failing the store.
+function parseRenewals(value: unknown): ChatGptRenewal[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const renewals: ChatGptRenewal[] = []
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue
+    const raw = entry as Record<string, unknown>
+    const at = nullableNumber(raw.at)
+    if (at === null || typeof raw.outcome !== "string" || !RENEWAL_OUTCOMES.has(raw.outcome)) continue
+    const renewal: ChatGptRenewal = { at, outcome: raw.outcome as ChatGptRenewalOutcome }
+    if (typeof raw.cause === "string" && raw.cause.length > 0 && raw.cause.length <= 64) renewal.cause = raw.cause
+    const issuedAt = nullableNumber(raw.issuedAt)
+    if (issuedAt !== null) renewal.issuedAt = issuedAt
+    const expiresAt = nullableNumber(raw.expiresAt)
+    if (expiresAt !== null) renewal.expiresAt = expiresAt
+    renewals.push(renewal)
+  }
+  return renewals.length > 0 ? renewals : undefined
+}
+
 function parseAccount(value: unknown, path: string, index: number): ChatGptAccount {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new ChatGptStoreCorruptError(path, `entry ${index} is not an object`)
@@ -160,6 +203,7 @@ function parseAccount(value: unknown, path: string, index: number): ChatGptAccou
   ) {
     throw new ChatGptStoreCorruptError(path, `entry ${index} is missing its identity or its credential`)
   }
+  const renewals = parseRenewals(record.renewals)
   return {
     accountUserId,
     accountId,
@@ -169,6 +213,7 @@ function parseAccount(value: unknown, path: string, index: number): ChatGptAccou
     expiresAt: nullableNumber(record.expiresAt),
     tokenRotatedAt: nullableNumber(record.tokenRotatedAt),
     exchangeStartedAt: nullableNumber(record.exchangeStartedAt),
+    ...(renewals ? { renewals } : {}),
   }
 }
 

@@ -1,8 +1,8 @@
 /**
- * #1261 landed without Meridian's own idle transcript sweep, so neither the
- * object createProxyServer returns nor the exported ProxyServer and
- * ProxyInstance types may grow a `transcriptSweep` member: both are in the
- * stable API contract, and the sweep was never approved for it.
+ * The idle transcript sweep is internal: neither the object createProxyServer
+ * returns nor the exported ProxyServer and ProxyInstance types may grow a
+ * `transcriptSweep` member. Both are in the stable API contract, and the sweep
+ * was never approved for it; startProxyServer finds it in transcriptSweep.ts.
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"

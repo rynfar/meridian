@@ -16,6 +16,7 @@ import {
   resolvePriorityOrder,
   choosePriorityProfile,
   chooseActivePriorityCandidates,
+  lastMappedProfile,
   ProfileExhaustion,
   RENDEZVOUS_STABLE_GUARD,
   AssignmentStore,
@@ -581,5 +582,16 @@ describe("chooseActivePriorityCandidates", () => {
     const order = ["corp1", "corp2", "corp1"]
     const candidates = chooseActivePriorityCandidates("corp2", order, none)
     expect(new Set(candidates).size).toBe(candidates.length)
+  })
+})
+
+describe("lastMappedProfile", () => {
+  it("returns the profile whose mapping was used last, not the first one in the order", () => {
+    const lastUsed: Record<string, number> = { work: 1_000, personal: 2_000 }
+    expect(lastMappedProfile(["work", "personal"], id => lastUsed[id])).toBe("personal")
+  })
+
+  it("returns undefined when no profile holds a mapping of the session", () => {
+    expect(lastMappedProfile(["work", "personal"], () => undefined)).toBeUndefined()
   })
 })

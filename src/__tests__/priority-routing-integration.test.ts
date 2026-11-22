@@ -897,6 +897,56 @@ describe("priority routing", () => {
     expect(capturedEnvs.at(-1)).toContain("prof-personal")
   })
 
+  it("keeps an unattested conversation on its account after a restart", async () => {
+    const sessionId = `restart-affinity-${crypto.randomUUID()}`
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect((await post(createTestApp(), { "x-opencode-session": sessionId })).status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    capturedEnvs = []
+
+    // A new server instance has no process-local assignment; the session's
+    // mapping under personal keeps it there instead of moving it to work.
+    const restarted = createTestApp()
+    expect((await post(restarted, { "x-opencode-session": sessionId }, "hello again")).status).toBe(200)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+    // A conversation without a mapping still starts on the head of the order.
+    expect((await post(restarted, { "x-opencode-session": `restart-new-${crypto.randomUUID()}` })).status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-work")
+  })
+
+  it("keeps a conversation on its account when a subagent is its first request after a restart", async () => {
+    const sessionId = `cc-restart-${crypto.randomUUID()}`
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect(await postClaudeCode(createTestApp(), sessionId, "cc opening")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+
+    // The subagent's own key has no mapping yet; its parent's does.
+    const restarted = createTestApp()
+    expect(await postClaudeCode(restarted, sessionId, "cc subagent task", "a4a81dc1bbf7ee837")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    expect(await postClaudeCode(restarted, sessionId, "cc follow-up")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+  })
+
+  it("answers 503 instead of guessing an account when the mapping store cannot be read", async () => {
+    const sessionId = `restart-store-error-${crypto.randomUUID()}`
+    const store = await import("../proxy/sessionStore")
+    const lookup = store.lookupSharedSessionResult
+    const failing = spyOn(store, "lookupSharedSessionResult").mockImplementation(key =>
+      key.endsWith(sessionId) ? { status: "error", error: new Error("disk I/O error") } : lookup(key))
+    try {
+      const res = await post(createTestApp(), { "x-opencode-session": sessionId })
+      expect(res.status).toBe(503)
+      expect(await res.text()).toContain("Durable priority session state is unavailable")
+      expect(capturedEnvs).toEqual([])
+    } finally {
+      failing.mockRestore()
+    }
+  })
+
   it("defaults an unset priority failback policy to new-conversation affinity", async () => {
     // Given
     const app = createTestApp()
