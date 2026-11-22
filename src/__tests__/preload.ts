@@ -110,3 +110,6 @@ process.env.MERIDIAN_SESSION_GC_MAX_PENDING = "1000000"
 
 // SDK mocks do not spawn an operating-system child. Real proxy/E2E processes do not load this preload.
 process.env.MERIDIAN_TEST_DISABLE_SDK_PROCESS_GATE = "1"
+
+// No idle transcript sweep timer in servers tests start; tests drive passes directly.
+process.env.MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS = "0"

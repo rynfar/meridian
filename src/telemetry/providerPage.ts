@@ -34,6 +34,13 @@ document.getElementById('provider-content').addEventListener('click', function(e
   document.getElementById('provider-content').focus(); button.blur(); loadProviders();
 });
 ${providerSetupJs}
-loadProviders();setInterval(loadProviders,10000);
+loadProviders();
+// A hidden tab skips polls and catches up when it is shown again.
+function pollRefresh(){
+  if(document.visibilityState!=='visible')return;
+  loadProviders();
+}
+setInterval(pollRefresh,10000);
+document.addEventListener('visibilitychange',pollRefresh);
 ${profileBarJs}
 </script></body></html>`

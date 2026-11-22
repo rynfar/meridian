@@ -2,8 +2,10 @@
  * Unit tests for model mapping and utility functions.
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { bundledClaudeCodeVersion, mapModelToClaudeModel, claudeModelFamily, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, sonnetHasNative1mContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -136,6 +138,12 @@ describe("mapModelToClaudeModel", () => {
       expect(mapModelToClaudeModel("claude-fable-5-1", "max", "subagent")).toBe("fable")
     })
 
+    it("routes claude-fable-5-2 through the same tier as claude-fable-5", () => {
+      expect(mapModelToClaudeModel("claude-fable-5-2")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-2", "max", "primary")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-2", "max", "subagent")).toBe("fable")
+    })
+
     it("downgrades fable[1m] to fable during the Extra Usage cooldown", () => {
       recordExtendedContextUnavailable()
       expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
@@ -182,6 +190,21 @@ describe("mapModelToClaudeModel", () => {
     it("routes claude-mythos-5-1 through the fable tier too", () => {
       expect(mapModelToClaudeModel("claude-mythos-5-1")).toBe("fable[1m]")
       expect(mapModelToClaudeModel("claude-mythos-5-1", "max", "subagent")).toBe("fable")
+      expect(mapModelToClaudeModel("claude-mythos-5-2")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-mythos-5-2", "max", "subagent")).toBe("fable")
+    })
+  })
+
+  describe("claudeModelFamily", () => {
+    it("names the tier the mapper sends a request to", () => {
+      expect(claudeModelFamily("claude-fable-5-2")).toBe("fable")
+      expect(claudeModelFamily("fable[1m]")).toBe("fable")
+      expect(claudeModelFamily("claude-mythos-5-1")).toBe("fable")
+      expect(claudeModelFamily("claude-opus-4-1")).toBe("opus")
+      expect(claudeModelFamily("opus[1m]")).toBe("opus")
+      expect(claudeModelFamily("claude-sonnet-4-5-20250929")).toBe("sonnet")
+      expect(claudeModelFamily("claude-haiku-4-5")).toBe("haiku")
+      expect(claudeModelFamily("unknown-model")).toBe("sonnet")
     })
   })
 
@@ -718,5 +741,18 @@ describe("rate-limit bench is scoped to the session that earned it (#901)", () =
       if (previous === undefined) delete process.env.MERIDIAN_SONNET_MODEL
       else process.env.MERIDIAN_SONNET_MODEL = previous
     }
+  })
+})
+
+describe("bundledClaudeCodeVersion", () => {
+  it("reads the installed @anthropic-ai/claude-code package version", () => {
+    const pkg = JSON.parse(readFileSync(fileURLToPath(import.meta.resolve("@anthropic-ai/claude-code/package.json")), "utf8")) as { version: string }
+    expect(bundledClaudeCodeVersion()).toBe(pkg.version)
+  })
+
+  it("is null when the package cannot be resolved or is not Claude Code", () => {
+    expect(bundledClaudeCodeVersion(() => { throw new Error("Synthetic missing package") })).toBeNull()
+    expect(bundledClaudeCodeVersion(() => fileURLToPath(import.meta.resolve("zod/package.json")))).toBeNull()
+    expect(bundledClaudeCodeVersion(() => "/nonexistent/meridian-test/package.json")).toBeNull()
   })
 })

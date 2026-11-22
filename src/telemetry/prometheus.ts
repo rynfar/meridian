@@ -7,6 +7,7 @@
  */
 
 import type { ITelemetryStore, RequestMetric } from "./types"
+import { isCacheKeepaliveMetric } from "./percentiles"
 
 const DURATION_BUCKETS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000]
 
@@ -31,7 +32,10 @@ function formatLabels(labels: Record<string, string>): string {
 }
 
 export function renderPrometheusMetrics(store: ITelemetryStore): string {
-  const metrics = store.getRecent({ limit: 10000 })
+  const retained = store.getRecent({ limit: 10000 })
+  // Keepalive beats answer no client; they get their own counter below.
+  const metrics = retained.filter(metric => !isCacheKeepaliveMetric(metric))
+  const beats = retained.filter(isCacheKeepaliveMetric)
   const lines: string[] = []
 
   // --- Counter: meridian_requests_total ---
@@ -73,6 +77,15 @@ export function renderPrometheusMetrics(store: ITelemetryStore): string {
     const sum = values.reduce((a, b) => a + b, 0)
     lines.push(`meridian_request_duration_ms_sum{${phaseLabel}} ${sum}`)
     lines.push(`meridian_request_duration_ms_count{${phaseLabel}} ${values.length}`)
+  }
+
+  if (beats.length > 0) {
+    lines.push("")
+    lines.push("# HELP meridian_cache_keepalive_beats_total Prompt-cache keepalive beats, by whether they reached upstream")
+    lines.push("# TYPE meridian_cache_keepalive_beats_total counter")
+    const reached = beats.filter(beat => beat.error === null).length
+    lines.push(`meridian_cache_keepalive_beats_total{outcome="reached"} ${reached}`)
+    lines.push(`meridian_cache_keepalive_beats_total{outcome="not_reached"} ${beats.length - reached}`)
   }
 
   lines.push("")

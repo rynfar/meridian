@@ -1,3 +1,11 @@
+---
+id: design-language
+type: architecture-design
+title: Meridian design language (web UI, desktop, brand)
+status: active
+parent: architecture
+---
+
 # DESIGN.md — The Meridian Design Language
 
 The single source of truth for how Meridian looks and feels — the web UI
@@ -131,12 +139,44 @@ at its provider, so card CSS never names one.
 
 - **Every card:** a brand stripe on its left edge and a brand badge naming
   the provider.
-- **Active:** brand border + 1px brand ring, brand dot and brand Active pill.
-  There is one per provider.
-- **Switchable on hover:** `-bright` border with a faint brand fill.
+- **Active:** brand border + 1px brand ring and brand dot. There is one per
+  provider. On `/` a 12px brand strip across its top edge reads "ACTIVE" and
+  is its only Active label; `/profiles` has no strip and shows an active badge.
+- **Switchable on hover:** `-bright` border with a faint brand fill. On `/`
+  the same 12px strip, in `-bright`, reads "CLICK TO ACTIVATE" while the card
+  is hovered or focused.
+- **Strip text:** `--on-brand` (black), which clears 4.5:1 on every brand and
+  its `-bright` tint; white does not on either brand.
 - **Spent or failing:** shown by dimming and the existing badges. The active
-  border is never recoloured or faded, and the active card's name row, with
-  its Active pill and spent badge, never dims. Only its figures do.
+  border is never recoloured or faded, and the active card's Active strip and
+  name row, with its spent badge, never dim. Only its figures do.
+- **Refused:** an "out of <window>" badge in the name row. Its explanation
+  (who is refusing, the reset, when it was refused, why, and that the figures
+  are the last good read) is the badge's tooltip on hover or keyboard focus,
+  hung across the card over the figures; the card does not carry it
+  permanently.
+- **Free resets:** a Claude account with banked resets shows one line per
+  kind, because each clears something different: "Full reset" (the whole
+  week), "Fable reset" (only Fable usage) and "Unrecognised reset" (the
+  provider's own label, quoted, as a readout only). Each shows its count in
+  green while one of that kind can be redeemed and in `--muted` otherwise,
+  beside the reason or how many are usable, and that kind's soonest expiry. A
+  Fable reset with no Fable usage to give back stays visible, muted, and says
+  so. On `/` each kind is a "resets" row under the usage figures, labelled
+  "full reset", "Fable reset" or "other reset", and never redeems. On
+  `/profiles` each kind is a block below them; a kind that can be redeemed
+  carries its own small blue "Redeem full reset" / "Redeem Fable reset"
+  button. The confirmation names the kind, the grant and only that kind's
+  effect, adding "It also clears the 5-hour window." only when that grant's
+  provider scope lists it, and the outcome is shown in that kind's block.
+  - Brief (`/profiles` blocks): primary action is the redeem button of a kind
+    that can be redeemed; priorities are the kind's name, its count, then
+    why it is or is not offered. Left out on purpose: a combined total, a
+    redeem for unrecognised or muted kinds, and any fallback to another kind.
+  - Expected rendering for a whole-week grant and three Fable launch grants
+    with 0% Fable used: "Full reset 1 · all usable now · expires in 24d
+    [Redeem full reset]", then a muted "Fable reset 3 · no Fable usage to
+    give back right now · next expires in 12d" with no button.
 - **Needs a login:** a red border, the same for every provider, and a
   needs-login badge. An active card keeps its brand ring outside the red.
 - **Controls stay blue:** buttons, links, focus rings, drag handles and drop
@@ -183,13 +223,15 @@ then lifts the `.container` max-width and pads it and the header with
 `--page-gutter` (`clamp(16px, 3vw, 48px)`). A page that lays out cards or
 label/value rows adds its own `html[data-layout="wide"]` rule so a value
 never ends up a screen away from its label: the home page keeps its card size
-and adds columns, `/profiles` shows larger cards side by side, and Settings
-and Providers keep rows and cards about as wide as when contained. The content
-wrapper must be `.container` for any of this to reach it. A contained page
-carries no attribute, so it renders as before.
+and adds columns, `/profiles` shows larger cards side by side, Settings rows
+add columns at a width that holds a long select beside its label (at least
+560px, against about 400px in two contained columns), and Providers keeps
+cards about as wide as when contained. The content wrapper must be
+`.container` for any of this to reach it. A contained page carries no
+attribute, so it renders as before.
 
 **The header owns the brand.** It shows the mark + wordmark (links home),
-the site nav (Home · Telemetry · Profiles · Settings · Plugins), the
+the site nav (Home · Providers · Telemetry · Profiles · Settings · Plugins), the
 active-profile chip, the live health pill, the running version to its right,
 and — when the update check is on and a newer release exists — a blue
 update badge after that. Consequences:
@@ -220,14 +262,15 @@ account card on the home page (or the Profiles page). The header chip only
   Active account card: its provider's brand border + 1px brand ring.
   Clickable cards get `cursor: pointer` and a hover border (the brighter
   provider brand on an account card), plus a hover-revealed uppercase hint
-  (e.g. “Click to activate”).
+  (on an account card, the brand strip reading “Click to activate”).
 - **Stats strip:** one flex row of cells separated by 1px `--border`
   dividers inside a single card — label (micro-label), value (20px/700),
   optional muted detail line. Use instead of a grid of chunky cards.
 - **Pills:** radius 10–20px, tinted fill + tinted border of the same hue
   (e.g. the update chip: blue text on `rgba(88,166,255,0.12)` with
-  `rgba(88,166,255,0.35)` border; an account's Active pill does the same in
-  its provider's brand). Status badges: green/muted/red variants.
+  `rgba(88,166,255,0.35)` border). Badges in a row carry no margin: the
+  row's flex gap alone spaces the name from the first badge and each badge
+  from the next. Status badges: green/muted/red variants.
 - **Usage bar:** 6–8px track in `--surface2`, radius 3–4px, fill colored
   by the utilization thresholds; percentage readout matches the fill color.
 - **Buttons:** `--surface2` fill, accent text + accent border; hover =
@@ -261,7 +304,8 @@ account card on the home page (or the Profiles page). The header chip only
    snippets, and integration guides belong in the README — the app links
    to them instead of embedding them.
 4. **Live, not stale.** Pages poll their JSON endpoints (~10s) and render
-   client-side. Always `esc()` interpolated data.
+   client-side; a page whose poll reaches Anthropic (usage quota) pauses
+   while its tab is hidden. Always `esc()` interpolated data.
 5. **Consistency beats novelty.** Before styling something new, find the
    existing component that does the same job and reuse its pattern.
 
@@ -278,30 +322,103 @@ account card on the home page (or the Profiles page). The header chip only
 ## Native desktop preview
 
 The optional `apps/desktop` shell uses native window controls and sidebar
-navigation instead of the web `profileBar` header. Its system light/dark tokens
-live alongside `themeCss` in `desktopThemeCss` in `profileBar.ts`; this explicit
-native-shell exception does not change the shared header contract for web pages.
-The build extracts those tokens into the desktop stylesheet. Native Liquid
-Glass appears in the sidebar and compact menu-bar panel, with nearly opaque content surfaces
-for telemetry legibility. Blue remains interactive and violet remains metadata.
+navigation instead of the web `profileBar` header. Its palette is its own: a
+neutral graphite set, light and dark designed separately, in `desktopThemeCss`
+in `profileBar.ts`. This explicit native-shell exception changes neither the
+web `themeCss` nor the shared header contract for web pages. The build extracts
+the block into the desktop stylesheet and fails if any other stylesheet rule
+carries a colour literal. Measured values, the type scale and the component
+patterns live in `.interface-design/system.md`; this section states the rules.
+
+**Palette.** Canvas, one raised surface and a darker inset *well* (tracks,
+segmented controls, inputs); 0.5px `ring` / `ring-strong` edges and a `hover`
+fill; four text levels t1–t4 (`--text`, `--t2`, `--muted`, `--t4`), where
+t1–t3 meet WCAG AA 4.5:1 on every surface and t4 never carries information
+(marks, placeholders and disabled glyphs only). Violet
+`--accent2` means cache and nothing else (cache read; `--cache-write` is the
+same violet at ~40%; `--fresh` is the neutral for uncached input). Blue
+`--accent` means interactive or active. Green, yellow and red appear only as
+marks — dots, glyphs, small text, usage fills — never as tinted backgrounds
+behind text. Provider brands appear only as a quiet tint on account avatars.
+
+**Depth.** One strategy: tonal surfaces plus a 0.5px ring, never a visible 1px
+border on content. Content sits on the canvas, separated by space and
+sentence-case section labels; there is no card per metric. A raised panel marks
+only what the user acts on — on Today the account serving requests, on Accounts
+each account, on Service each settings group — plus sheets, menus, popovers,
+the request-detail side panel and, as the one exception, the menu-bar panel's
+two hero tiles, which separate its figures from the glass behind them. Sidebar active rows are a raised fill with the
+ring, not a blue wash.
+
+**Type.** System font, set as an explicit family list (Chromium drops
+`-apple-system` inside the `font` shorthand and falls back to a serif). Heroes
+are 44/600 SF Pro Display with tight tracking and the unit at 22/500 t3; labels
+are 12/500 sentence case, never uppercase, table headers included. Hierarchy
+comes from weight and the four text levels before size. Every number is tabular.
+
+**Components.** A hero is label → figure → data strip → caption, without a box.
+Two signature components carry the product: the *prompt ribbon* splits a
+prompt into cache read · cache write · fresh (Today hero and live rows, Traffic
+rows and request detail, Cache totals and per-bucket chart), and the *limit bar
+with a pace tick* marks how much of the window has elapsed (1 − time left ÷
+window length; 5 hours, 7 days, 30 days) with "on pace / ahead of pace / under
+pace" (±5 points) and the reset time beneath. A stale reading, unknown reset or
+unknown window draws no tick; a stale reading keeps a warning colour, dimmed,
+so a full account never reads as free, and turns grey rather than green. A
+window whose reset passed is grey, captioned "awaiting a reading · reset at
+10:00" (tooltip: "reset at 10:00, awaiting a new reading"), and never holds the
+account. "Prompt from cache" is always the
+token-weighted share, cache read ÷ (read + write + uncached input) from the
+summary — the Today and Cache heroes, the sidebar Cache count and the
+menu-bar tile agree; the per-request mean is labelled "mean per request".
+Lists are native: 29px rows, no borders or zebra, a full-row hover fill,
+sentence-case t3 headers with the sort arrow. Successful rows carry no status
+badge; a failure replaces the ribbon with "HTTP 500 · api_error" in red. Long
+context is a small t3 "1M" suffix, the active account a 6px blue dot, a held
+account plain text ("until 10:59"). A quiet outlined pill remains only for a
+discrete state that needs naming (a duplicate account, a pricing override, a
+selected version). Attention items are a glyph list (warn triangle, bad
+circle-x, ok check). Health is a status line — dot, state, context — never a
+boxed chip. Settings follow macOS Settings: grouped inset panels, label left,
+control right, help text t3 beneath, the section index beside them.
+Shortcut hints use `kbd`; ⌘1–⌘6 open the six screens and ⌘R refreshes the
+data (⇧⌘R reloads the window).
+
+The window keeps its structure: a 216px glass sidebar with SF-style line icons,
+counts in t3 (Cache in violet, a limited count as a warn dot and number) and a
+footer naming the instance being viewed (supervisor, address, version); a
+toolbar with the page title, the status line ("Working · personal · Max", or the
+plain reason it is not), the time-window segmented control and refresh. Today
+is the two heroes, the day strip (stacked prompt tokens per bucket, requests
+beneath with failures in red, a dashed now line), the live list, the serving
+panel and Needs attention. Hours without traffic leave a gap rather than a
+bridged line. Dollars (API-equivalent at list prices, never an invoice) appear
+on Traffic, Cache and Accounts, never in a hero. Failures are grouped by cause
+with a count, a time span and whether they cleared. A screen that cannot read
+its data shows the connection state, its fix and the matching action, never an
+empty table; loading uses skeletons in the well tone. Motion stays under 200ms,
+ease-out, opacity and transform only, and honours reduced motion.
 
 The interface labels itself as a preview. Unsupported lifecycle controls are
 not presented as working actions; external service ownership stays visible.
 
-The menu-bar panel prioritizes cache reuse, connection health and account limits.
-Account switching and owned service controls remain available without opening the
-dashboard. It uses system typography, canonical light/dark tokens, blue active
-accounts and violet cache metrics. Escape or loss of focus dismisses the panel;
-missing or stale quota data never looks like unused capacity.
-
-Menu-bar accounts use compact rows with side-by-side quota bars, so multiple
-accounts and their switch controls remain visible together. The active account
-shows its next reset; each limit retains full reset detail in its tooltip and
-accessible name. Account lists scroll only when they exceed the available space. Each account
-reserves a separate line for its name and action; plan/allowance and organization
-are secondary text, never a row of non-shrinking badges. The 5-hour and weekly
-limits are primary; model-specific limits live in a disclosure that stays open
-through refresh. Service controls stay outside the scrolling account list.
+The menu-bar panel prioritizes cache reuse, connection health and account
+limits in the same language: a status line, two raised tiles ("Prompt from
+cache" with a mini ribbon; requests with the failed count), account rows with
+5-hour and weekly mini tracks carrying pace ticks (no caption), the last
+failure as a glyph item and plain text buttons in the footer. Claude and
+ChatGPT accounts form one group; Antigravity accounts (a Google allowance) a
+separate one beneath, with tracks but never a switch action. Each row ends in
+one plain-text state: "serving", "until 10:59" for a held account, "sign in",
+"following" / "followed" when this instance follows another's active account,
+or *Use* for Claude and ChatGPT. Account switching and owned service controls
+remain available without opening the dashboard. Escape or loss of focus
+dismisses the panel; missing or stale quota data never looks like unused
+capacity, and a window whose reset passed is grey and holds nothing. Reset
+times are not printed in the rows: each limit keeps its full reset detail
+("resets 14:59", or "reset at 10:00, awaiting a new reading") in the row's
+tooltip and accessible name; the account list scrolls only when it exceeds the
+available space, and service controls stay outside it.
 
 The macOS menu-bar icon uses a transparent monochrome Meridian template, tinted
 by the system. The Dock retains the full-color app icon unless the macOS **Hide Dock icon**
@@ -331,6 +448,12 @@ hide a provider. All chips start on, the browser remembers the choice for both
 pages, and chips appear only while two or more providers have accounts. A
 card moves only among its own provider's cards, because each provider's pool
 is ranked on its own.
+
+Beside them, login-state chips show or hide accounts by state: Authenticated
+(`--green`), Expires soon (`--yellow`) and Needs auth (`--red`), each with its
+count. They reuse the provider chips' shape and phone sizing, start on, are
+remembered the same way, and appear while two or more accounts are listed. A
+card shows when its provider's chip and its state's chip are both on.
 
 The desktop menu bar separates account quota groups and labels combined activity.
 Provider selection belongs in managed-service settings, with tool permission as

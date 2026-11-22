@@ -11,7 +11,7 @@ function runAgainstRealSdk(body: string) {
     import assert from "node:assert/strict";
     import { Client } from "@modelcontextprotocol/sdk/client/index.js";
     import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-    import { createPassthroughMcpServer } from ${JSON.stringify(moduleUrl)};
+    import { createPassthroughMcpServer, sharedPassthroughMcpServer } from ${JSON.stringify(moduleUrl)};
     import { buildQueryOptions } from ${JSON.stringify(queryUrl)};
     const passthrough = createPassthroughMcpServer([
       { name: "bash", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
@@ -29,6 +29,54 @@ function runAgainstRealSdk(body: string) {
 }
 
 describe("passthrough MCP server per query", () => {
+  for (const nested of [false, true]) {
+    it(`keeps shared ${nested ? "nested" : "root"} schema property order independent across sessions`, () => {
+      runAgainstRealSdk(`
+        function tools(order) {
+          const properties = Object.fromEntries(order.map(name => [name, { type: "string" }]));
+          return [{ name: "ordered_schema", input_schema: {
+            type: "object",
+            properties: ${nested ? '{ options: { type: "object", properties } }' : 'properties'},
+          } }];
+        }
+        // Exercise both cache-population orders with separate namespaces.
+        for (const order of [["a", "b"], ["b", "a"]]) {
+          const reversed = [...order].reverse();
+          const namespace = "order_" + order.join("");
+          const aTools = tools(order);
+          const bTools = tools(reversed);
+          const original = JSON.stringify([aTools, bTools]);
+          const a = sharedPassthroughMcpServer(aTools, undefined, namespace);
+          const b = sharedPassthroughMcpServer(bTools, undefined, namespace);
+          const freshB = createPassthroughMcpServer(bTools, undefined, namespace);
+          assert.equal(sharedPassthroughMcpServer(structuredClone(aTools), undefined, namespace), a);
+          assert.equal(sharedPassthroughMcpServer(structuredClone(bTools), undefined, namespace), b);
+          const servers = [a.createServer(), b.createServer(), b.createServer(), freshB.createServer()];
+          assert.equal(new Set(servers.map(server => server.instance)).size, servers.length);
+          const clients = [];
+          try {
+            for (const server of servers) clients.push(await connect(server));
+            const catalogs = await Promise.all(clients.map(async client => (await client.listTools()).tools));
+            const properties = catalog => ${nested ? 'catalog[0].inputSchema.properties.options.properties' : 'catalog[0].inputSchema.properties'};
+            assert.deepEqual(Object.keys(properties(catalogs[0])), order);
+            assert.deepEqual(Object.keys(properties(catalogs[3])), reversed, "fresh builder must retain declared order");
+            // Deep object equality ignores key order; compare the wire catalogs.
+            assert.equal(JSON.stringify(catalogs[1]), JSON.stringify(catalogs[3]), "shared catalog must match a fresh build");
+            assert.deepEqual(Object.keys(properties(catalogs[1])), reversed);
+            assert.equal(JSON.stringify(catalogs[2]), JSON.stringify(catalogs[1]));
+            await clients[0].close();
+            await clients[1].close();
+            assert.equal(JSON.stringify((await clients[2].listTools()).tools), JSON.stringify(catalogs[3]), "closing other queries must retain this catalog");
+            assert.equal(JSON.stringify([aTools, bTools]), original, "registration must not mutate either session's schemas");
+          } finally {
+            for (const client of clients) await client.close();
+            for (const server of servers) await server.instance.close();
+          }
+        }
+      `)
+    })
+  }
+
   it("keeps both options-builder transports and their full catalog independent", () => {
     runAgainstRealSdk(`
       const tools = [

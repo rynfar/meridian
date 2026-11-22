@@ -5,6 +5,7 @@
  * coordinates with the shared file store for cross-proxy session resume.
  */
 
+import { mapStoreMutation } from "./storeMutationResult"
 import { LRUMap } from "../../utils/lruMap"
 import { diagnosticLog } from "../../telemetry"
 import {
@@ -38,6 +39,15 @@ import {
   type TokenUsage,
   type LineageResult,
 } from "./lineage"
+import {
+  markableSource,
+  recordStillMarks,
+  type InterruptedSessionSource,
+  type InterruptedTurn,
+  type InterruptedTurnRecord,
+} from "./interruptedTurn"
+
+export type { InterruptedSessionSource }
 
 export interface PrioritySessionPublication {
   readonly routeKey: string
@@ -109,6 +119,16 @@ let sessionCache = createSessionCache(activeMaxSessions)
 let fingerprintCache = createFingerprintCache(activeMaxSessions)
 let cacheEpoch = 0
 
+/**
+ * Interrupted turns this process kept, by durable mapping key. The store keeps
+ * such a mapping with its SDK reuse proof withheld, which every reader treats
+ * as a replay; only this record, bound to the exact generation it wrote, lets
+ * the next request here restore the proof after the interrupted-turn check.
+ * Process memory on purpose: a restart or another process finds no record and
+ * replays. See the session spec, *Interrupted turns*.
+ */
+let interruptedTurns = new LRUMap<string, InterruptedTurnRecord>(activeMaxSessions)
+
 function isSessionStoreTransactionActive(): boolean {
   return !!activeStoreBackend() && connectionFor(getSessionStoreDir()).scope !== undefined
 }
@@ -123,8 +143,7 @@ function afterSessionStoreCommit(effect: () => void): void {
   }
 }
 
-function afterSessionCacheCommit(effect: () => void): void {
-  const epoch = cacheEpoch
+function afterSessionCacheCommit(effect: () => void, epoch = cacheEpoch): void {
   afterSessionStoreCommit(() => {
     if (epoch === cacheEpoch) effect()
   })
@@ -146,25 +165,26 @@ export async function clearSessionCache(): Promise<void> {
   const clearMemory = () => {
     sessionCache.clear()
     fingerprintCache.clear()
+    interruptedTurns.clear()
   }
   if (configuredLimit !== activeMaxSessions) {
     activeMaxSessions = configuredLimit
     sessionCache = createSessionCache(activeMaxSessions)
     fingerprintCache = createFingerprintCache(activeMaxSessions)
+    interruptedTurns = new LRUMap<string, InterruptedTurnRecord>(activeMaxSessions)
   } else {
     clearMemory()
   }
   try {
     if (!activeStoreBackend()) {
-      clearSharedSessions()
+      await clearSharedSessions(clearMemory)
       return
     }
     const directory = getSessionStoreDir()
     const clearDurable = () => {
-      clearSharedSessions()
-      // Earlier FIFO writers may have repopulated memory while admission waited.
+      // Earlier FIFO writers or reads may have repopulated memory while admission waited.
       // Clear at COMMIT, before any later publication; never in an await continuation.
-      withStoreWrite(directory, tx => { tx.afterCommit(clearMemory) })
+      clearSharedSessions(clearMemory)
     }
     if (isSessionStoreTransactionActive()) {
       // Internal synchronous callers join their existing scope. Its COMMIT or
@@ -185,7 +205,8 @@ export function evictSession(
   workingDirectory?: string,
   messages?: Array<{ role: string; content: any }>,
   expectedGeneration?: StoredSessionGeneration,
-): boolean {
+): boolean | Promise<boolean> {
+  const epoch = cacheEpoch
   if (sessionId) {
     const invalidate = () => {
       const cached = sessionCache.get(sessionId)
@@ -198,11 +219,13 @@ export function evictSession(
     if (!sql) invalidate()
     // Store failures are safety-significant: callers must not release a turn
     // after claiming cleanup succeeded while the durable mapping remains.
-    const evicted = evictSharedSession(sessionId, expectedGeneration)
-    if (sql && evicted) afterSessionCacheCommit(invalidate)
     // Header-keyed and fingerprint-keyed conversations are independent durable
     // keys. Never apply one key's generation token to the other key.
-    return evicted
+    return mapStoreMutation(evictSharedSession(sessionId, expectedGeneration), evicted => {
+      if (evicted) afterSessionCacheCommit(invalidate, epoch)
+      if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(sessionId) }, epoch)
+      return evicted
+    })
   }
   if (messages) {
     const fp = getConversationFingerprint(messages, workingDirectory)
@@ -216,9 +239,11 @@ export function evictSession(
       }
       const sql = !!activeStoreBackend()
       if (!sql) invalidate()
-      const evicted = evictSharedSession(fp, expectedGeneration)
-      if (sql && evicted) afterSessionCacheCommit(invalidate)
-      return evicted
+      return mapStoreMutation(evictSharedSession(fp, expectedGeneration), evicted => {
+        if (evicted) afterSessionCacheCommit(invalidate, epoch)
+        if (evicted) afterSessionCacheCommit(() => { interruptedTurns.delete(fp) }, epoch)
+        return evicted
+      })
     }
   }
   return false
@@ -256,10 +281,11 @@ function stateFromSharedSession(
 /** Drop rollback authority only after the response terminal is irrevocable. */
 export function finalizePrioritySessionPublication(
   publication: PrioritySessionPublication,
-): boolean {
+  beforePublish?: () => void,
+): boolean | Promise<boolean> {
   const rollback = publication.rollback
   if (!rollback) return true
-  const finalized = finalizeSharedSessionAndPriorityAssignment({
+  return mapStoreMutation(finalizeSharedSessionAndPriorityAssignment({
     key: rollback.key,
     routeKey: publication.routeKey,
     expectedMappingGeneration: rollback.publishedMappingGeneration,
@@ -268,10 +294,11 @@ export function finalizePrioritySessionPublication(
       ? undefined
       : rollback.previousAssignment?.mappingKey,
     attemptOwnerToken: publication.attemptOwnerToken,
+  }, beforePublish), finalized => {
+    if (!finalized) return false
+    afterSessionStoreCommit(() => { publication.rollback = undefined })
+    return true
   })
-  if (!finalized) return false
-  afterSessionStoreCommit(() => { publication.rollback = undefined })
-  return true
 }
 
 /** Revoke a late atomic route+mapping publication and restore pre-request authority. */
@@ -280,10 +307,12 @@ export function rollbackPrioritySessionPublication(
   messages: Array<{ role: string; content: unknown }>,
   workingDirectory: string | undefined,
   publication: PrioritySessionPublication,
-): StoredSessionGeneration | false {
+): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
+  const epoch = cacheEpoch
   const rollback = publication.rollback
   if (!rollback) return false
-  const restored = rollbackSharedSessionAndPriorityAssignment({
+  const fingerprint = !sessionId ? getConversationFingerprint(messages, workingDirectory) : null
+  return mapStoreMutation(rollbackSharedSessionAndPriorityAssignment({
     key: rollback.key,
     routeKey: publication.routeKey,
     expectedMappingGeneration: rollback.publishedMappingGeneration,
@@ -291,24 +320,24 @@ export function rollbackPrioritySessionPublication(
     previousMapping: rollback.previousMapping,
     previousAssignment: rollback.previousAssignment,
     attemptOwnerToken: publication.attemptOwnerToken,
-  })
-  if (!restored) return false
+  }), restored => {
+    if (!restored) return false
 
-  const fingerprint = !sessionId ? getConversationFingerprint(messages, workingDirectory) : null
-  afterSessionStoreCommit(() => {
-    publication.expectedAssignmentGeneration = restored.assignmentGeneration
-    publication.rollback = undefined
+    afterSessionStoreCommit(() => {
+      publication.expectedAssignmentGeneration = restored.assignmentGeneration
+      publication.rollback = undefined
+    })
+    afterSessionCacheCommit(() => {
+      if (sessionId) {
+        if (restored.restoredMapping) sessionCache.set(sessionId, stateFromSharedSession(restored.restoredMapping))
+        else sessionCache.delete(sessionId)
+      } else if (fingerprint) {
+        if (restored.restoredMapping) fingerprintCache.set(fingerprint, stateFromSharedSession(restored.restoredMapping))
+        else fingerprintCache.delete(fingerprint)
+      }
+    }, epoch)
+    return restored.mappingGeneration
   })
-  afterSessionCacheCommit(() => {
-    if (sessionId) {
-      if (restored.restoredMapping) sessionCache.set(sessionId, stateFromSharedSession(restored.restoredMapping))
-      else sessionCache.delete(sessionId)
-    } else if (fingerprint) {
-      if (restored.restoredMapping) fingerprintCache.set(fingerprint, stateFromSharedSession(restored.restoredMapping))
-      else fingerprintCache.delete(fingerprint)
-    }
-  })
-  return restored.mappingGeneration
 }
 
 function classifyLineage(
@@ -319,6 +348,15 @@ function classifyLineage(
   const result = verifyLineage(state, messages, {
     compactionSurvival: process.env.MERIDIAN_COMPACTION_SURVIVAL === "1",
   })
+
+  // Said before the verdict's own line, which then reads in incoming positions.
+  if (result.regrouped) {
+    const { runs, storedMessages, incomingMessages } = result.regrouped
+    const resumes = result.type === "continuation" || result.type === "compaction"
+    const msg = `Regrouped user messages (key=${cacheKey.slice(0, 8)}…): ${runs} run${runs === 1 ? "" : "s"}, stored ${storedMessages} -> incoming ${incomingMessages}${resumes ? "; resuming." : "."}`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  }
 
   if (result.type === "continuation" && result.resumeContentFrom !== undefined) {
     const msg = `Parallel tool-result continuation (key=${cacheKey.slice(0, 8)}…): resume from message ${result.resumeFrom}, content block ${result.resumeContentFrom}.`
@@ -613,8 +651,15 @@ export function storeSession(
   priorityPublication?: PrioritySessionPublication,
   sdkPrefixMatchesClient = true,
   resumeContextHash?: string,
-): StoredSessionGeneration | false {
+  beforePublish?: () => void,
+): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
   if (!claudeSessionId) return false
+  const epoch = cacheEpoch
+  sdkMessageUuids = sdkMessageUuids?.slice()
+  contextUsage = contextUsage === undefined ? undefined : structuredClone(contextUsage)
+  passthroughToolCallIds = passthroughToolCallIds?.slice() ?? passthroughToolCallIds
+  currentTranscript = currentTranscript === undefined ? undefined : { ...currentTranscript }
+  sourceTranscript = sourceTranscript === undefined ? undefined : { ...sourceTranscript }
   const rawLineageHash = computeLineageHash(messages)
   const lineageHash = sdkPrefixMatchesClient ? rawLineageHash : ""
   const clientLineageHash = sdkPrefixMatchesClient ? undefined : rawLineageHash
@@ -642,7 +687,7 @@ export function storeSession(
   const fp = getConversationFingerprint(messages, workingDirectory)
   const key = sessionId || fp
   if (!key) return false
-  let storedGeneration: StoredSessionGeneration | false
+  let storedGeneration: StoredSessionGeneration | false | Promise<StoredSessionGeneration | false>
   if (priorityPublication) {
     if (expectedGeneration === undefined || expectedGeneration === null) {
       throw new Error("priority publication requires an exact mapping generation")
@@ -651,7 +696,7 @@ export function storeSession(
     if (rollback && rollback.key !== key) {
       throw new Error("priority publication changed mapping keys within one request")
     }
-    const published = storeSharedSessionAndPriorityAssignment({
+    storedGeneration = mapStoreMutation(storeSharedSessionAndPriorityAssignment({
       key,
       claudeSessionId,
       messageCount: state.messageCount,
@@ -676,19 +721,20 @@ export function storeSession(
         lastHumanTurnIssuedAt: priorityPublication.lastHumanTurnIssuedAt,
         expectedAssignmentGeneration: priorityPublication.expectedAssignmentGeneration,
       },
+    }, beforePublish), published => {
+      if (!published) return false
+      afterSessionStoreCommit(() => {
+        priorityPublication.rollback = {
+          key,
+          previousMapping: rollback?.previousMapping ?? published.previousMapping,
+          previousAssignment: rollback?.previousAssignment ?? published.previousAssignment,
+          publishedMappingGeneration: published.mappingGeneration,
+          publishedAssignmentGeneration: published.assignmentGeneration,
+        }
+        priorityPublication.expectedAssignmentGeneration = published.assignmentGeneration
+      })
+      return published.mappingGeneration
     })
-    if (!published) return false
-    afterSessionStoreCommit(() => {
-      priorityPublication.rollback = {
-        key,
-        previousMapping: rollback?.previousMapping ?? published.previousMapping,
-        previousAssignment: rollback?.previousAssignment ?? published.previousAssignment,
-        publishedMappingGeneration: published.mappingGeneration,
-        publishedAssignmentGeneration: published.assignmentGeneration,
-      }
-      priorityPublication.expectedAssignmentGeneration = published.assignmentGeneration
-    })
-    storedGeneration = published.mappingGeneration
   } else {
     storedGeneration = storeSharedSession(
       key,
@@ -707,14 +753,112 @@ export function storeSession(
       expectedGeneration,
       clientLineageHash ?? null,
       resumeContextHash ?? null,
+      beforePublish,
     )
   }
-  if (!storedGeneration) return false
+  return mapStoreMutation(storedGeneration, generation => {
+    if (!generation) return false
 
-  // The CAS may have joined an outer publication transaction.
-  afterSessionCacheCommit(() => {
-    if (sessionId) sessionCache.set(sessionId, state)
-    if (fp && !sessionId) fingerprintCache.set(fp, state)
+    // The CAS may have joined an outer publication transaction.
+    afterSessionCacheCommit(() => {
+      if (sessionId) sessionCache.set(sessionId, state)
+      if (fp && !sessionId) fingerprintCache.set(fp, state)
+      interruptedTurns.delete(key)
+    }, epoch)
+    return generation
   })
-  return storedGeneration
 }
+
+/**
+ * Keep the mapping an interrupted turn resumed, marked interrupted.
+ *
+ * The durable record keeps its session, transcript locators and per-message
+ * hashes but loses its SDK reuse proof: an empty `lineageHash` with the hash
+ * kept as `clientLineageHash`, the encoding every reader already treats as
+ * "lineage owned, resume unproved", so a restart, another process or an older
+ * Meridian replays. This process records the turn against the generation it
+ * wrote; `takeInterruptedTurn` hands it to the next request. Returns the new
+ * generation, or false when the mapping is no longer the turn's source.
+ */
+export function markSessionInterrupted(
+  sessionId: string | undefined,
+  workingDirectory: string | undefined,
+  messages: Array<{ role: string; content: any }>,
+  expectedGeneration: StoredSessionGeneration,
+  source: InterruptedSessionSource,
+  turn: InterruptedTurn,
+): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
+  const key = sessionId || getConversationFingerprint(messages, workingDirectory)
+  if (!key) return false
+  const epoch = cacheEpoch
+  const current = lookupSharedSessionResult(key)
+  if (current.status === "error") throw current.error
+  if (current.status !== "found" || current.generation !== expectedGeneration) return false
+  if (!markableSource(current.session, source, turn)) return false
+  return mapStoreMutation(storeSharedSession(
+    key,
+    source.claudeSessionId,
+    source.messageCount,
+    "",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    expectedGeneration,
+    source.lineageHash,
+    undefined,
+  ), generation => {
+    if (!generation) return false
+    afterSessionCacheCommit(() => {
+      // The memory copies still carry the proof; drop them so a store read
+      // failure cannot fall back to a resumable state.
+      if (sessionId) sessionCache.delete(sessionId)
+      else fingerprintCache.delete(key)
+      interruptedTurns.set(key, { generation, markedFrom: expectedGeneration, claudeSessionId: source.claudeSessionId, turn })
+    }, epoch)
+    return generation
+  })
+}
+
+/** An interrupted turn recorded for the mapping the next request read. */
+export interface InterruptedTurnClaim {
+  readonly turn: InterruptedTurn
+  readonly generation: StoredSessionGeneration
+  readonly markedFrom: StoredSessionGeneration
+  /** The mapping with its SDK reuse proof restored, for a resume. */
+  readonly restored: SessionState
+}
+
+/**
+ * Take the interrupted turn recorded for `key`, if the mapping read at
+ * `generation` is still exactly the one this process marked. The record is
+ * removed either way: one request decides it.
+ */
+export function takeInterruptedTurn(
+  key: string | undefined,
+  generation: StoredSessionGeneration | undefined,
+  stored: StoredSession | undefined,
+): InterruptedTurnClaim | undefined {
+  if (!key) return undefined
+  const record = interruptedTurns.get(key)
+  if (!record) return undefined
+  interruptedTurns.delete(key)
+  if (!stored || !recordStillMarks(record, generation, stored)) return undefined
+  const state = stateFromSharedSession(stored)
+  return {
+    turn: record.turn,
+    generation: record.generation,
+    markedFrom: record.markedFrom,
+    restored: { ...state, lineageHash: record.turn.lineageHash, clientLineageHash: undefined },
+  }
+}
+
+/** Forget this process's interrupted-turn records, as a restart would. */
+export function forgetInterruptedTurnsForTests(): void {
+  interruptedTurns.clear()
+}
+

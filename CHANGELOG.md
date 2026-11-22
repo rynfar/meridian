@@ -1,5 +1,150 @@
 # Changelog
 
+## [1.93.0](https://github.com/rynfar/meridian/compare/meridian-v1.92.0...meridian-v1.93.0) (2026-11-17)
+
+
+### Features
+
+* make the OAuth usage cache TTL configurable ([#1502](https://github.com/rynfar/meridian/issues/1502)) ([41bae4c](https://github.com/rynfar/meridian/commit/41bae4cbbc04d26c13b16c1df190311ae9e32c54))
+* **profiles:** remove a Claude profile from the Profiles page ([#1493](https://github.com/rynfar/meridian/issues/1493)) ([b70a7b0](https://github.com/rynfar/meridian/commit/b70a7b056fab08d0eb7cd40e578edfb975f0120b))
+* **ui:** mark card activation with a brand strip and show the allowance badge ([#1544](https://github.com/rynfar/meridian/issues/1544)) ([bf7835a](https://github.com/rynfar/meridian/commit/bf7835a0cfcff5679c61dfa0ee8a4ab585ae05be))
+
+
+### Bug Fixes
+
+* **chatgpt:** drop temperature and top_p, which the Codex backend refuses ([#1530](https://github.com/rynfar/meridian/issues/1530)) ([b5ccb78](https://github.com/rynfar/meridian/commit/b5ccb788876b4b55f76d63ce6801f9e6286e09a7))
+* classify the per-tier refusal that links usage credits and bench only its model ([#1542](https://github.com/rynfar/meridian/issues/1542)) ([5226fbd](https://github.com/rynfar/meridian/commit/5226fbde773a90070c13e4886af4adb0b4e9163e))
+* log recovered passthrough streaming turns as completed ([#1534](https://github.com/rynfar/meridian/issues/1534)) ([d1d84bd](https://github.com/rynfar/meridian/commit/d1d84bd43e1f1af25b55916bb79e4c69fddca6b1))
+* make signal-stopped Claude Code requests retryable ([#1533](https://github.com/rynfar/meridian/issues/1533)) ([26f8bf9](https://github.com/rynfar/meridian/commit/26f8bf9358f5f223fcca5c791972ed18a8bae138))
+* **profiles:** notice a plan that changed, not only one that is missing ([#1498](https://github.com/rynfar/meridian/issues/1498)) ([9b8d9d1](https://github.com/rynfar/meridian/commit/9b8d9d150c743498bc735bf0b6e82c2dedca97b7))
+* **profiles:** refuse a request pinned to a profile that does not exist ([#1529](https://github.com/rynfar/meridian/issues/1529)) ([dc3e968](https://github.com/rynfar/meridian/commit/dc3e968872ebce6063707408118dcf7ffb327635))
+* **session:** stop failing fresh keyed turns over a neighbor's slot writes ([#1532](https://github.com/rynfar/meridian/issues/1532)) ([8451081](https://github.com/rynfar/meridian/commit/84510815ce753972d85ebd193223ce87b77cbf69))
+* show Claude Extra Usage in dollars, not cents, and show spend past the limit ([#1549](https://github.com/rynfar/meridian/issues/1549)) ([c58cfcf](https://github.com/rynfar/meridian/commit/c58cfcf26685893280cdc4cbf0824501a5847a41))
+* **shutdown:** let a restart exit cleanly and its successor start at once ([#1539](https://github.com/rynfar/meridian/issues/1539)) ([860beb7](https://github.com/rynfar/meridian/commit/860beb78a0393a4e4b5d08a3e8fc010c3efcd318))
+
+
+### Performance
+
+* **session:** stop fsyncing lock candidates and process gates ([#1548](https://github.com/rynfar/meridian/issues/1548)) ([999465c](https://github.com/rynfar/meridian/commit/999465c28902a2498581aac3fdc611e5e2199744))
+
+## [1.92.0](https://github.com/rynfar/meridian/compare/meridian-v1.91.0...meridian-v1.92.0) (2026-11-16)
+
+
+### Features
+
+* take usage figures from the followed instance, not from Anthropic ([#1499](https://github.com/rynfar/meridian/issues/1499)) ([29dbb33](https://github.com/rynfar/meridian/commit/29dbb339334fdbfa58d604aefa07fdeaf821dacd))
+
+## [1.91.0](https://github.com/rynfar/meridian/compare/meridian-v1.90.0...meridian-v1.91.0) (2026-11-14)
+
+
+### Features
+
+* **routing:** cool down profiles signed in to the refused account ([#1494](https://github.com/rynfar/meridian/issues/1494)) ([48b00a3](https://github.com/rynfar/meridian/commit/48b00a3b59dbc26a581d8567027c018ffa6ac253))
+
+
+### Bug Fixes
+
+* **claude-code:** key in-process teammates by their name@team agent id ([#1520](https://github.com/rynfar/meridian/issues/1520)) ([bd4128a](https://github.com/rynfar/meridian/commit/bd4128a3d22d0f04d267398430d9de876b0df41f))
+* **passthrough:** keep a prefixed ToolSearch call inside the SDK ([#1526](https://github.com/rynfar/meridian/issues/1526)) ([8c22ad8](https://github.com/rynfar/meridian/commit/8c22ad84b32fc3aeb8a80e48ba4274e047f9cd2f))
+* reclaim turn locks whose own release failed ([#1525](https://github.com/rynfar/meridian/issues/1525)) ([3a48b0d](https://github.com/rynfar/meridian/commit/3a48b0dddcc020704bb4d836683cadc83d918ef5))
+* resume a history whose user messages were regrouped ([#1510](https://github.com/rynfar/meridian/issues/1510)) ([84c2a83](https://github.com/rynfar/meridian/commit/84c2a83a938addcc5355d64d0d1af5f60fa0b03b))
+* **routing:** bench a per-model weekly refusal only for that model ([#1524](https://github.com/rynfar/meridian/issues/1524)) ([dacea62](https://github.com/rynfar/meridian/commit/dacea62623334e35898ecb6b907832aefff465de))
+
+## [1.90.0](https://github.com/rynfar/meridian/compare/meridian-v1.89.0...meridian-v1.90.0) (2026-11-13)
+
+
+### Features
+
+* **models:** add Claude Fable 5.2 ([#1527](https://github.com/rynfar/meridian/issues/1527)) ([eab8d9b](https://github.com/rynfar/meridian/commit/eab8d9bd8fe37154d4dbb47c9c0c8ed445d60f91))
+* **profiles:** filter accounts by login state ([#1495](https://github.com/rynfar/meridian/issues/1495)) ([663311e](https://github.com/rynfar/meridian/commit/663311e1c7da8e599ffdef330c8b2dfa4bdaf758))
+
+
+### Bug Fixes
+
+* **landing:** finishing a text selection on a card does not switch accounts ([#1496](https://github.com/rynfar/meridian/issues/1496)) ([63c33fa](https://github.com/rynfar/meridian/commit/63c33faf0637bde3bf45ee188d069c0dabcc126a))
+
+## [1.89.0](https://github.com/rynfar/meridian/compare/meridian-v1.88.0...meridian-v1.89.0) (2026-11-09)
+
+
+### Features
+
+* keep a stopped turn's session when the client discarded its output ([#1480](https://github.com/rynfar/meridian/issues/1480)) ([3a700e3](https://github.com/rynfar/meridian/commit/3a700e365fef08b4549642746a9ccbf59c64d95e))
+
+
+### Bug Fixes
+
+* **auth:** refresh on Anthropic's "OAuth access token has expired" wording ([#1490](https://github.com/rynfar/meridian/issues/1490)) ([b9e547e](https://github.com/rynfar/meridian/commit/b9e547e34fa9bd2f2ab0e0371091738a4438defe))
+* avoid occupied store-lock writes and isolate native test fixtures ([#1506](https://github.com/rynfar/meridian/issues/1506)) ([2297d61](https://github.com/rynfar/meridian/commit/2297d61e4f157ad6448dc787c64849f565f4377f))
+* keep explicit models on refusal fallback ([#1505](https://github.com/rynfar/meridian/issues/1505)) ([16c2149](https://github.com/rynfar/meridian/commit/16c214941bf3f05aa4015a70d8b81bd94857a88f))
+* **landing:** size the (i) details popup to its card ([#1497](https://github.com/rynfar/meridian/issues/1497)) ([e623e82](https://github.com/rynfar/meridian/commit/e623e82e53a810fe1638360c2526a349746ee9e5))
+* probe liveness in the Docker healthcheck ([#1514](https://github.com/rynfar/meridian/issues/1514)) ([89fab76](https://github.com/rynfar/meridian/commit/89fab76f546d29b151f90a8fa9dd7810c1adde52))
+* **profiles:** a renamed profile keeps its place in the pool order ([#1489](https://github.com/rynfar/meridian/issues/1489)) ([0e42051](https://github.com/rynfar/meridian/commit/0e4205137997fa87364deec5f9517ff6ab151e7c))
+* **profiles:** keep password managers out of the page's text fields ([#1492](https://github.com/rynfar/meridian/issues/1492)) ([74d1365](https://github.com/rynfar/meridian/commit/74d13657eee837da90af1a63261727c399f4247b))
+* report safeguard refusals as refusals, not truncations ([#1513](https://github.com/rynfar/meridian/issues/1513)) ([d482b89](https://github.com/rynfar/meridian/commit/d482b8951c2646d12a47700391919403275273fb))
+* **session:** invalidate evicted JSON cache after durable commit ([67d02f5](https://github.com/rynfar/meridian/commit/67d02f56ba69b7e738aea67119ba5b1376ef0db0))
+* **ui:** let long addresses and executable paths wrap on a phone ([#1491](https://github.com/rynfar/meridian/issues/1491)) ([f6b3e8a](https://github.com/rynfar/meridian/commit/f6b3e8a2170e7f05fc9a0c14b032638c00cd0131))
+
+## [1.88.0](https://github.com/rynfar/meridian/compare/meridian-v1.87.0...meridian-v1.88.0) (2026-11-02)
+
+
+### Features
+
+* **desktop:** redesign Meridian Desktop around the service clients use ([#1470](https://github.com/rynfar/meridian/issues/1470)) ([d48599d](https://github.com/rynfar/meridian/commit/d48599db6bbd5d412bb39dd0ef38602fce36ad0a))
+* hold back a weekly reserve on priority-routed profiles ([#1484](https://github.com/rynfar/meridian/issues/1484)) ([2a806fd](https://github.com/rynfar/meridian/commit/2a806fde11656ac0be8d1274f858aca2e8bdd5a9))
+
+
+### Bug Fixes
+
+* **desktop:** address the post-merge review of the redesign ([#1473](https://github.com/rynfar/meridian/issues/1473)) ([5de4cf3](https://github.com/rynfar/meridian/commit/5de4cf3ecdef7afbd1aaa1410018b09996a91f87))
+* honor Pi's cache-only model refresh phase ([#1476](https://github.com/rynfar/meridian/issues/1476)) ([6663c0f](https://github.com/rynfar/meridian/commit/6663c0f99c0bee7108ef348e205d1df2ca6aa4c0))
+* map Chat Completions file parts to Claude documents ([#1482](https://github.com/rynfar/meridian/issues/1482)) ([f331ffe](https://github.com/rynfar/meridian/commit/f331ffe71764167111879f6dcd91974925535759))
+* **nix:** build packages with the consumer's nixpkgs ([#1475](https://github.com/rynfar/meridian/issues/1475)) ([7a971fd](https://github.com/rynfar/meridian/commit/7a971fd11a75bcd65b596fe71bd92141aa04a74b))
+* **passthrough:** keep Claude Code's own tool search working when it defers tools ([#1478](https://github.com/rynfar/meridian/issues/1478)) ([3903db4](https://github.com/rynfar/meridian/commit/3903db448892c91cd4428ca3819ef9a00e449460))
+* **profiles:** skip the default auth context when no profile uses it ([#1471](https://github.com/rynfar/meridian/issues/1471)) ([6056b54](https://github.com/rynfar/meridian/commit/6056b54a7c6af97cb199381bbc1be578cee8136d))
+* stop polling usage from hidden / and /profiles tabs ([#1477](https://github.com/rynfar/meridian/issues/1477)) ([8404328](https://github.com/rynfar/meridian/commit/84043282aec4c83e29bc052943140abdeca8754a))
+* support OpenCode Desktop 2.2 ([#1467](https://github.com/rynfar/meridian/issues/1467)) ([034ec11](https://github.com/rynfar/meridian/commit/034ec1112df222b07ad1235a768ea662f17820cc))
+
+## [1.87.0](https://github.com/rynfar/meridian/compare/meridian-v1.86.0...meridian-v1.87.0) (2026-10-27)
+
+
+### Features
+
+* check loaded plugins for updates alongside Meridian ([#1445](https://github.com/rynfar/meridian/issues/1445)) ([a70a992](https://github.com/rynfar/meridian/commit/a70a992557ca72974af4b879a7ea2e556d091bce))
+* list and redeem Claude banked resets ([#1429](https://github.com/rynfar/meridian/issues/1429)) ([19b0f76](https://github.com/rynfar/meridian/commit/19b0f76230f97be833ffca83fa98fd75b2ff9be0))
+* optional prompt-cache keepalive for idle sessions ([#1193](https://github.com/rynfar/meridian/issues/1193)) ([1b643b1](https://github.com/rynfar/meridian/commit/1b643b1a59efa4a9f49616437d66ce683d8bf95a))
+* **profiles:** flag profiles signed in to one account, show a card updating after sign-in, refresh pages in place ([#1446](https://github.com/rynfar/meridian/issues/1446)) ([72da174](https://github.com/rynfar/meridian/commit/72da1744b93e94e48c2bde1ad64af179ca3175a5))
+
+
+### Bug Fixes
+
+* **antigravity:** expand a leading ~ in PI_CODING_AGENT_DIR for Pi setup ([#1456](https://github.com/rynfar/meridian/issues/1456)) ([df3839e](https://github.com/rynfar/meridian/commit/df3839e3e7312606967c0a726b75b8a7618cb74b))
+* **chatgpt:** list a seat as it was while its renewal is out ([#1463](https://github.com/rynfar/meridian/issues/1463)) ([2534575](https://github.com/rynfar/meridian/commit/253457540f08b57ddbb376d6885949cada1d0184))
+* delete old Claude Code transcripts again ([#1261](https://github.com/rynfar/meridian/issues/1261)) ([3548ff2](https://github.com/rynfar/meridian/commit/3548ff28b3256e57691eb65cc2380f1d0b3f49ef))
+* **opencode:** keep V2 compaction on the conversation's model tier ([#1458](https://github.com/rynfar/meridian/issues/1458)) ([c433b20](https://github.com/rynfar/meridian/commit/c433b205de7d7f722368082c2c5b1633e8f684c4))
+* **passthrough:** share built tool definitions between sessions ([#1410](https://github.com/rynfar/meridian/issues/1410)) ([9d971d5](https://github.com/rynfar/meridian/commit/9d971d504d9f05ada8d9ff7a71670a3b447772ea))
+* **settings:** put each control on its label's line and name the env var that overrides a setting ([#1443](https://github.com/rynfar/meridian/issues/1443)) ([662fd4c](https://github.com/rynfar/meridian/commit/662fd4c15f52448882a3b52d546baa7e7007b2cd))
+
+
+### Performance
+
+* **passthrough:** share per-session tool lists between sessions ([#1444](https://github.com/rynfar/meridian/issues/1444)) ([cb37785](https://github.com/rynfar/meridian/commit/cb3778580e0d578fe0e9f76e8e04df9bdab800f3))
+
+## [1.86.0](https://github.com/rynfar/meridian/compare/meridian-v1.85.0...meridian-v1.86.0) (2026-10-26)
+
+
+### Features
+
+* add the Meridian Pi extension and meridian setup --client pi ([#1408](https://github.com/rynfar/meridian/issues/1408)) ([bd02173](https://github.com/rynfar/meridian/commit/bd021733deb054bbb95cacc0383fa816469e5773))
+* read x-session-id as conversation identity on /v1/chat/completions ([#1426](https://github.com/rynfar/meridian/issues/1426)) ([a5a939b](https://github.com/rynfar/meridian/commit/a5a939be8e3bd43e73b8750963900568530e6445))
+
+
+### Bug Fixes
+
+* **antigravity:** compact older assistant text in active tool loops ([#1437](https://github.com/rynfar/meridian/issues/1437)) ([075e9e4](https://github.com/rynfar/meridian/commit/075e9e4736d3457e12dda1a0108531b9b5843e96))
+* **chatgpt:** release a turn that fails before reaching the backend ([#1440](https://github.com/rynfar/meridian/issues/1440)) ([c84af24](https://github.com/rynfar/meridian/commit/c84af243708578c0f15c92acad90fa68e364aaa9))
+* **pi:** tier in-process pi-subagents children whose prompt is appended ([#1453](https://github.com/rynfar/meridian/issues/1453)) ([5359f63](https://github.com/rynfar/meridian/commit/5359f63404645e6f44b335c5ba4f0dc755f5f7c5))
+* require the Pi scrub in the live Pi harness and tell Pi users they need it ([#1452](https://github.com/rynfar/meridian/issues/1452)) ([cb767de](https://github.com/rynfar/meridian/commit/cb767defa07c27e1459f7616cfa36129584a5db4))
+
 ## [1.85.0](https://github.com/rynfar/meridian/compare/meridian-v1.84.0...meridian-v1.85.0) (2026-10-21)
 
 

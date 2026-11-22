@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
+import * as childProcess from 'node:child_process'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,16 +8,36 @@ import { AntigravityRuntime } from '../proxy/backends/antigravityRuntime'
 import { parseAgRequest } from '../proxy/backends/antigravityProtocol'
 
 const roots: string[] = []
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
+const fixturePaths = new Set<string>()
+const nodeExecutable = Bun.which('node')
+const spawn = childProcess.spawn
+let spawnSpy: { mockRestore(): void } | undefined
+beforeEach(() => {
+  if (!nodeExecutable) throw new Error('Node is required for Antigravity probe fixtures')
+  // Launch only our synthetic scripts through Node; retain real children and
+  // production probe deadlines, process groups, cancellation and retries.
+  spawnSpy = spyOn(childProcess, 'spawn').mockImplementation(new Proxy(spawn, {
+    apply(target, receiver, args) {
+      const [executable, argv, options] = args
+      return Reflect.apply(target, receiver, fixturePaths.has(executable)
+        ? [nodeExecutable, [executable, ...argv], options] : args)
+    },
+  }))
+})
+afterEach(() => {
+  spawnSpy?.mockRestore()
+  fixturePaths.clear()
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
 function fixture(mode = 'once', settings?: Record<string, unknown>) {
   const root = mkdtempSync(join(tmpdir(), 'agy-probe-')); roots.push(root)
   const executable = join(root, 'probe.cjs')
-  writeFileSync(executable, `#!/usr/bin/env node
-const fs = require('node:fs'), path = require('node:path');
+  fixturePaths.add(executable)
+  writeFileSync(executable, `const fs = require('node:fs'), path = require('node:path');
 const root = process.env.AG_PROBE_ROOT, mode = process.env.AG_PROBE_MODE;
 const log = path.join(root, 'calls');
 fs.appendFileSync(log, JSON.stringify({args:process.argv.slice(2),pid:process.pid})+'\\n');
-if(process.argv[2] === '--version') { console.log(mode === 'version' ? 'unsupported' : '1.2.7'); }
+if(process.argv[2] === '--version') { console.log(mode === 'version' ? 'unsupported' : '1.5.5'); }
 else {
  const counter=path.join(root,'count'); const count=fs.existsSync(counter)?Number(fs.readFileSync(counter,'utf8')):0;
  fs.writeFileSync(counter,String(count+1));
@@ -32,16 +53,58 @@ else {
      try {process.kill(old,0);process.exit(43);} catch(e) {if(e.code !== 'ESRCH') throw e;}
    }
    const settings=process.env.AG_PROBE_SETTINGS ? JSON.parse(process.env.AG_PROBE_SETTINGS) : {customModelsConfig:{},modelProvider:mode === 'provider' ? 'api' : '',useG1Credits:mode === 'paid'};
-   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({command:{data:{config:settings}}}));
+   const tsv=Object.entries(settings).map(([k,v])=>k+'\\t'+(v===null||v===undefined?'':typeof v==='object'?(Object.keys(v).length?JSON.stringify(v):''):String(v))).join('\\n');
+   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({conversation_id:'',status:'SUCCESS',response:tsv}));
  }
 }
 `, { mode: 0o755 })
   const env = { ...process.env, AG_PROBE_ROOT: root, AG_PROBE_MODE: mode, AG_PROBE_SETTINGS: settings === undefined ? '' : JSON.stringify(settings) }
   const controller = new AbortController()
-  return { executable, env, controller, options: { env, signal: controller.signal, timeoutMs: 1000, killGraceMs: 50 }, ready: () => existsSync(join(root, 'count')), calls: () => readFileSync(join(root, 'calls'), 'utf8').trim().split('\n').map(line => JSON.parse(line) as { args: string[]; pid: number }) }
+  return { root, executable, env, controller, options: { env, signal: controller.signal, timeoutMs: 1000, killGraceMs: 50 }, ready: () => existsSync(join(root, 'count')), calls: () => readFileSync(join(root, 'calls'), 'utf8').trim().split('\n').map(line => JSON.parse(line) as { args: string[]; pid: number }) }
+}
+
+async function cancelWhenReady(f: ReturnType<typeof fixture>, pending: Promise<string>, attempts: number, ready = f.ready) {
+  const joined = Promise.allSettled([pending])
+  try {
+    for (let attempt = 0; attempt < attempts && !ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 10))
+    expect(ready()).toBe(true)
+    f.controller.abort()
+    await expect(pending).rejects.toThrow('reason=cancelled')
+  } finally {
+    f.controller.abort()
+    await joined
+  }
 }
 
 describe.skipIf(process.platform === 'win32')('Antigravity read-only subscription probes', () => {
+  it('launches the synthetic fixture through Node even with an unusable shebang', async () => {
+    const f = fixture('success')
+    writeFileSync(f.executable, `#!${join(f.root, 'missing-interpreter')}\n${readFileSync(f.executable, 'utf8')}`)
+    const direct = childProcess.spawnSync(f.executable, ['models'], { env: f.env, encoding: 'utf8', timeout: 1000, killSignal: 'SIGKILL' })
+    expect(direct.error).toMatchObject({ code: 'ENOENT' })
+    expect(existsSync(join(f.root, 'calls'))).toBe(false)
+    expect(await readAgProbe(f.executable, 'models', f.options)).toContain('gemini-test')
+    expect(f.calls().map(call => call.args)).toEqual([['models']])
+  })
+  it('joins the real probe after a readiness assertion fails and before deleting its fixture', async () => {
+    const f = fixture('always')
+    const pending = readAgProbe(f.executable, 'configuration', { ...f.options, timeoutMs: 3000 })
+    let settled = false
+    const joined = Promise.allSettled([pending]).then(() => { settled = true })
+    try {
+      await expect(cancelWhenReady(f, pending, 100, () => false)).rejects.toThrow()
+      expect(f.controller.signal.aborted).toBe(true)
+      expect(settled).toBe(true)
+      expect(f.calls()).toHaveLength(1)
+      expect(() => process.kill(f.calls()[0]!.pid, 0)).toThrow()
+      expect(existsSync(f.root)).toBe(true)
+      rmSync(f.root, { recursive: true, force: true })
+      expect(existsSync(f.root)).toBe(false)
+    } finally {
+      f.controller.abort()
+      await joined
+    }
+  })
   for (const mode of ['once', 'stubborn']) it(`retries one timeout only after the ${mode} process exits`, async () => {
     const f = fixture(mode)
     expect(await readAgProbe(f.executable, 'configuration', f.options)).toContain('customModelsConfig')
@@ -62,10 +125,7 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
   it('joins cancelled model discovery without retrying', async () => {
     const f = fixture('always')
     const pending = readAgProbe(f.executable, 'models', { ...f.options, timeoutMs: 3000 })
-    for (let attempt = 0; attempt < 200 && !f.ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 10))
-    expect(f.ready()).toBe(true)
-    f.controller.abort()
-    await expect(pending).rejects.toThrow('reason=cancelled')
+    await cancelWhenReady(f, pending, 200)
     expect(f.calls()).toHaveLength(1)
     expect(() => process.kill(f.calls()[0]!.pid, 0)).toThrow()
   })
@@ -119,10 +179,7 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
   it('joins cancellation without retrying', async () => {
     const f = fixture('always')
     const pending = readAgProbe(f.executable, 'configuration', { ...f.options, timeoutMs: 3000 })
-    for (let attempt = 0; attempt < 100 && !f.ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 10))
-    expect(f.ready()).toBe(true)
-    f.controller.abort()
-    await expect(pending).rejects.toThrow('reason=cancelled')
+    await cancelWhenReady(f, pending, 100)
     expect(f.calls()).toHaveLength(1)
     expect(() => process.kill(f.calls()[0]!.pid, 0)).toThrow()
   })
@@ -144,7 +201,7 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
     try {
       for (let attempt = 0; attempt < 200 && !f.ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 10))
       expect(f.ready()).toBe(true)
-    } finally { await runtime.close() }
+    } finally { await runtime.close(); await pending }
     expect(await pending).toContain('reason=cancelled')
     expect(f.calls().filter(call => call.args[1] === '/config')).toHaveLength(1)
   })
@@ -171,13 +228,13 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
       expect(runtime.runs.size).toBe(0)
     } finally { await runtime.close() }
   })
-  it('accepts the observed 1.2.7 default settings shape with explicit false credits', async () => {
+  it('accepts the observed 1.5.5 default settings shape with explicit false credits', async () => {
     const f = fixture('success', { customModelsConfig: null, modelProvider: '', useG1Credits: false, gcp: null })
     const runtime = new AntigravityRuntime({ executable: f.executable })
     Object.assign(runtime.childEnv, f.env)
     try {
       expect(await runtime.availableModels()).toEqual(['gemini-test'])
-      expect(runtime.cliVersion).toBe('1.2.7')
+      expect(runtime.cliVersion).toBe('1.5.5')
       expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p', 'models'])
       expect(runtime.runs.size).toBe(0)
     } finally { await runtime.close() }

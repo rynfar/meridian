@@ -14,10 +14,16 @@
  *
  * THAT SECOND PART IS THE WHOLE SAFETY ARGUMENT. A time-based lease treats a
  * paused, swapping or descheduled holder as gone, and on a loaded machine that
- * is a routine occurrence rather than an exotic one. Here an expired heartbeat
- * only makes a lock a CANDIDATE; it is displaced solely when the OS says its
- * owner is gone (`processIncarnationIsDead`, which answers `dead` only on a
- * missing process or a different boot, and fails closed on everything else).
+ * is a routine occurrence rather than an exotic one. Here a lock is displaced
+ * solely when the OS says its owner is gone (`processIncarnationIsDead`, which
+ * answers `dead` only on a missing process or a different boot of this host,
+ * and fails closed on everything else). A stale lock is probed on every
+ * attempt. A fresh one is probed at most once a second, because on darwin and
+ * win32 a probe is a synchronous child process, and is taken only from a
+ * holder of this boot: an earlier boot under the same host id may be another
+ * machine sharing it, so that lock still waits out the stale window. A
+ * restart's successor therefore takes over from a predecessor that exited
+ * without releasing as soon as it is gone, not a stale window later.
  *
  * A lock nobody can parse is therefore never reclaimed. That is deliberate:
  * refusing to start is recoverable by deleting a file, and spending another
@@ -45,7 +51,7 @@ import { withWriterRecoveryClaim } from "./recovery"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
-  processIncarnationIsDead,
+  processIncarnationIsDead, processIncarnationPredatesBoot,
   type ProcessIncarnation,
 } from "../session/processIncarnation"
 
@@ -53,6 +59,7 @@ const DEFAULT_STALE_MS = 60_000
 const DEFAULT_HEARTBEAT_MS = 5_000
 const DEFAULT_WAIT_MS = 10_000
 const RETRY_MS = 50
+const FRESH_PROBE_INTERVAL_MS = 1_000
 
 export class WriterLeaseUnavailableError extends Error {
   readonly lockPath: string
@@ -168,7 +175,7 @@ function ownsLock(lockPath: string, contents: string): boolean {
 }
 
 /** True means the path is now free to attempt. False means a holder is alive, or unprovably dead. */
-function retireDeadLock(lockPath: string, staleMs: number): boolean {
+function retireDeadLock(lockPath: string, staleMs: number, probeFresh: boolean): boolean {
   let contents: string
   let info: ReturnType<typeof statSync>
   try {
@@ -179,9 +186,13 @@ function retireDeadLock(lockPath: string, staleMs: number): boolean {
     throw new Error(`[chatgpt] lease inspection failed: ${(error as Error).message}`, { cause: error })
   }
 
-  if (Date.now() - info.mtimeMs <= staleMs) return false
+  const fresh = Date.now() - info.mtimeMs <= staleMs
+  if (fresh && !probeFresh) return false
   const owner = parseOwner(contents)
   if (!owner || !processIncarnationIsDead(owner.incarnation)) return false
+  // A different boot under this host id can be a live holder on another
+  // machine that shares the id, so only staleness retires its fresh lock.
+  if (fresh && processIncarnationPredatesBoot(owner.incarnation)) return false
 
   return withWriterRecoveryClaim(lockPath, contents, () => {
     // The generation claim excludes other reclaimers across this check/rename
@@ -192,7 +203,6 @@ function retireDeadLock(lockPath: string, staleMs: number): boolean {
       if (current !== contents || currentInfo.dev !== info.dev || currentInfo.ino !== info.ino) {
         return true
       }
-      if (Date.now() - currentInfo.mtimeMs <= staleMs) return false
     } catch (error) {
       if (errnoCode(error) === "ENOENT") return true
       throw new Error(`[chatgpt] lease recovery failed: ${(error as Error).message}`, { cause: error })
@@ -291,9 +301,12 @@ export async function acquireWriterLease(options: AcquireWriterLeaseOptions): Pr
   mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 })
 
   const deadline = Date.now() + waitMs
+  let freshProbedAt = -Infinity
   for (;;) {
     if (publishLockFile(lockPath, contents)) return startLease(lockPath, contents, heartbeatMs)
-    if (retireDeadLock(lockPath, staleMs)) continue
+    const probeFresh = Date.now() - freshProbedAt >= FRESH_PROBE_INTERVAL_MS
+    if (probeFresh) freshProbedAt = Date.now()
+    if (retireDeadLock(lockPath, staleMs, probeFresh)) continue
     const remaining = deadline - Date.now()
     if (remaining <= 0) throw new WriterLeaseUnavailableError(lockPath, describeHolder(lockPath))
     await new Promise(resolve => setTimeout(resolve, Math.min(RETRY_MS, remaining)))

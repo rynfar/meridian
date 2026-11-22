@@ -1,6 +1,6 @@
 import { createServer, get, type IncomingMessage, type ServerResponse } from "node:http"
 import { describe, expect, test } from "bun:test"
-import { closeServerWithGracePeriod, trackServerConnections } from "../proxy/shutdown"
+import { closeServerWithGracePeriod, joinShutdownCleanup, ShutdownProgress, trackServerConnections, withShutdownDeadline } from "../proxy/shutdown"
 
 async function listen(
   handler: (request: IncomingMessage, response: ServerResponse) => void,
@@ -74,5 +74,113 @@ describe("closeServerWithGracePeriod", () => {
     expect(warnings[0]).toContain("forcing remaining HTTP connections closed")
     connectionTracker.dispose()
     request.destroy()
+  })
+})
+
+describe("joinShutdownCleanup", () => {
+  test("skips durable cleanup but still releases ChatGPT when admitted work fails to join", async () => {
+    const order: string[] = []
+
+    await expect(joinShutdownCleanup({
+      idle: Promise.reject(new Error("admitted work failed")),
+      durable: async () => { order.push("durable") },
+      chatGpt: async () => { order.push("chatGpt") },
+    })).rejects.toThrow("admitted work failed")
+
+    expect(order).toEqual(["chatGpt"])
+  })
+
+  test("releases ChatGPT ownership while durable cleanup is still running", async () => {
+    let finishDurable = () => {}
+    const durableRunning = new Promise<void>((resolve) => { finishDurable = resolve })
+    let chatGptReleased!: () => void
+    const released = new Promise<void>((resolve) => { chatGptReleased = resolve })
+
+    const joined = joinShutdownCleanup({
+      idle: Promise.resolve(),
+      durable: () => durableRunning,
+      chatGpt: async () => { chatGptReleased() },
+    })
+
+    await released
+    finishDurable()
+    await joined
+  })
+
+  test("waits for admitted work before releasing ChatGPT ownership", async () => {
+    let finishIdle = () => {}
+    const idle = new Promise<void>((resolve) => { finishIdle = resolve })
+    const order: string[] = []
+
+    const joined = joinShutdownCleanup({
+      idle,
+      durable: async () => { order.push("durable") },
+      chatGpt: async () => { order.push("chatGpt") },
+    })
+    await Promise.resolve()
+    expect(order).toEqual([])
+
+    finishIdle()
+    await joined
+    expect(order.sort()).toEqual(["chatGpt", "durable"])
+  })
+
+  test("still releases ChatGPT ownership when durable cleanup fails, and reports the failure", async () => {
+    let released = false
+
+    const joined = joinShutdownCleanup({
+      idle: Promise.resolve(),
+      durable: async () => { throw new Error("sweep failed") },
+      chatGpt: async () => { released = true },
+    })
+
+    await expect(joined).rejects.toThrow("sweep failed")
+    expect(released).toBe(true)
+  })
+})
+
+describe("shutdown cleanup progress", () => {
+  test("names the cleanup step still running when the deadline passes", async () => {
+    const progress = new ShutdownProgress()
+    let finishGc = () => {}
+    const gc = new Promise<void>((resolve) => { finishGc = resolve })
+    const joined = joinShutdownCleanup({
+      idle: Promise.resolve(),
+      durable: () => progress.run("session GC sweep", () => gc),
+      chatGpt: async () => {},
+    }, progress)
+
+    const outcome = await withShutdownDeadline(joined, 50, { describe: () => progress.describe() })
+      .then(() => "joined", (error: Error) => error.message)
+
+    expect(outcome).toContain("session GC sweep still running")
+    expect(outcome).toMatch(/ChatGPT release [0-9]+ms/)
+    finishGc()
+    await joined
+  })
+
+  test("warns about slow cleanup without failing a shutdown that still joins in time", async () => {
+    const warnings: string[] = []
+    const progress = new ShutdownProgress()
+    let finishBackend = () => {}
+    const backend = new Promise<void>((resolve) => { finishBackend = resolve })
+    const joined = joinShutdownCleanup({
+      idle: Promise.resolve(),
+      durable: () => progress.run("backend close", () => backend),
+      chatGpt: async () => {},
+    }, progress)
+
+    const closing = withShutdownDeadline(joined, 5_000, {
+      slowAfterMs: 20,
+      describe: () => progress.describe(),
+      warn: (message) => {
+        warnings.push(message)
+        finishBackend()
+      },
+    })
+
+    await closing
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("backend close still running")
   })
 })

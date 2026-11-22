@@ -121,6 +121,8 @@ export interface ProxyServer {
   getInFlightCount?(): number
   /** Run one fail-closed transcript maintenance sweep. */
   sweepSessionGc?(): Promise<void>
+  /** Start any prompt-cache keepalive beats that are due; nothing is tracked unless the operator switched keepalive on. */
+  tickCacheKeepalive?(): void
   /** Present only when this instance has a ChatGPT credential source. */
   chatGpt?: ChatGptUpstreamControl
 }

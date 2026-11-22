@@ -108,3 +108,33 @@ describe("profile native-credential metadata isolation", () => {
     expect(reads).toBe(0)
   })
 })
+describe("duplicate detection trusts only account records read for the stored credential", () => {
+  interface Listed { id: string; email: string | null; duplicateOf: string[]; duplicateBasis: string | null }
+  const account = { name: "Acme", accountUuid: "acct-1", organizationUuid: "org-1", email: "one@example.com" }
+  async function listTwins(): Promise<Record<string, Listed>> {
+    const { app } = createProxyServer({ silent: true, defaultProfile: "a",
+      profiles: [{ id: "a", claudeConfigDir: join(root, "twin-a") }, { id: "b", claudeConfigDir: join(root, "twin-b") }] })
+    const body = await (await app.fetch(new Request("http://localhost/profiles/list"))).json() as { profiles: Listed[] }
+    return Object.fromEntries(body.profiles.map(p => [p.id, p]))
+  }
+  test("two profiles whose current credentials read the same account are flagged", async () => {
+    const mark = credentials!.claudeAiOauth!.expiresAt!
+    organizations.rememberOrganization("a", account, mark)
+    organizations.rememberOrganization("b", account, mark)
+    const listed = await listTwins()
+    expect(listed.a!.duplicateOf).toEqual(["b"]); expect(listed.b!.duplicateOf).toEqual(["a"])
+    expect(listed.a!.duplicateBasis).toBe("account-organization")
+    expect(listed.b!.email).toBe("one@example.com")
+  })
+  test("a record read for an earlier credential flags nothing and names no account", async () => {
+    // b was signed in to another account with `claude login`, with no page
+    // open: its stored token changed, its saved record still names acct-1.
+    const mark = credentials!.claudeAiOauth!.expiresAt!
+    organizations.rememberOrganization("a", account, mark)
+    organizations.rememberOrganization("b", account, mark - 60_000)
+    const listed = await listTwins()
+    expect(listed.a!.duplicateOf).toEqual([]); expect(listed.b!.duplicateOf).toEqual([])
+    expect(listed.b!.duplicateBasis).toBeNull()
+    expect(listed.b!.email).toBeNull()
+  })
+})

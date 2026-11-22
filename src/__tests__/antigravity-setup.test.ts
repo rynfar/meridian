@@ -28,6 +28,22 @@ describe('Antigravity client setup', () => {
     expect(again.changed).toEqual([])
     expect(again.backups).toEqual([])
   })
+  it('writes Pi setup where Pi reads a PI_CODING_AGENT_DIR with a leading ~', () => {
+    const home = directory(), cwd = directory()
+    const saved = { agentDir: process.env.PI_CODING_AGENT_DIR, cwd: process.cwd() }
+    process.env.PI_CODING_AGENT_DIR = '~/pi-agent'
+    process.chdir(cwd)
+    try {
+      const result = setupAntigravityClient({ ...defaults, client: 'pi' }, entry, home)
+      expect(result.configPath).toBe(join(home, 'pi-agent', 'models.json'))
+      expect(result.integrationPath).toBe(join(home, 'pi-agent', 'extensions', 'meridian-antigravity.js'))
+      expect(JSON.parse(readFileSync(result.configPath, 'utf8')).providers['meridian-agy'].models).toHaveLength(1)
+      expect(readdirSync(cwd)).toEqual([])
+    } finally {
+      process.chdir(saved.cwd)
+      if (saved.agentDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = saved.agentDir
+    }
+  })
   it('adds Pi model and extension while preserving other models; changes defaults only explicitly', () => {
     const configDir = directory()
     writeFileSync(join(configDir, 'models.json'), JSON.stringify({ providers: { other: { apiKey: 'keep' }, 'meridian-agy': { apiKey: 'existing-key', models: [{ id: 'other-model', name: 'keep' }] } } }))

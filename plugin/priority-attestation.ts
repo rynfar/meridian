@@ -1,8 +1,10 @@
 /**
- * OpenCode-side signer for Meridian priority failback attestations.
+ * Client-side signer for Meridian priority failback attestations.
  *
- * This file lives under plugin/ because the V1 plugin is shipped as TypeScript.
- * The V2 build bundles it into dist/meridian-v2.js.
+ * This file lives under plugin/ because the OpenCode V1 plugin and the Pi
+ * extension are shipped as TypeScript. The V2 build bundles it into
+ * dist/meridian-v2.js; `meridian setup --client pi` copies it beside the Pi
+ * extension.
  */
 
 import { createHash, createHmac } from "node:crypto"
@@ -22,9 +24,10 @@ const MAX_PAYLOAD_BYTES = 384
 const TURN_DIGEST_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314" | "oc2v2016"
+export type AttestationGeneration = OpenCodeAttestationGeneration | "pi1"
 
 export interface PriorityAttestationSignInput {
-  readonly generation: OpenCodeAttestationGeneration
+  readonly generation: AttestationGeneration
   readonly sessionId: string
   readonly agentId: string
   readonly humanMessageId: string
@@ -81,7 +84,7 @@ export function loadPriorityAttestationKey(): Buffer | undefined {
 }
 
 export function computePriorityTurnDigest(input: {
-  readonly generation: OpenCodeAttestationGeneration
+  readonly generation: AttestationGeneration
   readonly sessionId: string
   readonly humanMessageId: string
 }): string | undefined {

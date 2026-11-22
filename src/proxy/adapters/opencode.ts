@@ -171,7 +171,12 @@ export const openCodeAdapter: AgentAdapter = {
       return undefined
     }
     const attestation = verifyPriorityAttestation(c.req.header(PRIORITY_ATTESTATION_HEADER))
-    if (!attestation || attestation.sessionId !== sessionId || attestation.agentId !== agentId) {
+    if (
+      !attestation
+      || attestation.generation === "pi1"
+      || attestation.sessionId !== sessionId
+      || attestation.agentId !== agentId
+    ) {
       return undefined
     }
     return {

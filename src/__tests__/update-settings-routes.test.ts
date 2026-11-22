@@ -177,5 +177,8 @@ describe("update settings routes", () => {
     expect(state.envOptOut).toBe(true)
     expect(state.enabled).toBe(false)
     expect(registryHits).toBe(0)
+    // The response keeps its documented fields (api-contract.md, including the
+    // #1445 plugins list); no envSource is added, the page names the variable itself.
+    expect(Object.keys(state).sort()).toEqual(["build", "checkForUpdates", "enabled", "envOptOut", "plugins"])
   })
 })

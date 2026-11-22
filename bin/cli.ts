@@ -33,17 +33,23 @@ Commands:
   instance-import  Move one Meridian instance's ChatGPT seats and their history into another (--help)
   test-error-report  Crash with a test error to check error reporting reaches the collector
 
-Setup options:
-  --antigravity                Configure Pi or OpenCode V1 for Antigravity
-  --client <pi|opencode>       Client to configure with --antigravity
-  --url <base URL>             Antigravity URL (include /antigravity in combined mode)
-  --model <account slug>      Account model to add
-  --config-dir <directory>    Optional client configuration directory
-  --api-key-env <variable>    Reference a local Meridian API key from the environment
-  --set-default              Also select Antigravity for the client
-  --v1                         Install the OpenCode V1 plugin
-  --v2                         Install the pinned OpenCode V2 beta plugin
-  --opencode-bin <executable>  Probe this OpenCode executable
+Setup:
+  meridian setup [--client opencode|pi] [options]
+  Install Meridian's integration for a client. Run again after upgrading Meridian.
+
+  --client <opencode|pi>        Client to set up (default: opencode)
+
+  OpenCode:
+    --v1, --v2                  Install the V1 plugin or the pinned V2 beta plugin (default: detect)
+    --opencode-bin <path>       OpenCode executable to detect the version from
+
+  Antigravity (Pi, or OpenCode V1), instead of the Claude integration:
+    --antigravity               Add an Antigravity model to the client
+    --url <base URL>            Antigravity URL (include /antigravity in combined mode)
+    --model <account slug>      Account model to add
+    --config-dir <directory>    Client configuration directory (default: the client's own)
+    --api-key-env <variable>    Read the Meridian API key from this environment variable
+    --set-default               Also make it the client's default model
 
 Options:
   -v, --version   Show version
@@ -115,6 +121,58 @@ if (args[0] === "setup" && args.includes("--antigravity")) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
   }
+}
+
+let setupClient: "opencode" | "pi" | undefined
+if (args[0] === "setup") {
+  const clientIndex = args.indexOf("--client")
+  const inlineClient = args.find(arg => arg.startsWith("--client="))
+  const client = inlineClient !== undefined
+    ? inlineClient.slice("--client=".length)
+    : clientIndex >= 0 ? args[clientIndex + 1] : "opencode"
+  if (client !== "opencode" && client !== "pi") {
+    console.error("Choose --client opencode or --client pi")
+    process.exit(1)
+  }
+  if (client === "pi" && ["--v1", "--v2", "--opencode-bin"].some(flag => args.includes(flag))) {
+    console.error("--v1, --v2 and --opencode-bin only apply to --client opencode")
+    process.exit(1)
+  }
+  setupClient = client
+}
+
+if (setupClient === "pi") {
+  const {
+    assertSupportedPiVersion,
+    detectPiVersion,
+    findPluginRoot,
+    installPiExtension,
+    UnsupportedPiVersionError,
+  } = await import("../src/proxy/piSetup")
+  const piVersion = detectPiVersion()
+  try {
+    assertSupportedPiVersion(piVersion)
+  } catch (err) {
+    if (err instanceof UnsupportedPiVersionError) {
+      console.error(`\x1b[31m✗ ${err.message}\x1b[0m`)
+      console.error("  Upgrade with: npm install -g @earendil-works/pi-coding-agent")
+      console.error("  Older Pi releases can still use the models.json setup in docs/agents.md.")
+      process.exit(1)
+    }
+    throw err
+  }
+  if (!piVersion) {
+    console.error("\x1b[33m⚠ Could not run 'pi --version'; installing anyway. The extension requires Pi 1.0 or newer.\x1b[0m")
+  }
+  const result = installPiExtension(findPluginRoot(import.meta.url))
+  console.log(`\x1b[32m✓ Meridian extension ${result.replaced && !result.backupPath ? "updated" : "installed"} for Pi${piVersion ? ` ${piVersion}` : ""}\x1b[0m`)
+  console.log(`  Extension: ${result.extensionPath}`)
+  if (result.backupPath) console.log(`  Backup: ${result.backupPath} (the directory that was there was not Meridian's)`)
+  console.log("\nRestart Pi or run /reload, then pick a model under the meridian provider with /model.")
+  console.log("On a Claude subscription, Claude may refuse Pi's system prompt as third-party traffic unless")
+  console.log("Meridian also loads the @rynfar/meridian-plugin-pi-scrub server plugin:")
+  console.log("https://github.com/rynfar/meridian/blob/main/docs/plugins.md#official-plugins")
+  process.exit(0)
 }
 
 if (args[0] === "setup") {
@@ -350,27 +408,42 @@ export async function runCli(
       }
     } catch { /* non-fatal */ }
 
-    // Pre-flight auth check — runs the resolved Claude binary's auth-status
-    // subcommand. Independent of whether `claude` is on PATH (#478).
+    // Pi check — warn if Pi is installed but the Meridian extension is missing or stale
     try {
-      const { stdout } = await runAuthCheck()
-      const auth = JSON.parse(stdout)
-      if (!auth.loggedIn) {
-        console.error("\x1b[31m✗ Not logged in to Claude.\x1b[0m Run: claude login")
-        process.exit(1)
+      const { findPluginRoot, piStartupWarning } = await import("../src/proxy/piSetup")
+      const warning = piStartupWarning(findPluginRoot(import.meta.url))
+      if (warning) {
+        const [headline, ...details] = warning
+        console.error(`\x1b[33m${headline}\x1b[0m`)
+        for (const line of details) console.error(line)
+        console.error("")
       }
-      if (auth.subscriptionType !== "max") {
-        console.error(`\x1b[33m⚠ Claude subscription: ${auth.subscriptionType || "unknown"} (Max recommended)\x1b[0m`)
-      }
-    } catch {
-      console.error("\x1b[33m⚠ Could not verify Claude auth status. If requests fail, run: claude login\x1b[0m")
-    }
+    } catch { /* non-fatal */ }
 
     // Enable disk auto-discovery when no MERIDIAN_PROFILES env var is set.
     // This lets `meridian profile add` work without restarting the server.
     if (!profiles) {
       const { enableDiskProfileDiscovery } = await import("../src/proxy/profiles")
       enableDiskProfileDiscovery()
+    }
+
+    // Pre-flight auth check — runs the resolved Claude binary's auth-status
+    // subcommand. Independent of whether `claude` is on PATH (#478).
+    const { usesDefaultAuthContext } = await import("../src/proxy/profiles")
+    if (usesDefaultAuthContext(profiles, defaultProfile)) {
+      try {
+        const { stdout } = await runAuthCheck()
+        const auth = JSON.parse(stdout)
+        if (!auth.loggedIn) {
+          console.error("\x1b[31m✗ Not logged in to Claude.\x1b[0m Run: claude login")
+          process.exit(1)
+        }
+        if (auth.subscriptionType !== "max") {
+          console.error(`\x1b[33m⚠ Claude subscription: ${auth.subscriptionType || "unknown"} (Max recommended)\x1b[0m`)
+        }
+      } catch {
+        console.error("\x1b[33m⚠ Could not verify Claude auth status. If requests fail, run: claude login\x1b[0m")
+      }
     }
   }
 

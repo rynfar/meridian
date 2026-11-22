@@ -24,7 +24,7 @@ import { decodeCodexToken } from "../codex/token"
 import { createChatGptCredentialStore, type ChatGptAccount, type ChatGptCredentialStore } from "./credentials"
 import { acquireWriterLease, type WriterLease } from "./lease"
 import { chatGptLockPath } from "./paths"
-import { createChatGptRefresher, type ChatGptRefresher, type TokenExchangeFetch } from "./refresh"
+import { createChatGptRefresher, EXCHANGE_TIMEOUT_MS, type ChatGptRefresher, type TokenExchangeFetch } from "./refresh"
 import type { ChatGptCredentialSource, ChatGptRenewalPass, ChatGptSeatView } from "./source"
 
 /** Renew this far ahead of expiry, matching the Claude path's own margin. */
@@ -150,12 +150,26 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     return { due: due.map(candidate => candidate.seat), outcome }
   }
 
+  // A stamp marks an exchange that went out. While it is still out the seat is
+  // as it was before - its token unchanged - and only a stamp no exchange will
+  // clear means the seat needs a sign-in. The holder of the lease knows which
+  // exchanges it has out; any other reader (a read-only instance) can tell
+  // only by the stamp's age, as no exchange outlives its timeout.
+  const exchangeOut = (account: ChatGptAccount): boolean => {
+    if (account.exchangeStartedAt === null) return false
+    if (refresher && holdsLease()) return refresher.exchanging(account.accountUserId)
+    // A stamp from the future (another host's clock ahead of ours) is not
+    // trusted to be in flight.
+    const age = now() - account.exchangeStartedAt
+    return age >= 0 && age < EXCHANGE_TIMEOUT_MS + 5_000
+  }
+
   return {
     mode: "owned",
 
     seats() {
       return reader.readAccounts().map((account, index): ChatGptSeatView => {
-        const pending = account.exchangeStartedAt !== null
+        const pending = account.exchangeStartedAt !== null && !exchangeOut(account)
         return {
           id: account.accountUserId,
           email: account.email,

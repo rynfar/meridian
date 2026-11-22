@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "../proxy/replay"
+import { createPassthroughMcpServer, createPassthroughReplayToolNameRenderer } from "../proxy/passthroughTools"
 import { frameReplayTurns } from "../proxy/messages"
 
 describe("trailing system reminders in a live user turn", () => {
@@ -129,6 +130,86 @@ describe("faithful tool history rendering", () => {
     expect(normalizeStructuredUserContent(content)).toEqual([
       { type: "text", text: "[Client added tool: grep]" },
       { type: "text", text: "[Client removed tool: bash]" },
+    ])
+  })
+
+  it("renames a tool_reference to the registered SDK name at a real checkpoint", () => {
+    const registered = createPassthroughMcpServer([{
+      name: "graph_update", description: "t", input_schema: { type: "object", properties: {} },
+    }]).toolNames
+    expect(registered).toEqual(["mcp__oc__graph_update"])
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "graph_update" },
+    ] }]
+    const rendered = normalizeStructuredUserContent(content, true, undefined, createPassthroughReplayToolNameRenderer(["graph_update"]))
+    expect(rendered).toEqual([{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__oc__graph_update" },
+    ] }])
+  })
+
+  it("renames a tool_reference whose client name collides with the namespace to the aliased registration", () => {
+    const names = ["read", "mcp__oc__read"]
+    const registered = createPassthroughMcpServer(names.map(name => ({
+      name, description: "t", input_schema: { type: "object", properties: {} },
+    }))).toolNames
+    expect(registered).toContain("mcp__oc__read_2")
+    const render = createPassthroughReplayToolNameRenderer(names)
+    expect(render("mcp__oc__read")).toBe("mcp__oc__read_2")
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__oc__read" },
+    ] }]
+    expect(normalizeStructuredUserContent(content, true, undefined, render)).toEqual([{
+      type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+        { type: "tool_reference", tool_name: "mcp__oc__read_2" },
+      ],
+    }])
+  })
+
+  it("renders a tool_reference as text at a checkpoint when no renderer is supplied", () => {
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__graph__graph_update" },
+    ] }]
+    expect(normalizeStructuredUserContent(content, true)).toEqual([{
+      type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+        { type: "text", text: "[Tool reference: mcp__graph__graph_update]" },
+      ],
+    }])
+  })
+
+  it("renders a tool_reference as text under the registered name when the CLI keeps no references", () => {
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__graph__graph_update" },
+    ] }]
+    const render = createPassthroughReplayToolNameRenderer(["ToolSearch", "mcp__graph__graph_update"])
+    expect(normalizeStructuredUserContent(content, true, undefined, render, false)).toEqual([{
+      type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+        { type: "text", text: "[Tool reference: mcp__oc__mcp__graph__graph_update]" },
+      ],
+    }])
+  })
+
+  it("renders a historical tool_reference under the registered name when a renderer is supplied", () => {
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__graph__graph_update" },
+      { type: "tool_reference", tool_name: "never_sent" },
+    ] }]
+    const render = createPassthroughReplayToolNameRenderer(["mcp__graph__graph_update"])
+    expect(normalizeStructuredUserContent(content, false, undefined, render)).toEqual([
+      expect.objectContaining({ type: "text" }),
+      { type: "text", text: "[Tool reference: mcp__oc__mcp__graph__graph_update]" },
+      // A tool the request does not register keeps its own name: nothing callable is implied.
+      { type: "text", text: "[Tool reference: never_sent]" },
+    ])
+  })
+
+  it("renders a historical tool_reference as text under the client's name", () => {
+    const content = [{ type: "tool_result", tool_use_id: call.id, is_error: false, content: [
+      { type: "tool_reference", tool_name: "mcp__graph__graph_update" },
+    ] }]
+    const rendered = normalizeStructuredUserContent(content)
+    expect(rendered).toEqual([
+      expect.objectContaining({ type: "text" }),
+      { type: "text", text: "[Tool reference: mcp__graph__graph_update]" },
     ])
   })
 

@@ -92,7 +92,6 @@ export function storeSharedSessionAndPriorityAssignment(directory: string,
       previousClaudeSessionId: changed ? existing.claudeSessionId : existing?.previousClaudeSessionId,
     }
     writeMappingRow(tx, key, stored, true)
-    advanceStoreSlot(tx, key)
     const mappingGeneration = readMappingGeneration(tx, key)
     tx.run("UPDATE schema_meta SET store_meta_version=3")
     const assignment: DurablePriorityAssignment = { profileId: options.priority.profileId,

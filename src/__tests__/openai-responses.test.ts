@@ -1,8 +1,8 @@
 /**
  * OpenAI Responses API translation — #475 (Codex CLI ≥ 0.96).
  *
- * Wire shapes mirror real Codex 0.143 traffic captured in the design spec
- * (docs/superpowers/specs/2026-07-08-codex-responses-api-design.md).
+ * Wire shapes mirror real Codex 0.143 traffic, recorded in spec `proxy-core`
+ * (src/proxy/SPEC.md → "Codex Responses wire contract").
  */
 
 import { describe, it, expect } from "bun:test"
@@ -614,6 +614,17 @@ describe("createResponsesSseTranslator (stream)", () => {
     const resp = (incomplete.data as any).response
     expect(resp.status).toBe("incomplete")
     expect(resp.incomplete_details).toEqual({ reason: "max_output_tokens" })
+  })
+
+  it("emits response.incomplete with content_filter on a refusal", () => {
+    const out = run([
+      { type: "message_start", message: { id: "m1", usage: { input_tokens: 3 } } },
+      { type: "message_delta", delta: { stop_reason: "refusal" }, usage: { output_tokens: 0 } },
+      { type: "message_stop" },
+    ])
+    const incomplete = out.find((e) => e.event === "response.incomplete")!
+    expect((incomplete.data as any).response.incomplete_details).toEqual({ reason: "content_filter" })
+    expect(out.map((e) => e.event)).not.toContain("response.completed")
   })
 
   it("embeds a `type` field in every data payload matching the event name", () => {

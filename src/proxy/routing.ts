@@ -24,6 +24,7 @@
 
 import { createHash } from "node:crypto"
 import type { RouteKind } from "../telemetry/types"
+import type { ClaudeModelFamily } from "./models"
 
 export type RoutingMode = "active" | "sticky" | "priority" | "active+priority"
 
@@ -209,6 +210,26 @@ export function choosePriorityProfile(
 }
 
 /**
+ * The pool profile that served a client session last, read from the session
+ * mappings each profile keeps durably for it. A process-local assignment is
+ * lost on restart; this recovers it, so a conversation with a warm prompt cache
+ * on one account does not move to the head of the order and replay its whole
+ * history on another. `lastUsedAt` returns undefined for a profile without a
+ * mapping of the session.
+ */
+export function lastMappedProfile(
+  order: readonly string[],
+  lastUsedAt: (id: string) => number | undefined,
+): string | undefined {
+  let latest: { id: string; at: number } | undefined
+  for (const id of order) {
+    const at = lastUsedAt(id)
+    if (at !== undefined && (latest === undefined || at > latest.at)) latest = { id, at }
+  }
+  return latest?.id
+}
+
+/**
  * Candidate order for `active+priority`: the active profile first, then the
  * priority order behind it as fallbacks.
  *
@@ -255,15 +276,27 @@ export interface ExhaustionEntry {
   reason: string
 }
 
+/** A bench that applies only to requests for one model family. */
+export interface ModelExhaustionEntry extends ExhaustionEntry {
+  modelFamily: ClaudeModelFamily
+}
+
+type Mark = { until: number; reason: string }
+
 /**
  * In-memory per-profile exhaustion marks with expiry. Deliberately not
  * persisted: this is routing hygiene, not durable truth — after a restart
  * the first failing request re-marks. A later mark may extend an entry but
  * an earlier one never shortens it (two concurrent failures shouldn't
  * un-learn the longer reset).
+ *
+ * A profile-wide mark benches the profile for every request. A model mark
+ * (`markModel`) benches it only for requests of that model family, for a
+ * refusal from a per-model weekly budget such as `seven_day_fable`.
  */
 export class ProfileExhaustion {
-  private readonly marks = new Map<string, { until: number; reason: string }>()
+  private readonly marks = new Map<string, Mark>()
+  private readonly modelMarks = new Map<string, Map<ClaudeModelFamily, Mark>>()
   constructor(private readonly now: () => number = Date.now) {}
 
   mark(id: string, until: number, reason: string): void {
@@ -272,21 +305,40 @@ export class ProfileExhaustion {
     this.marks.set(id, { until, reason })
   }
 
-  isExhausted(id: string): boolean {
-    const entry = this.marks.get(id)
-    if (!entry) return false
-    if (entry.until <= this.now()) {
-      this.marks.delete(id)
-      return false
+  markModel(id: string, family: ClaudeModelFamily, until: number, reason: string): void {
+    let families = this.modelMarks.get(id)
+    if (!families) {
+      families = new Map()
+      this.modelMarks.set(id, families)
     }
-    return true
+    const existing = families.get(family)
+    if (existing && existing.until >= until) return
+    families.set(family, { until, reason })
+  }
+
+  /** Whether a request for `family` must skip this profile. Without a family only profile-wide marks count. */
+  isExhausted(id: string, family?: ClaudeModelFamily): boolean {
+    if (this.live(this.marks, id)) return true
+    if (family === undefined) return false
+    const families = this.modelMarks.get(id)
+    if (!families) return false
+    const benched = this.live(families, family)
+    if (families.size === 0) this.modelMarks.delete(id)
+    return benched
   }
 
   forget(id: string): void {
     this.marks.delete(id)
+    this.modelMarks.delete(id)
   }
 
-  /** Live entries only — expired marks are dropped on read. */
+  forgetModel(id: string, family: ClaudeModelFamily): void {
+    const families = this.modelMarks.get(id)
+    families?.delete(family)
+    if (families?.size === 0) this.modelMarks.delete(id)
+  }
+
+  /** Live profile-wide entries only — expired marks are dropped on read. */
   snapshot(): ExhaustionEntry[] {
     const out: ExhaustionEntry[] = []
     for (const [id, entry] of this.marks) {
@@ -294,6 +346,29 @@ export class ProfileExhaustion {
       out.push({ id, until: entry.until, reason: entry.reason })
     }
     return out
+  }
+
+  /** Live model-scoped entries only — expired marks are dropped on read. */
+  modelSnapshot(): ModelExhaustionEntry[] {
+    const out: ModelExhaustionEntry[] = []
+    for (const [id, families] of this.modelMarks) {
+      for (const [modelFamily, entry] of families) {
+        if (entry.until <= this.now()) { families.delete(modelFamily); continue }
+        out.push({ id, modelFamily, until: entry.until, reason: entry.reason })
+      }
+      if (families.size === 0) this.modelMarks.delete(id)
+    }
+    return out
+  }
+
+  private live<K>(marks: Map<K, Mark>, key: K): boolean {
+    const entry = marks.get(key)
+    if (!entry) return false
+    if (entry.until <= this.now()) {
+      marks.delete(key)
+      return false
+    }
+    return true
   }
 }
 
@@ -356,12 +431,13 @@ export class AssignmentStore {
  * re-probed every 10 minutes, with a real failing upstream request on the
  * request path, for however many days the weekly window had left.
  *
- * Only the ACCOUNT-WIDE windows bench a profile. Anthropic also reports
- * per-model weekly budgets (`seven_day_opus`, `seven_day_fable`, …), and an
- * exhausted one of those does not mean the account is unusable — sidelining a
- * profile for days because a single model's budget ran out would be worse than
- * the bug this fixes. Those cases keep the old default and are called out as a
- * known remainder rather than silently mishandled.
+ * Only the ACCOUNT-WIDE windows bench a profile for every model. Anthropic also
+ * reports per-model weekly budgets (`seven_day_opus`, `seven_day_fable`, …),
+ * and an exhausted one of those does not mean the account is unusable —
+ * sidelining a profile for days because a single model's budget ran out would
+ * be worse than the bug this fixes. A reported per-model refusal instead
+ * benches the profile for that model family alone, until that bucket resets
+ * (`perModelRefusalFamily`, `findModelCooldownReset`).
  */
 export type CooldownWindowType = "five_hour" | "seven_day"
 
@@ -440,4 +516,214 @@ export function findCooldownReset(
     }
   }
   return null
+}
+
+/** A model family Anthropic reports its own weekly budget for. */
+export type WeeklyModelFamily = "opus" | "sonnet" | "fable"
+
+/** Per-model weekly buckets, keyed by Anthropic's window name. */
+const PER_MODEL_BUCKETS: Record<string, WeeklyModelFamily> = {
+  seven_day_opus: "opus",
+  seven_day_sonnet: "sonnet",
+  seven_day_fable: "fable",
+}
+
+/** The model family a per-model weekly bucket limits, or null for any other bucket. */
+export function perModelBucketFamily(bucket: string | null | undefined): WeeklyModelFamily | null {
+  return bucket && Object.hasOwn(PER_MODEL_BUCKETS, bucket) ? PER_MODEL_BUCKETS[bucket]! : null
+}
+
+/**
+ * The model family a quota refusal benches on its own, or null when it must
+ * bench the whole profile.
+ *
+ * Only a bucket Anthropic named (`reported`) qualifies. A `cached_usage`
+ * guess picks whichever window looked hottest, and a wrong per-model guess
+ * would keep sending every other model's requests into an account that
+ * refuses them all. The bucket must also limit the refused request's own
+ * family: a fable budget cannot be why an opus request was refused, so that
+ * diagnosis describes some earlier refusal, not this one.
+ */
+export function perModelRefusalFamily(
+  diagnosis: { bucket: string | null; reported: boolean } | undefined,
+  requestFamily: ClaudeModelFamily,
+): WeeklyModelFamily | null {
+  if (!diagnosis?.reported) return null
+  const family = perModelBucketFamily(diagnosis.bucket)
+  return family === requestFamily ? family : null
+}
+
+/**
+ * When a per-model weekly bucket reopens: Anthropic's named reset first, then
+ * the profile's own exhausted window for that bucket, or null when neither
+ * says. Capped like the account-wide weekly window. Pure.
+ */
+export function findModelCooldownReset(
+  bucket: string,
+  namedReset: number | null | undefined,
+  windows: readonly CooldownWindow[],
+  now: number,
+): number | null {
+  const cap = now + cooldownCapMs("seven_day")
+  if (namedReset && namedReset > now) return Math.min(namedReset, cap)
+  const match = windows.find(w => w.type === bucket && w.exhausted && (w.resetsAt ?? 0) > now)
+  return match?.resetsAt ? Math.min(match.resetsAt, cap) : null
+}
+
+// ---------------------------------------------------------------------------
+// Weekly reserve (opt-in, pool routing). See profiles-routing.spec.md.
+// ---------------------------------------------------------------------------
+
+/** The account-wide weekly window the reserve is measured against. */
+export const WEEKLY_RESERVE_WINDOW = "seven_day"
+
+/** How long a reading with no reset time may keep a profile held. */
+export const WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS = 60 * 60_000
+
+/** One observation of a profile's weekly window, from any source. */
+export interface WeeklyUsageReading {
+  /** 0..1, or absent when the source did not report it. */
+  utilization: number | null | undefined
+  /** Epoch ms of the window's reset, or absent when unknown. */
+  resetsAt: number | null | undefined
+  /** Epoch ms the reading was taken. */
+  observedAt: number
+}
+
+export interface WeeklyReserveHold {
+  utilization: number
+  /** When the hold lifts on its own (the window's reset), if known. */
+  until: number | undefined
+}
+
+/**
+ * Parse reserve percentages from `MERIDIAN_WEEKLY_RESERVE`
+ * (`personal=20,work=10`), which takes precedence, or the `weeklyReserve`
+ * setting. Values must be in (0, 100); anything else is returned as invalid.
+ */
+export function parseWeeklyReserves(
+  env: string | undefined,
+  setting: Readonly<Record<string, unknown>> | undefined,
+): { reserves: Map<string, number>; invalid: string[] } {
+  const reserves = new Map<string, number>()
+  const invalid: string[] = []
+  const accept = (id: string, value: unknown, label: string) => {
+    const pct = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN
+    if (id && Number.isFinite(pct) && pct > 0 && pct < 100) reserves.set(id, pct)
+    else invalid.push(label)
+  }
+  if (env && env.trim()) {
+    for (const part of env.split(",")) {
+      const entry = part.trim()
+      if (!entry) continue
+      const eq = entry.indexOf("=")
+      if (eq <= 0) { invalid.push(entry); continue }
+      accept(entry.slice(0, eq).trim(), entry.slice(eq + 1).trim(), entry)
+    }
+    return { reserves, invalid }
+  }
+  if (setting && typeof setting === "object") {
+    for (const [id, value] of Object.entries(setting)) accept(id.trim(), value, `${id}=${String(value)}`)
+  }
+  return { reserves, invalid }
+}
+
+/**
+ * Whether a profile is holding its weekly reserve, from the newest reading
+ * that still describes the current window: a reading past its reset, or one
+ * with no reset older than WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS, is
+ * ignored. No usable reading means no hold.
+ */
+export function weeklyReserveHold(
+  reservePercent: number,
+  readings: readonly WeeklyUsageReading[],
+  now: number,
+): WeeklyReserveHold | undefined {
+  let newest: WeeklyUsageReading | undefined
+  for (const reading of readings) {
+    if (typeof reading.utilization !== "number" || !Number.isFinite(reading.utilization)) continue
+    if (typeof reading.resetsAt === "number") {
+      if (reading.resetsAt <= now) continue
+    } else if (now - reading.observedAt > WEEKLY_RESERVE_UNKNOWN_RESET_MAX_AGE_MS) {
+      continue
+    }
+    if (!newest || reading.observedAt > newest.observedAt) newest = reading
+  }
+  if (!newest || typeof newest.utilization !== "number") return undefined
+  const limit = 1 - reservePercent / 100
+  if (newest.utilization < limit) return undefined
+  return {
+    utilization: newest.utilization,
+    until: typeof newest.resetsAt === "number" ? newest.resetsAt : undefined,
+  }
+}
+
+/** Holds for every profile in `ids` that has a reserve and has reached it. */
+export function weeklyReserveHolds(
+  ids: readonly string[],
+  reserves: ReadonlyMap<string, number>,
+  readingsFor: (id: string) => readonly WeeklyUsageReading[],
+  now: number,
+): Map<string, WeeklyReserveHold> {
+  const holds = new Map<string, WeeklyReserveHold>()
+  if (reserves.size === 0) return holds
+  for (const id of ids) {
+    const pct = reserves.get(id)
+    if (pct === undefined) continue
+    const hold = weeklyReserveHold(pct, readingsFor(id), now)
+    if (hold) holds.set(id, hold)
+  }
+  return holds
+}
+
+export type WeeklyReserveEvent =
+  | { event: "priority.weekly_reserve_held"; data: { profile: string; utilization: number; until: number | undefined } }
+  | { event: "priority.weekly_reserve_released"; data: { profile: string } }
+  | { event: "priority.weekly_reserve_invalid"; data: { invalid: string[] } }
+  | { event: "priority.weekly_reserve_unknown_ids"; data: { unknown: string[] } }
+
+/**
+ * Per-instance reserve state: which profiles are held, plus log events for
+ * transitions and for configuration problems (each distinct problem once).
+ */
+export class WeeklyReserveTracker {
+  private readonly held = new Set<string>()
+  private lastInvalid = ""
+  private lastUnknown = ""
+
+  evaluate(input: {
+    ids: readonly string[]
+    /** Every Claude profile id, for reporting reserves naming no profile. */
+    knownIds: readonly string[]
+    parsed: { reserves: ReadonlyMap<string, number>; invalid: readonly string[] }
+    readingsFor: (id: string) => readonly WeeklyUsageReading[]
+    now: number
+  }): { holds: Map<string, WeeklyReserveHold>; events: WeeklyReserveEvent[] } {
+    const events: WeeklyReserveEvent[] = []
+    const invalidKey = input.parsed.invalid.join(",")
+    if (invalidKey && invalidKey !== this.lastInvalid) {
+      events.push({ event: "priority.weekly_reserve_invalid", data: { invalid: [...input.parsed.invalid] } })
+    }
+    this.lastInvalid = invalidKey
+    const known = new Set(input.knownIds)
+    const unknown = [...input.parsed.reserves.keys()].filter(id => !known.has(id))
+    const unknownKey = unknown.join(",")
+    if (unknownKey && unknownKey !== this.lastUnknown) {
+      events.push({ event: "priority.weekly_reserve_unknown_ids", data: { unknown } })
+    }
+    this.lastUnknown = unknownKey
+
+    const holds = weeklyReserveHolds(input.ids, input.parsed.reserves, input.readingsFor, input.now)
+    for (const [id, hold] of holds) {
+      if (this.held.has(id)) continue
+      this.held.add(id)
+      events.push({ event: "priority.weekly_reserve_held", data: { profile: id, utilization: hold.utilization, until: hold.until } })
+    }
+    for (const id of input.ids) {
+      if (holds.has(id) || !this.held.has(id)) continue
+      this.held.delete(id)
+      events.push({ event: "priority.weekly_reserve_released", data: { profile: id } })
+    }
+    return { holds, events }
+  }
 }

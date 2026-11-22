@@ -135,9 +135,10 @@ export function applyMeridianV2Headers(
     setHeader(headers, "x-session-affinity", input.sessionID)
     setHeader(headers, "x-session-id", input.sessionID)
     if (input.agent === ATTACHED_COMPACTION_AGENT || input.kind === "compaction") {
-      // Source selects the base model tier without making the adapter append
-      // `#compaction` to the primary session key.
-      setHeader(headers, "x-meridian-source", "subagent-compaction")
+      // A `fork-` source keeps the conversation's model tier (the compaction
+      // carries the history it summarizes) and, unlike an agent-mode change,
+      // does not make the adapter append `#compaction` to the primary key.
+      setHeader(headers, "x-meridian-source", "fork-compaction")
     }
   }
 

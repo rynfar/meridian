@@ -149,6 +149,53 @@ describe("rateLimitStore", () => {
     expect(store.getAll(PERSONAL).map(e => e.rateLimitType)).toEqual(["five_hour"])
   })
 
+  it("clears only explicitly named buckets for one profile", () => {
+    const store = new _RateLimitStoreForTests()
+    store.record(WORK, FIVE_HOUR)
+    store.record(WORK, SEVEN_DAY)
+    store.record(WORK, { status: "rejected" })
+    store.record(PERSONAL, FIVE_HOUR)
+    store.clearBuckets(WORK, [])
+    expect(store.size(WORK)).toBe(3)
+    store.clearBuckets(WORK, ["five_hour", "unrecognized"])
+    expect(store.get(WORK, "five_hour")).toBeUndefined()
+    expect(store.get(WORK, "seven_day")).toBeDefined()
+    expect(store.get(WORK, "default")).toBeDefined()
+    expect(store.get(PERSONAL, "five_hour")).toBeDefined()
+    store.clearBuckets("missing", ["five_hour"])
+    expect(store.size()).toBe(3)
+  })
+
+  it("retains independent overage refusal when its base window is reset", () => {
+    const store = new _RateLimitStoreForTests()
+    store.record(WORK, {
+      ...FIVE_HOUR, status: "rejected", utilization: 1,
+      overageStatus: "rejected", overageResetsAt: 1_730_100_000_000,
+      overageDisabledReason: "org_level_disabled_until", isUsingOverage: true,
+    }, 1000)
+    store.clearBuckets(WORK, ["five_hour"])
+    expect(store.get(WORK, "five_hour")).toEqual({
+      rateLimitType: "five_hour", status: "allowed", observedAt: 1000,
+      overageStatus: "rejected", overageResetsAt: 1_730_100_000_000,
+      overageDisabledReason: "org_level_disabled_until", isUsingOverage: true,
+    })
+  })
+
+  it("clears only overage metadata when overage is explicitly reset", () => {
+    const store = new _RateLimitStoreForTests()
+    store.record(WORK, { ...FIVE_HOUR, status: "rejected", overageStatus: "rejected", isUsingOverage: true })
+    store.record(WORK, { status: "rejected", rateLimitType: "overage" })
+    store.record(PERSONAL, { ...FIVE_HOUR, overageStatus: "rejected" })
+    store.clearBuckets(WORK, ["overage"])
+    expect(store.get(WORK, "overage")).toBeUndefined()
+    expect(store.get(WORK, "five_hour")).toMatchObject({ ...FIVE_HOUR, status: "rejected" })
+    expect(store.get(WORK, "five_hour")?.overageStatus).toBeUndefined()
+    expect(store.get(WORK, "five_hour")?.isUsingOverage).toBeUndefined()
+    expect(store.get(PERSONAL, "five_hour")?.overageStatus).toBe("rejected")
+    store.clearBuckets(WORK, ["five_hour", "overage"])
+    expect(store.getAll(WORK)).toEqual([])
+  })
+
   it("clear() with no argument drops every profile", () => {
     const store = new _RateLimitStoreForTests()
     store.record(WORK, FIVE_HOUR)

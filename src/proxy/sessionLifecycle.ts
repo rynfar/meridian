@@ -68,6 +68,7 @@ import {
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
+  predatesBoot,
   processIncarnationIsDead,
   processIncarnationPredatesBoot,
   processIncarnationProbeBudgetMs,
@@ -495,14 +496,15 @@ export async function commitFork(
 
 /**
  * Fence durable mapping publication against GC's final claim transaction.
- * The callback must be synchronous and must perform the session-store CAS.
+ * The callback must perform the session-store CAS; the lifecycle lock is held
+ * until it settles.
  * A normal publisher must refer to an already journaled resource. This makes
  * tombstone pruning safe: a delayed old publisher cannot recreate a locator
  * that GC already deleted.
  */
 export async function publishPinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions = {},
 ): Promise<T> {
   const backend = activeLifecycleBackend()
@@ -517,7 +519,7 @@ export async function publishPinnedTranscript<T extends boolean | string>(
  */
 export async function attachPinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions = {},
 ): Promise<T> {
   const backend = activeLifecycleBackend()
@@ -527,7 +529,7 @@ export async function attachPinnedTranscript<T extends boolean | string>(
 
 async function updatePinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions,
   allowMissing: boolean,
 ): Promise<T> {
@@ -572,16 +574,16 @@ async function updatePinnedTranscript<T extends boolean | string>(
       }
     }
     // Release publication ownership in the same locked transaction as the
-    // synchronous mapping CAS. A failed CAS restores the complete lease record.
+    // mapping CAS. A failed CAS restores the complete lease record.
     if (releasePublicationLease(resource)) changed = true
     if (changed) {
       pruneTombstones(sidecar, options)
       await writeSidecar(paths.sidecar, sidecar)
     }
-    // Keep the lifecycle lock held across the synchronous session-store CAS.
+    // Keep the lifecycle lock held across the session-store CAS.
     locator.lifecycleGeneration = resource.generation
     try {
-      const result = publish()
+      const result = await publish()
       if (result === false) {
         if (changed) await writeSidecar(paths.sidecar, beforeMutation)
         if (originalGeneration === undefined) delete locator.lifecycleGeneration
@@ -792,7 +794,7 @@ export async function releaseSupersededProfileCopies(
         leases.push(lease)
         fenced.add(conversation)
       }
-      const removed = pruneSupersededProfileCopies({ ...selection,
+      const removed = await pruneSupersededProfileCopies({ ...selection,
         isConversationActive: id => !fenced.has(id) || copies.isConversationActive(id),
       })
       if (removed) await reconcileUnderLock([], options, paths)
@@ -1268,10 +1270,10 @@ try {
     if (performance.now() >= handshakeDeadline) {
       throw new Error("session deletion executor handshake timed out")
     }
+    // Not fsynced: only the live child polls for it, and an OS crash ends it.
     const gateHandle = await open(gatePath, "wx", 0o600)
     try {
       await gateHandle.writeFile("go\n", "utf8")
-      await gateHandle.sync()
     } finally {
       await gateHandle.close()
     }
@@ -1362,17 +1364,15 @@ interface SidecarLockCandidate {
   discard: () => Promise<void>
 }
 
-/** Initialise one lock candidate for a whole acquisition, not one per attempt.
+/** Initialise one lock candidate for a whole acquisition, not one per attempt:
+ *  each attempt is then one link, a metadata operation.
  *
- *  The fsync itself is load-bearing: a crash that leaves the lock linked to an
- *  unwritten inode is unrecoverable, because stale-lock recovery only retires a
- *  lock whose owner it can parse and prove dead. Paying it per attempt is what
- *  does not follow. An fsync costs ~100ms on a busy filesystem, so a 2s budget
- *  bought ~13 attempts rather than the ~80 a 25ms retry interval implies, and
- *  each one wrote into the very directory the holder must fsync to publish the
- *  sidecar, so waiters taxed the holder they were waiting for. One initialised
- *  inode, re-linked, keeps the durability and drops the cost to a rename-class
- *  metadata operation.
+ *  It is not fsynced. The lock only matters while its holder lives, and every
+ *  process reads it through the page cache, so a process crash loses nothing.
+ *  An OS crash or power loss can leave the lock linked to an unwritten inode,
+ *  whose owner nobody can parse; stale recovery reclaims such a lock once it
+ *  predates the current boot (lifecycleLockIsAbandoned). The fsync used to
+ *  cost ~250ms of journal wait on a loaded filesystem, several times a second.
  */
 export async function createInitializedSidecarLockCandidate(
   path: string,
@@ -1390,7 +1390,6 @@ export async function createInitializedSidecarLockCandidate(
   try {
     handle = await open(staging, "wx", 0o600)
     await handle.writeFile(contents, "utf8")
-    await handle.sync()
     await handle.close()
     handle = undefined
   } catch (error) {
@@ -1515,9 +1514,11 @@ function parseCanonicalLifecycleLockOwner(contents: string): CanonicalLifecycleL
   }
 }
 
-function canonicalLifecycleLockOwnerIsDead(contents: string): boolean {
+/** Whether no running process can hold this lock: its owner is proven dead,
+ *  or, when no owner is readable, the lock was written before this boot. */
+function lifecycleLockIsAbandoned(contents: string, mtimeMs: number): boolean {
   const owner = parseCanonicalLifecycleLockOwner(contents)
-  return owner ? processIncarnationIsDead(owner.incarnation) : false
+  return owner ? processIncarnationIsDead(owner.incarnation) : predatesBoot(mtimeMs)
 }
 
 interface LifecycleRecoveryClaimSnapshot {
@@ -1681,7 +1682,7 @@ async function recoverStaleLock(lockPath: string, staleMs: number): Promise<void
   }
   if (
     Date.now() - info.mtimeMs <= staleMs
-    || !canonicalLifecycleLockOwnerIsDead(contents)
+    || !lifecycleLockIsAbandoned(contents, info.mtimeMs)
   ) return
 
   const generation = contents
@@ -1716,7 +1717,7 @@ async function recoverStaleLock(lockPath: string, staleMs: number): Promise<void
     }
     if (
       Date.now() - currentInfo.mtimeMs <= staleMs
-      || !canonicalLifecycleLockOwnerIsDead(currentContents)
+      || !lifecycleLockIsAbandoned(currentContents, currentInfo.mtimeMs)
     ) return
 
     const quarantine = `${lockPath}.stale-${process.pid}-${randomUUID()}`

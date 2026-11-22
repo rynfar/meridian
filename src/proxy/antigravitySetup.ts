@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
 import { findOpencodeConfigPath } from './setup'
+import { piAgentDirectory } from './piSetup'
 
 const marker = '// Managed by meridian setup --antigravity.\n'
 type Client = 'pi' | 'opencode'
@@ -42,7 +43,7 @@ export function parseAntigravitySetupArgs(args: string[]): Options {
 }
 
 /** Prepare every edit before touching configuration; keep recoverable originals. */
-export function setupAntigravityClient(options: Options, entryUrl: string) {
+export function setupAntigravityClient(options: Options, entryUrl: string, home: string = homedir()) {
   const url = new URL(options.url)
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('Use an HTTP(S) base URL without credentials, query or fragment')
   const base = url.href.replace(/\/+$/, '').replace(/\/v1$/, '')
@@ -54,7 +55,7 @@ export function setupAntigravityClient(options: Options, entryUrl: string) {
     : join(dirname(entry), 'antigravity-clients', `${options.client}.js`)
   if (!existsSync(source)) throw new Error(`Bundled ${options.client} integration missing; rebuild or reinstall Meridian`)
   const directory = options.configDir ? resolve(options.configDir) : options.client === 'pi'
-    ? resolve(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'))
+    ? piAgentDirectory(process.env, home)
     : dirname(findOpencodeConfigPath())
   const configPath = options.client === 'pi' ? join(directory, 'models.json')
     : existsSync(join(directory, 'opencode.jsonc')) && !existsSync(join(directory, 'opencode.json')) ? join(directory, 'opencode.jsonc') : join(directory, 'opencode.json')

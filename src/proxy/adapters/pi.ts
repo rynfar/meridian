@@ -4,14 +4,19 @@
  * Provides pi-specific behavior for session tracking, working directory
  * extraction, content normalization, and tool configuration.
  *
- * Pi (@mariozechner/pi-coding-agent) is a CLI coding agent that makes
- * standard Anthropic Messages API calls. When using a custom baseUrl
- * (pointing at Meridian), pi operates in non-OAuth mode with lowercase
- * tool names and its own tool execution loop.
+ * Pi (@earendil-works/pi-coding-agent, formerly @mariozechner/pi-coding-agent)
+ * is a CLI coding agent that makes standard Anthropic Messages API calls. When
+ * using a custom baseUrl (pointing at Meridian), pi operates in non-OAuth mode
+ * with lowercase tool names and its own tool execution loop.
  *
  * Key characteristics:
  * - User-Agent: claude-cli/<version> (mimics Claude Code) or default SDK UA
- * - No session header: relies on fingerprint-based session cache
+ * - With the Meridian Pi extension (plugin/pi): `x-session-affinity` from Pi's
+ *   session ID, `x-meridian-source: fork-side-call` for side calls and
+ *   `subagent-*` for delegated children, and signed human-turn attestations. Without it: no session
+ *   header, so continuity relies on the fingerprint-based session cache
+ * - Oh My Pi: its session ID in `metadata.user_id`, and `X-Claude-Code-Session-Id`
+ *   with that ID, or `<session>:side:<id>` on a side call
  * - CWD in system prompt: "Current working directory: /path/to/project"
  * - 7 lowercase tools: read, write, edit, bash, grep, find, ls
  * - Always streams (stream: true)
@@ -25,10 +30,11 @@
  */
 
 import type { Context } from "hono"
-import type { AgentAdapter } from "../adapter"
+import type { AgentAdapter, RoutingTurnIdentity } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { PRIORITY_ATTESTATION_HEADER, verifyPriorityAttestation } from "../priorityAttestation"
 import { resolvePassthrough } from "../../env"
 import { extractClaudeCodeSessionId } from "./claudecode"
 
@@ -65,6 +71,31 @@ function extractPiCwd(body: any): string | undefined {
 
   const match = systemText.match(/Current working directory:\s*([^\n]+)/i)
   return match?.[1]?.trim() || undefined
+}
+
+/**
+ * Whether a request is one of Oh My Pi's side calls: the idle recap, composer
+ * predictions and other one-off turns it runs beside the conversation.
+ *
+ * omp sends them with the conversation's own `metadata.user_id` session id,
+ * so they arrive under the conversation's key, but its Anthropic client sets
+ * `X-Claude-Code-Session-Id` to the side call's own id, `<session>:side:<id>`.
+ * Only a side id of the request's own session key counts: a header naming
+ * another session, or a request without a key, is not a side call of the
+ * conversation it would be handled under. An omp extension can extend the
+ * body's session id (an account-rotation suffix, `<session>~<suffix>`) but not
+ * the header, so the key may continue after the header's session id with `~`;
+ * a key that merely shares a prefix with it does not match.
+ */
+export function isOhMyPiSideCall(headerSessionId: string | undefined, sessionKey: string | undefined): boolean {
+  const side = headerSessionId?.indexOf(":side:") ?? -1
+  if (sessionKey === undefined || side <= 0) return false
+  const session = headerSessionId!.slice(0, side)
+  return sessionKey === session || sessionKey.startsWith(`${session}~`)
+}
+
+function piSessionKey(c: Context, body?: unknown): string | undefined {
+  return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
 }
 
 export const piAdapter: AgentAdapter = {
@@ -111,7 +142,57 @@ export const piAdapter: AgentAdapter = {
    * envelope are unaffected.
    */
   getSessionId(c: Context, body?: unknown): string | undefined {
-    return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
+    return piSessionKey(c, body)
+  },
+
+  /**
+   * NOTE: agent-specific (pi) — Oh My Pi's side calls share the conversation's
+   * session key (see `isOhMyPiSideCall`). As turns they resumed the
+   * conversation's SDK session and became its newest state, so the next side
+   * call, which shares only the history before the last one, diverged
+   * (`undo-gap`) and replayed the whole history. As auxiliary requests they
+   * never touch the conversation's session or mapping.
+   */
+  isAuxiliaryRequest(c: Context, body?: unknown): boolean {
+    return isOhMyPiSideCall(c.req.header("x-claude-code-session-id"), piSessionKey(c, body))
+  },
+
+  /**
+   * NOTE: agent-specific (pi) — omp runs a side call (`runEphemeralTurn`) on
+   * the conversation's own context: same system prompt, and the same tool
+   * catalog, which it sends only to keep the prompt cache warm. A fork of the
+   * conversation's session therefore reads that cache.
+   */
+  forksAuxiliaryRequests: true,
+
+  /**
+   * NOTE: agent-specific (pi) — only the Meridian Pi extension's final-hook
+   * HMAC assertion can authorize a user-turn routing change. It must name the
+   * request's own session key, and a request marked as a side call or child
+   * (`x-meridian-source`) or pinned to a profile is never eligible, whatever it
+   * carries. OpenCode generations are rejected here, as `pi1` is in the
+   * OpenCode adapter.
+   */
+  getRoutingTurnIdentity(c: Context): RoutingTurnIdentity | undefined {
+    if (c.req.header("x-meridian-profile") !== undefined) return undefined
+    if (c.req.header("x-meridian-source") !== undefined) return undefined
+    const sessionId = c.req.header("x-session-affinity")
+    if (!sessionId) return undefined
+    const attestation = verifyPriorityAttestation(c.req.header(PRIORITY_ATTESTATION_HEADER))
+    if (
+      !attestation
+      || attestation.generation !== "pi1"
+      || attestation.sessionId !== sessionId
+      || attestation.agentId !== "pi"
+    ) {
+      return undefined
+    }
+    return {
+      kind: "human",
+      turnId: attestation.turnId,
+      issuedAt: attestation.issuedAt,
+      generation: "pi-1",
+    }
   },
 
   extractWorkingDirectory(body: any): string | undefined {

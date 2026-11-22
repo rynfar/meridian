@@ -350,6 +350,27 @@ export function resolveProfile(
   return buildResolvedProfile(profile)
 }
 
+export function authKeepaliveTargets(
+  configProfiles: ProfileConfig[] | undefined,
+  defaultProfile: string | undefined,
+): Array<{ profileId?: string; envOverrides?: Record<string, string> }> {
+  const effective = getEffectiveProfiles(configProfiles)
+  if (effective.length === 0) return [{}]
+  return effective
+    .map(profile => resolveProfile(configProfiles, defaultProfile, profile.id))
+    .filter(resolved => Object.keys(resolved.env).length > 0)
+    .map(resolved => ({ profileId: resolved.id, envOverrides: resolved.env }))
+}
+
+export function usesDefaultAuthContext(
+  configProfiles: ProfileConfig[] | undefined,
+  defaultProfile: string | undefined,
+): boolean {
+  const effective = getEffectiveProfiles(configProfiles)
+  if (effective.length === 0) return true
+  return effective.some(profile => Object.keys(resolveProfile(configProfiles, defaultProfile, profile.id).env).length === 0)
+}
+
 /**
  * Look a profile up by id, then by alias. Real profiles ALWAYS win: an alias
  * is only a redirect left behind by a rename, and a stale one must never
@@ -360,6 +381,41 @@ export function findProfileByIdOrAlias(
   id: string
 ): ProfileConfig | undefined {
   return profiles.find(p => p.id === id) ?? profiles.find(p => p.aliases?.includes(id))
+}
+
+/**
+ * The `x-meridian-profile` value a Claude request named when it names no
+ * profile this instance serves, or undefined when the pin is usable or absent.
+ *
+ * A pin is a promise that the request runs on that account and no other.
+ * Without this check an unknown name - a typo, a removed or renamed-away
+ * profile - fell through `resolveProfile` to the first configured profile,
+ * spending an account the client never asked for. `isOtherPool` names ids
+ * another pool on this instance serves (ChatGPT seats); those keep their
+ * existing handling. An instance with no profiles has nothing to pin and
+ * ignores the header as before, and `default` keeps resolving as it always has
+ * for clients that send it unconditionally.
+ */
+export function unknownPinnedProfile(
+  requested: string | undefined,
+  profiles: ProfileConfig[],
+  isOtherPool: (id: string) => boolean = () => false,
+): string | undefined {
+  const id = requested?.trim()
+  if (!id || profiles.length === 0 || id === DEFAULT_PROFILE_ID) return undefined
+  if (findProfileByIdOrAlias(profiles, id) || isOtherPool(id)) return undefined
+  return id
+}
+
+/** The answer to a request pinned to a profile this instance does not have. */
+export function unknownProfileResponse(profileId: string): Response {
+  return new Response(JSON.stringify({
+    type: "error",
+    error: {
+      type: "unknown_profile",
+      message: `Profile "${profileId}" does not exist on this Meridian; a pinned request is never sent to another account`,
+    },
+  }), { status: 400, headers: { "Content-Type": "application/json" } })
 }
 
 /**

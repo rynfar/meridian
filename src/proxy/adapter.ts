@@ -14,7 +14,7 @@ export type RoutingTurnIdentity = Readonly<{
   readonly turnId: string
   /** Signed wall-clock issue time used as a durable anti-replay high-water mark. */
   readonly issuedAt: number
-  readonly generation: "opencode-v1" | "opencode-v2-beta-18314" | "opencode-v2-2.0.16"
+  readonly generation: "opencode-v1" | "opencode-v2-beta-18314" | "opencode-v2-2.0.16" | "pi-1"
 }>
 
 /**
@@ -86,12 +86,26 @@ export interface AgentIdentity {
    * True when this request is a client side call that carries the
    * conversation's session key without being a turn of that conversation.
    *
-   * Such a request skips lineage lookup and never publishes, evicts or
-   * recovers the session mapping, and never takes the session turn lease: it
-   * has no turn to serialize. Undefined or false keeps normal session handling, which is
-   * what every client that separates its side calls by key already gets.
+   * Such a request never publishes, evicts or recovers the session mapping,
+   * and never takes the session turn lease: it has no turn to serialize.
+   * Unless the adapter sets `forksAuxiliaryRequests`, it also skips lineage
+   * lookup and is answered from a fresh replay. Undefined or false keeps
+   * normal session handling, which is what every client that separates its
+   * side calls by key already gets.
    */
   isAuxiliaryRequest?(c: Context, body?: unknown): boolean
+
+  /**
+   * True when this client's auxiliary requests send the conversation's own
+   * system prompt and tools. One that only adds user text after a completed
+   * turn of the conversation is then resumed as an unpublished fork of the
+   * conversation's SDK session (`auxiliaryLineage`), which reads the
+   * conversation's prompt cache instead of writing the whole history again.
+   * A client whose side calls bring their own system prompt or tool set must
+   * not set it: the fork would change the cached prefix and lose the replay
+   * breakpoint consecutive side calls share.
+   */
+  readonly forksAuxiliaryRequests?: boolean
 
   /**
    * Optional trusted identity for a visible human turn.
