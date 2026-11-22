@@ -12,6 +12,7 @@
  */
 
 import type { RequestMetric, RouteHop, RouteKind, RouteProfileTally, RouteSummary } from "./types"
+import { isCacheKeepaliveMetric } from "./percentiles"
 
 /** Ascending attempt order; timestamp breaks ties (hops can land in the
  *  same millisecond when an account rejects instantly). */
@@ -116,8 +117,10 @@ export function summarizeRoutes(collapsed: RequestMetric[]): RouteSummary {
   const byProfile: Record<string, RouteProfileTally> = {}
   let failedOver = 0
   let unserved = 0
+  // A keepalive beat is not a client request and was never routed.
+  const requests = collapsed.filter(metric => !isCacheKeepaliveMetric(metric))
 
-  for (const metric of collapsed) {
+  for (const metric of requests) {
     if (metric.routeKind) byKind[metric.routeKind] = (byKind[metric.routeKind] ?? 0) + 1
     // A row that never went through a pool still describes one account
     // attempt, and in active/sticky mode that is the ONLY place a refusal
@@ -139,5 +142,5 @@ export function summarizeRoutes(collapsed: RequestMetric[]): RouteSummary {
     }
   }
 
-  return { requests: collapsed.length, failedOver, unserved, byKind, byProfile }
+  return { requests: requests.length, failedOver, unserved, byKind, byProfile }
 }

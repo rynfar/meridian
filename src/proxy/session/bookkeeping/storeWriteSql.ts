@@ -53,7 +53,6 @@ export function storeSharedSession(directory: string, ...args: StoreSessionArgum
     }
     writeMappingRow(tx, key, stored, true)
     if (!pruneMappings(tx, getMaxStoredSessionsLimit(), key)) return false
-    advanceStoreSlot(tx, key)
     const generation = readMappingGeneration(tx, key)
     refreshMappingRoutes(tx, key, generation)
     return generation

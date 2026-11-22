@@ -7,10 +7,9 @@
  * server.ts forwards in-process to `/v1/messages` and pipes the response
  * through these translators.
  *
- * Scope is Phase 1 of the approved design spec
- * (docs/superpowers/specs/2026-07-08-codex-responses-api-design.md): text +
+ * Scope and rationale: spec `proxy-core` (src/proxy/SPEC.md): text +
  * function tool-calling, streaming and non-streaming, forced passthrough.
- * Reasoning items are omitted (verified working against real Codex 0.143).
+ * Incoming reasoning items are dropped (verified working against real Codex 0.143).
  * Also handles base64 data-URL image input and maps a `max_tokens` stop to an
  * `incomplete` Responses status.
  *
@@ -691,7 +690,11 @@ function mapUsage(usage: AnthropicUsage | undefined) {
  * can tell a cut-off answer from a finished one.
  */
 function toResponsesStatus(stopReason: string | undefined): "completed" | "incomplete" {
-  return stopReason === "max_tokens" ? "incomplete" : "completed"
+  return stopReason === "max_tokens" || stopReason === "refusal" ? "incomplete" : "completed"
+}
+
+function incompleteDetails(stopReason: string | undefined): { incomplete_details: { reason: string } } {
+  return { incomplete_details: { reason: stopReason === "refusal" ? "content_filter" : "max_output_tokens" } }
 }
 
 /**
@@ -744,7 +747,7 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
     created_at: ctx.created,
     model: ctx.model,
     status,
-    ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
+    ...(status === "incomplete" ? incompleteDetails(res.stop_reason) : {}),
     output,
     usage: mapUsage(res.usage),
     parallel_tool_calls: true,
@@ -952,7 +955,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
             parallel_tool_calls: true,
             tool_choice: "auto",
             tools: [],
-            ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
+            ...(status === "incomplete" ? incompleteDetails(stopReason) : {}),
           }),
         }))
         break

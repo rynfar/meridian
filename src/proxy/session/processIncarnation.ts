@@ -1,6 +1,7 @@
 import { execFile, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { readFileSync, readlinkSync } from "node:fs"
+import { uptime } from "node:os"
 
 export const PROCESS_INCARNATION_VERSION = 1
 
@@ -594,4 +595,22 @@ export function processIncarnationPredatesBoot(owner: ProcessIncarnation): boole
     && localBoot !== undefined
     && parsed.hostId === localBoot.hostId
     && parsed.bootId !== localBoot.bootId
+}
+
+// os.uptime() is reported in whole seconds on some platforms, so the derived
+// boot instant can land up to a second late. Only times clearly before it
+// count as belonging to an earlier boot.
+const BOOT_CLOCK_TOLERANCE_MS = 5_000
+
+/** Wall-clock instant this host booted. */
+export function currentBootTimeMs(): number {
+  return Date.now() - uptime() * 1000
+}
+
+/**
+ * Whether a file time (mtime) lies clearly before the boot at `bootTimeMs`,
+ * so no process running now can have written it.
+ */
+export function predatesBoot(timeMs: number, bootTimeMs = currentBootTimeMs()): boolean {
+  return timeMs < bootTimeMs - BOOT_CLOCK_TOLERANCE_MS
 }

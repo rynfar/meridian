@@ -78,7 +78,7 @@ describe("Plugin integration — end-to-end via HTTP", () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedParams = null
     await clearSessionCache()
-    clearSharedSessions()
+    await clearSharedSessions()
 
     pluginDir = mkdtempSync(join(tmpdir(), "plugin-integ-dir-"))
     externalPluginDir = mkdtempSync(join(tmpdir(), "plugin-integ-ext-"))

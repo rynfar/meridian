@@ -78,7 +78,7 @@ try {
     const rollbackUuids = [...uuids]
     if (missingAdjacent) rollbackUuids[3] = null
     const key = `e2e-undo-${mode}-${randomUUID()}`
-    assert(storeSession(key, storedHistory, sourceId, root, rollbackUuids, undefined, null, null, {
+    assert(await storeSession(key, storedHistory, sourceId, root, rollbackUuids, undefined, null, null, {
       sessionId: sourceId,
       configDir: process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"),
       projectDir: root,

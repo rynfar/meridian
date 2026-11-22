@@ -1,0 +1,10 @@
+{
+  "completed1426CheckoutRemoved": "/private/tmp/meridian-1426-approved-20261021",
+  "dependencyInstallMovedTo": "/private/tmp/meridian-1440-cleanup-20261021/node_modules",
+  "SDKModuleSHA256Unchanged": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+  "newInstalls": 0,
+  "sourceRecoveryRef": "refs/remotes/origin/pr1426-approved-20261021",
+  "sourceHead": "88dee56ab569520315cf3ee99920b1809e64574c",
+  "remainingOwnedTaskCheckouts": 1,
+  "localTaskDockerResources": 0
+}

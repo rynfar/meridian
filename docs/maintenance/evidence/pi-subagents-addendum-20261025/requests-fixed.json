@@ -1,0 +1,32 @@
+{
+  "fixedRun": [
+    {
+      "source": null,
+      "signedTurn": true,
+      "systemBlocks": 2,
+      "markerIndexPerBlock": [
+        -1,
+        -1
+      ]
+    },
+    {
+      "source": "subagent-delegate",
+      "signedTurn": false,
+      "systemBlocks": 2,
+      "markerIndexPerBlock": [
+        2976,
+        -1
+      ]
+    },
+    {
+      "source": null,
+      "signedTurn": true,
+      "systemBlocks": 3,
+      "markerIndexPerBlock": [
+        -1,
+        -1,
+        -1
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, spyOn } from "bun:test"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { spawn } from "node:child_process"
 import { once } from "node:events"
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
@@ -208,15 +209,25 @@ it("lease release does not clear a permanent deleting fence", async () => {
 
 it("fails closed before process capture in an outer transaction (joining remains a later boundary)", async () => {
   const locator = seed()
-  const capture = spyOn(incarnations, "captureProcessIncarnation")
+  const attempt = new AsyncLocalStorage<boolean>()
+  const actualCapture = incarnations.captureProcessIncarnation
+  // Background observers may run while the rejected promise settles. Track
+  // this invocation across its async continuations and retain any producer.
+  const attemptCaptures: string[] = []
+  const capture = spyOn(incarnations, "captureProcessIncarnation").mockImplementation((...args: Parameters<typeof actualCapture>) => {
+    if (attempt.getStore() && attemptCaptures.length < 16) {
+      attemptCaptures.push(new Error("capture in refused lifecycle acquisition").stack?.slice(0, 4096) ?? "capture in refused attempt")
+    }
+    return actualCapture(...args)
+  })
   let result: Promise<facade.ActiveTranscriptLease> | undefined
   try {
     withBookkeepingWrite(directory, { scope: "store" }, () => {
-      result = facade.acquireActiveTranscriptLease([locator], options)
+      result = attempt.run(true, () => facade.acquireActiveTranscriptLease([locator], options))
       void result.catch(() => undefined)
     })
     await expect(result).rejects.toBeInstanceOf(facade.SessionLifecycleReentrancyError)
-    expect(capture).not.toHaveBeenCalled()
+    expect(attemptCaptures).toEqual([])
   } finally { capture.mockRestore() }
 })
 

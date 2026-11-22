@@ -8,7 +8,7 @@
  * incident — it is NOT proof that no CLI-internal abort occurred).
  */
 import { describe, expect, test } from "bun:test"
-import { linkRequestAbort } from "../proxy/requestAbort"
+import { isClientStop, linkRequestAbort } from "../proxy/requestAbort"
 
 describe("linkRequestAbort cause registry", () => {
   test("no abort — snapshot reports cause none, aborted false", () => {
@@ -140,5 +140,15 @@ describe("every SDK termination diagnostic carries an abort cause", () => {
     const snapshots = source.match(/abort: requestAbort\.abortSnapshot\(\)/g) ?? []
     expect(callSites.length).toBeGreaterThan(0)
     expect(snapshots.length).toBe(callSites.length)
+  })
+})
+
+describe("isClientStop", () => {
+  test("only the client's own disconnect or body cancel is its stop", () => {
+    expect(isClientStop("client_abort")).toBe(true)
+    expect(isClientStop("stream_cancel")).toBe(true)
+    for (const cause of ["session_watchdog", "process_shutdown", "subtree_cancel", "passthrough_single_step", "unknown_abort", "none"] as const) {
+      expect(isClientStop(cause)).toBe(false)
+    }
   })
 })

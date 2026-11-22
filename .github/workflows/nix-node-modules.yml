@@ -60,7 +60,9 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
         continue-on-error: true
-      - run: nix build --print-build-logs --no-update-lock-file .#meridian
+      - env:
+          NIXPKGS_ALLOW_UNFREE: 1
+        run: nix build --impure --print-build-logs --no-update-lock-file .#meridian
       - run: nix build --print-build-logs --no-update-lock-file --no-link --rebuild .#meridian.node_modules
       - run: ./result/bin/meridian --version
       - name: Installed macOS SDK and native HTTP compatibility

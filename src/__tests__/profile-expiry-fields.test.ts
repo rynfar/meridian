@@ -186,6 +186,9 @@ if (!isScenario(arg)) {
     const { resetActiveProfile } = await import("../proxy/profiles")
     const expiryFields = ["refreshTokenExpiresAt", "daysUntilRenewal", "renewalRequiredSoon", "accessTokenExpiresAt"] as const
     const historyFields = ["authObtainedAt", "authObtainedVia", "lastRefreshAt", "firstUnauthedAt", "unauthedReason"] as const
+    // Duplicate-account and post-sign-in status, reported for every profile
+    // (owner-approved 2026-10-26, #1446; see the API contract).
+    const statusFields = ["duplicateOf", "duplicateBasis", "factsRefresh"] as const
     const baseFields = [
       "id", "type", "isActive", "email", "subscriptionType", "organizationName", "rateLimitTier",
       "seatTier", "allowance", "allowanceWeight", "planLabel", "accountType", "planName", "loggedIn",
@@ -261,8 +264,8 @@ if (!isScenario(arg)) {
         for (const field of historyFields) check(!Object.hasOwn(item, field), `Unapproved history field ${field} appeared`)
         equal(
           Object.keys(item).sort(),
-          [...baseFields, ...expiryFields, ...(input.aliases ? ["aliases"] : [])].sort(),
-          "Profile response changed fields beyond the four approved additions",
+          [...baseFields, ...expiryFields, ...statusFields, ...(input.aliases ? ["aliases"] : [])].sort(),
+          "Profile response changed fields beyond the approved expiry (four) and #1446 duplicate/factsRefresh (three) additions",
         )
         equal(item.type, input.type ?? "claude-max", "Existing profile type changed")
         equal(item.isActive, i === 0, "Existing active-profile flag changed")

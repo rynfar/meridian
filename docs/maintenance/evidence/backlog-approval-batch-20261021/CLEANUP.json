@@ -1,0 +1,34 @@
+{
+  "rootHead": "446a0f1633be3a0cf36d8f1e9f222e914d2f7c83",
+  "originalDirtyHashesMatched": 12,
+  "remainingTaskCheckouts": 0,
+  "remainingTaskDependencyInstalls": 0,
+  "localTaskDockerResources": 0,
+  "removedOwnedPaths": [
+    "/tmp/meridian-1261-revisit-20261021/node_modules",
+    "/tmp/meridian-1261-revisit-20261021/transcriptSweep.ts",
+    "/tmp/meridian-1261-revisit-20261021/transcriptRetention.ts",
+    "/tmp/meridian-1261-revisit-20261021/home",
+    "/tmp/meridian-1261-revisit-20261021/config",
+    "/tmp/meridian-1261-revisit-20261021/profile",
+    "/private/tmp/meridian-1440-cleanup-20261021",
+    "/tmp/meridian-approved-actions-20261021/attribution/audit.git",
+    "/tmp/meridian-approved-actions-20261021/attribution/github-pr-cache.json",
+    "/tmp/meridian-approved-actions-20261021/opencode-scrub-0.2.3",
+    "/tmp/meridian-approved-actions-20261021/private"
+  ],
+  "measuredBeforeRemovalKiB": {
+    "/private/tmp/meridian-1440-cleanup-20261021": 659344,
+    "/tmp/meridian-1261-revisit-20261021": 64,
+    "/tmp/meridian-approved-actions-20261021/attribution/audit.git": 20352
+  },
+  "measurementCaveat": "du is allocated/apparent task data, not guaranteed physical APFS savings",
+  "auditInputSHA256": "2a21c44f9cbeedd6d63873d64bcf8e2b74190b3c2f28dc98d78a1c816b67a35c",
+  "otherWorktreesNotRemoved": 17,
+  "sourceRecoveryRefs": {
+    "1426": "refs/remotes/origin/pr1426-approved-20261021",
+    "1440": "refs/remotes/origin/pr1440-approved-20261021",
+    "1261": "refs/remotes/origin/pr1261-revisit-20261021"
+  },
+  "privateGrantRemoved": true
+}

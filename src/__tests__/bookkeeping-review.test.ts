@@ -406,6 +406,20 @@ it("two simultaneous initializers publish a complete schema; dead linked bootstr
         child.once("error", reject)
       }),
   )
+  const output = children.map(() => ({ stdout: "", stderr: "" }))
+  const completed = children.map(async (child, index) => {
+    const capture = output[index]!
+    child.stdout?.on("data", chunk => { capture.stdout = (capture.stdout + String(chunk)).slice(0, 64 * 1024) })
+    child.stderr?.on("data", chunk => { capture.stderr = (capture.stderr + String(chunk)).slice(0, 64 * 1024) })
+    const closed = new Promise<void>(resolve => child.once("close", () => resolve()))
+    const stdoutClosed = child.stdout
+      ? new Promise<void>(resolve => child.stdout!.once("close", () => resolve())) : Promise.resolve()
+    const stderrClosed = child.stderr
+      ? new Promise<void>(resolve => child.stderr!.once("close", () => resolve())) : Promise.resolve()
+    const [exit] = await Promise.allSettled([exited[index]!, closed, stdoutClosed, stderrClosed] as const)
+    if (exit.status === "rejected") throw exit.reason
+    return exit.value
+  })
   const ready = children.map((child, index) => Promise.race([
     new Promise<void>((resolve) => child.once("message", () => resolve())),
     exited[index]!.then(code => { throw new Error(`initializer exited before ready: ${code}`) }),
@@ -414,13 +428,24 @@ it("two simultaneous initializers publish a complete schema; dead linked bootstr
   try {
     await Promise.all(ready)
     children.forEach((child) => child.send("start"))
-    expect(await Promise.all(exited)).toEqual([0, 0])
+    expect(await Promise.all(completed), JSON.stringify(output)).toEqual([0, 0])
   } finally {
     clearTimeout(timer)
     children.forEach((child) => {
       if (child.exitCode === null) child.kill("SIGTERM")
     })
-    await Promise.allSettled(exited)
+    const kill = setTimeout(() => {
+      children.forEach(child => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL") })
+    }, 5000)
+    let joinDeadline: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.allSettled(completed),
+        new Promise<never>((_, reject) => {
+          joinDeadline = setTimeout(() => reject(new Error(`Initializer pipes did not join: ${JSON.stringify(output)}`)), 10000)
+        }),
+      ])
+    } finally { clearTimeout(kill); clearTimeout(joinDeadline) }
   }
   const safety = await Bun.build({
     entrypoints: [resolve("src/__tests__/fixtures/bookkeeping-safety.ts")],

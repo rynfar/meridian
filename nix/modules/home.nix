@@ -1,4 +1,4 @@
-packages:
+{ self }:
 {
   config,
   lib,
@@ -45,8 +45,8 @@ in
   options.services.meridian = {
     enable = mkEnableOption "the Meridian proxy service";
 
-    package = mkPackageOption packages "meridian" {
-      pkgsText = "inputs.meridian.packages.\${pkgs.stdenv.hostPlatform.system}";
+    package = mkPackageOption (pkgs.callPackage "${self}/nix/scope.nix" { inherit self; }) "meridian" {
+      pkgsText = "(pkgs.extend inputs.meridian.overlays.default)";
     };
 
     settings = {

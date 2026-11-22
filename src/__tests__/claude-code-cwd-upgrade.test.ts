@@ -143,7 +143,7 @@ const filedUnderProxyDir = {
 describe("an open claude-code conversation filed under the proxy's directory", () => {
   it("still resumes when no directory is read (control)", async () => {
     const { prior, next } = conversation(undefined)
-    storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
+    await storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
 
     await continueConversation(next)
 
@@ -154,7 +154,7 @@ describe("an open claude-code conversation filed under the proxy's directory", (
 
   it("is replayed at once in the client's directory, with no resume attempted", async () => {
     const { prior, next } = conversation(clientDir)
-    storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
+    await storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
 
     await continueConversation(next)
 
@@ -166,7 +166,7 @@ describe("an open claude-code conversation filed under the proxy's directory", (
 
   it("from before transcript locations were recorded, is refused on every retry and then replayed", async () => {
     const { prior, next } = conversation(clientDir)
-    storeSession(SESSION_ID, prior, "sdk-original")
+    await storeSession(SESSION_ID, prior, "sdk-original")
 
     await continueConversation(next)
 
@@ -178,7 +178,7 @@ describe("an open claude-code conversation filed under the proxy's directory", (
 
   it("resumes on the turn after the replay", async () => {
     const { prior, next } = conversation(clientDir)
-    storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
+    await storeSession(SESSION_ID, prior, "sdk-original", undefined, undefined, undefined, undefined, undefined, filedUnderProxyDir)
     await continueConversation(next)
     const replayedSession = queryCalls[0]!.sessionId
     expect(replayedSession).toBeDefined()

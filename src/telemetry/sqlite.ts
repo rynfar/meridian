@@ -1,7 +1,7 @@
 import Database from "libsql"
 import { statSync } from "node:fs"
 import type { RequestMetric, TelemetrySummary, ITelemetryStore, IDiagnosticLogStore, DiagnosticLog, TelemetryRetention } from "./types"
-import { computeSummary } from "./percentiles"
+import { CACHE_KEEPALIVE_REQUEST_SOURCE, computeSummary } from "./percentiles"
 import { getPricingOverrides } from "./pricingStore"
 
 const METRICS_SCHEMA = `
@@ -257,14 +257,18 @@ class SqliteTelemetryStore implements ITelemetryStore {
     return total
   }
 
-  getRecent(options: { limit?: number; since?: number; model?: string } = {}): RequestMetric[] {
-    const { limit = 50, since, model } = options
+  getRecent(options: { limit?: number; since?: number; until?: number; model?: string } = {}): RequestMetric[] {
+    const { limit = 50, since, until, model } = options
     const conditions: string[] = []
     const params: Record<string, unknown> = { limit }
 
     if (since !== undefined) {
       conditions.push("timestamp >= @since")
       params.since = since
+    }
+    if (until !== undefined) {
+      conditions.push("timestamp < @until")
+      params.until = until
     }
     if (model !== undefined) {
       conditions.push("model = @model")
@@ -285,8 +289,10 @@ class SqliteTelemetryStore implements ITelemetryStore {
   getLastForSession(sdkSessionId: string): RequestMetric | undefined {
     try {
       const row = this.db.prepare(
-        `SELECT * FROM metrics WHERE sdk_session_id = ? AND error IS NULL ORDER BY timestamp DESC, id DESC LIMIT 1`
-      ).get(sdkSessionId) as Record<string, unknown> | undefined
+        `SELECT * FROM metrics WHERE sdk_session_id = ? AND error IS NULL
+           AND (request_source IS NULL OR request_source != ?)
+         ORDER BY timestamp DESC, id DESC LIMIT 1`
+      ).get(sdkSessionId, CACHE_KEEPALIVE_REQUEST_SOURCE) as Record<string, unknown> | undefined
       return row ? rowToMetric(row) : undefined
     } catch {
       return undefined

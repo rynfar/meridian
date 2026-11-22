@@ -17,7 +17,12 @@
  * Measured against the live backend on 2026-09-27: a request with no
  * `instructions` is served and `system` role input is accepted, so the
  * client's system/developer text is NOT moved; `max_output_tokens` is refused
- * with 400 "Unsupported parameter", so it is removed.
+ * with 400 "Unsupported parameter", so it is removed. Measured 2026-11-14:
+ * `temperature` and `top_p` are refused the same way on every model the
+ * backend serves (gpt-5.6-luna, gpt-6-luna, gpt-6-sol, gpt-6-astra,
+ * gpt-6.1-sol), with or without `reasoning.effort = "none"`, so they are
+ * removed too. Clients that read model capabilities from a catalog of the
+ * public API (where some of these models take sampling parameters) send them.
  *
  * Pure: no I/O, and the input object is not mutated.
  */
@@ -35,6 +40,9 @@ export type BodyAdaptation =
   | "include+reasoning.encrypted_content"
   /** The backend refuses it (400 "Unsupported parameter: max_output_tokens"); the cap cannot be honoured there. */
   | "-max_output_tokens"
+  /** The backend refuses them (400 "Unsupported parameter: temperature" / "top_p") on every model it serves. */
+  | "-temperature"
+  | "-top_p"
   /** The operator's Reasoning Summary setting replaced what the client asked for. */
   | `reasoning.summary=${ReasoningSummaryLevel}`
 
@@ -72,6 +80,12 @@ export function adaptResponsesBody(input: Record<string, unknown>, options: Adap
   if ("max_output_tokens" in body) {
     delete body.max_output_tokens
     applied.push("-max_output_tokens")
+  }
+  for (const sampling of ["temperature", "top_p"] as const) {
+    if (sampling in body) {
+      delete body[sampling]
+      applied.push(`-${sampling}`)
+    }
   }
   const summary = options.reasoningSummary
   if (summary) {

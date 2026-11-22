@@ -10,18 +10,6 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    meridian-plugin-hermes-scrub = {
-      url = "github:rynfar/meridian-plugin-hermes-scrub";
-      flake = false;
-    };
-    meridian-plugin-opencode-scrub = {
-      url = "github:rynfar/meridian-plugin-opencode-scrub";
-      flake = false;
-    };
-    meridian-plugin-pi-scrub = {
-      url = "github:rynfar/meridian-plugin-pi-scrub";
-      flake = false;
-    };
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
   };
@@ -30,80 +18,43 @@
     inputs@{
       flake-parts,
       home-manager,
-      nixpkgs,
       systems,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } (
-      {
-        moduleWithSystem,
-        self,
-        withSystem,
-        ...
-      }:
+      { lib, self, ... }:
+      let
+        inherit (flake-parts.lib) importApply;
+        inherit (lib.attrsets) optionalAttrs;
+      in
       {
         imports = [ home-manager.flakeModules.home-manager ];
 
         systems = import systems;
 
-        perSystem =
-          {
-            config,
-            lib,
-            pkgs,
-            system,
-            ...
-          }:
-          let
-            inherit (lib.attrsets) filterAttrs mapAttrs' nameValuePair;
-            inherit (lib.strings) hasPrefix removePrefix;
-            inherit (lib.trivial) pipe;
-          in
-          {
-            _module.args.pkgs = import nixpkgs {
-              inherit system;
-              config.allowUnfreePredicate = pkg: lib.getName pkg == "claude-code";
-            };
+        perSystem = { config, pkgs, ... }: {
+          legacyPackages = { inherit (pkgs.callPackage ./nix/scope.nix { inherit self; }) meridianPlugins; };
 
-            packages = {
-              default = config.packages.meridian;
-              meridian = pkgs.callPackage ./nix/pkgs/meridian/package.nix { inherit self; };
-            };
-
-            # Home Manager only renders systemd user units on Linux.
-            checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-              home = import ./nix/tests/home.nix { inherit home-manager pkgs self; };
-            };
-
-            legacyPackages.meridianPlugins = pipe inputs [
-              (filterAttrs (pname: _: hasPrefix "meridian-plugin-" pname))
-              (mapAttrs' (
-                pname: src:
-                nameValuePair (removePrefix "meridian-plugin-" pname) (
-                  pkgs.callPackage ./nix/pkgs/meridian-plugin/package.nix { inherit pname src; }
-                )
-              ))
-            ];
+          packages = {
+            default = config.packages.meridian;
+            inherit (pkgs.callPackage ./nix/scope.nix { inherit self; }) meridian;
           };
+
+          # Home Manager only renders systemd user units on Linux.
+          checks = optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            home = import ./nix/tests/home.nix { inherit home-manager pkgs self; };
+          };
+        };
 
         flake = {
           homeModules = {
             default = self.homeModules.meridian;
-            meridian = moduleWithSystem (
-              { self', ... }: flake-parts.lib.importApply ./nix/modules/home.nix self'.packages
-            );
+            meridian = importApply ./nix/modules/home.nix { inherit self; };
           };
 
           overlays = {
             default = self.overlays.meridian;
-            meridian =
-              _: prev:
-              withSystem prev.stdenv.hostPlatform.system (
-                { self', ... }: {
-                  inherit (self'.packages) meridian;
-                  inherit (self'.legacyPackages) meridianPlugins;
-                }
-              );
+            meridian = import ./nix/overlays/meridian.nix { inherit self; };
           };
         };
       }

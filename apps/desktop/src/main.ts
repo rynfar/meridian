@@ -67,13 +67,16 @@ function showNotification(title: string, body: string) {
 }
 function updateTray(state: DesktopState) {
   updateDock(state.preferences.hideDockIcon)
-  tray?.setToolTip(`Meridian · ${state.running ? state.owned ? 'Managed' : 'Connected' : 'Stopped'}`)
+  const where = state.instance ? ` · ${new URL(state.instance.baseUrl).host}` : ''
+  tray?.setToolTip(`Meridian · ${state.running ? state.owned ? 'Managed' : 'Connected' : state.connection.kind === 'starting' ? 'Starting' : 'Stopped'}${where}`)
 }
 function trayMenu() {
   const state = manager.snapshot()
   return Menu.buildFromTemplate([
     { label: 'Open Meridian', click: show },
     { label: state.running ? `Meridian ${state.running} · ${state.owned ? 'App managed' : 'External'}` : 'Meridian is not running', enabled: false },
+    ...(state.instance ? [{ label: `${new URL(state.instance.baseUrl).host} · ${state.instance.supervisor.label ?? state.instance.supervisor.kind}`, enabled: false }] : []),
+    { label: 'Re-detect Meridian', enabled: !state.busy, click: () => { void invoke('redetect') } },
     { type: 'separator' },
     { label: 'Start Meridian', enabled: state.preferences.mode === 'managed' && !state.owned && !state.busy && Boolean(state.preferences.selected), click: () => { void invoke('start') } },
     { label: 'Restart Meridian', enabled: state.owned && !state.busy, click: () => { void invoke('restart') } },
@@ -134,6 +137,11 @@ else {
         if (!/^[a-zA-Z0-9_-]{1,64}$/.test(profile)) throw new Error('Use an account name containing letters, numbers, dashes or underscores.')
         clipboard.writeText(`meridian profile login ${profile}`)
       }
+      else if (action === 'copy-profile-remove') {
+        const profile = text(value)
+        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(profile)) throw new Error('Use an account name containing letters, numbers, dashes or underscores.')
+        clipboard.writeText(`meridian profile remove ${profile}`)
+      }
       else if (action === 'copy-client-setup') await clipboard.writeText(clientSetupClipboardCommand(manager.snapshot(), value))
       else if (action === 'close-panel') panel?.hide()
       else if (action === 'resize-panel') {
@@ -162,7 +170,8 @@ else {
         await shell.openExternal(`https://github.com/rynfar/meridian/releases/tag/v${release}`)
       } else if (action === 'open-login') {
         const url = new URL(manager.state.login?.url || '')
-        if (url.protocol !== 'https:' || !['claude.com', 'platform.claude.com'].includes(url.hostname)) throw new Error('No valid Claude login URL.')
+        // Only the URL the active sign-in produced, and only Claude/ChatGPT sign-in hosts.
+        if (url.protocol !== 'https:' || !['claude.com', 'platform.claude.com', 'claude.ai', 'auth.openai.com', 'chatgpt.com'].includes(url.hostname)) throw new Error('No valid sign-in URL.')
         await shell.openExternal(url.href)
       } else if (action === 'export-diagnostics') {
         const result = await dialog.showSaveDialog({ defaultPath: 'meridian-diagnostics.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
@@ -173,7 +182,7 @@ else {
           const snapshot = manager.snapshot()
           const health = object(snapshot.health)
           const summary = object(snapshot.summary)
-          await writeFile(result.filePath, JSON.stringify({ desktopVersion: snapshot.desktopVersion, platform: snapshot.platform, version: snapshot.running, owned: snapshot.owned, status: text(health.status), requests: summary.totalRequests, errors: summary.errorCount, tokenUsage: summary.tokenUsage, timing: summary.totalDuration }, null, 2), { mode: 0o600 })
+          await writeFile(result.filePath, JSON.stringify({ desktopVersion: snapshot.desktopVersion, platform: snapshot.platform, version: snapshot.running, owned: snapshot.owned, status: text(health.status), connection: snapshot.connection.kind, supervisor: snapshot.instance?.supervisor.kind, window: snapshot.window.kind, requests: summary.totalRequests, errors: summary.errorCount, tokenUsage: summary.tokenUsage, timing: summary.totalDuration }, null, 2), { mode: 0o600 })
         }
       } else await dispatch(manager, action, value)
       return manager.snapshot()
@@ -183,7 +192,7 @@ else {
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'Meridian Desktop', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
-      { role: 'editMenu' }, { label: 'View', submenu: [{ label: 'Quick controls', accelerator: 'CommandOrControl+Shift+M', click: togglePanel }, { type: 'separator' }, { role: 'reload' }, { role: 'toggleDevTools' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] }, { role: 'windowMenu' },
+      { role: 'editMenu' }, { label: 'View', submenu: [{ label: 'Quick controls', accelerator: 'CommandOrControl+Shift+M', click: togglePanel }, { type: 'separator' }, { label: 'Refresh data', accelerator: 'CommandOrControl+R', click: () => { if (!manager.state.busy) void invoke('refresh') } }, { label: 'Reload window', role: 'reload', accelerator: 'CommandOrControl+Shift+R' }, { role: 'toggleDevTools' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] }, { role: 'windowMenu' },
     ]))
     window.on('close', event => { if (!canQuit) { event.preventDefault(); window?.hide() } })
     // Template artwork has a transparent background; macOS supplies its tint.
@@ -208,7 +217,8 @@ else {
     if (process.platform === 'darwin') window.setWindowButtonVisibility(true)
     manager.publish()
     if (manager.preferences.openWindowAtLaunch) show()
-    void manager.refresh().then(async () => { if (manager.preferences.mode === 'managed' && manager.preferences.autoStart && manager.preferences.selected) await invoke('start') })
+    // init() detected the service: the managed copy starts only when no other Meridian serves the clients.
+    void manager.refresh().then(async () => { if (manager.shouldStartManaged()) await invoke('start') })
     timer = setInterval(() => { if (!quitting && !manager.state.busy) void manager.refresh() }, 10000)
   }).catch(error => { console.error(error); app.quit() })
 }

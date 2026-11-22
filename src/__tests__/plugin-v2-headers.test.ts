@@ -100,11 +100,11 @@ describe("plugin/meridian-v2.ts hidden parent-session one-shots", () => {
     expect(headers["x-meridian-source"]).toBeUndefined()
   })
 
-  test("compaction remains on the primary key but gets the subagent tier", async () => {
+  test("compaction remains on the primary key and keeps the conversation tier", async () => {
     const headers = rewrite("compaction", { mode: "primary", hidden: false })
 
     expect(headers["x-opencode-session"]).toBe("ses_abc")
-    expect(headers["x-meridian-source"]).toBe("subagent-compaction")
+    expect(headers["x-meridian-source"]).toBe("fork-compaction")
     expect(headers["x-opencode-agent-mode"]).toBe("primary")
     expect(await sessionKeyFor(headers)).toBe("ses_abc")
   })

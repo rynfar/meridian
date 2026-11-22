@@ -48,6 +48,10 @@ export const themeCss = `
     --green:     #3fb950;
     --yellow:    #d29922;
     --red:       #f85149;
+    /* The semantic colours as channels, for tinted fills. */
+    --green-rgb:  63,185,80;
+    --yellow-rgb: 210,153,34;
+    --red-rgb:    248,81,73;
     /* Telemetry-specific aliases (waterfall + lineage badges) */
     --blue:      #58a6ff;
     --purple:    #bc8cff;
@@ -66,6 +70,10 @@ export const themeCss = `
     --chatgpt:        #74aa9c;
     --chatgpt-bright: #9ec3ba;
     --chatgpt-rgb:    116,170,156;
+    /* Text on a solid brand fill. Black clears 4.5:1 on every brand and
+       tint (lowest: --claude, 4.97:1); white would be 4.23:1 there and
+       2.63:1 on --chatgpt, and --bg 4.48:1 on --claude. */
+    --on-brand:       #000000;
   }
   /* Banner backsplash — the brand look: a gentle diagonal wash with soft
      blue (top-left) and violet (bottom-right) glows. Pages must not set
@@ -641,27 +649,44 @@ export const profileBarJs = `
 `
 
 /** Native desktop chrome: system appearance with the canonical Meridian hues.
- * Web pages continue using themeCss and the shared profile header above. */
+ * Web pages continue using themeCss and the shared profile header above.
+ * Text tokens (t1–t3, accent, status hues) reach WCAG AA 4.5:1 on every
+ * desktop surface (bg, surface, surface2, well); t4 is for marks and
+ * placeholders only, never information. */
 export const desktopThemeCss = `
   :root {
     color-scheme: light dark;
-    --bg: #f4f5f7; --surface: #ffffff; --surface2: #edeff2;
-    --border: #dde0e5; --text: #23272e; --muted: #69717e;
-    --accent: #176bce; --accent2: #8250b5;
-    --green: #237c40; --yellow: #976400; --red: #ca3b36;
-    --sidebar: #e9edf1; --control: #ffffff; --control-border: #d0d5dc;
+    --bg: #f5f5f6; --surface: #ffffff; --surface2: #f0f0f2; --well: #ebebed;
+    --ring: rgba(0,0,0,.075); --ring-strong: rgba(0,0,0,.12); --hover: rgba(0,0,0,.035);
+    --text: #1b1b1e; --t2: #46464c; --muted: #6a6a72; --t4: #a6a6ad;
+    --accent: #1767ce; --accent2: #8250b5;
+    --cache-write: color-mix(in srgb, var(--accent2) 42%, transparent); --fresh: #c9c9ce;
+    --green: #1c7a42; --yellow: #985c00; --red: #c4342f;
+    --sidebar: rgba(236,236,238,.82);
+    --lift: 0 0 0 .5px var(--ring), 0 1px 2px rgba(0,0,0,.05);
+    --press: 0 0 0 .5px var(--ring-strong), 0 1px 2px rgba(0,0,0,.12);
+    --pop: 0 0 0 .5px var(--ring-strong), 0 8px 28px rgba(0,0,0,.14);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
-      --border: #30363d; --text: #e6edf3; --muted: #8b949e;
-      --accent: #58a6ff; --accent2: #bc8cff;
-      --green: #3fb950; --yellow: #d29922; --red: #f85149;
-      --sidebar: #161b22; --control: #242b35; --control-border: #39424e;
+      --bg: #161618; --surface: #1d1d20; --surface2: #242428; --well: #111113;
+      --ring: rgba(255,255,255,.07); --ring-strong: rgba(255,255,255,.12); --hover: rgba(255,255,255,.035);
+      --text: #ececee; --t2: #b6b6bc; --muted: #8a8a92; --t4: #5c5c64;
+      --accent: #5aa3ff; --accent2: #bc8cff;
+      --cache-write: color-mix(in srgb, var(--accent2) 38%, transparent); --fresh: #3b3b41;
+      --green: #4cc283; --yellow: #e0a83e; --red: #f2645e;
+      --sidebar: rgba(28,28,31,.78);
+      --lift: 0 0 0 .5px var(--ring), inset 0 1px 0 rgba(255,255,255,.02);
+      --press: 0 0 0 .5px var(--ring-strong), 0 1px 2px rgba(0,0,0,.3);
+      --pop: 0 0 0 .5px var(--ring-strong), 0 10px 32px rgba(0,0,0,.45);
     }
+  }
+  :root {
+    --t1: var(--text); --t3: var(--muted); --cache: var(--accent2);
+    --border: var(--ring); --control: var(--well); --control-border: var(--ring-strong);
   }
   body { background: var(--bg); }
   html.native-glass body { background: transparent; }
 `
 
-export const desktopWindowColors = { transparent: '#00000000', dark: '#0d1117', light: '#f4f5f7' } as const
+export const desktopWindowColors = { transparent: '#00000000', dark: '#161618', light: '#f5f5f6' } as const

@@ -22,6 +22,7 @@ function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
     incompatibleTools: CLAUDE_CODE_ONLY_TOOLS,
     mcpServerName: MCP_SERVER_NAME,
     allowedMcpTools: ALLOWED_MCP_TOOLS,
+    transcriptRetentionDays: 0,
     ...overrides,
   }
 }

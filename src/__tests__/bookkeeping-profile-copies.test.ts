@@ -60,8 +60,8 @@ const options = () => ({ storeDir: directory, maxPending: 8, pinProvider: () => 
 async function seed(key: string, stale: boolean, transcript = true) {
   const locator = { sessionId: randomUUID(), configDir: directory }
   if (transcript) await registerLiveTranscript(locator, options())
-  expect(storeSharedSession(key, locator.sessionId, 1, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, transcript ? locator : undefined)).not.toBe(false)
+  expect((await storeSharedSession(key, locator.sessionId, 1, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, transcript ? locator : undefined))).not.toBe(false)
   withBookkeepingWrite(directory, { scope: "store" }, tx => {
     tx.run("UPDATE mappings SET last_used_at=? WHERE key=?", Date.now() - (stale ? graceMs + 60_000 : 1000), key)
   })
@@ -73,7 +73,7 @@ it("dispatches SQL copy selection/pruning without opening either JSON authority"
   await seed("personal:conversation", false)
   await seed("work:single", true)
   expect(listSupersededProfileConversations({ ...copies, maxUnpinnedTranscripts: 4 })).toEqual(["conversation"])
-  expect(pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4 })).toBe(1)
+  expect((await pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4 }))).toBe(1)
   expect(keys()).toEqual(["personal:conversation", "work:single"])
   expect(existsSync(join(directory, "sessions.json"))).toBe(false)
   expect(existsSync(join(directory, "session-gc.json"))).toBe(false)
@@ -89,8 +89,8 @@ it("preserves recent, active, unknown-prefix and priority-authoritative mappings
     tx.run(`INSERT INTO priority_assignments VALUES('route','work',?,1,'work:protected',?, ?,1,1)`,
       "d".repeat(43), String(tx.get("SELECT generation_token FROM mappings WHERE key='work:protected'")!.generation_token), randomUUID())
   })
-  expect(pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4,
-    isConversationActive: id => id === "active" })).toBe(1)
+  expect((await pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4,
+    isConversationActive: id => id === "active" }))).toBe(1)
   expect(keys()).toContain("work:protected")
   expect(keys()).toContain("work:active")
   expect(keys()).toContain("work:recent")
@@ -103,11 +103,13 @@ it("observes callbacks outside native transactions and retains a mapping refresh
   await seed("personal:conversation", false)
   const observedAt = handle.reader.get("SELECT last_used_at FROM mappings WHERE key='work:conversation'")!.last_used_at
   let calls = 0
-  const removed = pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4,
+  const removed = (await pruneSupersededProfileCopies({ ...copies, maxUnpinnedTranscripts: 4,
     isConversationActive: () => {
       expect(connectionFor(directory).scope).toBeUndefined()
       if (calls++ === 0) {
-        expect(storeSharedSession("work:conversation", locator.sessionId, 2)).not.toBe(false)
+        const refreshed = storeSharedSession("work:conversation", locator.sessionId, 2)
+        expect(refreshed).not.toBeInstanceOf(Promise)
+        expect(refreshed).not.toBe(false)
         // A new generation can retain imported old activity metadata. Age alone
         // must not let an observer delete a publication it never selected.
         withBookkeepingWrite(directory, { scope: "store" }, tx => {
@@ -115,7 +117,7 @@ it("observes callbacks outside native transactions and retains a mapping refresh
         })
       }
       return false
-    } })
+    } }))
   expect(calls).toBeGreaterThan(0)
   expect(removed).toBe(0)
   expect(keys()).toEqual(["personal:conversation", "work:conversation"])

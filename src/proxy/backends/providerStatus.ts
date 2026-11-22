@@ -18,7 +18,9 @@ export function claudeProvider(healthValue: unknown, summaryValue: unknown, quot
     id: 'claude', name: 'Claude', enabled: true, status: text(claude.status) || 'unavailable', endpoint: '/v1/messages',
     error: text(object(summary.error).message) || text(object(quotaValue).error) || undefined,
     activity: typeof summary.totalRequests === 'number' ? { requests: summary.totalRequests, errors: number(summary.errorCount), inputTokens: number(tokens.totalInputTokens), outputTokens: number(tokens.totalOutputTokens), cacheReadTokens: number(tokens.totalCacheReadTokens) } : undefined,
-    accounts: rows(object(quotaValue).profiles).map(p => ({ id: text(p.id), fetchedAt: number(p.fetchedAt) || undefined, error: quotaError(p.error) || quotaError(object(p.failure).reason) || undefined, windows: rows(p.windows).filter(w => typeof w.utilization === 'number' && Number.isFinite(w.resetsAt)).map(w => ({ type: text(w.type), utilization: Math.min(1, Math.max(0, number(w.utilization))), resetsAt: number(w.resetsAt) })) })),
+    accounts: rows(object(quotaValue).profiles)
+      .filter(p => p.type !== 'chatgpt')
+      .map(p => ({ id: text(p.id), fetchedAt: number(p.fetchedAt) || undefined, error: quotaError(p.error) || quotaError(object(p.failure).reason) || undefined, windows: rows(p.windows).filter(w => typeof w.utilization === 'number' && Number.isFinite(w.resetsAt)).map(w => ({ type: text(w.type), utilization: Math.min(1, Math.max(0, number(w.utilization))), resetsAt: number(w.resetsAt) })) })),
   }
 }
 export function providerSnapshot(providers: ProviderUsage[]): ProviderSnapshot { return { providers, fetchedAt: Date.now() } }

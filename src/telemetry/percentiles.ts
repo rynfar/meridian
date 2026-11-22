@@ -2,7 +2,7 @@
  * Shared percentile computation used by all telemetry store implementations.
  */
 
-import type { RequestMetric, PhaseTiming, TelemetrySummary } from "./types"
+import type { CacheKeepaliveSummary, RequestMetric, PhaseTiming, TelemetrySummary } from "./types"
 import { computeCostEstimate, type ModelPricing } from "./pricing"
 
 export function computePercentiles(values: number[]): PhaseTiming {
@@ -21,6 +21,41 @@ export function computePercentiles(values: number[]): PhaseTiming {
   }
 }
 
+/** `requestSource` of a prompt-cache keepalive beat (proxy/cacheKeepalive.ts). */
+export const CACHE_KEEPALIVE_REQUEST_SOURCE = "cache-keepalive"
+
+/** A keepalive beat: background work that answered no client. */
+export function isCacheKeepaliveMetric(metric: RequestMetric): boolean {
+  return metric.requestSource === CACHE_KEEPALIVE_REQUEST_SOURCE
+}
+
+function summarizeCacheKeepalive(
+  beats: RequestMetric[],
+  pricingOverrides?: Record<string, ModelPricing>,
+): CacheKeepaliveSummary {
+  const summary: CacheKeepaliveSummary = {
+    beats: beats.length,
+    reached: 0,
+    notReached: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    estimatedUsd: beats.length > 0 ? computeCostEstimate(beats, pricingOverrides).totalUsd : 0,
+  }
+  for (const beat of beats) {
+    // A beat reached upstream when it got usage back (status 200), even if
+    // joining its child afterwards failed.
+    if (beat.status === 200) summary.reached++
+    else summary.notReached++
+    summary.inputTokens += beat.inputTokens ?? 0
+    summary.outputTokens += beat.outputTokens ?? 0
+    summary.cacheReadTokens += beat.cacheReadInputTokens ?? 0
+    summary.cacheCreationTokens += beat.cacheCreationInputTokens ?? 0
+  }
+  return summary
+}
+
 /**
  * Compute a TelemetrySummary from an array of RequestMetric.
  * Both MemoryTelemetryStore and SqliteTelemetryStore use this
@@ -30,10 +65,13 @@ export function computePercentiles(values: number[]): PhaseTiming {
  * to the cost estimate; omit for built-in pricing only.
  */
 export function computeSummary(
-  metrics: RequestMetric[],
+  allMetrics: RequestMetric[],
   windowMs: number,
   pricingOverrides?: Record<string, ModelPricing>,
 ): TelemetrySummary {
+  // Keepalive beats are not requests: counted, costed and reported apart.
+  const metrics = allMetrics.filter(metric => !isCacheKeepaliveMetric(metric))
+  const cacheKeepalive = summarizeCacheKeepalive(allMetrics.filter(isCacheKeepaliveMetric), pricingOverrides)
   if (metrics.length === 0) {
     const emptyPhase: PhaseTiming = { p50: 0, p95: 0, p99: 0, min: 0, max: 0, avg: 0 }
     return {
@@ -60,6 +98,7 @@ export function computeSummary(
         cacheMissOnResumeCount: 0,
       },
       costEstimate: { totalUsd: 0, byModel: {}, unpricedRequestCount: 0, byProfile: {} },
+      cacheKeepalive,
     }
   }
 
@@ -146,5 +185,6 @@ export function computeSummary(
       cacheMissOnResumeCount,
     },
     costEstimate: computeCostEstimate(metrics, pricingOverrides),
+    cacheKeepalive,
   }
 }

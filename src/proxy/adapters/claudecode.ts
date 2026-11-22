@@ -188,8 +188,11 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
 /** The agent context Claude Code runs a request under; absent on the main conversation. */
 export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
 
-/** Agent ids are short opaque tokens. Anything else is ignored, never keyed. */
-const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
+/**
+ * Agent ids are short opaque tokens, or `<name>@<team>` for an in-process
+ * teammate. Anything else is ignored, never keyed.
+ */
+const CLAUDE_CODE_AGENT_ID = /^(?=.{1,128}$)[A-Za-z0-9_-]+(?:@[A-Za-z0-9_-]+)?$/
 
 /**
  * The session key for one Claude Code request.
@@ -202,7 +205,9 @@ const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
  * `x-claude-code-agent-id` on every subagent request — stable across that
  * subagent's turns, distinct between subagents, and sent without gateway hint
  * headers (verified against 2.1.287) — so a subagent is keyed
- * `<sid>:agent:<agentId>`. The main conversation, and any request whose agent
+ * `<sid>:agent:<agentId>`. An in-process teammate (named agents of an agent
+ * team) carries `<name>@<team>` as its agent id (2.1.322) and is keyed the
+ * same way. The main conversation, and any request whose agent
  * id is missing or malformed, keeps the bare session id. An agent id never
  * creates a key on its own: without a metadata session id there is none.
  *

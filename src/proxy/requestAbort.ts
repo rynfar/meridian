@@ -34,6 +34,15 @@ export const REQUEST_ABORT_CAUSES: readonly RequestAbortCause[] = [
   "unknown_abort",
 ] as const
 
+/**
+ * Whether the client itself stopped the request: its socket closed or it
+ * cancelled the response body. Every other cause, an explicit subtree cancel
+ * included, is a stop Meridian or another request decided on.
+ */
+export function isClientStop(cause: RequestAbortCause | "none"): boolean {
+  return cause === "client_abort" || cause === "stream_cancel"
+}
+
 export interface AbortCauseSnapshot {
   /** First classified cause; "none" when the observed signal never aborted. */
   cause: RequestAbortCause | "none"

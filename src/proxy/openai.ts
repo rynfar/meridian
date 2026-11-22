@@ -14,7 +14,8 @@
  *   3. Each chat completions request gets a fresh SDK session
  * A request that carries a session key the adapter recognizes (Jcode's
  * x-jcode-session, or the OpenCode-family x-opencode-session /
- * x-session-affinity) is exempt: it keeps its real messages and resumes like
+ * x-session-affinity, or the generic x-session-id) is exempt: it keeps its
+ * real messages and resumes like
  * any keyed client. An unkeyed request keeps the packing above.
  */
 
@@ -44,6 +45,14 @@ export interface OpenAiContentPart {
   image_url?: {
     url?: string
   }
+  /** Chat Completions file input; only base64 PDF `file_data` is inlined. */
+  file?: {
+    file_data?: string
+    filename?: string
+    file_id?: string
+  }
+  /** Assistant `refusal` part text. */
+  refusal?: string
 }
 
 export interface OpenAiMessage {
@@ -259,7 +268,7 @@ export interface OpenAiStreamChunk {
       tool_calls?: OpenAiStreamingToolCallDelta[]
       reasoning_content?: string
     }
-    finish_reason: "stop" | "length" | "tool_calls" | null
+    finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | null
   }>
   usage?: {
     prompt_tokens: number
@@ -308,7 +317,7 @@ export interface OpenAiCompletion {
       reasoning_content?: string
       tool_calls?: OpenAiCompletionToolCall[]
     }
-    finish_reason: "stop" | "length" | "tool_calls"
+    finish_reason: "stop" | "length" | "tool_calls" | "content_filter"
   }>
   usage: {
     prompt_tokens: number
@@ -393,6 +402,7 @@ export function extractOpenAiContent(content: string | OpenAiContentPart[]): str
     .map((p) => {
       if (p.type === "text" && typeof p.text === "string") return p.text
       if (p.type === "image_url") return "[Image attached]"
+      if (p.type === "file") return "[Document attached]"
       return ""
     })
     .filter(Boolean)
@@ -462,6 +472,11 @@ function translateOpenAiContentToAnthropic(content: string | OpenAiContentPart[]
       continue
     }
 
+    if (part.type === "refusal" && typeof part.refusal === "string") {
+      parts.push({ type: "text", text: part.refusal })
+      continue
+    }
+
     if (part.type === "image_url") {
       const url = part.image_url?.url
       if (typeof url === "string") {
@@ -472,6 +487,20 @@ function translateOpenAiContentToAnthropic(content: string | OpenAiContentPart[]
         }
       }
       parts.push({ type: "text", text: "[Unsupported image_url omitted: only data URLs are currently supported]" })
+      continue
+    }
+
+    if (part.type === "file") {
+      const data = part.file?.file_data
+      const document = typeof data === "string" ? parseDataUrlPdf(data, part.file?.filename) : null
+      parts.push(document ?? { type: "text", text: "[Unsupported file omitted: only base64 PDF data URLs are currently supported]" })
+      continue
+    }
+
+    // Dropping an unknown part silently hides input the client believes the
+    // model received; leave a visible note instead.
+    if (part.type !== "text") {
+      parts.push({ type: "text", text: `[Unsupported ${part.type} content part omitted]` })
     }
   }
 
@@ -495,6 +524,7 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
             .join("")
       }
       if (part.type === "image") return "[Image attached]"
+      if (part.type === "document") return "[Document attached]"
       return ""
     })
     .filter(Boolean)
@@ -726,9 +756,10 @@ export function translateOpenAiToAnthropic(
 /**
  * Map an Anthropic stop_reason to an OpenAI finish_reason.
  */
-function toFinishReason(stopReason: string | undefined): "stop" | "length" | "tool_calls" {
+function toFinishReason(stopReason: string | undefined): "stop" | "length" | "tool_calls" | "content_filter" {
   if (stopReason === "max_tokens") return "length"
   else if (stopReason === "tool_use") return "tool_calls"
+  else if (stopReason === "refusal") return "content_filter"
   return "stop"
 }
 
@@ -1242,6 +1273,18 @@ export function buildModelList(extendedContextIncluded: boolean, now = Math.floo
       display_name: "Claude Opus 4.8",
       context_window: disable1mContext ? 200_000 : 1_000_000,
       capabilities: FULL_CAPABILITIES,
+    },
+    {
+      id: "claude-fable-5-2",
+      object: "model",
+      created: now,
+      owned_by: "anthropic",
+      display_name: "Claude Fable 5.2",
+      context_window: disable1mContext ? 200_000 : 1_000_000,
+      capabilities: {
+        ...FULL_CAPABILITIES,
+        thinking: { supported: true, types: { adaptive: { supported: true }, enabled: { supported: false } } },
+      },
     },
     {
       id: "claude-fable-5-1",
