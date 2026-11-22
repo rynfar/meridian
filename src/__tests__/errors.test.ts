@@ -152,6 +152,7 @@ describe("classifyError", () => {
       const result = classifyError("429 Too Many Requests")
       expect(result.status).toBe(429)
       expect(result.type).toBe("rate_limit_error")
+      expect(result.message.toLowerCase()).not.toContain("usage limit")
     })
 
     it("detects 'rate limit' keyword", () => {
@@ -496,11 +497,51 @@ describe("classifyError", () => {
   })
 
   describe("process crashes", () => {
+    for (const code of [143, 137]) {
+      for (const suffix of ["", "\nSubprocess stderr: worker stopped", "\nSubprocess stderr: oauth worker stopped"]) {
+        it(`classifies signal exit ${code} with ${JSON.stringify(suffix)} as transient`, () => {
+          const result = classifyError(`Claude Code process exited with code ${code}${suffix}`)
+          expect(result.status).toBe(503)
+          expect(result.type).toBe("api_error")
+          expect(result.message).toMatch(/service temporarily unavailable/i)
+          expect(result.message).toContain(String(code))
+          expect(result.message).not.toContain("claude login")
+          expect(isAccountFailoverError(result.type)).toBe(false)
+        })
+      }
+    }
+
+    for (const signal of ["SIGTERM", "SIGKILL"]) {
+      it(`classifies null-code termination by ${signal} as transient`, () => {
+        const result = classifyError(`Claude Code process terminated by signal ${signal}`)
+        expect(result.status).toBe(503)
+        expect(result.type).toBe("api_error")
+        expect(result.message).toMatch(/service temporarily unavailable/i)
+        expect(result.message).toContain(signal)
+        expect(result.message).not.toContain("claude login")
+      })
+    }
+
+    it("preserves global authentication precedence over a signal exit", () => {
+      expect(classifyError("Claude Code process exited with code 143: authentication failed").status).toBe(401)
+    })
+
+    it("ignores signal text quoted in appended stderr", () => {
+      const result = classifyError("Claude Code process exited with code 2\nSubprocess stderr: helper process terminated by signal SIGTERM")
+      expect(result.status).toBe(502)
+      expect(result.message).not.toMatch(/service temporarily unavailable/i)
+    })
+
+    it("leaves other signals on the generic error path", () => {
+      const result = classifyError("Claude Code process terminated by signal SIGABRT")
+      expect(result.status).toBe(500)
+    })
+
     it("detects exit code with specific number", () => {
-      const result = classifyError("exited with code 137")
+      const result = classifyError("exited with code 2")
       expect(result.status).toBe(502)
       expect(result.type).toBe("api_error")
-      expect(result.message).toContain("137")
+      expect(result.message).toContain("2")
     })
 
     it("detects 'process exited' keyword", () => {
@@ -1032,6 +1073,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
   it.each([
     ["bare banner", "You're out of usage credits"],
     ["nested SDK wrappers", "Error: API Error: You’re out of usage credits! /model to switch models."],
+    ["usage-credits link tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue."],
+    ["plain switch tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model to continue."],
   ])("maps the canonical usage-credit %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -1046,6 +1089,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["unfinished quotation", "Claude Code returned an error result: You're out of usage credits is a test string"],
     ["punctuated documentation suffix", "Error: You're out of usage credits. This is only a documentation example, account healthy."],
     ["punctuated MCP suffix", "Claude Code returned an error result: You're out of usage credits. (quoted by an MCP error, not account state)"],
+    ["non-claude.ai link tail", "Claude Code returned an error result: You're out of usage credits. Switch to another model, or manage usage credits at https://example.com/usage, to continue."],
+    ["switch tail with documentation suffix", "Error: You're out of usage credits. Switch to another model to continue. This is only a documentation example."],
   ])("does not classify usage-credit %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).not.toBe("rate_limit_error")
   })
@@ -1094,8 +1139,15 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     // exact shape, classified api_error, and failed nothing over while three
     // other profiles in the pool had Fable window left.
     ["prose switch suffix", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model to continue."],
+    ["usage settings URL suffix", "api_error: Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc-cli-limit-message, to continue."],
     ["prose switch suffix, bare banner", "You've reached your Fable 5 limit. Switch to another model to continue."],
     ["prose switch suffix without the trailing clause", "You've reached your Opus limit. Switch to another model."],
+    // Claude Code 2.1.322 splices a usage-credits link into the prose suffix
+    // when credits can be bought. Observed on a Max pool: every Fable turn of
+    // the affected profile returned 500 api_error and the client retried it on
+    // the same profile while others still had Fable window left.
+    ["prose switch suffix with a usage-credits link", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."],
+    ["prose switch suffix with the admin usage-credits link", "You've reached your Opus 4.6 limit. Switch to another model, or manage usage credits at https://claude.ai/admin-settings/usage, to continue."],
     // An API-key or gateway profile gets the upstream status spliced in ahead of
     // the banner. Found by driving the real failover path: the classifier said
     // rate_limit_error for the bare string while the live request still 500'd,
@@ -1108,6 +1160,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
     expect(r.status).toBe(429)
+    expect(r.message.toLowerCase()).toContain("usage limit")
+    expect(r.message.toLowerCase()).not.toContain("wait a moment")
   })
 
   it.each([
@@ -1128,6 +1182,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     // The prose suffix is enumerated, not a licence for any tail: a sentence
     // that merely starts like it must still fall through.
     ["prose switch suffix continuing into documentation", "You've reached your Fable 5 limit. Switch to another model to continue, the docs say, but the account is healthy"],
+    ["usage-credits link that is not claude.ai", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://example.com/usage, to continue."],
+    ["usage-credits link continuing into documentation", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage, to continue, the docs say"],
+    ["usage URL suffix continuing into documentation", "You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc-cli-limit-message, to continue. This is a documentation example"],
     // The status allowance is exactly three digits immediately before the
     // banner, so neither a longer number nor an arbitrary numeric preamble
     // opens the line up.

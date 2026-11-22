@@ -20,7 +20,8 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   (`profileFactsRefresh.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
   hashing), `priority` (fail-over pool) and `active+priority`, plus
-  follow-another-instance mode (`followActive.ts`);
+  follow-another-instance mode (`followActive.ts`, with its usage figures in
+  `followUsage.ts`);
 - per-profile rate-limit and exhaustion tracking (`rateLimitStore.ts`,
   `limitDetection.ts`) and human-turn attestation verification for priority
   failback (`priorityAttestation.ts`).
@@ -35,6 +36,11 @@ Own the operator's **Claude accounts** and decide which one serves a request:
 - Rate-limit facts are **keyed per profile**, and `profileId` is a required
   argument, so no call site can read one account's window for another. A
   profile switch clears nothing; `/auth/refresh` clears only its own profile.
+  The one fact scoped wider is a priority exhaustion mark from a quota
+  refusal, which also lands on the profiles verified at that moment to hold
+  the same account (see *A quota refusal speaks for every profile signed in
+  to that account*); the windows, spent records and usage snapshots behind it
+  stay per profile.
 - The `x-meridian-profile` pin always wins over any routing mode.
 - Claude profiles never hold ChatGPT credentials (those live in
   [`chatgpt-backend`](chatgpt/SPEC.md)); routing never crosses providers.
@@ -65,6 +71,19 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   key, so a collision merely shares an account. Subagents use their root
   session and stay on the parent's account. Assignments are an LRU (cap 5000);
   keyed routes are additionally durable in SQLite bookkeeping.
+- **A restart keeps a running conversation on its account.** The LRU lives in
+  process memory, so after a restart an unattested session (Pi, Oh My Pi,
+  OpenCode without its plugin) has no assignment. The account holding the most
+  recently used mapping (`<profile>:<session>`) of the conversation's root or
+  of the request's own key stands in for it; otherwise the conversation would
+  start on the head of the order and replay its whole history there, though
+  its prompt cache is warm on the old account. The root counts because a
+  subagent keyed apart has no mapping on its first request, and its dispatch
+  would assign the head of the order to the whole conversation. The stand-in
+  only retains, like the lost assignment: a benched or removed account still
+  falls through to the order, and it never grants promotion authority. A store
+  read error answers 503, like the durable route lookups beside it, rather
+  than guessing an account.
 - **Keyless forks share the parent's account on purpose.** This deliberately
   diverges from the session-resume guard, which forces keyless `fork-` /
   `subagent-` requests to replay fresh: a *session* collision would
@@ -92,6 +111,25 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at
   full utilization, is not awaited, and is skipped for non-`claude-max` and
   billing refusals.
+- **A per-model weekly refusal benches only that model.** When Anthropic
+  names a per-model weekly bucket (`seven_day_opus`, `seven_day_sonnet`,
+  `seven_day_fable`) for a refused request of that same model family, pool
+  routing skips the profile only for requests of that family (the tier
+  `mapModelToClaudeModel` sends the request to; Mythos is fable), until that
+  bucket's named reset, else its own exhausted window, capped like `seven_day`,
+  else the 10-minute default. Other models keep using the profile. An inferred
+  (`cached_usage`) bucket, an unknown one, or one naming another family keeps
+  the profile-wide bench: a wrong per-model guess would keep sending every
+  other request into an account that refuses them all. A confirmed reset that
+  clears the bucket lifts its model bench. `/profiles/list` (pool modes) and
+  `/profiles/health` list these as `exhaustedModels`
+  (`{id, modelFamily, until, reason}`); `exhausted` keeps profile-wide marks
+  only. The `spent` record (`/v1/usage/quota/all`, `/profiles/list`,
+  `/profiles/health`) keeps its fields and adds `modelFamily`
+  (`"opus" | "sonnet" | "fable" | null`): non-null exactly when this refusal
+  took the per-model path, so the profile is benched for that family alone.
+  `diagnosis.bucket` cannot say that on its own, because a rejected SDK event
+  from an earlier refusal can name a bucket this refusal was not benched for.
 - **Account identity is Meridian's own record, re-read per credential.**
   `GET /api/oauth/profile` supplies the organization name, account and
   organization UUIDs and email; they are kept in `organizations.json` beside
@@ -108,15 +146,32 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   `claude auth status` and contributes nothing to duplicate detection, so a
   profile re-logged into another account with `claude login` is never flagged
   from its previous account's record.
-- **Duplicate detection is informational only.** `duplicateOf` /
+- **Duplicate badges are informational.** `duplicateOf` /
   `duplicateBasis` on `/profiles/list` name profiles holding one account: a
   Claude account is account UUID **and** organization UUID (email **and**
   organization name only while the UUIDs are unknown); a ChatGPT seat is its
   seat id, or the same email in the same workspace; email alone never matches,
   and providers never match each other. Nothing is removed, renamed or
-  excluded, and routing, cooldowns and failover treat every profile as its own
-  account. Cooling down detected twins on a quota refusal was split out of
-  #1446 to be proposed separately.
+  excluded because of a badge.
+- **A quota refusal speaks for every profile signed in to that account.**
+  Profiles holding one Claude account hold one quota, so under pool routing a
+  quota refusal on one marks every other such profile exhausted until the same
+  reset (and the OAuth-usage refinement extends them with it), and the
+  request's remaining candidates skip them instead of spending an attempt each
+  to hear the same answer. The proof is stricter than the badge's: the account
+  UUID **and** organization UUID only, never email and organization name, and
+  only from records read for the access token each profile stores at the
+  moment of the refusal, the refused profile's own included
+  (`organizationRecordCurrent`). A profile re-logged into another account with
+  `claude login` still carries its previous account's record until the
+  background re-read lands, and benching it on that record would park a
+  healthy account until someone else's reset. Credentials are read only for
+  profiles whose saved record already names the refused account, so a fleet
+  without twins pays no read. A failed lookup benches no one beyond the
+  refused profile. Billing and other refusals stay per profile: only a quota
+  refusal carries a reset that is the account's own.
+  A per-model weekly refusal benches each such profile for that model family
+  only, the same way it benches the refused profile.
 - **A finished sign-in reports its re-read.** Every completed sign-in marks the
   profile `factsRefresh: updating` before the route answers, re-reads account,
   usage and auth status, then clears it or reports `failed` with the reason for
@@ -172,6 +227,13 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   type `oauth-token` / `not_oauth` instead of reading the host's on-disk OAuth
   account under its id, and `/v1/usage/quota` returns `oauth: null` for any
   non-`claude-max` target.
+- **A follower reads usage from the instance it follows.** Under
+  `MERIDIAN_FOLLOW_ACTIVE`, unforced usage reads serve the followed
+  instance's `/v1/usage/quota/all` figures (matched by profile id, polled every
+  two minutes, marked `stale` after five, withdrawn after ten) and make no
+  Anthropic call. Forced reads, and profiles the followed instance could not
+  read, use this instance's own credentials; a forced read newer than the
+  followed copy is not replaced by it.
 - **OAuth usage request identity.** Usage, identity and reset requests send
   `User-Agent: claude-cli/<version> (external, cli)`, where `<version>` is the
   `@anthropic-ai/claude-code` package installed with Meridian
@@ -185,14 +247,41 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   per-profile snapshot cache, and it only adds the `cedar_ember` block —
   windows and `extraUsage` parse identically with or without it. The identity
   and reset requests carry no query flags.
+- **Extra Usage amounts are served in major units.** The usage endpoint's
+  `extra_usage.monthly_limit` / `used_credits` are minor units (cents):
+  claude.ai's admin API reports the same member's limit as
+  `{amount_minor: 500, exponent: 2}` where this endpoint says `500`.
+  `extraUsage.monthlyLimit` / `usedCredits` are divided by
+  `10^decimal_places` (2 when absent) and carry that as `exponent`, whose
+  presence tells a consumer the amounts are dollars; a followed instance or
+  service without it still serves cents and is converted. Used may exceed the
+  limit (a turn that starts under it can finish past it), and Anthropic clamps
+  `utilization` at 100, so displays take the share from the amounts and show
+  the overshoot.
 - **Grant-selection fields are passed through, not computed.** `bankedResets`
   exposes the provider's `nextGrantId` (null unless it names a listed grant)
   and `ineligibleReason`, and per grant `startsAt`, `paused` and `usableNow`;
   malformed values become `null`. Meridian never picks a grant itself.
 
+### Banked reset scope
+
+- `kind: "full"` means the provider lists `seven_day` in `clears`. For example, `full-reset-2611` has `type: "weekly"` and clears `seven_day` and `seven_day_overage_included`. A Team grant with `type: "full"` also counts as full if it clears `seven_day`; the raw type does not determine scope.
+- `kind: "fable"` identifies the known Fable launch grants (`launch-2610-fable`, `launch-2610-fable-6mo`, `launch-2610-fable-12mo`) when `clears` contains `seven_day_overage_included` and no other window except optional `five_hour`, and `gives_back_weekly` is not explicitly false. Personal grants have been observed clearing only the former; Team grants clear both. The observed grants have `type: "full"` and `gives_back_weekly: true`. Order and repeated window IDs do not affect classification or change the reported `clears`. Other grant IDs do not become Fable grants just because they share these windows and flags.
+- If `clears` is absent or null, those exact IDs are a fallback when `gives_back_weekly` does not contradict the known scope. An explicit empty or different list, or an unreadable list, does not trigger that fallback. If no rule identifies the scope, `kind` is `"unknown"` and the provider's ID, type and label remain available.
+- `providerType`, `clears`, `givesBackWeekly`, `description` and `percentUsed` preserve the corresponding readable provider metadata. `description` is the provider's `label`, not a scope rule. `percentUsed` keeps finite numeric values from 0 through 100 inclusive, including `seven_day_overage_included` and unfamiliar window IDs, without rescaling or coercing them. These fields describe the inventory only; 0% does not override the provider's `usableNow` flag.
+
 ## Known limitations
 
 - Exhaustion and cooldown state is in memory; a restart forgets it.
+- A twin benched by a shared-quota refusal and then signed in to another
+  account with `claude login` stays benched until that reset, exactly as the
+  refused profile itself would; a Meridian sign-in or `/auth/refresh` clears
+  it.
+- A twin whose access token was renewed after its account was last read is not
+  recognized until that record is read again, which happens when something
+  polls `/profiles/list` (any open Meridian page does). On an instance with no
+  page open, the busy twin has usually renewed, so the request still tries it
+  once and hears the same refusal, as it did before.
 - **No failover after content streams.** A rate limit arriving after the first
   real SSE frame is relayed to the client instead of failing over —
   deliberately, so a stream the client is consuming is never yanked.

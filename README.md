@@ -49,8 +49,9 @@ setup, or [deployment](docs/deployment.md) for Docker and Nix.
 ## Try Antigravity
 
 **Antigravity is included in Meridian 1.74.0 and later as a preview.**
-The verified setup uses **agy 1.2.7**, **Pi 0.72.1** or **OpenCode V1 1.18.31**,
-and macOS on Apple Silicon. Other versions need their own verification.
+The verified setup uses **agy 1.5.13** with **Pi 1.3.0** (Linux x64), and
+**agy 1.2.7** with **Pi 0.72.1** or **OpenCode V1 1.18.31** (macOS arm64).
+Other versions need their own verification.
 
 Install Node.js 22+ and the
 [official Antigravity CLI](https://antigravity.google/). Run `agy` to sign in with

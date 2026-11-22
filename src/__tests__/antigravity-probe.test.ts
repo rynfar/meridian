@@ -37,7 +37,7 @@ function fixture(mode = 'once', settings?: Record<string, unknown>) {
 const root = process.env.AG_PROBE_ROOT, mode = process.env.AG_PROBE_MODE;
 const log = path.join(root, 'calls');
 fs.appendFileSync(log, JSON.stringify({args:process.argv.slice(2),pid:process.pid})+'\\n');
-if(process.argv[2] === '--version') { console.log(mode === 'version' ? 'unsupported' : '1.2.7'); }
+if(process.argv[2] === '--version') { console.log(mode === 'version' ? 'unsupported' : '1.5.13'); }
 else {
  const counter=path.join(root,'count'); const count=fs.existsSync(counter)?Number(fs.readFileSync(counter,'utf8')):0;
  fs.writeFileSync(counter,String(count+1));
@@ -53,7 +53,8 @@ else {
      try {process.kill(old,0);process.exit(43);} catch(e) {if(e.code !== 'ESRCH') throw e;}
    }
    const settings=process.env.AG_PROBE_SETTINGS ? JSON.parse(process.env.AG_PROBE_SETTINGS) : {customModelsConfig:{},modelProvider:mode === 'provider' ? 'api' : '',useG1Credits:mode === 'paid'};
-   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({command:{data:{config:settings}}}));
+   const tsv=Object.entries(settings).map(([k,v])=>k+'\\t'+(v===null||v===undefined?'':typeof v==='object'?(Object.keys(v).length?JSON.stringify(v):''):String(v))).join('\\n');
+   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({conversation_id:'',status:'SUCCESS',response:tsv}));
  }
 }
 `, { mode: 0o755 })
@@ -227,13 +228,13 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
       expect(runtime.runs.size).toBe(0)
     } finally { await runtime.close() }
   })
-  it('accepts the observed 1.2.7 default settings shape with explicit false credits', async () => {
+  it('accepts the observed 1.5.13 default settings shape with explicit false credits', async () => {
     const f = fixture('success', { customModelsConfig: null, modelProvider: '', useG1Credits: false, gcp: null })
     const runtime = new AntigravityRuntime({ executable: f.executable })
     Object.assign(runtime.childEnv, f.env)
     try {
       expect(await runtime.availableModels()).toEqual(['gemini-test'])
-      expect(runtime.cliVersion).toBe('1.2.7')
+      expect(runtime.cliVersion).toBe('1.5.13')
       expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p', 'models'])
       expect(runtime.runs.size).toBe(0)
     } finally { await runtime.close() }

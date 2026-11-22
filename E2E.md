@@ -1,3 +1,15 @@
+## Signal-stopped Claude Code requests
+
+After building unchanged main and the candidate separately, run
+`scripts/e2e-signal-exit.mjs` with the explicit paths and private read-only
+credential source documented in [the signal-exit evidence](docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+It drives the actual Pi provider, Meridian CLI, SDK and live Haiku 5.5 on Linux,
+without starting a Pi session. Require the baseline streamed signal exit to be
+non-retryable, the candidate's to be retryable, and the candidate's normal drain
+to finish admitted work while refusing new turns with 503. This qualifies the
+provider/error policy, not Pi's outer automatic retry loop or interactive UI.
+Review all state-root isolation before starting; never target a managed service.
+
 ## Pi extension (#1408)
 
 Three harnesses use the actual Pi CLI with the extension that
@@ -92,6 +104,81 @@ A live `next-user-turn` promotion remains unqualified: it needs the priority
 account to run out. The promotion path is covered by
 `src/__tests__/priority-routing-integration.test.ts`.
 
+## Recovered passthrough streaming outcome logs
+
+`node scripts/e2e-passthrough-handoff-logging.mjs` compares an unchanged build
+with the candidate through the actual installed Pi AI provider, SDK and native
+Claude Code. It makes two real Haiku requests, each declaring exactly one
+non-deferred client tool; it does not start a Pi session. Set the explicit
+build/provider/executable/credential/scratch parameters and complete the
+pre-start isolation proof described in
+[the evidence record](docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
+Require identical client-visible tool handoffs (`tool_use`, no SSE error),
+baseline `upstream.failed` plus `proxy.anthropic.error`, and candidate only
+`upstream.completed` with `sdkTermination=max_turns` and `recovery=tool_use`.
+The HTTP integration tests additionally cover uncaptured handoffs, truncation,
+empty turns, process-exit stderr, rate-limit refusals and publication conflicts.
+
+## Oh My Pi regrouped user messages
+
+`node scripts/e2e-lineage-regroup-omp.mjs --omp=<omp> --agent-dir=<dir>
+--log=<meridian log> [--model=opus] [--expect=resume|replay]` drives the real
+omp client against a running Meridian (a built tree on a spare port with its
+own `MERIDIAN_CONFIG_DIR` and `MERIDIAN_SESSION_DIR`, output teed to `--log`).
+`--agent-dir` is a scratch `PI_CODING_AGENT_DIR` whose `models.yml` points the
+anthropic provider at that port with `x-meridian-agent: pi`. It inserts a
+reminder-only user message into the scratch session file before the second
+turn and removes it before the third, as omp's idle rebuild and a restart did
+on 2026-11-07, then asserts the third turn resumes. `--expect=replay` asserts
+the pre-fix fresh replay for a before run.
+
+Recorded 2026-11-07 on Linux x64, Node 24.22.2, omp 18.18.0, Claude Code
+2.1.316, `opus` on the owner's Claude subscription: upstream main `cafdcf78`
+replayed the third turn (`lineage=new diverged=modified-history`, prefix
+overlap 2/4, cache_write 7k), the fix resumed it (`lineage=continuation`,
+`Regrouped user messages … 1 run, stored 4 -> incoming 3; resuming.`,
+cache_read 16k, cache_write 46).
+
+## Oh My Pi side calls
+
+`node scripts/e2e-omp-side-call.mjs --omp=<omp> --agent-dir=<dir>
+--log=<meridian log> [--model=opus] [--expect=fork|auxiliary|turn]` drives the
+real omp client against a running Meridian set up as for the regrouped-messages
+harness above. A scratch hook runs one side call through omp's own
+`runEphemeralTurn` (the path of its idle recap and composer predictions) after
+the first turn, then `omp -c` sends the second turn. With `fork` (the default)
+it asserts the side call is served as `lineage=continuation … auxiliary=fork`,
+reads more cache than it writes, and that the second turn resumes the same
+session the side call forked. `auxiliary` asserts a fresh-replay side call,
+`turn` the behaviour without side-call support (the side call resumes the
+conversation as a turn).
+
+Recorded 2026-11-16 on Linux x64, Node 24.22.3, omp 18.20.3, Claude Code
+2.1.316, `opus`: the side call read 15k and wrote 125 cache tokens (2k as a
+fresh replay before); the second turn started while the side call was still
+answering and resumed the first turn's session (`lineage=continuation`, read
+15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
+
+## Priority affinity across a restart
+
+`node scripts/e2e-priority-restart.mjs --omp=<omp> --profiles=<A>,<B>
+[--cli=dist/cli.js] [--port=3791] [--model=opus] [--expect=retain|move]
+[--profiles-json=<file>]` starts a built Meridian itself (`npm run build`
+first) on a free port with its own config and session dirs, read-only
+credentials, none of the operator's `MERIDIAN_*` variables, and the profile
+list from `~/.config/meridian/profiles.json` (two non-default profiles). Under
+priority order A,B the real omp client sends the first turn; the harness
+restarts Meridian with the order reversed and `omp -c` sends the second.
+`retain` (the default) asserts the second turn stays on A and resumes the
+session (`lineage=continuation`, no refused resume); `move` asserts the
+behaviour before the fix (on B, `diverged=not-found`).
+
+Recorded 2026-11-20 on Linux x64, Node 24.22.3, omp 19.0.1, Claude Code
+2.1.322, `opus`: on main the second turn moved to the other account and
+replayed; with the fix it stayed and read 16k, wrote 72 cache tokens.
+[Evidence](docs/maintenance/evidence/priority-restart-affinity-20261120/README.md).
+
 ## Claude Code's own tool search in passthrough (#1478)
 
 `node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
@@ -166,6 +253,9 @@ independently installed package's exported function for the package arm.
 Run `node scripts/e2e-antigravity-idle-conversation.mjs <server.js> <pi-integration.js> <pi-cli.js> <official-agy> <new-report.json> <label>`
 against unchanged main and candidate builds. The gate pins the verified official
 agy1.2.7 macOS ARM64 binary hash and uses actual Pi1.1.0/Gemini3.8FlashLow.
+That pin predates the 1.5.x compatibility gates: until this gate is re-verified
+on macOS with agy 1.5.13 (new binary hash), it cannot run against a current
+build, which refuses 1.2.7.
 It validates the real provider-specific Pi retry integration against a local
 fixture before allowing generation, and retains its request-ID check at native
 admission. The independently installed arm uses the packaged
@@ -178,6 +268,21 @@ the idle deadline. Native readiness checks must not be inserted into the timed
 pause. CLI self-updates are disabled, paid-credit/provider guards remain active,
 and original child/pipe closure and final executable identity are required.
 See [before/after receipts, retained timing failure and limits](docs/maintenance/evidence/1341-idle-window-20261012.md).
+
+## Passthrough history is never compacted by the CLI
+
+Build unchanged main and the candidate separately, then run
+`scripts/e2e-passthrough-autocompact-opencode.mjs` once per arm with
+`E2E_MERIDIAN_ROOT` naming that arm's checkout: `E2E_EXPECT=sdk-compacts` on
+main, `E2E_EXPECT=client-compacts` on the candidate. It installs each arm's V1
+client plugin with `setup --v1`, requires the OpenCode scrub as the only server
+plugin, and grows one passthrough conversation on Haiku 4.5 (declared as a 200k
+window with a 1024-token output cap) until it passes the window. Main must
+show the resumed context collapse while OpenCode never compacted; the candidate
+must keep growing, return prompt-too-long, and continue after OpenCode's own
+compaction. The account comes from a private `E2E_LIVE_PROFILE_FILE` under
+`MERIDIAN_CREDENTIALS_READONLY=1`. See
+[the evidence](docs/maintenance/evidence/passthrough-autocompact-20261118.md).
 
 # End-to-End Testing
 
@@ -758,6 +863,35 @@ nothing. Found: an off request stamps `.last-cleanup`, so the first opted-in
 cleanup can wait up to a day (documented in configuration.md); a child that
 lives under about 5 s never cleans up.
 
+### Idle transcript sweep
+
+```sh
+bun scripts/e2e-transcript-sweep.mjs
+```
+
+Needs no credentials, network or model. It starts a real Meridian server
+(`startProxyServer`) in disposable directories with retention at 30 days, a
+3-second sweep interval and two profiles signed in with synthetic logins, and
+lets the idle sweep run the installed Claude Code CLI. Profile `idle` holds 200
+transcripts 40 days old, one 40-day-old transcript the session store maps (with
+a sidecar file) and a fresh one. Profile `stuck` gets a stand-in CLI that
+ignores SIGTERM and leaves a grandchild holding its output pipe for 20 s;
+`close()` runs while it lives. Asserts: the real CLI's cleanup ran, deleted
+the 200 and kept the mapped and the fresh transcripts, left the login file
+byte-identical, and had exited before the sweep moved on; `close()` did not
+succeed while the stuck process lived (past the shutdown deadline it rejects
+with ownership retained); the SDK permit stayed held until that process was
+joined.
+
+**Verified 2026-11-15** (Linux, Claude Code 2.1.322, Bun 1.4.4, at load ~100):
+PASS. The real CLI cleaned in one process; 2 transcripts left; the mapped
+transcript's mtime refreshed; `close()` rejected at 2 s with ownership
+retained; process gone and permit freed together at 19 s. The same harness
+against the earlier idle sweep proposed with #1261: the mapped transcript and
+its sidecar were deleted, the CLI was still alive when the sweep moved on,
+`close()` resolved at 0 s with the stuck process alive, and the permit was free
+at 0 s while the process lived until 19 s.
+
 ## Antigravity subscription CLI backend
 
 ```sh
@@ -773,10 +907,12 @@ It never uses a Gemini API key or the Python SDK.
 For an owned official CLI pin, set `AGY_CLI_DISABLE_AUTO_UPDATE=true` and verify
 its executable hash and version before/after the flow. The CLI can otherwise
 replace itself after an initial version check. Run
-`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.2.7 /owned/empty-project /owned/settings-proof.json`
+`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.5.13 /owned/empty-project /owned/settings-proof.json`
 to capture only whitelisted effective setting types/flags with per-command
-binary identity checks. The tested 1.2.7 account exposes boolean
-`useG1Credits: false`; missing or malformed credits are not verified disabled.
+binary identity checks. The tested 1.5.5 and 1.5.13 accounts print effective settings as a
+TSV block (`response`) with a `useG1Credits\tfalse` row; missing or malformed
+credits are not verified disabled. (agy 1.2.7 printed a typed
+`command.data.config` object instead.)
 The live runner uses an owned fixture service key, or the explicitly supplied
 key for `E2E_MERIDIAN_URL`. See the
 [sanitized settings proof](docs/maintenance/evidence/1073-subscription-settings.md).
@@ -805,6 +941,26 @@ owned subprocesses. The CLI's own account conversation/project records persist.
 HTTP requests for the read/write loop, copied the random client-only file
 exactly, and returned its value. The CLI version was unchanged across the run;
 server and subprocess shutdown completed successfully.
+
+**Verified 2026-11-12 (agy 1.5.5 gate move):** Linux x64, Node 24.17.0, official
+`agy` 1.5.5, `gemini-3.8-flash-low`, Pi 1.5.2. All four live checks passed
+(live text, HTTP client tool receipt, completed history replay, actual Pi
+streaming read/write rounds with exact file copy). The CLI version was
+unchanged across the run. The same session verified the ported 1.5.5
+subscription-configuration probe (TSV `response` envelope) through
+`e2e-antigravity-account-settings.mjs` (`TSV_EFFECTIVE_SETTINGS_OBSERVED`,
+binary hash stable before/after).
+
+**Verified 2026-11-22 (agy 1.5.13 gate move):** Linux x64 (WSL2), Node 22.15.1,
+official `agy` 1.5.13, `gemini-3.8-flash-low`, Pi 1.3.0. Unchanged main refused
+the CLI before any model process (`Unsupported agy version 1.5.13`); the
+candidate passed all four live checks, with Pi making three HTTP requests for
+the read/write loop. The CLI version was unchanged across the run. The 1.5.13
+`/config` envelope keeps the 1.5.5 TSV `response` shape (more rows, same
+`customModelsConfig`, `modelProvider`, `gcp` and `useG1Credits` keys);
+`e2e-antigravity-account-settings.mjs` returned
+`TSV_EFFECTIVE_SETTINGS_OBSERVED` with `useG1Credits` `false` and no model
+commands.
 
 The extended native gate runs the actual macOS app with disposable app data and
 an app-managed combined service:
@@ -906,6 +1062,17 @@ for the OpenCode effort probe.
 | `meridian-agy-pi-kqrZWn` | All 11 checks passed over 22 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, ls/find/grep, steering, compaction and abort/recovery. |
 | `meridian-agy-opencode-qyKT50` | All 9 checks passed over 18 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, glob/grep/task and native high effort. |
 | `meridian-agy-opencode-session-kolHLi` | Actual OpenCode server passed undo/continuation, saved compaction/recall, and cancellation/next-prompt recovery. |
+
+**Verified 2026-11-12 (agy 1.5.5 gate move):** Linux x64, Node 24.17.0, agy
+1.5.5, Pi 1.5.2, `gemini-3.8-flash-low`. `E2E_CLIENT=pi` passed all 11 checks
+over 21 HTTP requests (coding loop, tool-error recovery, exact edits, Unicode
+paths/output, streaming, saved continuation/fork, ls/find/grep, steering,
+compaction, abort/recovery). The OpenCode variants were not re-run on Linux and
+keep their macOS agy 1.2.7 evidence until re-verified.
+
+**Verified 2026-11-22 (agy 1.5.13 gate move):** Linux x64 (WSL2), Node 22.15.1,
+agy 1.5.13, Pi 1.3.0, `gemini-3.8-flash-low`. `E2E_CLIENT=pi` passed all 11
+checks over 21 HTTP requests. The OpenCode variants were again not re-run.
 
 Pi steering must advance exactly one completed agy process and leave no pending
 process; the obsolete write must not exist. Regression tests separately cover
@@ -1016,6 +1183,9 @@ bun scripts/e2e-antigravity-active-history.mjs
 ```
 
 Use Bun 1.4.3, Pi 1.1.0 and the official agy 1.2.7 Darwin arm64 binary.
+This gate is frozen to agy 1.2.7 (version and binary-hash asserts); like the
+idle-conversation gate it needs a macOS 1.5.13 refresh before it can run
+against a current build, which pins 1.5.13.
 The gate requires the default subscription with paid credits/custom providers disabled,
 imports the retained public long-history fixture, and requires one exact write
 and a correlated read after joined backend replacement. The newest request,
@@ -1807,6 +1977,9 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 | E79 | [Stopped turn: discarded output resumes, kept output replays](#e79-stopped-turn-discarded-output-resumes-kept-output-replays) | **Automated**: `bun scripts/e2e-client-abort-resume.mjs --fixture [--case=all]` (model-free: real built server under Node, real Claude Code child, scripted upstream; `--case=all` adds real Pi 1.4.0 and OpenCode 2.2.0 with their Meridian integrations) and `E2E_ALLOW_LIVE_MODEL=1 bun scripts/e2e-client-abort-resume.mjs --live`. A client stops a streamed turn after text arrives; the next turn must resume the kept session when the client discards the partial and replay with the partial when it keeps it, including a strict client that waited out the stop. **Run before releases touching client cancellation, interrupted-turn marking or lineage resume** | 2026-11-02 |
+| E80 | [Claude Code in-process teammate session isolation](#e80-claude-code-in-process-teammate-session-isolation) | **Automated, needs the `claude` CLI and `tmux`**: `bun scripts/e2e-claude-code-teammate-session.mjs` — real proxy + SDK, the REAL interactive Claude Code CLI (agent teams on) spawning two named teammates. Asserts the teammates' `name@team` agent ids each get their own session key, every teammate and parent turn after the first resumes, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys or Claude Code detection** | 2026-11-10 |
+| E81 | [Abandoned turn lock after a failed release](#e81-abandoned-turn-lock-after-a-failed-release) | **Automated, needs the `claude` CLI, non-root**: `bash scripts/e2e-abandoned-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Makes the turn-lock directory read-only while turn 1 streams so the lock release fails, restores it, then asserts turn 2 continues the conversation promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-13 |
+| E82 | [Torn turn lock after a host crash](#e82-torn-turn-lock-after-a-host-crash) | **Automated, needs the `claude` CLI, Linux**: `bash scripts/e2e-torn-turn-lock.sh` — real proxy + SDK, the REAL Claude Code CLI and model. Leaves the conversation's turn lock as a host crash left it (an `owner.json` of NUL bytes, dated before the current boot) between turn 1 and turn 2, then asserts turn 2 continues promptly and no lock is left. **Run before releases touching the cross-process turn coordinator** | 2026-11-15 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -7325,6 +7498,96 @@ Pass criteria (deterministic; model wording is never asserted):
 `summary.json` keeps lineage lines, telemetry counters, request shapes and
 booleans only.
 
+## E80: Claude Code in-process teammate session isolation
+
+**What it proves:** named agents of a Claude Code agent team (in-process
+teammates, the `Agent` tool with a `name`) no longer break the parent
+conversation's session resume, and each teammate resumes its own. Companion
+of E72.
+
+A teammate sends its parent's `metadata.user_id` session id like an Agent-tool
+subagent, but its `x-claude-code-agent-id` is `<name>@<team>` (for example
+`alpha@session-2dfad12f`), not an opaque token. The adapter rejected that shape
+and keyed the teammate by the bare session id, so parent and teammates
+overwrote one another's mapping: every turn logged `unrelated-history`, replayed
+the whole history without the prompt cache, and queued on one turn lease. In a
+real session (Claude Code 2.1.322, ten teammates beside a ~200k-token parent)
+every parent turn for three hours read only the ~25k system/tools prefix from
+cache, waited 30–330s on the lease, and teammates failed with "Session turn
+exceeded its maximum hold time". The agent id pattern now also accepts one
+`@` between two token parts.
+
+```bash
+bun scripts/e2e-claude-code-teammate-session.mjs
+```
+
+Teammates exist only in the interactive REPL (`-p` runs a named agent as a
+plain subagent even with agent teams on), so the gate drives the client under
+tmux on a private socket (`tmux -L`), with onboarding and workspace trust
+pre-seeded in an isolated `CLAUDE_CONFIG_DIR` and
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. Otherwise it is E72's setup: a
+recording relay ties each proxy line to the agent id it carried, and the
+pass criteria are E72's plus "at least two agent ids of the `name@team` shape
+made requests", so a run without teammates fails.
+
+**Before/after (2026-11-10, Linux x86_64, Bun 1.4.4, Claude Code 2.1.322,
+`sonnet`).** Baseline `upstream/main` (1.89.0): FAIL, 4 checks. Teammates
+`alpha@…` and `beta@…` made four requests each; all 12 non-first requests
+logged `lineage=new diverged=unrelated-history`, session-lease waits 0.7–3.6s.
+Branch: PASS. 6 of 6 later teammate turns and 5 of 5 later parent requests
+logged `lineage=continuation`, no collision, longest lease wait 2ms.
+Maintainer rerun (2026-11-13, Linux x86_64, Claude Code 2.1.323, `sonnet`):
+PASS. Teammates `alpha@…` and `beta@…` made four requests each; 6 of 6 later
+teammate turns and 5 of 5 later parent requests resumed, no collision across
+15 requests, longest lease wait 5ms.
+
+## E81: Abandoned turn lock after a failed release
+
+**What it proves:** a conversation whose cross-process turn lock failed to
+release (#1525: `ENOSPC` renaming the lock away on a full disk) no longer
+wedges. The proxy reclaims a lock stamped with its own incarnation whose lease
+it already ended, and keeps retrying the cleanup in the background.
+
+```bash
+bash scripts/e2e-abandoned-turn-lock.sh   # E2E_MODEL, CLAUDE_BIN, E2E_PORT, TURN2_LIMIT optional
+```
+
+Filling a real disk needs root, so the harness stages the same failure with a
+read-only `turn-locks` directory: the release's rename out of it fails with
+`EACCES` through the same path as `ENOSPC`. Write access is restored before
+turn 2, as freeing space would.
+
+**Before/after (2026-11-13, Linux x86_64 WSL2, Claude Code 2.1.323, `sonnet`).**
+Baseline `main` (`663311e`): FAIL. The release failed, turn 2 (`claude -p
+--continue`) queued behind the lock until its 120s client timeout and the lock
+remained. Branch: PASS. Turn 2 continued the conversation in 3s
+(`lineage=continuation`, session wait 25–62ms) and the lock was gone.
+
+## E82: Torn turn lock after a host crash
+
+**What it proves:** a conversation whose cross-process turn lock a host crash
+tore no longer wedges. After a crash on 2026-09-29 one conversation's lock was
+left with an `owner.json` of 338 NUL bytes, and every later turn of it waited
+out the acquire timeout and failed (38 times in 3 hours) until the directory
+was deleted by hand. The proxy now reclaims an ownerless lock whose last
+activity predates the current boot.
+
+```bash
+bash scripts/e2e-torn-turn-lock.sh   # E2E_MODEL, CLAUDE_BIN, E2E_PORT, TURN2_LIMIT, E2E_REPO optional
+```
+
+A host crash cannot be staged on demand, so the harness stages what it leaves:
+turn 1 runs and its lock's name is recorded, the proxy stops, and the lock is
+recreated with an all-NUL `owner.json` and every mtime an hour before the
+current boot (read from `/proc/uptime`). The proxy starts again and turn 2
+(`claude -p --continue`) follows.
+
+**Before/after (2026-11-15, Linux x86_64, Claude Code 2.1.322, `haiku`).**
+Baseline `main` (`3a48b0d`, same coordinator as 1.91.0): FAIL. Turn 2 hung until
+its 120s client timeout and the lock remained. Branch: PASS. The proxy logged
+the reclaim, turn 2 continued the conversation in 8s (`lineage=continuation`)
+and no lock was left.
+
 ## Concurrent transcript publication
 
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
@@ -8854,8 +9117,9 @@ See [the corrected before/after proof and limits](docs/maintenance/evidence/clau
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`
-with actual OpenCode 1.18.30, official agy 1.2.7 and
-`gemini-3.8-flash-high`. Two real stdio MCP servers must advertise 129 or 256
+with actual OpenCode 1.18.30, official agy 1.5.13 and
+`gemini-3.8-flash-high` (the gate was not re-run for the 1.5.5 or 1.5.13 gate moves; its
+macOS agy 1.2.7 run remains the recorded evidence). Two real stdio MCP servers must advertise 129 or 256
 fixture tools to the client. Require the complete client catalog, a tail tool
 beyond index 127, exactly one target invocation, a tool-only random receipt in
 actual frontend output and the returned client tool result in the next request.
@@ -9175,6 +9439,22 @@ tool result holding a fresh nonce: the follow-up must resume the same SDK
 session at its checkpoint and return the nonce. `--expect-digest` inverts the
 deferred count for a build without the fix. Unchanged `main` before #1370 made
 three model requests per deferred hand-off. Costs a few cents of real tokens.
+
+## ToolSearch under the client prefix
+
+`bun scripts/e2e-prefixed-toolsearch.mjs [--stream]` drives the real SDK and
+CLI through `startProxyServer` with an `api` profile pointed at a local fixture,
+so no subscription or model is involved. The request defers one tool. The
+fixture model first calls the search tool under the client prefix
+(`mcp__oc__ToolSearch`), as a live Haiku 5.5 did through Pi; after the CLI
+refuses that name it calls the real `ToolSearch`, then the loaded tool.
+
+It asserts that the client receives exactly the loaded tool's call with
+`stop_reason: "tool_use"` and no `ToolSearch` call under any name, and that the
+model reached the real search and the tool inside one client round. Before the
+fix the client received a `ToolSearch` call that it never declared. Run it
+before any release touching the passthrough tool filters, the early-stop
+tracker, or deferred-tool registration.
 
 ## Antigravity prompt byte budget (#1382)
 

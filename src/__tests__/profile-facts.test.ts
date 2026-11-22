@@ -230,7 +230,9 @@ describe("a ChatGPT seat's card", () => {
     const trace = { ...burning, mix: [{ model: "gpt-6.1-sol", share: 0.9999 }, { model: "gpt-6-luna", share: 0.0001 }] }
     expect(codexCreditsView(credits, { servingOnCredits: true, creditsBurn: trace })?.pace?.title).toContain("100% gpt-6.1-sol / <1% gpt-6-luna")
     expect(codexCreditsView(credits, { creditsPolicy: "reserve", creditsBurn: burning })?.pace?.text)
-      .toBe("starts after every seat\u2019s plan limits; would last ~1h34m at current pace")
+      .toBe("after all seats\u2019 plan limits; lasts ~1h34m at current pace")
+    expect(codexCreditsView(credits, { creditsPolicy: "immediately", creditsBurn: burning })?.pace?.text)
+      .toBe("after plan limits; lasts ~1h34m at current pace")
     expect(codexCreditsView(credits, { creditsPolicy: "never", creditsBurn: burning })?.pace?.text)
       .toBe("not spent (policy never); would last ~1h34m at current pace")
     expect(codexCreditsView(credits, { servingOnCredits: true, creditsBurn: { ...burning, approximate: ["promo"] } })?.pace?.text)
@@ -240,6 +242,30 @@ describe("a ChatGPT seat's card", () => {
       .toMatchObject({ text: "no estimate", title: expect.stringContaining("gpt-9") })
     expect(codexCreditsView({ ...credits, unlimited: true, balance: null }, { creditsBurn: burning })?.pace?.text).toBe("unlimited")
     expect(codexCreditsView(credits, {})?.pace).toBeNull()
+  })
+
+  test("states how a seat Meridian renews is renewed, and its latest renewal", () => {
+    const owned = { ...owner, name: "meridian", mode: "owned", webSignIn: true }
+    expect(valueOf(seat({ owner: owned }), "Renewal")).toBe("on the token’s 8th day")
+    expect(valueOf(seat({ owner: owned, renewalHours: 24 }), "Renewal")).toBe("every 24h")
+    expect(labels(seat({ owner: owned }))).not.toContain("Last renewal")
+
+    const at = Date.now() - 2 * HOUR
+    const renewals = [
+      { at: at - DAY, outcome: "kept", expiresAt: at + 9 * DAY },
+      { at, outcome: "refused", cause: "refresh token already used" },
+    ]
+    const last = profileFacts(seat({ owner: owned, renewals })).find(f => f.label === "Last renewal")!
+    expect(last.value).toBe("refused (refresh token already used), 2h ago")
+    expect(last.tone).toBe("warn")
+    expect(last.title).toContain("2 renewals recorded; before it: ")
+    expect(last.title).toContain("renewed, same refresh token")
+    expect(valueOf(seat({ owner: owned, renewals: [{ at, outcome: "rotated", expiresAt: at + 10 * DAY }] }), "Last renewal"))
+      .toBe("renewed, new refresh token, 2h ago")
+  })
+
+  test("states no renewal for a seat whose login another tool owns", () => {
+    expect(labels(seat({ renewalHours: null, renewals: [] }))).not.toContain("Renewal")
   })
 
   test("explains a missing reading and names who is refusing", () => {

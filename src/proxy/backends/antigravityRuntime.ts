@@ -545,14 +545,18 @@ export class AntigravityRuntime {
     const options = { env: this.childEnv, signal: this.shutdown.signal }
     this.cliVersion = (await readAgProbe(this.executable, "version", options)).trim()
     // Validate the binary before asking it to inspect subscription configuration.
-    if (this.cliVersion !== "1.2.7") throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy 1.2.7. Validate a CLI upgrade before updating the compatibility gate.`)
+    if (this.cliVersion !== "1.5.13") throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy 1.5.13. Validate a CLI upgrade before updating the compatibility gate.`)
     const config = await readAgProbe(this.executable, "configuration", options)
-    // The verified 1.2.7 effective settings expose an explicit boolean here.
-    // Missing or malformed credits are indeterminate, not verified disabled.
-    const settings = z.object({ command: z.object({ data: z.object({ config: z.object({ customModelsConfig: z.unknown().optional(), modelProvider: z.unknown().optional(), useG1Credits: z.boolean(), gcp: z.unknown().optional() }) }) }) }).parse(JSON.parse(config)).command.data.config
-    const customModels = settings.customModelsConfig
-    if (customModels && (typeof customModels !== "object" || Object.keys(customModels).length > 0)) throw new Error("Antigravity custom model providers must be disabled for subscription-only access")
-    if (settings.modelProvider || settings.useG1Credits || settings.gcp) throw new Error("Antigravity requires default account authentication with paid overage credits disabled; configure agy first")
+    // agy 1.5.5 and 1.5.13 print the effective settings as a TSV block inside `response`,
+    // replacing 1.2.7's command.data.config envelope. An explicit `false` credits
+    // row is required: a missing or malformed row is indeterminate, not verified disabled.
+    const envelope = z.object({ status: z.string(), response: z.string() }).parse(JSON.parse(config))
+    if (envelope.status !== "SUCCESS") throw new Error(`Antigravity subscription configuration check returned status "${envelope.status}"; configure agy first`)
+    const settings = new Map(envelope.response.split("\n").filter(line => line.includes("\t")).map(line => [line.slice(0, line.indexOf("\t")), line.slice(line.indexOf("\t") + 1)] as const))
+    const setting = (key: string): string | undefined => settings.get(key)
+    const customModels = setting("customModelsConfig")?.trim() ?? ""
+    if (customModels && customModels !== "{}") throw new Error("Antigravity custom model providers must be disabled for subscription-only access")
+    if (setting("modelProvider")?.trim() || setting("gcp")?.trim() || setting("useG1Credits") !== "false") throw new Error("Antigravity requires default account authentication with paid overage credits disabled; configure agy first")
   }
   async availableModels(): Promise<string[]> {
     if (Date.now() - this.checkedAt < 60_000) return this.models

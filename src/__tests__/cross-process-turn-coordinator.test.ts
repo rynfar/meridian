@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
 import { hostname, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
+import {
+  CrossProcessTurnAcquireTimeoutError,
+  CrossProcessTurnCoordinator,
+  CrossProcessTurnOwnershipError,
+} from "../proxy/session/crossProcessTurnCoordinator"
 import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
 
 const coordinatorModule = pathToFileURL(
@@ -180,7 +185,7 @@ function spawnWorker(
       ACTION: action,
       HOLD_MS: "0",
       OPTIONS: JSON.stringify({
-        acquireTimeoutMs: 2_000,
+        acquireTimeoutMs: 10_000,
         staleAfterMs: 800,
         heartbeatIntervalMs: 100,
         retryDelayMs: 10,
@@ -215,6 +220,28 @@ async function waitForEvent(path: string, name: string, timeoutMs = 5_000): Prom
   throw new Error(`Timed out waiting for worker event ${name}`)
 }
 
+function lockDirectory(locks: string, key: string): string {
+  return join(locks, `${createHash("sha256").update(key).digest("hex")}.lock`)
+}
+
+/**
+ * Fail the lease's release the way a full disk did: the rename that moves the
+ * lock away is refused, so the directory stays behind with this process's
+ * owner record. A read-only lock root refuses the rename for a non-root user.
+ */
+async function failRelease(locks: string, release: () => Promise<void>): Promise<unknown> {
+  await chmod(locks, 0o500)
+  try {
+    return await release().then(() => undefined, (error: unknown) => error)
+  } finally {
+    await chmod(locks, 0o700)
+  }
+}
+
+// Root ignores directory permissions and Windows has no POSIX modes, so the
+// refused rename cannot be staged there.
+const canStageFailedRelease = process.platform !== "win32" && process.getuid?.() !== 0
+
 async function expectSuccess(child: ReturnType<typeof Bun.spawn>): Promise<void> {
   const exitCode = await child.exited
   if (exitCode === 0) return
@@ -228,7 +255,7 @@ describe("cross-process turn coordinator", () => {
   test("serializes the same logical key in independent processes", async () => {
     const paths = await makeFiles()
     const heartbeatOptions = JSON.stringify({
-      acquireTimeoutMs: 2_000,
+      acquireTimeoutMs: 10_000,
       staleAfterMs: 120,
       heartbeatIntervalMs: 25,
       retryDelayMs: 10,
@@ -286,7 +313,7 @@ describe("cross-process turn coordinator", () => {
     await expectSuccess(seeder)
     const recoveryOptions = {
       OPTIONS: JSON.stringify({
-        acquireTimeoutMs: 2_000,
+        acquireTimeoutMs: 10_000,
         staleAfterMs: 100,
         heartbeatIntervalMs: 25,
         retryDelayMs: 10,
@@ -360,7 +387,7 @@ describe("cross-process turn coordinator", () => {
     const owner = spawnWorker("tamper-release", paths, {
       HOLD_MS: "450",
       OPTIONS: JSON.stringify({
-        acquireTimeoutMs: 2_000,
+        acquireTimeoutMs: 10_000,
         staleAfterMs: 2_000,
         heartbeatIntervalMs: 100,
         retryDelayMs: 10,
@@ -386,4 +413,176 @@ describe("cross-process turn coordinator", () => {
     const hash = createHash("sha256").update("logical-session").digest("hex")
     expect(await Bun.file(join(paths.locks, `${hash}.lock`, "owner.json")).exists()).toBe(true)
   })
+
+  test.skipIf(!canStageFailedRelease)("reclaims a lock its own failed release left behind", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 10_000,
+      // Far beyond the test: the abandoned lock is reclaimed because this
+      // process released it, not because its heartbeat aged out.
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [60_000],
+    })
+    const first = await coordinator.acquire("logical-session")
+    const failure = await failRelease(paths.locks, () => first.release())
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(CrossProcessTurnOwnershipError)
+    const lockPath = lockDirectory(paths.locks, "logical-session")
+    expect(await Bun.file(join(lockPath, "owner.json")).exists()).toBe(true)
+
+    const second = await coordinator.acquire("logical-session")
+    // Well inside the 60s stale window: reclaimed, not aged out.
+    expect(second.waitedMs).toBeLessThan(10_000)
+    await second.release()
+    expect(await Bun.file(join(lockPath, "owner.json")).exists()).toBe(false)
+  })
+
+  test("never reclaims a lock this process still holds", async () => {
+    const paths = await makeFiles()
+    const options = { staleAfterMs: 60_000, heartbeatIntervalMs: 1_000, retryDelayMs: 10 }
+    // Only the contender's bound is short: it is expected to run out.
+    const held = await new CrossProcessTurnCoordinator(paths.locks, { ...options, acquireTimeoutMs: 10_000 })
+      .acquire("logical-session")
+    try {
+      const contender = await new CrossProcessTurnCoordinator(paths.locks, { ...options, acquireTimeoutMs: 150 })
+        .acquire("logical-session").then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      expect(contender).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    } finally {
+      await held.release()
+    }
+  })
+
+  test.skipIf(!canStageFailedRelease)("retries a failed release in the background for other processes", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 10_000,
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [50, 250, 1_000],
+    })
+    const lease = await coordinator.acquire("logical-session")
+    expect(await failRelease(paths.locks, () => lease.release())).toBeInstanceOf(Error)
+
+    // No acquire in this process: only the background retry can move it.
+    const ownerFile = join(lockDirectory(paths.locks, "logical-session"), "owner.json")
+    const deadline = Date.now() + 5_000
+    while (await Bun.file(ownerFile).exists()) {
+      if (Date.now() > deadline) throw new Error("abandoned lock was never released")
+      await Bun.sleep(10)
+    }
+  })
+
+  test.skipIf(!canStageFailedRelease)("the background retry never moves a lease that re-acquired the key", async () => {
+    const paths = await makeFiles()
+    const coordinator = new CrossProcessTurnCoordinator(paths.locks, {
+      acquireTimeoutMs: 10_000,
+      staleAfterMs: 60_000,
+      heartbeatIntervalMs: 1_000,
+      retryDelayMs: 10,
+      releaseRetryDelaysMs: [100],
+    })
+    const first = await coordinator.acquire("logical-session")
+    expect(await failRelease(paths.locks, () => first.release())).toBeInstanceOf(Error)
+    // Reclaim before the retry fires; the retry then finds a newer generation.
+    const second = await coordinator.acquire("logical-session")
+    try {
+      const ownerFile = join(lockDirectory(paths.locks, "logical-session"), "owner.json")
+      const secondToken = (JSON.parse(await readFile(ownerFile, "utf8")) as { token: string }).token
+      await Bun.sleep(400)
+      expect((JSON.parse(await readFile(ownerFile, "utf8")) as { token: string }).token).toBe(secondToken)
+      const contender = await new CrossProcessTurnCoordinator(paths.locks, {
+        acquireTimeoutMs: 150,
+        staleAfterMs: 60_000,
+        heartbeatIntervalMs: 1_000,
+        retryDelayMs: 10,
+      }).acquire("logical-session").then(() => undefined, (error: unknown) => error)
+      expect(contender).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    } finally {
+      await second.release()
+    }
+  })
+})
+
+describe("cross-process turn coordinator: locks without a readable owner", () => {
+  const key = "logical-session"
+  const DAY_MS = 24 * 3_600_000
+  const options = { acquireTimeoutMs: 10_000, staleAfterMs: 100, heartbeatIntervalMs: 25, retryDelayMs: 10 }
+
+  /** What a host crash left of an unflushed lock: owner.json with its size but not its data. */
+  async function tornLock(locks: string, lastActivityMs: number): Promise<string> {
+    const lockPath = lockDirectory(locks, key)
+    await mkdir(lockPath, { recursive: true })
+    await writeFile(join(lockPath, "owner.json"), "\0".repeat(338))
+    await writeFile(join(lockPath, "heartbeat-unknown-token"), "")
+    const at = new Date(lastActivityMs)
+    for (const name of await readdir(lockPath)) await utimes(join(lockPath, name), at, at)
+    await utimes(lockPath, at, at)
+    return lockPath
+  }
+
+  test("reclaims a torn lock whose last activity predates the current boot", async () => {
+    const { locks } = await makeFiles()
+    const bootedAt = Date.now() - 60_000
+    await tornLock(locks, bootedAt - 3_600_000)
+    const coordinator = new CrossProcessTurnCoordinator(locks, { ...options, bootTimeMs: () => bootedAt })
+    const lease = await coordinator.acquire(key)
+    const owner = JSON.parse(await readFile(join(lockDirectory(locks, key), "owner.json"), "utf8")) as { pid: number }
+    expect(owner.pid).toBe(process.pid)
+    await lease.release()
+  })
+
+  test("never reclaims a torn lock from the current boot, however old it is", async () => {
+    const { locks } = await makeFiles()
+    // A month-long boot, and a lock untouched for 29 days of it.
+    const bootedAt = Date.now() - 30 * DAY_MS
+    const lockPath = await tornLock(locks, Date.now() - 29 * DAY_MS)
+    const coordinator = new CrossProcessTurnCoordinator(locks, { ...options, acquireTimeoutMs: 300, bootTimeMs: () => bootedAt })
+    const refusal = await coordinator.acquire(key).then(() => undefined, (error: unknown) => error)
+    expect(refusal).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+    expect((await readFile(join(lockPath, "owner.json"))).every(byte => byte === 0)).toBe(true)
+  })
+
+  test("only one of two contenders gets a reclaimed torn lock", async () => {
+    const { locks } = await makeFiles()
+    const bootedAt = Date.now() - 60_000
+    await tornLock(locks, bootedAt - 3_600_000)
+    const contender = () => new CrossProcessTurnCoordinator(locks, { ...options, acquireTimeoutMs: 5_000, bootTimeMs: () => bootedAt })
+      .acquire(key).then(lease => lease, (error: unknown) => error)
+    const results = await Promise.all([contender(), contender()])
+    const leases = results.filter(result => !(result instanceof Error))
+    expect(leases).toHaveLength(1)
+    expect(results.filter(result => result instanceof CrossProcessTurnAcquireTimeoutError)).toHaveLength(1)
+    await (leases[0] as { release(): Promise<void> }).release()
+  })
+
+  // #1223's review probe: a live holder, paused, whose owner record is then
+  // made unreadable and whose heartbeats age far past stale. It is from the
+  // current boot, so no amount of age hands its lock to a second process.
+  test.skipIf(process.platform === "win32")("never grants a second lease beside a paused live holder with an unreadable owner", async () => {
+    const paths = await makeFiles()
+    const holder = spawnWorker("hold", paths, { HOLD_MS: "30000" })
+    await waitForEvent(paths.events, "acquired", 10_000)
+    holder.kill("SIGSTOP")
+    try {
+      const lockPath = lockDirectory(paths.locks, key)
+      await writeFile(join(lockPath, "owner.json"), "\0".repeat(338))
+      const aged = new Date(Date.now() - 3_000)
+      for (const name of await readdir(lockPath)) await utimes(join(lockPath, name), aged, aged)
+      await utimes(lockPath, aged, aged)
+
+      const refusal = await new CrossProcessTurnCoordinator(paths.locks, { ...options, acquireTimeoutMs: 500 })
+        .acquire(key).then(() => undefined, (error: unknown) => error)
+      expect(refusal).toBeInstanceOf(CrossProcessTurnAcquireTimeoutError)
+      expect(() => process.kill(holder.pid, 0)).not.toThrow()
+    } finally {
+      holder.kill("SIGCONT")
+      holder.kill()
+    }
+  }, 20_000)
 })

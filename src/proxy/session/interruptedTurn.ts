@@ -150,6 +150,11 @@ export function interruptCandidateOf(input: {
   if (input.sideRequest || input.priorityPublication) return undefined
   const lineage = input.lineage
   if (lineage.type !== "continuation" || lineage.resumeContentFrom !== undefined) return undefined
+  // A realigned session's count and proof are in incoming positions, which
+  // the durable mapping the marking keeps does not hold (session spec,
+  // *Regrouped user messages*): a stopped regrouped turn evicts, as main's
+  // fresh replay of the same turn would.
+  if (lineage.regrouped) return undefined
   const session = lineage.session
   if (!input.isResume || input.resumeSessionId !== session.claudeSessionId) return undefined
   if (!session.lineageHash || lineage.resumeFrom !== session.messageCount) return undefined

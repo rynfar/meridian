@@ -139,12 +139,44 @@ at its provider, so card CSS never names one.
 
 - **Every card:** a brand stripe on its left edge and a brand badge naming
   the provider.
-- **Active:** brand border + 1px brand ring, brand dot and brand Active pill.
-  There is one per provider.
-- **Switchable on hover:** `-bright` border with a faint brand fill.
+- **Active:** brand border + 1px brand ring and brand dot. There is one per
+  provider. On `/` a 12px brand strip across its top edge reads "ACTIVE" and
+  is its only Active label; `/profiles` has no strip and shows an active badge.
+- **Switchable on hover:** `-bright` border with a faint brand fill. On `/`
+  the same 12px strip, in `-bright`, reads "CLICK TO ACTIVATE" while the card
+  is hovered or focused.
+- **Strip text:** `--on-brand` (black), which clears 4.5:1 on every brand and
+  its `-bright` tint; white does not on either brand.
 - **Spent or failing:** shown by dimming and the existing badges. The active
-  border is never recoloured or faded, and the active card's name row, with
-  its Active pill and spent badge, never dims. Only its figures do.
+  border is never recoloured or faded, and the active card's Active strip and
+  name row, with its spent badge, never dim. Only its figures do.
+- **Refused:** an "out of <window>" badge in the name row. Its explanation
+  (who is refusing, the reset, when it was refused, why, and that the figures
+  are the last good read) is the badge's tooltip on hover or keyboard focus,
+  hung across the card over the figures; the card does not carry it
+  permanently.
+- **Free resets:** a Claude account with banked resets shows one line per
+  kind, because each clears something different: "Full reset" (the whole
+  week), "Fable reset" (only Fable usage) and "Unrecognised reset" (the
+  provider's own label, quoted, as a readout only). Each shows its count in
+  green while one of that kind can be redeemed and in `--muted` otherwise,
+  beside the reason or how many are usable, and that kind's soonest expiry. A
+  Fable reset with no Fable usage to give back stays visible, muted, and says
+  so. On `/` each kind is a "resets" row under the usage figures, labelled
+  "full reset", "Fable reset" or "other reset", and never redeems. On
+  `/profiles` each kind is a block below them; a kind that can be redeemed
+  carries its own small blue "Redeem full reset" / "Redeem Fable reset"
+  button. The confirmation names the kind, the grant and only that kind's
+  effect, adding "It also clears the 5-hour window." only when that grant's
+  provider scope lists it, and the outcome is shown in that kind's block.
+  - Brief (`/profiles` blocks): primary action is the redeem button of a kind
+    that can be redeemed; priorities are the kind's name, its count, then
+    why it is or is not offered. Left out on purpose: a combined total, a
+    redeem for unrecognised or muted kinds, and any fallback to another kind.
+  - Expected rendering for a whole-week grant and three Fable launch grants
+    with 0% Fable used: "Full reset 1 · all usable now · expires in 24d
+    [Redeem full reset]", then a muted "Fable reset 3 · no Fable usage to
+    give back right now · next expires in 12d" with no button.
 - **Needs a login:** a red border, the same for every provider, and a
   needs-login badge. An active card keeps its brand ring outside the red.
 - **Controls stay blue:** buttons, links, focus rings, drag handles and drop
@@ -230,14 +262,15 @@ account card on the home page (or the Profiles page). The header chip only
   Active account card: its provider's brand border + 1px brand ring.
   Clickable cards get `cursor: pointer` and a hover border (the brighter
   provider brand on an account card), plus a hover-revealed uppercase hint
-  (e.g. “Click to activate”).
+  (on an account card, the brand strip reading “Click to activate”).
 - **Stats strip:** one flex row of cells separated by 1px `--border`
   dividers inside a single card — label (micro-label), value (20px/700),
   optional muted detail line. Use instead of a grid of chunky cards.
 - **Pills:** radius 10–20px, tinted fill + tinted border of the same hue
   (e.g. the update chip: blue text on `rgba(88,166,255,0.12)` with
-  `rgba(88,166,255,0.35)` border; an account's Active pill does the same in
-  its provider's brand). Status badges: green/muted/red variants.
+  `rgba(88,166,255,0.35)` border). Badges in a row carry no margin: the
+  row's flex gap alone spaces the name from the first badge and each badge
+  from the next. Status badges: green/muted/red variants.
 - **Usage bar:** 6–8px track in `--surface2`, radius 3–4px, fill colored
   by the utilization thresholds; percentage readout matches the fill color.
 - **Buttons:** `--surface2` fill, accent text + accent border; hover =

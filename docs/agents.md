@@ -225,6 +225,7 @@ Add a provider to `~/.config/crush/crush.json`:
       "base_url": "http://127.0.0.1:3456",
       "api_key": "dummy",
       "models": [
+        { "id": "claude-fable-5-2",  "name": "Claude Fable 5.2 (1M)",   "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
         { "id": "claude-fable-5-1",  "name": "Claude Fable 5.1 (1M)",   "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
         { "id": "claude-fable-5",    "name": "Claude Fable 5 (1M)",     "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
         { "id": "claude-opus-5",     "name": "Claude Opus 5 (1M)",      "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
@@ -253,6 +254,7 @@ Add Meridian as a custom model provider in `~/.factory/settings.json`:
 ```json
 {
   "customModels": [
+    { "model": "claude-fable-5-2",        "name": "Fable 5.2 (Meridian)",  "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-fable-5-1",        "name": "Fable 5.1 (Meridian)",  "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-fable-5",          "name": "Fable 5 (Meridian)",    "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-opus-5",           "name": "Opus 5 (Meridian)",     "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
@@ -584,6 +586,21 @@ request merely because another caller committed while it waited. Normal
 upstream errors and cancellation still apply. The mapping follows the last
 completed caller: if that is a side call, the next main turn may also need a
 fresh replay. Separate session identities avoid this extra replay cost.
+
+omp's side calls (idle recap, composer predictions, `/btw`, completion probes)
+are an exception that Meridian recognizes. They carry the conversation's session
+id in `metadata.user_id` and their own id, `<session>:side:<id>`, in
+`X-Claude-Code-Session-Id`. The Pi adapter treats a request with a side id of
+its own session key as an auxiliary request, and leaves the conversation's
+mapping alone, so the next main turn still continues the conversation. The key
+may extend the header's session id after `~`, as an omp extension that rotates
+accounts does (`<session>~<suffix>`). omp runs a side call on the
+conversation's own system prompt and tools, so one that only adds user text
+after a completed turn resumes the conversation's SDK session as a fork that is
+never published (`lineage=continuation … auxiliary=fork`). It reads the
+conversation's prompt cache and writes only its own prompt. A side call over a
+pending tool call, or carrying a snapshot of a reply still in flight, is answered
+from a fresh replay (`diverged=independent-request:auxiliary-request`).
 
 Fresh side requests use their own tool declarations. Tool definitions omitted
 on a continuation can be inherited only from that same published SDK branch;

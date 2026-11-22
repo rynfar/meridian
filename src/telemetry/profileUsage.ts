@@ -78,35 +78,46 @@ export function formatResetCountdown(resetsAt: number | null | undefined, now: n
  * Format an extra-usage block. Returns null when the profile has no
  * extra-usage info worth showing (disabled or missing data) — caller
  * should hide the section entirely in that case.
+ *
+ * Amounts are major units (Meridian converts Anthropic's cents). The share is
+ * taken from the amounts rather than Anthropic's `utilization`, which stops at
+ * 100% while a turn that started under the limit can still finish past it;
+ * the block says by how much instead of showing a full bar and nothing more.
  */
 export interface ExtraUsageDisplay {
   used: string
   limit: string
+  /** How far spend went past the limit, or null when it is within it. */
+  over: string | null
+  /** Share of the limit spent; above 100 when spend went past it. */
   utilizationPct: number
   status: UsageStatus
 }
+
+/** "$5.39" for USD, "EUR 5.39" for another ISO code, else the given prefix. */
+export function formatExtraUsageAmount(amount: number, currency: string | null | undefined): string {
+  const code = currency || ""
+  const prefix = code === "USD" ? "$" : /^[A-Z]{3}$/.test(code) ? `${code} ` : code
+  return `${prefix}${amount.toFixed(2)}`
+}
+
 export function formatExtraUsage(eu: {
   isEnabled: boolean
   monthlyLimit: number
   usedCredits: number
-  utilization: number | null
   currency: string
 } | null | undefined): ExtraUsageDisplay | null {
   if (!eu || !eu.isEnabled) return null
   const monthlyLimit = Number.isFinite(eu.monthlyLimit) ? eu.monthlyLimit : 0
   if (monthlyLimit <= 0) return null
-  const used = Number.isFinite(eu.usedCredits) ? eu.usedCredits : 0
-  const utilization =
-    eu.utilization != null && Number.isFinite(eu.utilization)
-      ? Math.max(0, Math.min(1, eu.utilization))
-      : monthlyLimit > 0
-        ? Math.max(0, Math.min(1, used / monthlyLimit))
-        : 0
+  const used = Number.isFinite(eu.usedCredits) ? Math.max(0, eu.usedCredits) : 0
+  const share = used / monthlyLimit
   return {
-    used: `${eu.currency || ""}${used.toFixed(2)}`.trim(),
-    limit: `${eu.currency || ""}${monthlyLimit.toFixed(2)}`.trim(),
-    utilizationPct: Math.round(utilization * 100),
-    status: classifyUtilization(utilization),
+    used: formatExtraUsageAmount(used, eu.currency),
+    limit: formatExtraUsageAmount(monthlyLimit, eu.currency),
+    over: used > monthlyLimit ? formatExtraUsageAmount(used - monthlyLimit, eu.currency) : null,
+    utilizationPct: Math.round(share * 100),
+    status: classifyUtilization(share),
   }
 }
 

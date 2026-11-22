@@ -119,7 +119,7 @@ function renderCards(profiles: Array<Record<string, unknown>>, quota: Array<Reco
     meridianReorder: { sortProfiles: (list: unknown[]) => list, focusAnchor: none, envPinned: () => true,
       noteHtml: none, handleHtml: none, restoreFocus: none },
     esc: (value: unknown) => String(value), profileAnchorElementId: (id: string) => "profile-" + id,
-    renderSpentBadge: none, renderSpentNote: none, factRows: none, profileFacts: () => [],
+    renderSpentBadge: none, factRows: none, profileFacts: () => [],
     loginHrefFor: none, renderUsageSection: none, applyLoginHrefs: none, ensureLoginLinks: none,
     meridianPatch: { html: (target: { innerHTML: string }, markup: string) => { target.innerHTML = markup } },
     loginPanelOpen: () => false, lastProfilesRequestedAt: null, updatePollTimer: null,

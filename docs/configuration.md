@@ -24,6 +24,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_IDLE_TIMEOUT_SECONDS` | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
 | `MERIDIAN_IDLE_EXIT_SECONDS` | `CLAUDE_PROXY_IDLE_EXIT_SECONDS` | unset | Exit through graceful shutdown after this many seconds without a model request; intended for socket activation. `/health` polls do not reset the timer. |
 | `MERIDIAN_SHUTDOWN_GRACE_MS` | `CLAUDE_PROXY_SHUTDOWN_GRACE_MS` | `30000` | Milliseconds `close()` waits for in-flight `/v1/messages` requests to finish after it stops admitting new ones, before closing the port. See [Graceful shutdown](#graceful-shutdown). |
+| `MERIDIAN_SHUTDOWN_CLEANUP_DEADLINE_MS` | `CLAUDE_PROXY_SHUTDOWN_CLEANUP_DEADLINE_MS` | `10000` | Milliseconds `close()` waits, after the HTTP drain, for its cleanup (session GC sweep, backend close, ChatGPT release) before it fails and the CLI exits 1. Cleanup still running after 2 s is logged as `Shutdown cleanup still running after 2000ms (...)` with each step's time, and a missed deadline names the step that held it. |
 | `MERIDIAN_SESSION_TURN_MAX_HOLD_MS` | `CLAUDE_PROXY_SESSION_TURN_MAX_HOLD_MS` | `600000` | Hard ceiling on how long one turn may hold its session's serialization lease. On timeout the lease is force-released with a warning and queued turns for that session proceed concurrently. See [Concurrent requests to the same session](#concurrent-requests-to-the-same-session). |
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size, in rows. Pool routing writes one row **per account attempted**, so a request that failed over twice spends three. `/telemetry` reports what is actually held. |
 | `MERIDIAN_DIAGNOSTIC_LOG_SIZE` | `CLAUDE_PROXY_DIAGNOSTIC_LOG_SIZE` | `500` | Diagnostic log ring buffer size (the Logs tab and `GET /telemetry/logs`) |
@@ -53,7 +54,8 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
 | `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS` | — | `1` | Set to `0` to stop defaulting `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` in passthrough mode. Does not clear an explicitly inherited CLI setting. See [known limitations](#known-limitations). |
-| `MERIDIAN_CACHE_KEEPALIVE` | — | unset (off) | Set to `1` to keep idle one-hour-cache sessions warm with a few small cache-read requests; `0` forces it off. Wins over `cacheKeepalive` in `settings.json`. See [Prompt-cache keepalive](#prompt-cache-keepalive). |
+| `MERIDIAN_CACHE_KEEPALIVE` | — | unset (off) | Set to `1` to keep idle one-hour-cache sessions warm with a few small cache-read requests; `client` to beat only when a client asks; `0` forces it off. Wins over `cacheKeepalive` in `settings.json`. See [Prompt-cache keepalive](#prompt-cache-keepalive). |
+| `MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS` | — | `3` | Keepalive requests per idle session before its cache is allowed to expire, in automatic and client mode. At least `1`. |
 | `MERIDIAN_CACHE_KEEPALIVE_MAX_IN_FLIGHT` | — | `1` | Keepalive requests allowed to run at once across all sessions, clamped to `1`–`2`. |
 | `MERIDIAN_COMPACTION_SURVIVAL` | — | `0` | Set to `1` to resume the old SDK session after a client shortens its history head into a summary. By default Meridian replays the supplied summary in a fresh SDK session so the removed context is released. Equal-length pruning still resumes. |
 | `MERIDIAN_CONFIG_DIR` | — | `~/.config/meridian` | Meridian's own config directory. Moving it moves everything inside it — see [below](#relocating-the-config-directory). |
@@ -63,7 +65,8 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_TELEMETRY_PERSIST` | `CLAUDE_PROXY_TELEMETRY_PERSIST` | unset | Enable SQLite telemetry persistence. Data survives proxy restarts. |
 | `MERIDIAN_TELEMETRY_DB` | `CLAUDE_PROXY_TELEMETRY_DB` | `~/.config/meridian/telemetry.db` | SQLite database path (when persistence is enabled) |
 | `MERIDIAN_TELEMETRY_RETENTION_DAYS` | `CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS` | `7` | Days to retain telemetry data before cleanup |
-| `MERIDIAN_TRANSCRIPT_RETENTION_DAYS` | `CLAUDE_PROXY_TRANSCRIPT_RETENTION_DAYS` | unset (off) | **Opt-in.** `1`-`3650` turns on Claude Code's own cleanup in request processes, which deletes **all** of its files older than that many days in each profile's config directory, not only transcripts. `0` pins it off over a saved setting; any other value is ignored. Wins over `transcriptRetentionDays` in `settings.json` (or the `/settings` page). See [Transcript retention](#transcript-retention). |
+| `MERIDIAN_TRANSCRIPT_RETENTION_DAYS` | `CLAUDE_PROXY_TRANSCRIPT_RETENTION_DAYS` | unset (off) | **Opt-in.** `1`-`3650` turns on Claude Code's own cleanup in request processes and the idle sweep, which deletes **all** of its files older than that many days in each profile's config directory, not only transcripts. `0` pins it off over a saved setting; any other value is ignored. Wins over `transcriptRetentionDays` in `settings.json` (or the `/settings` page). See [Transcript retention](#transcript-retention). |
+| `MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS` | `CLAUDE_PROXY_TRANSCRIPT_SWEEP_INTERVAL_MS` | `10800000` (3 hours) | Only with transcript retention on. How often Meridian looks for profile config directories Claude Code has not cleaned for a day and runs its cleanup there in an idle process. `0` turns the idle sweep off. See [Transcript retention](#transcript-retention). |
 | `MERIDIAN_DEFAULT_PROFILE` | — | *(first profile)* | Default profile ID when no header is sent |
 | `MERIDIAN_ADAPTER_INSTANCES` | — | unset | JSON [adapter instance](agents.md#adapter-instances) definitions, overriding `~/.config/meridian/adapter-instances.json` |
 | `MERIDIAN_BETA_POLICY` | — | `allow-safe` | Client `anthropic-beta` header handling: `allow-safe`, `strip-all`, or `allow-all` |
@@ -77,6 +80,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_BUILD_SOURCE` | — | *(derived from the install path)* | Overrides the `build.source` reported by `/health`: `npm`, `local`, or `dev`. Normally set by [`bin/meridian-launchd.sh`](#running-as-a-service-without-drift), not by hand. |
 | `MERIDIAN_BUILD_SHA`, `MERIDIAN_BUILD_BRANCH`, `MERIDIAN_BUILD_DIRTY` | — | unset | Optional commit stamps surfaced in `/health` `build`. Absent unless something sets them at launch. |
 | `MERIDIAN_ERROR_REPORTING_DSN` | — | unset | GlitchTip/Sentry DSN to report Meridian's own crashes to; `errorReportingDsn` in `settings.json` is the alternative, and the environment wins. Off when neither is set. See [Error reporting](#error-reporting). |
+| `MERIDIAN_USAGE_CACHE_TTL_MS` | `CLAUDE_PROXY_USAGE_CACHE_TTL_MS` | `30000` | How long each Claude profile's usage reading from Anthropic's OAuth usage endpoint is reused before `/v1/usage/quota/all` and other readers ask again. Values below `30000` use `30000`, and values above `300000` use `300000`, so an expired or revoked login still shows within five minutes. While clients poll usage, this sets how often Meridian asks Anthropic per profile; raise it (for example to `150000`) when many polling clients keep the usage endpoint answering 429. |
 | `MERIDIAN_DEBUG` | `CLAUDE_PROXY_DEBUG` | unset | Set to `1` for verbose request/session logging |
 | `MERIDIAN_SILENT` | `CLAUDE_PROXY_SILENT` | unset | Set to `1` to suppress startup output (used by embedding plugins) |
 | `MERIDIAN_ENFORCE_MAX_TOKENS` | `CLAUDE_PROXY_ENFORCE_MAX_TOKENS` | unset | Set to `1` to apply the client output budget; see [output limits](#known-limitations). |
@@ -131,6 +135,16 @@ not a reconstruction of the model actually served.
 
 See Anthropic's [overview](https://platform.claude.com/docs/en/models/haiku-5-5/overview)
 and [migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide).
+
+### Fable 5.2
+
+Request `claude-fable-5-2` explicitly; the bare `fable` alias still defaults to
+`claude-fable-5-1`. Use Claude Code **2.1.322 or newer** (including when
+selecting a system/custom executable); older CLIs may not recognize the model and
+fall back to a 200k context window. Fable 5.2 has a native **1M context
+window** and always-on adaptive thinking controlled by effort, so `/v1/models`
+advertises it without disabled-thinking support. `claude-mythos-5-2` rides the
+same Fable tier and pricing ($8 / $40 per MTok, $0.20 cache reads).
 
 ### Read-only credentials
 
@@ -281,15 +295,30 @@ What it does and does not change:
 - **Following your own address is refused** at startup: the followed value
   could never change and local switching would be refused, freezing the active
   profile permanently.
+- **Usage figures come from the followed instance too**, polled every two
+  minutes from its `GET /v1/usage/quota/all` and matched by profile id.
+  Anthropic's usage endpoint is rate limited per account, and that budget is
+  shared by every process holding the account's credentials, so two instances
+  polling the same accounts compete for it and the loser reads `429` for all of
+  them. A follower therefore makes no usage call of its own while it has the
+  followed instance's figures. The cadence is far longer than the followed
+  instance's 30s usage cache, so following it does not drive it into the same
+  limit. A profile the followed instance could not read is skipped, and this
+  instance tries its own credentials for it. Figures not refreshed for five
+  minutes are marked `stale`; after ten they stop being served, and the local
+  path decides again. A forced read (an account just hit its limit, or was just
+  signed in) still asks Anthropic, because it needs the account's figures now.
+  Profiles are matched by id, so each id must name the same account on both
+  instances.
 
 The mode is announced at startup and surfaced on `/profiles/list` as a `follow`
 object (`url`, `activeProfile`, `followedValue`, `reason`, `stale`,
 `lastSyncedAt`, `lastError`), which the shared header chip renders on every
 page.
 
-Limitation: the poll sends no credentials, so a followed instance behind
-`MERIDIAN_API_KEY` will always fail the poll and the follower will fall back to
-its local active profile.
+Limitation: the polls send no credentials, so a followed instance behind
+`MERIDIAN_API_KEY` will always fail them and the follower will fall back to
+its local active profile and its own usage reads.
 
 ### Subprocess traffic
 
@@ -919,10 +948,15 @@ request.
 not limited to transcripts. In each profile's config directory it deletes,
 by modification time alone, everything of its kind older than the period:
 
-- transcripts, **including conversations Meridian still maps or pins** -
-  their next request finds no transcript to resume and Meridian replays the
-  history the client sent into a fresh session (flattened text trimmed to the
-  model's context window; SDK thinking is not restored);
+- transcripts of conversations Meridian no longer tracks. Before a cleanup can
+  run, Meridian gives every transcript it still maps or has a request pinned
+  to a current modification time, so those survive it (if that fails, the
+  request runs without a period that time). A cleanup started outside
+  Meridian, such as interactive Claude Code sharing `~/.claude`, does not see
+  that: an affected conversation's next request finds no transcript to resume
+  and Meridian replays the history the client sent into a fresh session
+  (flattened text trimmed to the model's context window; SDK thinking is not
+  restored);
 - file history, plans, tasks, uploads, shell snapshots, debug logs, backups,
   and Claude Code's other caches, jobs and logs.
 
@@ -944,16 +978,30 @@ interactive Claude Code.
   a request's process starts, at most once a day per config directory
   (`.last-cleanup` there records the last run). A short request's process often
   ends before the cleanup gets going (in testing, a process that lived under
-  about 5 s never cleaned up), and a profile that serves no requests is never
-  cleaned: Meridian runs no cleanup process of its own.
+  about 5 s never cleaned up), and a profile that serves no requests would
+  never be cleaned, so Meridian runs an idle sweep (below).
+- **Idle sweep.** Every three hours (`MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS`,
+  `0` turns it off), for each profile config directory not cleaned for a day,
+  Meridian starts one Claude Code process that is sent nothing, cannot reach
+  the network (every connection goes to a local proxy that refuses it), and is
+  stopped once its cleanup has run, at most 10 minutes. One directory at a
+  time, never one a request runs in (a request arriving there stops it), and
+  only when an SDK slot is free with another left for requests; the slot is
+  held until the process has exited. It skips a directory whose login is due
+  for renewal within 30 minutes, starts nothing under
+  `MERIDIAN_CREDENTIALS_READONLY`, and stops until restart, with a log line, if a
+  stored login changes during a run in a way no renewal explains. An instance
+  under `MERIDIAN_FOLLOW_ACTIVE` runs no idle sweep; the followed instance does. If a transcript Meridian still needs cannot be refreshed, it runs no
+  cleanup in that directory and logs why.
 - **The first cleanup can wait a day.** Claude Code stamps `.last-cleanup`
   even when retention is off and it skips the deletion, so after you turn
   retention on, a config directory that served a request in the previous
   24 hours deletes nothing until that stamp is a day old.
 - **Race with a resume:** a conversation idle for longer than the period whose
   resume is still loading its transcript while a concurrent cleanup deletes it
-  can lose its earlier SDK-side history without Meridian noticing. This only
-  happens with retention on.
+  can lose its earlier SDK-side history without Meridian noticing. Meridian's
+  own processes refresh mapped transcripts before cleaning up, so this needs a
+  cleanup started outside Meridian in the same directory, and retention on.
 
 **Off does not mean "keep everything".** With retention off Meridian passes no
 period and changes nothing about Claude Code's own behavior, which is exactly
@@ -1244,8 +1292,9 @@ When it is on:
 - About 55 minutes after the latest real turn, and 55 minutes after each
   keepalive, Meridian resumes the session's stored transcript exactly as the
   next turn would, adds a short prompt, and stops as soon as the response
-  starts. At most three keepalives per idle period (about three hours); after
-  that the cache is allowed to expire.
+  starts. At most three keepalives per idle period (about three hours;
+  `MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS` changes the number); after that the
+  cache is allowed to expire.
 - The next real turn on the session ends the idle period and starts a new one.
   Side calls that share the session key (Claude Code's classifier and title
   requests) do not.
@@ -1263,6 +1312,40 @@ When it is on:
   rate.
 - Shutdown and drain stop new keepalives, abort a running one and wait for its
   Claude Code process to exit, like any other request.
+
+#### Client-requested beats
+
+With `MERIDIAN_CACHE_KEEPALIVE=client` (or `"cacheKeepalive": "client"`),
+Meridian tracks the same sessions but never beats on its own. A client that
+knows whether its user is coming back asks for each beat instead. Only the
+operator can choose this mode; in any other mode the endpoint sends nothing
+and answers `disabled`.
+
+```
+POST /v1/sessions/<session key>/cache-beat
+```
+
+`<session key>` is the exact key the client sends with its turns
+(`x-session-affinity`, `x-opencode-session`, ...). The request answers once
+the beat has finished, as `{ "session": "...", "outcome": "..." }`:
+
+| Outcome | Meaning |
+|---|---|
+| `reached` | Upstream read the cached prefix; the cache lives another hour. |
+| `retry` | The beat could not run now (no free SDK slot, account blocked, transient error). |
+| `busy` | A real turn or another beat is running for the session. |
+| `stop` | The session cannot be kept warm (cache gone, five-minute tier, mapping moved), or it has used its keepalives for this idle period. |
+| `early` | The cache was read less than 20 minutes ago, or a failed beat is still backing off; nothing was sent. |
+| `expired` | The cache had already expired; nothing was sent. |
+| `untracked` | No eligible session under that key. |
+| `disabled` | The operator has not chosen client mode. |
+
+The client chooses when to beat, but not how often: the same per-period cap
+applies (`MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS`, three by default, reset by the
+next real turn), and a beat is refused within 20 minutes of the latest turn or
+beat. Every other rule above (subscription accounts only, never the last SDK
+slot, never an expired cache, never beside a real turn) still applies. A
+tracked session whose cache expires is forgotten as before.
 
 Keepalives appear in `/telemetry` with `requestSource: "cache-keepalive"`.
 They are left out of the request, error, cache-hit and cost figures and shown

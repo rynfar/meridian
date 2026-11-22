@@ -105,8 +105,20 @@ describe("Claude Code subagent session keys", () => {
     expect(first).not.toBe(second)
   })
 
+  it("keys an in-process teammate by its name@team agent id", () => {
+    expect(claudeCodeAdapter.getSessionId(withAgent("design-a@session-25a7d9d8"), body))
+      .toBe("parent-sid:agent:design-a@session-25a7d9d8")
+  })
+
+  it("gives parallel teammates of one team distinct keys", () => {
+    const first = claudeCodeAdapter.getSessionId(withAgent("design-a@session-25a7d9d8"), body)
+    const second = claudeCodeAdapter.getSessionId(withAgent("api@session-25a7d9d8"), body)
+    expect(first).not.toBe(second)
+    expect(first).not.toBe("parent-sid")
+  })
+
   it("ignores a malformed or oversized agent id", () => {
-    for (const agentId of ["", "has space", "a/b", "é", "x".repeat(129)]) {
+    for (const agentId of ["", "has space", "a/b", "é", "x".repeat(129), "@team", "name@", "a@b@c", "a:agent:b"]) {
       expect(claudeCodeAdapter.getSessionId(withAgent(agentId), body)).toBe("parent-sid")
     }
     expect(claudeCodeSessionKey("x".repeat(128), body)).toBe(`parent-sid:agent:${"x".repeat(128)}`)

@@ -104,8 +104,9 @@ export interface MeridianSettings {
   /** Keep idle one-hour-cache sessions warm with a few small cache-read
    *  requests (prompt-cache keepalive). Off unless switched on, because each
    *  one counts against the account's usage. MERIDIAN_CACHE_KEEPALIVE wins.
-   *  Re-read per turn and per scheduler tick. */
-  cacheKeepalive?: boolean
+   *  Re-read per turn and per scheduler tick. `"client"` tracks sessions but
+   *  beats only when a client asks (`POST /v1/sessions/:key/cache-beat`). */
+  cacheKeepalive?: boolean | "client"
   /** Name the machine Meridian runs on beside the site header's status, so
    *  several instances can be told apart at a glance. Off unless switched on,
    *  because it also publishes the hostname in the unauthenticated /health. */
@@ -152,6 +153,8 @@ export type ChatGptFeatureSettings = {
   seatCreditsPolicy?: Record<string, string>
   /** "before-credits" | "after-credits"; see ChatGptFreeSeatOrder. */
   freeSeatOrder?: string
+  /** Seat id (accountUserId) -> hours between renewals, overriding the default for that seat. */
+  seatRenewalHours?: Record<string, number>
 }
 
 /**

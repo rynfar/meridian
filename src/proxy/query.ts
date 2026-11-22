@@ -824,6 +824,8 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
         ...(passthrough && process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS !== "0"
           ? { CLAUDE_CODE_DISABLE_ATTACHMENTS: "1" }
           : {}),
+        // Passthrough clients own the history; see SPEC.md "No proxy-side compaction".
+        ...(passthrough ? { DISABLE_AUTO_COMPACT: "1" } : {}),
         // sharedMemory: the user wants the SDK to use Claude Code's default
         // config dir so memories sync. Counter-intuitively we DON'T set
         // CLAUDE_CONFIG_DIR=$HOME/.claude here — explicitly setting it (even

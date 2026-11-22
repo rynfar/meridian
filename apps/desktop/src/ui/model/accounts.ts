@@ -110,16 +110,22 @@ function planWord(profile: Record<string, unknown>): string {
   return text(profile.accountType) || text(profile.planLabel)
 }
 
+/** A service that predates `exponent` serves Anthropic's cents under the same names. */
+const LEGACY_EXTRA_USAGE_SCALE = 100
+
 function extraUsage(value: unknown): AccountView['extraUsage'] {
   const eu = object(value)
   if (eu.isEnabled === undefined) return null
   if (eu.isEnabled !== true) return { enabled: false, text: 'Extra Usage off · no paid overage', summary: 'Extra Usage off · no paid overage' }
   const currency = text(eu.currency) === 'USD' ? '$' : text(eu.currency) ? `${text(eu.currency)} ` : '$'
-  const limit = number(eu.monthlyLimit) ?? 0
-  const used = number(eu.usedCredits) ?? 0
+  const scale = number(eu.exponent) === undefined ? LEGACY_EXTRA_USAGE_SCALE : 1
+  const limit = (number(eu.monthlyLimit) ?? 0) / scale
+  const used = (number(eu.usedCredits) ?? 0) / scale
   if (limit <= 0) return { enabled: true, text: 'Extra Usage on · no monthly limit', summary: 'Extra Usage on · no monthly limit' }
-  const share = number(eu.utilization) ?? used / limit
-  return { enabled: true, text: `Extra Usage on · ${currency}${used.toFixed(2)} of ${currency}${limit.toFixed(2)} this month`, summary: `Extra Usage on · ${Math.round(share * 100)}% of the monthly limit used` }
+  // From the amounts: Anthropic's utilization stops at 100% when spend overshoots the limit.
+  const share = used / limit
+  const over = used > limit ? `, over by ${currency}${(used - limit).toFixed(2)}` : ''
+  return { enabled: true, text: `Extra Usage on · ${currency}${used.toFixed(2)} of ${currency}${limit.toFixed(2)} this month${over}`, summary: `Extra Usage on · ${Math.round(share * 100)}% of the monthly limit used` }
 }
 
 function limitWindows(raw: unknown, now: number, staleReading: boolean): LimitWindow[] {

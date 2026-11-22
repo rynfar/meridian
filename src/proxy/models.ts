@@ -105,7 +105,7 @@ export function resolveSdkModelDefaults(
  *
  * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
  * undefined and keep the canonical pins. Mythos rides the fable tier
- * (claude-mythos-5/-5-1 share it — see mapModelToClaudeModel). A trailing
+ * (claude-mythos-5/-5-1/-5-2 share it — see mapModelToClaudeModel). A trailing
  * [1m] suffix is stripped; extended context stays alias-level.
  */
 export function explicitModelPin(requestedModel: string): Record<string, string> | undefined {
@@ -244,6 +244,22 @@ function supports1mContext(model: string): boolean {
   return true
 }
 
+/** The SDK tier a requested model runs on, without the `[1m]` variant. */
+export type ClaudeModelFamily = "haiku" | "fable" | "opus" | "sonnet"
+
+/**
+ * Which tier `mapModelToClaudeModel` sends a requested model to. Kept as the
+ * mapper's own first step so a per-model routing bench names the tier the
+ * request actually runs on: anything unrecognized falls through to sonnet,
+ * and Mythos rides the fable tier.
+ */
+export function claudeModelFamily(model: string): ClaudeModelFamily {
+  if (model.includes("haiku")) return "haiku"
+  if (model.includes("fable") || model.includes("mythos")) return "fable"
+  if (model.includes("opus")) return "opus"
+  return "sonnet"
+}
+
 /**
  * `sessionKey` scopes the extended-context bench to one conversation. See
  * `recordExtendedContextRateLimited` — a rate limit on one session must not
@@ -252,7 +268,8 @@ function supports1mContext(model: string): boolean {
  * profile-wide bench.
  */
 export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null, profileId?: string, sessionKey?: string): ClaudeModel {
-  if (model.includes("haiku")) return "haiku"
+  const family = claudeModelFamily(model)
+  if (family === "haiku") return "haiku"
 
   const use1m = supports1mContext(model)
   // Subagents handle focused subtasks and don't benefit from 1M context.
@@ -264,11 +281,11 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // a fable[1m] request returns normally, no Extra Usage error). Mirrors the
   // opus handling: [1m] for primary agents, base model for subagents, honoring
   // the shared Extra Usage cooldown so a future billing change auto-downgrades.
-  // Every fable generation rides the one alias, so this covers Fable 5.1
-  // (the canonical pin) and Fable 5 alike.
+  // Every fable generation rides the one alias, so this covers Fable 5.2,
+  // Fable 5.1 (the canonical pin) and Fable 5 alike.
   //
-  // Mythos rides the fable tier: Claude Mythos 5 / 5.1 (claude-mythos-5,
-  // claude-mythos-5-1, Project Glasswing) share the matching Fable model's
+  // Mythos rides the fable tier: Claude Mythos 5 / 5.1 / 5.2 (claude-mythos-5,
+  // claude-mythos-5-1, claude-mythos-5-2, Project Glasswing) share the matching Fable model's
   // context window and API surface, and the Claude Agent SDK has no separate
   // "mythos" alias. Routing it here (instead of the sonnet fallthrough) keeps
   // explicit mythos requests on the right tier; server.ts pins
@@ -283,7 +300,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // opus[1m], which IS included. Only "fable" (normalized) opts out; the
   // [1m] form is a documented no-op; anything else (including unset) leaves
   // the default untouched, with a once-per-process warning for typos.
-  if (model.includes("fable") || model.includes("mythos")) {
+  if (family === "fable") {
     const fableOverrideRaw = env("FABLE_MODEL")
     const fableOverride = fableOverrideRaw?.trim().toLowerCase()
     if (fableOverride === "fable") return "fable"
@@ -306,7 +323,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // out; the [1m] form is a documented no-op; anything else (including
   // unset) leaves the default untouched, with a once-per-process warning
   // for typos.
-  if (model.includes("opus")) {
+  if (family === "opus") {
     const opusOverrideRaw = env("OPUS_MODEL")
     const opusOverride = opusOverrideRaw?.trim().toLowerCase()
     if (opusOverride === "opus") return "opus"

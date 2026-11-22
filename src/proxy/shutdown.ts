@@ -23,14 +23,91 @@ export async function waitForShutdownIdle(hasPendingWork: () => boolean): Promis
   }
 }
 
+export interface ShutdownCleanupSteps {
+  /** Admitted work, including finalizers after HTTP has been closed. */
+  idle: Promise<void>
+  /** Session GC and backend close. */
+  durable: () => Promise<void>
+  /** Stop ChatGPT renewal and release its writer lease. */
+  chatGpt: () => Promise<void>
+}
+
+/**
+ * How long each named shutdown cleanup step has taken, so a shutdown that is
+ * slow or misses its deadline can say which step held it.
+ */
+export class ShutdownProgress {
+  private readonly steps = new Map<string, { startedAt: number; tookMs?: number }>()
+
+  run<T>(name: string, work: () => Promise<T>): Promise<T> {
+    const step: { startedAt: number; tookMs?: number } = { startedAt: Date.now() }
+    this.steps.set(name, step)
+    const settle = () => { step.tookMs = Date.now() - step.startedAt }
+    return work().then(
+      (value) => { settle(); return value },
+      (error: unknown) => { settle(); throw error },
+    )
+  }
+
+  describe(): string {
+    const now = Date.now()
+    return [...this.steps].map(([name, step]) => step.tookMs === undefined
+      ? `${name} still running after ${now - step.startedAt}ms`
+      : `${name} ${step.tookMs}ms`).join(", ") || "no cleanup step started"
+  }
+}
+
+/**
+ * Join shutdown cleanup. ChatGPT ownership is released as soon as admitted
+ * work has joined, beside durable cleanup rather than after it: a session GC
+ * sweep can outlast the shutdown deadline, and a process that exits holding
+ * the writer lease refuses its successor's start. Durable cleanup runs only
+ * once admitted work has joined; ChatGPT release runs either way. The first
+ * failure is reported once all have settled.
+ */
+export async function joinShutdownCleanup(
+  steps: ShutdownCleanupSteps,
+  progress: ShutdownProgress = new ShutdownProgress(),
+): Promise<void> {
+  const admitted = progress.run("admitted work", () => steps.idle)
+  const idle = admitted.then(() => undefined, () => undefined)
+  const settled = await Promise.allSettled([
+    admitted,
+    admitted.then(steps.durable),
+    idle.then(() => progress.run("ChatGPT release", steps.chatGpt)),
+  ])
+  const failure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected")
+  if (failure) throw failure.reason
+}
+
+export interface ShutdownDeadlineOptions {
+  /** Report on the cleanup still running after this long, without failing it. */
+  slowAfterMs?: number
+  /** The cleanup's progress, for the slow report and the deadline error. */
+  describe?: () => string
+  warn?: (message: string) => void
+}
+
 /** Bound the caller's wait without abandoning or releasing the original owner. */
-export function withShutdownDeadline(joined: Promise<void>, timeoutMs = 2_000): Promise<void> {
+export function withShutdownDeadline(
+  joined: Promise<void>,
+  timeoutMs = 2_000,
+  options: ShutdownDeadlineOptions = {},
+): Promise<void> {
   let timedOut = false
   let timer: ReturnType<typeof setTimeout>
+  let slowTimer: ReturnType<typeof setTimeout> | undefined
+  const progress = () => options.describe ? ` (${options.describe()})` : ""
+  if (options.slowAfterMs !== undefined && options.slowAfterMs < timeoutMs && options.warn) {
+    const warn = options.warn
+    slowTimer = setTimeout(() => {
+      warn(`[PROXY] Shutdown cleanup still running after ${options.slowAfterMs}ms${progress()}`)
+    }, options.slowAfterMs)
+  }
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       timedOut = true
-      reject(new Error("Proxy shutdown did not join admitted work before its deadline; ownership retained until cleanup settles"))
+      reject(new Error(`Proxy shutdown did not join admitted work before its deadline; ownership retained until cleanup settles${progress()}`))
     }, timeoutMs)
   })
   void joined.catch(error => {
@@ -39,7 +116,10 @@ export function withShutdownDeadline(joined: Promise<void>, timeoutMs = 2_000): 
       catch { return /* Reporting must not release uncertain ownership. */ }
     }
   })
-  return Promise.race([joined, deadline]).finally(() => clearTimeout(timer))
+  return Promise.race([joined, deadline]).finally(() => {
+    clearTimeout(timer)
+    if (slowTimer) clearTimeout(slowTimer)
+  })
 }
 
 /** Track sockets from server startup so forced shutdown works across runtimes. */
