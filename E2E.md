@@ -6974,6 +6974,42 @@ turn, which is what the loop arm would cost on the bypass. The script exits 0,
 closes its proxy, removes its scratch state directory and the SDK transcripts it
 created (`~/.claude/projects/<scratch-cwd>`), and leaves the port free.
 
+### Concurrent packed first turns
+
+On a local filesystem or tmpfs, point `MERIDIAN_E2E_SCRATCH` at a private
+scratch directory. Run with the installed Claude Code executable:
+
+```bash
+bun scripts/e2e-wire-matrix.mjs --claude="$claude"
+```
+
+The `unkeyed-chat-parallel` row waits for three overlapping, headerless
+Chat Completions requests at a loopback Anthropic fixture. The three chats
+have different prior history but the same last user message. Each must
+receive its own capped tool handoff without publishing a fingerprint. Each
+second round starts a separate derived tool-loop mapping; each third round
+continues it. R1 compares the bytes of the recorded system, tools and
+message prefix after normalizing only moving `cache_control` markers and
+the CLI's string/single-text-block representation. The report contains byte
+counts and matching digests, not request bodies. The first-to-second-round
+transition is a fresh replay and has no prefix claim. No model is called.
+Pass `--source-root=/absolute/path/to/unchanged-main` to repeat the failure
+control with the same harness and the baseline's locked dependencies.
+
+For live acceptance, build the branch and run the same Chat Completions
+fixture against Claude Max with the same scratch setting and production
+Fable model pin, if set:
+
+```bash
+node scripts/e2e-unkeyed-chat.mjs --claude="$claude" --credentials="$credentials_file"
+```
+
+The driver uses private, read-only credential copies and its own loopback
+listener. All first turns must be independent; all three third rounds must
+continue, read at least 90% of the prior prompt and write no more than 10%.
+Keep only lineage and usage as evidence. Do not retry an account that is out
+of usage credits or substitute another model for the acceptance result.
+
 ## E59: Node socket activation and idle exit
 
 Build first with `npm run build`, then run `python3 scripts/e2e-socket-activation.py --live` on a host with Claude Max authentication. The probe launches the built CLI under Node with the systemd `LISTEN_FDS=1`/`LISTEN_PID` contract and an inherited fd 3; the parent keeps the socket open as a `.socket` unit would. It confirms a real model response, that a short model-route request restarts the two-second idle period, that `/health` polling does not, and that the proxy exits cleanly and can be reactivated on the same listener. Without `--live`, it verifies the process behavior without an authenticated model call, suitable for Linux containers. Use isolated config, sessions, workdir, and port; the resulting log path is printed by the probe.

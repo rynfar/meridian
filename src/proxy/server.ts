@@ -1153,6 +1153,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // exempted by a per-instance token rather than a fixed header name, so the
   // exemption can never be claimed from the wire.
   const internalHopToken = randomUUID()
+  const packedChatHeader = "x-meridian-packed-chat"
   /** Which error envelope a public route speaks. */
   type ErrorShape = "anthropic" | "openai"
   const errorEnvelope = (shape: ErrorShape, type: string, message: string) =>
@@ -3637,8 +3638,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // adapter selection untouched.
         const ownsToolLoopWithResume = adapterBase === "claude-code" || isClaudeCodeClient(c)
         const isClientDrivenLoop = !ownsToolLoopWithResume && !agentSessionId && lastIsToolResult
+        const packedChat = c.req.header("x-meridian-internal-hop") === internalHopToken
+          && c.req.header(packedChatHeader) === "1"
         const durableMappingKey = profileSessionId
-          || getConversationFingerprint(lineageMessages, profileScopedCwd)
+          || (packedChat ? undefined : getConversationFingerprint(lineageMessages, profileScopedCwd))
         // NOTE: A headerless Pi tool round must stay independent of the fingerprint's
         // SDK checkpoint: concurrent loops can share its first user message.
         // The refused tool-use ID keys only a one-shot tool-schema grant, so
@@ -3674,6 +3677,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           forkSource: Boolean(requestSource?.startsWith("fork-")),
           isSubagent: isSubagentRequest,
           clientDrivenLoop: isClientDrivenLoop,
+          packedChat,
           hasDurableKey: Boolean(durableMappingKey),
           isAuxiliary: requestMeta.auxiliaryRequest === true,
         })
@@ -11867,9 +11871,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       ? undefined
       : deriveToolLoopSessionId(rawBody)
     const openAiSessionId = openAiHeaderSessionId ?? toolLoopSessionId
-    const anthropicBody = translateOpenAiToAnthropic(rawBody, {
-      preserveConversationHistory: isJcode || isLetta || openAiSessionId !== undefined,
-    })
+    const preserveConversationHistory = isJcode || isLetta || openAiSessionId !== undefined
+    const anthropicBody = translateOpenAiToAnthropic(rawBody, { preserveConversationHistory })
 
     if (!anthropicBody) {
       return c.json(
@@ -11926,6 +11929,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,
     }
+    if (!preserveConversationHistory) internalHeaders[packedChatHeader] = "1"
     if (jcodeSessionId) {
       internalHeaders["x-jcode-session"] = jcodeSessionId
     } else if (lettaConversationId) {

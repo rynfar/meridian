@@ -35,6 +35,7 @@ describe("independentRequestCause", () => {
     forkSource: false,
     isSubagent: false,
     clientDrivenLoop: false,
+    packedChat: false,
     hasDurableKey: true,
     isAuxiliary: false,
   }
@@ -45,6 +46,11 @@ describe("independentRequestCause", () => {
 
   it("returns no cause for an ordinary headerless request", () => {
     expect(independentRequestCause(base)).toBeUndefined()
+  })
+
+  it("runs packed chat independently, without overriding a session key", () => {
+    expect(independentRequestCause({ ...base, packedChat: true, hasDurableKey: false })).toBe("packed-chat")
+    expect(independentRequestCause({ ...base, packedChat: true, hasSessionKey: true })).toBeUndefined()
   })
 
   it("names the headerless tool-result loop — the #820 bypass", () => {

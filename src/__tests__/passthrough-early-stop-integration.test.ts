@@ -140,7 +140,7 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer } = await import("../proxy/server")
 const { clearSessionCache } = await import("../proxy/session/cache")
-const { evictSharedSession, lookupSharedSession, storeSharedSession, setSessionStoreDir } = await import("../proxy/sessionStore")
+const { evictSharedSession, lookupSharedSession, readSessionStoreSnapshot, storeSharedSession, setSessionStoreDir } = await import("../proxy/sessionStore")
 const { diagnosticLog, telemetryStore } = await import("../telemetry")
 
 function userDenyMessage(toolUseId: string) {
@@ -4579,6 +4579,82 @@ describe("Integration: passthrough early stop", () => {
     // The old source must therefore be absent before message_stop is received,
     // forcing the client's next tool-result request to replay in full.
     expect(lookupSharedSession(`${sessionHeader}-${TEST_RUN_ID}`)).toBeUndefined()
+  })
+
+  it("stream: concurrent unkeyed packed chat completions recover their own capped tool calls", async () => {
+    const toolIds = ["unkeyed-chat-a", "unkeyed-chat-b", "unkeyed-chat-c"]
+    const allAtCap = Promise.withResolvers<void>()
+    let arrivals = 0
+    mockBeforeTerminalError = () => {
+      if (++arrivals === toolIds.length) allAtCap.resolve()
+      return allAtCap.promise
+    }
+    mockAttemptScripts = toolIds.map(id => ({
+      messages: [
+        assistantMessage([{ type: "tool_use", id, name: "read", input: { file_path: "x" } }]),
+        userDenyMessage(id),
+        { type: "result", subtype: "error_max_turns", is_error: true },
+      ],
+      terminalError: new Error("Claude Code returned an error result: Reached maximum number of turns (1)"),
+    }))
+
+    const mappingsBefore = readSessionStoreSnapshot()
+    const outputs = await Promise.all(toolIds.map(async (_, index) => {
+      const response = await app.fetch(new Request("http://localhost/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": "dummy" },
+        body: JSON.stringify({
+          model: "fable[1m]", max_tokens: 400, stream: true,
+          tools: [{ type: "function", function: { name: READ_TOOL.name, description: READ_TOOL.description, parameters: READ_TOOL.input_schema } }],
+          messages: [
+            { role: "user", content: "Conversation " + index + " is independent." },
+            { role: "assistant", content: "Understood." },
+            { role: "user", content: "Read x with the read tool." },
+          ],
+        }),
+      }))
+      expect(response.status).toBe(200)
+      return readNaturallyClosedStream(response)
+    }))
+    const frames = outputs.map(output => output.split("\n").filter(line => line.startsWith("data: {"))
+      .map(line => JSON.parse(line.slice(6))))
+    expect(frames.map(chunks => chunks.flatMap(chunk => chunk.error ? [chunk.error] : [])))
+      .toEqual([[], [], []])
+    expect(arrivals).toBe(3)
+    expect(capturedQueryParamsAll.map(params => params.options.maxTurns)).toEqual([1, 1, 1])
+    for (const output of outputs) {
+      expect(output).toContain('"finish_reason":"tool_calls"')
+      expect(output).toContain("data: [DONE]")
+    }
+    const returnedIds = frames.map(chunks => chunks.flatMap(chunk =>
+      chunk.choices?.[0]?.delta?.tool_calls?.flatMap((call: { id?: string }) => call.id ? [call.id] : []) ?? [],
+    ))
+    expect(returnedIds.map(ids => ids.length)).toEqual([1, 1, 1])
+    expect(returnedIds.flat().sort()).toEqual(toolIds)
+    expect(readSessionStoreSnapshot()).toEqual(mappingsBefore)
+  })
+
+  it("does not trust a public Messages request's packed-chat marker", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "first answer" }])]
+    const messages = [{ role: "user", content: "A fingerprint-keyed Messages conversation." }]
+    const postMessages = (history: typeof messages) => app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", "x-api-key": "dummy", "x-meridian-agent": "openai",
+        "x-meridian-packed-chat": "1", "x-meridian-internal-hop": "public-forgery",
+      },
+      body: JSON.stringify({ model: "fable[1m]", max_tokens: 400, stream: false, messages: history }),
+    }))
+    const first = await postMessages(messages)
+    expect(first.status).toBe(200)
+    await first.json()
+    mockMessages = [assistantMessage([{ type: "text", text: "second answer" }])]
+    const second = await postMessages([...messages,
+      { role: "assistant", content: "first answer" }, { role: "user", content: "A follow-up question." },
+    ])
+    expect(second.status).toBe(200)
+    await second.json()
+    expect(capturedQueryParamsAll[1].options.resume).toBe(initialManagedSessionId())
   })
 
   it("non-stream: a session-keyed chat completions tool loop stores the checkpoint and resumes it", async () => {

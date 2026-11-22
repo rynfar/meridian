@@ -486,6 +486,7 @@ export type IndependentRequestCause =
   | "fork-source"
   | "subagent"
   | "headerless-tool-result"
+  | "packed-chat"
   | "no-cache-identity"
 
 /**
@@ -505,6 +506,8 @@ export function independentRequestCause(input: {
   /** The last message carries a tool_result and the request has no session
    *  key, so it is a self-contained round of the client's own tool loop. */
   clientDrivenLoop: boolean
+  /** The authenticated internal hop of an unkeyed Chat Completions request in packed-history mode. */
+  packedChat: boolean
   /** Whether a session key or a conversation fingerprint could be derived.
    *  Image-only and otherwise text-free headerless requests have neither. */
   hasDurableKey: boolean
@@ -516,6 +519,7 @@ export function independentRequestCause(input: {
   if (input.isAuxiliary) return "auxiliary-request"
   if (!input.hasSessionKey && input.forkSource) return "fork-source"
   if (!input.hasSessionKey && input.isSubagent) return "subagent"
+  if (!input.hasSessionKey && input.packedChat) return "packed-chat"
   if (input.clientDrivenLoop) return "headerless-tool-result"
   if (!input.hasDurableKey) return "no-cache-identity"
   return undefined
