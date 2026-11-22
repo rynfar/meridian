@@ -48,9 +48,29 @@ const RENEWAL_PAUSE_MS = 6 * 60 * 60_000
  */
 export const ACCESS_REFUSAL_RETRY_MS: readonly number[] = [5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 6 * 60 * 60_000]
 
+/**
+ * A seat chatgpt.com keeps refusing this long after the first refusal stops
+ * being renewed and is left needing a sign-in: by then the refusal is not one
+ * a fresh token fixes, such as a deactivated workspace.
+ */
+export const ACCESS_REFUSAL_GIVE_UP_MS = 24 * 60 * 60_000
+
+/**
+ * The backoff survives an accepted read until no refusal is seen for this
+ * long. A usage read can accept the token that requests are refused with, and
+ * forgetting the backoff on that read renewed the seat every minute.
+ */
+const ACCESS_REFUSAL_QUIET_MS = 6 * 60 * 60_000
+
 interface AccessRefusal {
+  /** When this run of refusals began; the give-up limit counts from it. */
+  firstRefusedAt: number
   /** The latest moment chatgpt.com was seen refusing the seat's access token. */
   refusedAt: number
+  /** The latest moment chatgpt.com accepted the token since the last refusal. */
+  acceptedAt: number | null
+  /** Renewing stopped after ACCESS_REFUSAL_GIVE_UP_MS; the seat needs a sign-in. */
+  exhausted: boolean
   /** Renewals made because of it. */
   attempts: number
   lastAttemptAt: number | null
@@ -163,6 +183,11 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     const known = accessRefusals.get(account.accountUserId)
     if (!known) return undefined
     const issuedAt = tokenIssuedAt(account)
+    // A sign-in or Renew now after renewing stopped starts a new run.
+    if (known.exhausted && issuedAt > known.refusedAt) {
+      accessRefusals.delete(account.accountUserId)
+      return undefined
+    }
     if (known.nextAt !== null && issuedAt > known.refusedAt) {
       known.attempts++
       known.lastAttemptAt = issuedAt
@@ -180,7 +205,18 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
     }
     known.attempts++
     known.lastAttemptAt = now()
-    known.nextAt = outcome.status === "refreshed" ? null : now() + retryStep(known.attempts)
+    if (outcome.status === "refreshed") known.nextAt = null
+    else schedule(seat, known, now() + retryStep(known.attempts))
+  }
+
+  const schedule = (seat: string, known: AccessRefusal, at: number): void => {
+    if (at - known.firstRefusedAt <= ACCESS_REFUSAL_GIVE_UP_MS) {
+      known.nextAt = at
+      return
+    }
+    known.nextAt = null
+    known.exhausted = true
+    console.error(`[chatgpt] chatgpt.com kept refusing account ${seat}'s access token for ${ACCESS_REFUSAL_GIVE_UP_MS / 3_600_000} hours after ${known.attempts} renewals; it needs a sign-in`)
   }
 
   // One exchange per pass, for the seat most overdue, so renewals never go out
@@ -378,23 +414,36 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
       // A stamped seat needs a sign-in or is being renewed; a refusal read
       // before its current token was issued was about one since replaced.
       if (!account || account.exchangeStartedAt !== null || observedAt < tokenIssuedAt(account)) return
-      const known = refusalOf(account)
+      let known = refusalOf(account)
+      if (known && known.acceptedAt !== null && observedAt - known.refusedAt >= ACCESS_REFUSAL_QUIET_MS) {
+        accessRefusals.delete(seat)
+        known = undefined
+      }
       if (!known) {
-        accessRefusals.set(seat, { refusedAt: observedAt, attempts: 0, lastAttemptAt: null, nextAt: now() })
+        accessRefusals.set(seat, {
+          firstRefusedAt: observedAt, refusedAt: observedAt, acceptedAt: null, exhausted: false,
+          attempts: 0, lastAttemptAt: null, nextAt: now(),
+        })
         console.log(`[chatgpt] chatgpt.com refused account ${seat}'s access token; renewing it`)
         return
       }
       known.refusedAt = Math.max(known.refusedAt, observedAt)
-      if (known.nextAt !== null) return
-      known.nextAt = Math.max(now(), (known.lastAttemptAt ?? now()) + retryStep(known.attempts))
-      console.log(`[chatgpt] chatgpt.com refused account ${seat}'s renewed access token too; renewing again at ${new Date(known.nextAt).toISOString()}`)
+      known.acceptedAt = null
+      if (known.exhausted || known.nextAt !== null) return
+      schedule(seat, known, known.lastAttemptAt === null ? now() : Math.max(now(), known.lastAttemptAt + retryStep(known.attempts)))
+      if (known.nextAt !== null) console.log(`[chatgpt] chatgpt.com refused account ${seat}'s renewed access token too; renewing again at ${new Date(known.nextAt).toISOString()}`)
     },
 
     accessAccepted(seat, observedAt) {
       const known = accessRefusals.get(seat)
       if (!known || observedAt <= (known.lastAttemptAt ?? known.refusedAt)) return
-      accessRefusals.delete(seat)
-      if (known.attempts > 0) console.log(`[chatgpt] chatgpt.com accepts account ${seat}'s access token again`)
+      if (observedAt - known.refusedAt >= ACCESS_REFUSAL_QUIET_MS) {
+        accessRefusals.delete(seat)
+        return
+      }
+      if (known.acceptedAt === null && known.attempts > 0) console.log(`[chatgpt] chatgpt.com accepts account ${seat}'s access token again`)
+      known.acceptedAt = observedAt
+      known.nextAt = null
     },
 
     async settle() {
