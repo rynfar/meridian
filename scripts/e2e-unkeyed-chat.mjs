@@ -129,7 +129,7 @@ async function live() {
     }
     const { startProxyServer } = await import("../dist/server.js")
     proxy = await startProxyServer({ host: "127.0.0.1", port: 0,
-      silent: true, profiles: [{ id: "personal", type: "claude-max", claudeConfigDir: auth }], defaultProfile: "personal" })
+      profiles: [{ id: "personal", type: "claude-max", claudeConfigDir: auth }], defaultProfile: "personal" })
     if (!proxy.server.listening) await once(proxy.server, "listening")
     const address = proxy.server.address()
     assert(address && typeof address === "object", "loopback listener missing")
