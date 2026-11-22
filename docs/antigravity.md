@@ -21,7 +21,7 @@ on a separate port if you already have a Claude service.
 ## Feature status
 
 Validated on macOS arm64 with agy **1.2.7**, Pi **0.72.1** and OpenCode V1
-**1.18.31**, and on Linux x64 with agy **1.5.5** and Pi **1.5.2**.
+**1.18.31**, and on Linux x64 with agy **1.5.13** and Pi **1.3.0**.
 [E2E.md](../E2E.md) records the actual-client evidence.
 
 | Area | Available in 1.74.0 |
@@ -308,13 +308,13 @@ app does not collect Google credentials or repurpose Claude profile login.
 
 ## Compatibility and operational contract
 
-The supported text/client-tools path is gated to official `agy` **1.5.5**
+The supported text/client-tools path is gated to official `agy` **1.5.13**
 (validated on Linux x64; the macOS 1.2.7 acceptance below predates the gate
-move and awaits a 1.5.5 re-run on that platform).
+moves and awaits a 1.5.13 re-run on that platform).
 An unverified CLI update is refused before a new model process starts. Validate
 new versions with the live gates below before changing the compatibility gate.
 `/health` still reports Linux as `preview` and macOS as `supported` until each
-platform has full 1.5.5 client evidence. Windows
+platform has full 1.5.13 client evidence. Windows
 process-tree termination and hook quoting are implemented and exercised in CI;
 normal execution stays gated until authenticated live verification. The embedder
 option `allowUnverifiedWindows: true` is solely for that acceptance gate. This is a supported, bounded protocol surface, not full Claude parity.

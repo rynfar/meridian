@@ -40,16 +40,24 @@ const RENEWAL_PAUSE_MS = 6 * 60 * 60_000
 
 /**
  * When a seat's access token falls due for renewal: 80% into its life, which
- * for ChatGPT's ten-day tokens is the eighth day, the age at which the Codex
- * CLI renews its own. A token that does not say when it was issued falls due
- * when a request would renew it, five minutes before expiry: a longer fixed
+ * for ChatGPT's ten-day tokens is the eighth day. The Codex CLI has no
+ * schedule to copy: it renews only when it is used, once its last renewal is
+ * eight days old or its token is within five minutes of expiry, so a login
+ * nobody uses is never renewed at all. `intervalMs`, the seat's own renewal
+ * interval (features.ts `seatRenewalHours`), replaces the 80% point with that
+ * long after the token was issued, never later than a request would renew it.
+ *
+ * A token that does not say when it was issued falls due when a request would
+ * renew it, five minutes before expiry, interval or not: a longer fixed
  * margin would make a short-lived token due again the moment it was renewed.
  * A seat with no token or no expiry is due now.
  */
-export function renewalDueAt(account: Pick<ChatGptAccount, "accessToken" | "expiresAt">): number {
+export function renewalDueAt(account: Pick<ChatGptAccount, "accessToken" | "expiresAt">, intervalMs?: number): number {
   if (!account.accessToken || account.expiresAt === null) return 0
+  const latest = account.expiresAt - ACCESS_TOKEN_BUFFER_MS
   const issuedAt = decodeCodexToken(account.accessToken)?.issuedAt ?? null
-  if (issuedAt === null) return account.expiresAt - ACCESS_TOKEN_BUFFER_MS
+  if (issuedAt === null) return latest
+  if (intervalMs !== undefined) return Math.min(issuedAt + intervalMs, latest)
   return Math.round(issuedAt + (account.expiresAt - issuedAt) * 0.8)
 }
 
@@ -85,6 +93,8 @@ export interface OwnedSourceOptions {
   /** Token-endpoint fetch, injectable for tests. */
   fetchImpl?: TokenExchangeFetch
   now?: () => number
+  /** Seat id -> its own renewal interval in milliseconds, read on every renewal pass. */
+  renewalIntervals?: () => Readonly<Record<string, number>>
   /**
    * Build the source even over an empty store. Set when the operator asked for
    * `owned` explicitly: the instance then takes the lease at startup and waits
@@ -134,14 +144,17 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
   const renewMostOverdue = async (): Promise<ChatGptRenewalPass> => {
     const renewer = refresher
     if (!renewer || !holdsLease() || now() < renewalPausedUntil) return { due: [], outcome: null }
+    const intervals = options.renewalIntervals?.() ?? {}
     const due = reader.readAccounts()
       .filter(account => account.exchangeStartedAt === null)
-      .map(account => ({ seat: account.accountUserId, at: renewalDueAt(account) }))
+      .map(account => ({ seat: account.accountUserId, at: renewalDueAt(account, intervals[account.accountUserId]) }))
       .filter(candidate => candidate.at <= now())
       .sort((a, b) => a.at - b.at)
     const next = due[0]
     if (!next) return { due: [], outcome: null }
-    console.log(`[chatgpt] renewing account ${next.seat} ahead of expiry (due since ${new Date(next.at).toISOString()}; ${due.length - 1} more due)`)
+    const interval = intervals[next.seat]
+    const cadence = interval === undefined ? "" : `; its own interval ${interval / 3_600_000}h`
+    console.log(`[chatgpt] renewing account ${next.seat} ahead of expiry (due since ${new Date(next.at).toISOString()}${cadence}; ${due.length - 1} more due)`)
     const outcome = await renewer.refreshAccount(next.seat)
     if (outcome.status === "requires-reauth" && outcome.reason === "unverifiable") {
       renewalPausedUntil = now() + RENEWAL_PAUSE_MS
@@ -177,6 +190,7 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
           eligible: !pending,
           ...(pending ? { reason: "requires_reauth" as const } : {}),
           expiresAt: account.expiresAt,
+          ...(account.renewals ? { renewals: account.renewals } : {}),
           active: index === 0,
           storeIndex: index,
         }
@@ -274,8 +288,10 @@ export function createOwnedCredentialSource(options: OwnedSourceOptions): ChatGp
       }
       // A seat signed in again replaces its whole credential chain, and with
       // it any interrupted-exchange stamp: the new refresh token was issued by
-      // this login and has never been spent.
+      // this login and has never been spent. Its renewal history is the
+      // seat's, so it stays.
       store.commitAccount(account.accountUserId, current => ({
+        ...(current?.renewals ? { renewals: current.renewals } : {}),
         accountUserId: account.accountUserId,
         accountId: account.accountId,
         email: account.email ?? current?.email ?? null,

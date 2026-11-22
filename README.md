@@ -49,7 +49,7 @@ setup, or [deployment](docs/deployment.md) for Docker and Nix.
 ## Try Antigravity
 
 **Antigravity is included in Meridian 1.74.0 and later as a preview.**
-The verified setup uses **agy 1.5.5** with **Pi 1.5.2** (Linux x64), and
+The verified setup uses **agy 1.5.13** with **Pi 1.3.0** (Linux x64), and
 **agy 1.2.7** with **Pi 0.72.1** or **OpenCode V1 1.18.31** (macOS arm64).
 Other versions need their own verification.
 

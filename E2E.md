@@ -160,6 +160,25 @@ fresh replay before); the second turn started while the side call was still
 answering and resumed the first turn's session (`lineage=continuation`, read
 15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
 
+## Priority affinity across a restart
+
+`node scripts/e2e-priority-restart.mjs --omp=<omp> --profiles=<A>,<B>
+[--cli=dist/cli.js] [--port=3791] [--model=opus] [--expect=retain|move]
+[--profiles-json=<file>]` starts a built Meridian itself (`npm run build`
+first) on a free port with its own config and session dirs, read-only
+credentials, none of the operator's `MERIDIAN_*` variables, and the profile
+list from `~/.config/meridian/profiles.json` (two non-default profiles). Under
+priority order A,B the real omp client sends the first turn; the harness
+restarts Meridian with the order reversed and `omp -c` sends the second.
+`retain` (the default) asserts the second turn stays on A and resumes the
+session (`lineage=continuation`, no refused resume); `move` asserts the
+behaviour before the fix (on B, `diverged=not-found`).
+
+Recorded 2026-11-20 on Linux x64, Node 24.22.3, omp 19.0.1, Claude Code
+2.1.322, `opus`: on main the second turn moved to the other account and
+replayed; with the fix it stayed and read 16k, wrote 72 cache tokens.
+[Evidence](docs/maintenance/evidence/priority-restart-affinity-20261120/README.md).
+
 ## Claude Code's own tool search in passthrough (#1478)
 
 `node scripts/e2e-claude-code-tool-search.mjs` runs the real Claude Code client
@@ -234,8 +253,8 @@ independently installed package's exported function for the package arm.
 Run `node scripts/e2e-antigravity-idle-conversation.mjs <server.js> <pi-integration.js> <pi-cli.js> <official-agy> <new-report.json> <label>`
 against unchanged main and candidate builds. The gate pins the verified official
 agy1.2.7 macOS ARM64 binary hash and uses actual Pi1.1.0/Gemini3.8FlashLow.
-That pin predates the 1.5.5 compatibility gate: until this gate is re-verified
-on macOS with agy 1.5.5 (new binary hash), it cannot run against a current
+That pin predates the 1.5.x compatibility gates: until this gate is re-verified
+on macOS with agy 1.5.13 (new binary hash), it cannot run against a current
 build, which refuses 1.2.7.
 It validates the real provider-specific Pi retry integration against a local
 fixture before allowing generation, and retains its request-ID check at native
@@ -844,6 +863,35 @@ nothing. Found: an off request stamps `.last-cleanup`, so the first opted-in
 cleanup can wait up to a day (documented in configuration.md); a child that
 lives under about 5 s never cleans up.
 
+### Idle transcript sweep
+
+```sh
+bun scripts/e2e-transcript-sweep.mjs
+```
+
+Needs no credentials, network or model. It starts a real Meridian server
+(`startProxyServer`) in disposable directories with retention at 30 days, a
+3-second sweep interval and two profiles signed in with synthetic logins, and
+lets the idle sweep run the installed Claude Code CLI. Profile `idle` holds 200
+transcripts 40 days old, one 40-day-old transcript the session store maps (with
+a sidecar file) and a fresh one. Profile `stuck` gets a stand-in CLI that
+ignores SIGTERM and leaves a grandchild holding its output pipe for 20 s;
+`close()` runs while it lives. Asserts: the real CLI's cleanup ran, deleted
+the 200 and kept the mapped and the fresh transcripts, left the login file
+byte-identical, and had exited before the sweep moved on; `close()` did not
+succeed while the stuck process lived (past the shutdown deadline it rejects
+with ownership retained); the SDK permit stayed held until that process was
+joined.
+
+**Verified 2026-11-15** (Linux, Claude Code 2.1.322, Bun 1.4.4, at load ~100):
+PASS. The real CLI cleaned in one process; 2 transcripts left; the mapped
+transcript's mtime refreshed; `close()` rejected at 2 s with ownership
+retained; process gone and permit freed together at 19 s. The same harness
+against the earlier idle sweep proposed with #1261: the mapped transcript and
+its sidecar were deleted, the CLI was still alive when the sweep moved on,
+`close()` resolved at 0 s with the stuck process alive, and the permit was free
+at 0 s while the process lived until 19 s.
+
 ## Antigravity subscription CLI backend
 
 ```sh
@@ -859,9 +907,9 @@ It never uses a Gemini API key or the Python SDK.
 For an owned official CLI pin, set `AGY_CLI_DISABLE_AUTO_UPDATE=true` and verify
 its executable hash and version before/after the flow. The CLI can otherwise
 replace itself after an initial version check. Run
-`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.5.5 /owned/empty-project /owned/settings-proof.json`
+`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.5.13 /owned/empty-project /owned/settings-proof.json`
 to capture only whitelisted effective setting types/flags with per-command
-binary identity checks. The tested 1.5.5 account prints effective settings as a
+binary identity checks. The tested 1.5.5 and 1.5.13 accounts print effective settings as a
 TSV block (`response`) with a `useG1Credits\tfalse` row; missing or malformed
 credits are not verified disabled. (agy 1.2.7 printed a typed
 `command.data.config` object instead.)
@@ -902,6 +950,17 @@ unchanged across the run. The same session verified the ported 1.5.5
 subscription-configuration probe (TSV `response` envelope) through
 `e2e-antigravity-account-settings.mjs` (`TSV_EFFECTIVE_SETTINGS_OBSERVED`,
 binary hash stable before/after).
+
+**Verified 2026-11-22 (agy 1.5.13 gate move):** Linux x64 (WSL2), Node 22.15.1,
+official `agy` 1.5.13, `gemini-3.8-flash-low`, Pi 1.3.0. Unchanged main refused
+the CLI before any model process (`Unsupported agy version 1.5.13`); the
+candidate passed all four live checks, with Pi making three HTTP requests for
+the read/write loop. The CLI version was unchanged across the run. The 1.5.13
+`/config` envelope keeps the 1.5.5 TSV `response` shape (more rows, same
+`customModelsConfig`, `modelProvider`, `gcp` and `useG1Credits` keys);
+`e2e-antigravity-account-settings.mjs` returned
+`TSV_EFFECTIVE_SETTINGS_OBSERVED` with `useG1Credits` `false` and no model
+commands.
 
 The extended native gate runs the actual macOS app with disposable app data and
 an app-managed combined service:
@@ -1010,6 +1069,10 @@ over 21 HTTP requests (coding loop, tool-error recovery, exact edits, Unicode
 paths/output, streaming, saved continuation/fork, ls/find/grep, steering,
 compaction, abort/recovery). The OpenCode variants were not re-run on Linux and
 keep their macOS agy 1.2.7 evidence until re-verified.
+
+**Verified 2026-11-22 (agy 1.5.13 gate move):** Linux x64 (WSL2), Node 22.15.1,
+agy 1.5.13, Pi 1.3.0, `gemini-3.8-flash-low`. `E2E_CLIENT=pi` passed all 11
+checks over 21 HTTP requests. The OpenCode variants were again not re-run.
 
 Pi steering must advance exactly one completed agy process and leave no pending
 process; the obsolete write must not exist. Regression tests separately cover
@@ -1121,8 +1184,8 @@ bun scripts/e2e-antigravity-active-history.mjs
 
 Use Bun 1.4.3, Pi 1.1.0 and the official agy 1.2.7 Darwin arm64 binary.
 This gate is frozen to agy 1.2.7 (version and binary-hash asserts); like the
-idle-conversation gate it needs a macOS 1.5.5 refresh before it can run
-against a current build, which pins 1.5.5.
+idle-conversation gate it needs a macOS 1.5.13 refresh before it can run
+against a current build, which pins 1.5.13.
 The gate requires the default subscription with paid credits/custom providers disabled,
 imports the retained public long-history fixture, and requires one exact write
 and a correlated read after joined backend replacement. The newest request,
@@ -9054,8 +9117,8 @@ See [the corrected before/after proof and limits](docs/maintenance/evidence/clau
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`
-with actual OpenCode 1.18.30, official agy 1.5.5 and
-`gemini-3.8-flash-high` (the gate was not re-run for the 1.5.5 gate move; its
+with actual OpenCode 1.18.30, official agy 1.5.13 and
+`gemini-3.8-flash-high` (the gate was not re-run for the 1.5.5 or 1.5.13 gate moves; its
 macOS agy 1.2.7 run remains the recorded evidence). Two real stdio MCP servers must advertise 129 or 256
 fixture tools to the client. Require the complete client catalog, a tail tool
 beyond index 127, exactly one target invocation, a tool-only random receipt in

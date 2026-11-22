@@ -71,6 +71,19 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   key, so a collision merely shares an account. Subagents use their root
   session and stay on the parent's account. Assignments are an LRU (cap 5000);
   keyed routes are additionally durable in SQLite bookkeeping.
+- **A restart keeps a running conversation on its account.** The LRU lives in
+  process memory, so after a restart an unattested session (Pi, Oh My Pi,
+  OpenCode without its plugin) has no assignment. The account holding the most
+  recently used mapping (`<profile>:<session>`) of the conversation's root or
+  of the request's own key stands in for it; otherwise the conversation would
+  start on the head of the order and replay its whole history there, though
+  its prompt cache is warm on the old account. The root counts because a
+  subagent keyed apart has no mapping on its first request, and its dispatch
+  would assign the head of the order to the whole conversation. The stand-in
+  only retains, like the lost assignment: a benched or removed account still
+  falls through to the order, and it never grants promotion authority. A store
+  read error answers 503, like the durable route lookups beside it, rather
+  than guessing an account.
 - **Keyless forks share the parent's account on purpose.** This deliberately
   diverges from the session-resume guard, which forces keyless `fork-` /
   `subagent-` requests to replay fresh: a *session* collision would
