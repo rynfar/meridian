@@ -16,6 +16,7 @@
  * token at all, so a view built from it cannot leak one.
  */
 import type { CodexPoolResult } from "../codex/pool"
+import type { ChatGptRenewal } from "./credentials"
 import type { RefreshOutcome } from "./refresh"
 
 export type ChatGptCredentialMode = "owned" | "follow-external"
@@ -32,6 +33,8 @@ export interface ChatGptSeatView {
   reason?: SeatUnavailableReason
   /** The access token's expiry, epoch ms. */
   expiresAt: number | null
+  /** owned only: the seat's latest renewals, oldest first (credentials.ts `renewals`). No credential fields. */
+  renewals?: readonly ChatGptRenewal[]
   /** The seat the credential owner itself would pick next. */
   active?: boolean
   /** 0-based position in the store; the owner's own account numbers are this plus one. */
