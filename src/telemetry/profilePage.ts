@@ -812,7 +812,7 @@ function renderRenewalRow(p) {
     + ' data-profile="' + attr(p.id) + '" aria-label="Renewal interval of ' + attr(p.id) + ' in hours" value="' + (own ? attr(p.renewalHours) : '') + '"> hours '
     + '<button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, false)">Save</button>'
     + (own ? ' <button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, true)">Use default</button>' : '')
-    + '<span class="cmd-note">How long after its token was issued Meridian renews this seat, 1 to 240 hours. Empty renews on the token\\u2019s 8th day.</span>'
+    + '<span class="cmd-note">How long after its token was issued Meridian renews this seat, 6 to 240 hours. Empty renews on the token\\u2019s 8th day.</span>'
     + '</div>';
 }
 
