@@ -211,9 +211,12 @@ export function compareAndSwapMapping(
     throw new TypeError("mapping mutation requires a new generationId")
   if (replacement && `p:${digest(key)}:${replacement.generationId}` === expectedGeneration)
     throw new TypeError("mapping mutation must advance generation")
+  // Only a removal advances the slot; see keySlot in sessionStore.ts.
   if (replacement) writeMappingRow(tx, key, replacement, true)
-  else tx.run("DELETE FROM mappings WHERE key=?", key)
-  advanceSlot(tx, key)
+  else {
+    tx.run("DELETE FROM mappings WHERE key=?", key)
+    advanceSlot(tx, key)
+  }
   return true
 }
 

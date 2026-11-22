@@ -1,7 +1,17 @@
 import { z } from "zod"
 
 export class AntigravityError extends Error {
-  constructor(message: string, readonly status = 400, readonly type = "invalid_request_error", readonly retryAfter = status === 429 ? 60 : status === 503 ? 5 : undefined) { super(message) }
+  // Plain fields rather than parameter properties: Node runs this file with
+  // type stripping only, which refuses syntax that needs transforming.
+  readonly status: number
+  readonly type: string
+  readonly retryAfter: number | undefined
+  constructor(message: string, status = 400, type = "invalid_request_error", retryAfter: number | undefined = status === 429 ? 60 : status === 503 ? 5 : undefined) {
+    super(message)
+    this.status = status
+    this.type = type
+    this.retryAfter = retryAfter
+  }
 }
 
 /** Preserve actionable account failures without retrying a potentially executed tool. */

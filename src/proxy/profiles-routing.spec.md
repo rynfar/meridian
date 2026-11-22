@@ -21,7 +21,8 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   (`authLifecycle.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
   hashing), `priority` (fail-over pool) and `active+priority`, plus
-  follow-another-instance mode (`followActive.ts`);
+  follow-another-instance mode (`followActive.ts`, with its usage figures in
+  `followUsage.ts`);
 - per-profile rate-limit and exhaustion tracking (`rateLimitStore.ts`,
   `limitDetection.ts`) and human-turn attestation verification for priority
   failback (`priorityAttestation.ts`).
@@ -71,6 +72,19 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   key, so a collision merely shares an account. Subagents use their root
   session and stay on the parent's account. Assignments are an LRU (cap 5000);
   keyed routes are additionally durable in SQLite bookkeeping.
+- **A restart keeps a running conversation on its account.** The LRU lives in
+  process memory, so after a restart an unattested session (Pi, Oh My Pi,
+  OpenCode without its plugin) has no assignment. The account holding the most
+  recently used mapping (`<profile>:<session>`) of the conversation's root or
+  of the request's own key stands in for it; otherwise the conversation would
+  start on the head of the order and replay its whole history there, though
+  its prompt cache is warm on the old account. The root counts because a
+  subagent keyed apart has no mapping on its first request, and its dispatch
+  would assign the head of the order to the whole conversation. The stand-in
+  only retains, like the lost assignment: a benched or removed account still
+  falls through to the order, and it never grants promotion authority. A store
+  read error answers 503, like the durable route lookups beside it, rather
+  than guessing an account.
 - **Keyless forks share the parent's account on purpose.** This deliberately
   diverges from the session-resume guard, which forces keyless `fork-` /
   `subagent-` requests to replay fresh: a *session* collision would
@@ -249,6 +263,13 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   type `oauth-token` / `not_oauth` instead of reading the host's on-disk OAuth
   account under its id, and `/v1/usage/quota` returns `oauth: null` for any
   non-`claude-max` target.
+- **A follower reads usage from the instance it follows.** Under
+  `MERIDIAN_FOLLOW_ACTIVE`, unforced usage reads serve the followed
+  instance's `/v1/usage/quota/all` figures (matched by profile id, polled every
+  two minutes, marked `stale` after five, withdrawn after ten) and make no
+  Anthropic call. Forced reads, and profiles the followed instance could not
+  read, use this instance's own credentials; a forced read newer than the
+  followed copy is not replaced by it.
 - **OAuth usage request identity.** Usage, identity and reset requests send
   `User-Agent: claude-cli/<version> (external, cli)`, where `<version>` is the
   `@anthropic-ai/claude-code` package installed with Meridian
@@ -262,10 +283,28 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   per-profile snapshot cache, and it only adds the `cedar_ember` block —
   windows and `extraUsage` parse identically with or without it. The identity
   and reset requests carry no query flags.
+- **Extra Usage amounts are served in major units.** The usage endpoint's
+  `extra_usage.monthly_limit` / `used_credits` are minor units (cents):
+  claude.ai's admin API reports the same member's limit as
+  `{amount_minor: 500, exponent: 2}` where this endpoint says `500`.
+  `extraUsage.monthlyLimit` / `usedCredits` are divided by
+  `10^decimal_places` (2 when absent) and carry that as `exponent`, whose
+  presence tells a consumer the amounts are dollars; a followed instance or
+  service without it still serves cents and is converted. Used may exceed the
+  limit (a turn that starts under it can finish past it), and Anthropic clamps
+  `utilization` at 100, so displays take the share from the amounts and show
+  the overshoot.
 - **Grant-selection fields are passed through, not computed.** `bankedResets`
   exposes the provider's `nextGrantId` (null unless it names a listed grant)
   and `ineligibleReason`, and per grant `startsAt`, `paused` and `usableNow`;
   malformed values become `null`. Meridian never picks a grant itself.
+
+### Banked reset scope
+
+- `kind: "full"` means the provider lists `seven_day` in `clears`. For example, `full-reset-2611` has `type: "weekly"` and clears `seven_day` and `seven_day_overage_included`. A Team grant with `type: "full"` also counts as full if it clears `seven_day`; the raw type does not determine scope.
+- `kind: "fable"` identifies the known Fable launch grants (`launch-2610-fable`, `launch-2610-fable-6mo`, `launch-2610-fable-12mo`) when `clears` contains `seven_day_overage_included` and no other window except optional `five_hour`, and `gives_back_weekly` is not explicitly false. Personal grants have been observed clearing only the former; Team grants clear both. The observed grants have `type: "full"` and `gives_back_weekly: true`. Order and repeated window IDs do not affect classification or change the reported `clears`. Other grant IDs do not become Fable grants just because they share these windows and flags.
+- If `clears` is absent or null, those exact IDs are a fallback when `gives_back_weekly` does not contradict the known scope. An explicit empty or different list, or an unreadable list, does not trigger that fallback. If no rule identifies the scope, `kind` is `"unknown"` and the provider's ID, type and label remain available.
+- `providerType`, `clears`, `givesBackWeekly`, `description` and `percentUsed` preserve the corresponding readable provider metadata. `description` is the provider's `label`, not a scope rule. `percentUsed` keeps finite numeric values from 0 through 100 inclusive, including `seven_day_overage_included` and unfamiliar window IDs, without rescaling or coercing them. These fields describe the inventory only; 0% does not override the provider's `usableNow` flag.
 
 ## Known limitations
 

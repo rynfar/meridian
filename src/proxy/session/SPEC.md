@@ -60,12 +60,24 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   child is joined; collectors in other processes ignore that private pin, but
   the published mapping retains the source, and if another process retires it
   anyway the beat only fails and is retried or stopped.
+- An auxiliary fork (an adapter's `forksAuxiliaryRequests` side call that
+  `auxiliaryLineage` accepts: user text after a completed turn) also only
+  **reads** the mapping. It resumes the mapping's current transcript into a
+  managed fork target, holds no turn lease, takes the writer lease on its
+  target alone (the conversation's own turn may hold the source's), neither
+  attaches nor re-registers the source, writes no mapping, and abandons the
+  target when it ends. Like a beat, its source is pinned only against this
+  process's GC; a source retired meanwhile is refused by the SDK and the side
+  call replays fresh without evicting anything. A legacy mapping without a
+  transcript locator, or any other shape, is answered from a fresh replay.
 - Transcript GC here is the only Meridian-owned transcript deletion. Opt-in
   transcript retention (`proxy/transcriptRetention.ts`, off by default) hands
   Claude Code's own cleanup a period; that cleanup is outside this module's
-  leases and pins and may retire a mapped transcript by age, after which the
-  conversation replays (see `architecture` → *Transcript publication
-  lifetime*).
+  leases. Meridian refreshes the mtime of every mapped or pinned transcript the
+  cleanup could reach before a child whose cleanup is due starts (`proxy-core`
+  → *Decisions*), but a cleanup started elsewhere in the root can still retire
+  one by age, after which the conversation replays (see `architecture` →
+  *Transcript publication lifetime*).
 
 Detailed contracts live in [`architecture`](../../../ARCHITECTURE.md): *Session
 Management*, *Lineage Verification*, *SQLite bookkeeping boundary*, *Transcript
@@ -177,6 +189,22 @@ another owner only when that owner's exact process incarnation is dead and its
 heartbeat has aged out; a live or unprovable owner fails closed (see #1223 for
 why age alone is not enough).
 
+A lock with no readable owner is the exception. A host crash can leave
+`owner.json` with its size but not its data (338 NUL bytes on 2026-09-29), and
+no incarnation can then be proved dead, so every later turn of that
+conversation waited out the acquire timeout until someone deleted the directory
+by hand. Such a lock is reclaimed once it is stale and its last activity (the
+newest mtime of the directory, `owner.json` and every `heartbeat-*` file, since
+the token is unknown) predates the current boot, derived from `os.uptime()`
+with 5s of tolerance. Nothing from an earlier boot is still running, so this
+cannot take a live holder's turn. An ownerless lock from the current boot stays
+fail-closed however old it is: #1223 reclaimed one after ten minutes, and its
+review probe (`scripts/e2e-turn-lock-ownerless-review.mjs`) then granted a
+second lease while the paused holder was alive. A torn owner only comes from a
+crash, so it always predates the boot that follows. Recovery of an ownerless
+lock goes through the same recovery claim, keyed by the directory's identity,
+and is logged.
+
 That rule cannot clear a lock whose **own** release failed. Releasing renames
 the lock directory away, and a filesystem error there (ENOSPC on a full disk
 was observed) left the directory behind with a live owner: the proxy that
@@ -202,6 +230,29 @@ That retry goes through the same recovery claim and identity recheck as a
 reclaim, not through a second `releaseOwned`: a bare release racing a
 same-process reclaim could move a successor's live lock between its check and
 its rename, breaking mutual exclusion.
+
+## Process-lifetime files
+
+The `session-gc.json.lock` candidate (`sessionLifecycle.ts`), SDK process gates
+(`sdkProcessGate.ts`) and deletion gates only matter while the process that
+wrote them lives, so they are not fsynced, neither the file nor its directory.
+Every process reads them through the page cache, so a process crash loses
+nothing; only an OS crash or power loss can, and that ends their writers too.
+Each fsync used to cost ~250 ms of journal wait on a loaded Linux host, about
+two a second for the lifecycle lock alone.
+
+A power loss can leave the lifecycle lock linked to an inode whose data never
+reached the disk, so its owner cannot be parsed. A live holder never leaves
+one: it writes the candidate completely before linking it. Stale recovery
+therefore reclaims an unparseable lock once its mtime predates the current
+boot (`predatesBoot` in `processIncarnation.ts`); one written during this boot
+still fails closed. A parseable lock is still recovered only from a proven
+dead owner.
+
+Kept fsynced: recovery claims, since an unreadable claim would block recovery
+of its generation even after a reboot; `session-gc.json` and the store files;
+and turn locks, whose ownerless recovery fails closed (#1223), so an owner
+record a power loss tore would wedge its conversation for good.
 
 ## Regrouped user messages
 
@@ -285,5 +336,7 @@ next request replays, as main's fresh replay of that turn would have.
   file without the earlier turns, so a later resume silently lacks them and
   lineage cannot detect it. A conversation
   whose transcript is already gone is refused and replays from client
-  history instead. A pin-aware cleanup is a recorded follow-up (`proxy-core`
-  → *Decisions*).
+  history instead. Meridian refreshes mapped and pinned transcripts before
+  its own children's cleanup (`proxy-core` → *Decisions*), so this needs a
+  cleanup started outside that protection: another process in the root, such
+  as interactive Claude Code in a shared `~/.claude`.

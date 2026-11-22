@@ -20,7 +20,7 @@ function tick(html: string, name: string, visibilityState: string) {
     document: { visibilityState },
     meridianReorder: { dragging: () => false },
     infoPopOpen: () => false,
-    activeLogin: null, activeAdd: null, activeChatGptRelogin: null,
+    activeLogin: null, activeAdd: null, activeChatGptRelogin: null, redeemingReset: null,
     updatePollTimer: null as unknown,
     refresh: () => { fixture.refreshes++ },
     loadProviders: () => { fixture.refreshes++ },
@@ -50,4 +50,16 @@ test("profilePageHtml holds the updating-card poll while hidden and resumes it w
   const visible = tick(profilePageHtml, "pollUpdate", "visible")
   expect(visible.refreshes).toBe(1)
   expect(visible.updatePollTimer).toBeNull()
+})
+
+test("profilePageHtml holds its poll while a free reset is being redeemed", () => {
+  const fixture = {
+    refreshes: 0,
+    document: { visibilityState: "visible" },
+    meridianReorder: { dragging: () => false },
+    activeLogin: null, activeAdd: null, activeChatGptRelogin: null, redeemingReset: "sub1",
+    refresh: () => { fixture.refreshes++ },
+  }
+  runInNewContext(`${pageFunction(profilePageHtml, "pollRefresh")}\npollRefresh();`, fixture)
+  expect(fixture.refreshes).toBe(0)
 })

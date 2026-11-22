@@ -347,9 +347,9 @@ function codexCreditsPace(credits, quota, now) {
   if (serving) return { text: 'est. out in ' + mark + lasts + ' at current pace', title: title, approximate: approximate };
   var policy = quota && quota.creditsPolicy;
   var start = policy === 'never' ? 'not spent (policy never)'
-    : policy === 'reserve' ? 'starts after every seat\\u2019s plan limits'
-    : 'starts after plan limits';
-  return { text: start + '; would last ~' + lasts + ' at current pace', title: title, approximate: approximate };
+    : policy === 'reserve' ? 'after all seats\\u2019 plan limits'
+    : 'after plan limits';
+  return { text: start + '; ' + (policy === 'never' ? 'would last' : 'lasts') + ' ~' + lasts + ' at current pace', title: title, approximate: approximate };
 }
 
 // Which vendor is refusing a profile, and what the page calls it.

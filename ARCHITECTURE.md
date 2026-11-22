@@ -277,6 +277,7 @@ src/
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── transcriptRetention.ts ← Opt-in Claude Code retention period per SDK config root (off by default)
 │   ├── transcriptRetentionSettings.ts ← GET/PUT /settings/api/transcripts (same-origin browser writes)
+│   ├── transcriptSweep.ts     ← Idle-root retention sweep with process custody; pinned-transcript protection
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── toolInputJson.ts       ← Tool input JSON repair for raw control characters in strings (PURE)
 │   ├── retryAfter.ts          ← Retry-After computation for 429/503/529 (PURE)
@@ -460,7 +461,8 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
 | `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
-| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips session lookup, publication and the turn lease (Claude Code's auto-mode classifier, progress captions and tool-less side calls) |
+| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips publication and the turn lease and never touches the mapping (Claude Code's auto-mode classifier, progress captions and tool-less side calls; Oh My Pi's side calls) |
+| `forksAuxiliaryRequests` | The client's side calls send the conversation's own system prompt and tools: one that only adds user text after a completed turn resumes the conversation's session as an unpublished fork that leases only its own target (`auxiliaryLineage`); every other side call replays fresh (Oh My Pi) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
 | `getBlockedBuiltinTools()` | SDK tools replaced by agent's MCP equivalents |
@@ -531,7 +533,9 @@ prompt-cache keepalive beats, control/provider operations and their finalizers
 before releasing its owner.
 `ProxyInstance.close()` bounds the wait after HTTP drain: an unjoined cleanup
 rejects instead of reporting success, while the original cleanup retains SQL
-and ChatGPT ownership until those operations join. Repeated calls return the
+ownership until those operations join. ChatGPT ownership is released once
+admitted work has joined, beside GC and backend close (`joinShutdownCleanup`),
+so a slow GC sweep cannot keep the writer lease past the deadline. The deadline is `MERIDIAN_SHUTDOWN_CLEANUP_DEADLINE_MS` (10 s): GC, backend close and ChatGPT release do fsyncs and join child processes, which on a loaded host routinely took longer than the former 2 s and made every restart exit 1. Cleanup still running after 2 s is logged with each step's time (`ShutdownProgress`), and a missed deadline names the step that held it. Repeated calls return the
 same promise. `session/deletionCleanup.ts` separately owns GC from admission,
 including gaps between transactions and native child creation. Its per-proxy
 async context keeps sibling shutdown independent; its directory ledger retains
@@ -824,13 +828,13 @@ E2E tests (`E2E.md`) should be run before releases or after major refactors.
 
 Publication leases use the existing unarmed active-lease representation with `purpose: "publication"`. Older collectors also retain them while the owner process is alive; exact process-incarnation death permits recovery. They do not count as exclusive SDK writers, and abandoning publication never removes an actual writer lease. Published transcripts are retained by their durable mappings and become collectible after eviction.
 
-Exception, only with opt-in transcript retention (`MERIDIAN_TRANSCRIPT_RETENTION_DAYS` or `transcriptRetentionDays`, off by default): Meridian then passes `cleanupPeriodDays` to its request children, and Claude Code's own cleanup deletes files in the config root by modification time alone. It does not see publication leases, durable mappings or request pins, so it can retire a published or pinned transcript once it is older than the period. The next resume of an affected conversation is refused as unresumable and replays from the client's history into a fresh session (flattened text; SDK thinking is not restored). A cleanup racing a resume that is still loading the transcript can lose that conversation's SDK-side history; see the `session` spec's *Known limitations*. With retention off, Meridian passes no period and this lifetime contract holds without exception.
+Exception, only with opt-in transcript retention (`MERIDIAN_TRANSCRIPT_RETENTION_DAYS` or `transcriptRetentionDays`, off by default): Meridian then passes `cleanupPeriodDays` to its request children and runs an idle sweep child in roots that serve none, and Claude Code's own cleanup deletes files in the config root by modification time alone. It does not see publication leases, durable mappings or request pins. Before a child whose cleanup is due starts, Meridian gives every mapped or pinned transcript the cleanup could reach a current modification time, so its own children retire none of them; a cleanup started elsewhere in the root (another process, interactive Claude Code in a shared `~/.claude`) still can. The next resume of an affected conversation is refused as unresumable and replays from the client's history into a fresh session (flattened text; SDK thinking is not restored). A cleanup racing a resume that is still loading the transcript can lose that conversation's SDK-side history; see the `session` spec's *Known limitations*. With retention off, Meridian passes no period and this lifetime contract holds without exception.
 
 An SDK writer lease is released once its writer has been joined. If the lifecycle lock is busy at that point, the next GC sweep, including the shutdown sweep, retries the release; the completed turn does not fail. On win32 an executor's death does not prove its descendants gone, so a writer lease left by a crashed proxy is recovered only after the host reboots.
 
 `session/lifecycleLockQueue.ts` admits lifecycle transactions in a per-lock-path
 FIFO with at most 256 waiting callers. Local waiting does not consume the
-two-second external-lock acquisition budget; only the head creates a durable
+two-second external-lock acquisition budget; only the head creates a lock
 candidate. A holder stalled for 60 seconds rejects queued/new callers without
 unlocking or abandoning its transaction. A stall deadline that runs more than a
 second late was delayed by a blocked event loop, which delayed the holder too, so
@@ -910,6 +914,14 @@ per-request alerts. Recovery exhaustion is critical; individual child exits rema
 in the in-app history.
 
 ## Auth-status refresh lifetime
+
+`planRecheck.ts` bounds Claude plan readings to six-hour freshness and a
+five-minute retry floor. Plan-only writes and token rotations share per-store
+maintenance admission; a forced rotation waits for a plan write rather than
+joining its result. A reported plan field replaces the stored one, an omitted
+field survives, and the facts cache is fenced against reads older than a
+write. Only the 45-second profile maintenance loop asks for plan-only
+readings; request admission with a valid token stays network-free.
 
 Auth-status caches remain shared by profile/default context. Each proxy instance
 owns only the refreshes its routes or keepalive requested; closing one owner

@@ -897,6 +897,56 @@ describe("priority routing", () => {
     expect(capturedEnvs.at(-1)).toContain("prof-personal")
   })
 
+  it("keeps an unattested conversation on its account after a restart", async () => {
+    const sessionId = `restart-affinity-${crypto.randomUUID()}`
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect((await post(createTestApp(), { "x-opencode-session": sessionId })).status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    capturedEnvs = []
+
+    // A new server instance has no process-local assignment; the session's
+    // mapping under personal keeps it there instead of moving it to work.
+    const restarted = createTestApp()
+    expect((await post(restarted, { "x-opencode-session": sessionId }, "hello again")).status).toBe(200)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+    // A conversation without a mapping still starts on the head of the order.
+    expect((await post(restarted, { "x-opencode-session": `restart-new-${crypto.randomUUID()}` })).status).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-work")
+  })
+
+  it("keeps a conversation on its account when a subagent is its first request after a restart", async () => {
+    const sessionId = `cc-restart-${crypto.randomUUID()}`
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect(await postClaudeCode(createTestApp(), sessionId, "cc opening")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+
+    // The subagent's own key has no mapping yet; its parent's does.
+    const restarted = createTestApp()
+    expect(await postClaudeCode(restarted, sessionId, "cc subagent task", "a4a81dc1bbf7ee837")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    expect(await postClaudeCode(restarted, sessionId, "cc follow-up")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+  })
+
+  it("answers 503 instead of guessing an account when the mapping store cannot be read", async () => {
+    const sessionId = `restart-store-error-${crypto.randomUUID()}`
+    const store = await import("../proxy/sessionStore")
+    const lookup = store.lookupSharedSessionResult
+    const failing = spyOn(store, "lookupSharedSessionResult").mockImplementation(key =>
+      key.endsWith(sessionId) ? { status: "error", error: new Error("disk I/O error") } : lookup(key))
+    try {
+      const res = await post(createTestApp(), { "x-opencode-session": sessionId })
+      expect(res.status).toBe(503)
+      expect(await res.text()).toContain("Durable priority session state is unavailable")
+      expect(capturedEnvs).toEqual([])
+    } finally {
+      failing.mockRestore()
+    }
+  })
+
   it("defaults an unset priority failback policy to new-conversation affinity", async () => {
     // Given
     const app = createTestApp()
@@ -2899,6 +2949,36 @@ describe("per-model weekly bench", () => {
     expect(await attempts(app, "claude-opus-4-1", "opus after the fable refusal")).toEqual(["work"])
     // Mythos runs on the fable tier, so it shares the bench.
     expect(await attempts(app, "claude-mythos-5", "mythos after the fable refusal")).toEqual(["personal"])
+  }, 20_000)
+
+  it("benches only Fable when the refusal is the credits-era 'reached your Fable limit' banner", async () => {
+    const fableReset = Date.now() + 5 * DAY_MS
+    __setFetchOAuthUsageOverride(async (opts) => opts?.profileId === "work"
+      ? {
+          windows: [
+            { type: "five_hour", utilization: 0.2, resetsAt: Date.now() + 60 * 60_000 },
+            { type: "seven_day", utilization: 0.4, resetsAt: Date.now() + 6 * DAY_MS },
+            { type: "seven_day_fable", utilization: 1, resetsAt: fableReset },
+          ],
+          extraUsage: null,
+          bankedResets: null,
+          fetchedAt: Date.now(),
+        }
+      : null)
+    // Verbatim from Claude Code 2.1.322, betas warning appended as server.ts does.
+    failureMessage = "Claude Code returned an error result: You've reached your Fable limit. Switch to another model, or manage usage credits at https://claude.ai/settings/usage?from=cc_cli_limit_message, to continue.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."
+    failingModelDirs.set("prof-work", "fable")
+    const app = createTestApp()
+
+    const first = await attempts(app, "claude-fable-5-2", "fable refused on work with the reached banner")
+    expect(first[0]).toBe("work")
+    expect(first.at(-1)).toBe("personal")
+    await Bun.sleep(20)
+    const after = await health(app)
+    expect(after.exhausted).toEqual([])
+    expect(after.exhaustedModels).toEqual([{ id: "work", modelFamily: "fable", until: fableReset, reason: "rate_limit_error" }])
+    expect(await quotaSpent(app, "work")).toMatchObject({ diagnosis: { bucket: "seven_day_fable", reported: true }, modelFamily: "fable" })
+    expect(await attempts(app, "claude-opus-4-1", "opus after the reached-banner refusal")).toEqual(["work"])
   }, 20_000)
 
   it("benches the whole profile when a reported Fable bucket comes back on an Opus refusal", async () => {

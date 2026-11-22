@@ -119,7 +119,6 @@ describe("formatExtraUsage", () => {
         isEnabled: false,
         monthlyLimit: 50,
         usedCredits: 10,
-        utilization: 0.2,
         currency: "$",
       }),
     ).toBeNull()
@@ -131,7 +130,6 @@ describe("formatExtraUsage", () => {
         isEnabled: true,
         monthlyLimit: 0,
         usedCredits: 0,
-        utilization: 0,
         currency: "$",
       }),
     ).toBeNull()
@@ -142,7 +140,6 @@ describe("formatExtraUsage", () => {
       isEnabled: true,
       monthlyLimit: 100,
       usedCredits: 42.5,
-      utilization: 0.425,
       currency: "$",
     })
     expect(out).not.toBeNull()
@@ -157,35 +154,38 @@ describe("formatExtraUsage", () => {
       isEnabled: true,
       monthlyLimit: 50,
       usedCredits: 25,
-      utilization: 0.5,
       currency: "",
     })
     expect(out!.used).toBe("25.00")
     expect(out!.limit).toBe("50.00")
   })
 
-  it("computes utilization from used/limit when explicit utilization is missing", () => {
+  it("computes the share from the amounts", () => {
     const out = formatExtraUsage({
       isEnabled: true,
       monthlyLimit: 100,
       usedCredits: 90,
-      utilization: null,
       currency: "$",
     })
     expect(out!.utilizationPct).toBe(90)
     expect(out!.status).toBe("high")
+    expect(out!.over).toBeNull()
   })
 
-  it("clamps utilization to [0, 1] before classifying", () => {
-    const overshoot = formatExtraUsage({
+  // Anthropic's utilization stops at 100 once a turn overshoots the limit; the
+  // amounts say by how much, and the block must too (a $5.00 seat at $5.39).
+  it("shows spend past the limit instead of clamping it", () => {
+    const out = formatExtraUsage({
       isEnabled: true,
-      monthlyLimit: 100,
-      usedCredits: 150,
-      utilization: 1.5,
-      currency: "$",
+      monthlyLimit: 5,
+      usedCredits: 5.39,
+      currency: "USD",
     })
-    expect(overshoot!.utilizationPct).toBe(100)
-    expect(overshoot!.status).toBe("high")
+    expect(out).toEqual({ used: "$5.39", limit: "$5.00", over: "$0.39", utilizationPct: 108, status: "high" })
+  })
+
+  it("prefixes another ISO currency code with a space", () => {
+    expect(formatExtraUsage({ isEnabled: true, monthlyLimit: 20, usedCredits: 5, currency: "EUR" })!.used).toBe("EUR 5.00")
   })
 })
 

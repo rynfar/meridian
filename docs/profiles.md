@@ -35,7 +35,7 @@ meridian profile login work --headless
 
 The same login also records the account's plan (`subscriptionType`, `rateLimitTier`), read from Anthropic's OAuth profile endpoint — the token exchange itself returns no plan information. That is what lets `meridian profile list`, `/profiles/list`, `/health` and the dashboard tell a Max account from a Team one, and what makes `/v1/models` advertise the larger context window Max accounts actually have. If the lookup fails the login still succeeds and the plan simply stays unknown.
 
-> **⚠ A profile created by an older Meridian has no plan recorded, and a token refresh cannot backfill it** — the value is only ever written at login, and Anthropic's usage endpoint does not carry it. Re-run `meridian profile login <name> --headless` to repair such a profile.
+Plans change while a login stays valid - an upgrade from Pro to Max, a Team seat moved to another tier - so Meridian re-reads the plan every six hours as part of its background credential maintenance, and takes the plan the endpoint reports when it differs from the stored one. A field the endpoint omits keeps its stored value, a failed lookup is retried after five minutes, and requests never wait on the lookup. A read-only instance (`MERIDIAN_CREDENTIALS_READONLY`) does not re-read plans.
 
 #### From the web UI: re-authenticate a profile without a terminal
 
@@ -122,7 +122,7 @@ directory and never change the winning profile's credentials. On macOS, the
 existing credential-store API cannot delete an unreferenced Keychain item left
 by a rejected creation. Just start again with an available name.
 
-**Who can do this.** These routes inherit `/profiles/*`'s `requireAuth`, so they are behind `MERIDIAN_API_KEY` **when that key is set**. When it is not set - the default - the only thing standing between this page and account changes is whatever reaches the port: bind Meridian to loopback, or to a private network you trust. The page also supports renaming through its separate rename route. Removal stays `meridian profile remove <name>` on the host.
+**Who can do this.** These routes inherit `/profiles/*`'s `requireAuth`, so they are behind `MERIDIAN_API_KEY` **when that key is set**. When it is not set - the default - the only thing standing between this page and account changes is whatever reaches the port: bind Meridian to loopback, or to a private network you trust. The page also supports renaming through its separate rename route, and removal through the trash can on each card.
 
 Details worth knowing:
 
@@ -146,6 +146,22 @@ meridian profile add ci --oauth-token sk-ant-oat01-...
 ```
 
 OAuth-token profiles store the token in `profiles.json` and feed it to the SDK via `CLAUDE_CODE_OAUTH_TOKEN` — no Keychain entry, no browser handshake. To prevent the SDK's 401-recovery from silently falling back to the host's `~/.claude` credentials, OAuth-token profiles also pin `CLAUDE_CONFIG_DIR` to an isolated per-profile directory under `~/.config/meridian/profiles/<name>/`. That directory holds only SDK state (sessions, settings) — never `.credentials.json`, since the token is delivered through the env.
+
+### Removing a profile
+
+The trash can on a Claude profile's card asks for confirmation, then calls `POST /profiles/claude/remove`, which does what `meridian profile remove <name>` does:
+
+- the entry leaves `profiles.json` first, then the credential directory it owns is deleted: a browser-login profile's `claudeConfigDir` only when it lives under `~/.config/meridian/profiles/` (a profile pointed at `~/.claude` never takes the host's own credentials with it), and an `oauth-token` profile's directory at `profiles/<name>`;
+- the name and the former names that redirected to it leave the saved failover order;
+- when it was the active profile, the first remaining profile becomes active.
+
+```bash
+# → {"success":true,"profile":"work","provider":"claude","activeProfile":"personal","remaining":["personal"],"dirsOrphaned":[]}
+curl -X POST http://127.0.0.1:3456/profiles/claude/remove \
+  -H 'Content-Type: application/json' -d '{"profile":"work"}'
+```
+
+The name must be the profile's current one: a former name is refused with the profile that holds it now. A directory that could not be deleted is listed in `dirsOrphaned`; the profile is removed regardless. Browser writes must come from the same origin, and `MERIDIAN_CREDENTIALS_READONLY=1` refuses the route (403) and the CLI alike. A profile defined in the startup configuration, or adopted from the instance named by `MERIDIAN_FOLLOW_ACTIVE`, is refused with `409 owned_elsewhere`: remove it where it is defined.
 
 ### Current login expiry
 
@@ -243,6 +259,8 @@ meridian profile switch work
 curl -H "x-meridian-profile: work" ...
 ```
 
+A request with the header runs on that account or fails; it is never failed over to another one. A header naming a profile this Meridian does not have is answered `400` with error type `unknown_profile` rather than served from another account.
+
 You can also switch profiles from the web UI — click an account card on the home page (`http://127.0.0.1:3456/`) or use the Profiles page at `/profiles`. The site header on every page shows which profile is active.
 
 ### Filter accounts by login state
@@ -287,7 +305,7 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 # failback behavior. MERIDIAN_PRIORITY_FAILBACK overrides the settings value.
 ```
 
-- **Conversations keep their account** while it's healthy — a session never flips accounts just because the pool preference changed (protects per-account prompt caches). A session on an exhausted account fails over and then stays on its new account. A conversation is identified by its session header when the client sends one, and otherwise by a fingerprint of its opening message and project directory — so keyless clients get the same affinity.
+- **Conversations keep their account** while it's healthy — a session never flips accounts just because the pool preference changed (protects per-account prompt caches). A session on an exhausted account fails over and then stays on its new account. A conversation is identified by its session header when the client sends one, and otherwise by a fingerprint of its opening message and project directory — so keyless clients get the same affinity. A conversation with a session header also keeps its account across a Meridian restart: Meridian resumes it on the account that served it last.
 - **Failback policy**: `new-conversation` is the default and current behavior. When the preferred account recovers, new conversations use it while existing conversations stay on their fallback. With `next-user-turn`, Meridian switches an existing OpenCode or Pi conversation only on a fresh HMAC-attested, visible primary human turn, using a full-history fresh backing session on the preferred account. Hidden/title/summary/compaction, fork, subagent, keyless, malformed, replayed, and explicitly pinned requests cannot promote. Tool-loop continuations retain and atomically refresh the current route. If the preferred account refuses before content, the fallback session is retained. After assistant content, structured output, or a tool side effect, Meridian never replays the turn on another account. Pi needs the extension from `meridian setup --client pi`; other adapters retain `new-conversation` behavior.
 - **One-time setup for `next-user-turn`**: rerun `meridian setup` after upgrading. Setup creates `~/.config/meridian/opencode-turn.key` as a 32-byte key with mode `0600` and configures the matching V1 or V2 plugin; `meridian setup --client pi` uses the same key for the Pi extension. Missing or invalid keys fail closed: requests still work, but they cannot promote. If OpenCode or Pi and Meridian run in separate hosts or config homes, set the same 32-byte base64url `MERIDIAN_OPENCODE_ATTESTATION_KEY` in both environments instead of relying on the shared file. Attestations bind the immutable creation time of the client's user message and are accepted only for the short freshness window; an old A-B-A replay keeps A's old time even after a restart and cannot cross B's durable high-water mark.
 - **Exposed turns are replay-fenced durably.** Meridian records an exact attempt claim before SDK work starts and clears it only with terminal route/session finalization or a proven pre-exposure account failure. A crash, cancellation, assistant output, structured output, or tool execution leaves the claim fail-closed. Retrying the same, older, missing, or invalid attestation then returns `503` before any SDK call; only a strictly newer trusted human turn can supersede the uncertain attempt.

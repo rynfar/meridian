@@ -53,6 +53,28 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 
 ## Decisions
 
+- **Streaming failure events describe unrecovered turns.** After SDK error
+  classification, a usable captured/uncaptured tool handoff or capped-turn
+  truncation logs `upstream.completed` with the normal streaming fields plus
+  `sdkTermination` and `recovery` (`tool_use`, `tool_use_uncaptured`, or
+  `max_tokens`), not `upstream.failed` / `proxy.anthropic.error`. Other exits,
+  including failed recovery publication, retain both failure events exactly
+  once with their original classification and stderr. This changes no recovery,
+  telemetry, idle-streak or wire behavior. See
+  [exit audit and live log evidence](../../docs/maintenance/PASSTHROUGH_HANDOFF_LOGGING.md).
+
+- **Externally stopped Claude Code processes are transient.** SDK exits 143
+  (SIGTERM) and 137 (SIGKILL), including the SDK's null-code `terminated by
+  signal SIGTERM/SIGKILL` form, return 503 `api_error` with “Service temporarily
+  unavailable” and retry advice, not login advice. A null-code signal name
+  comes only from the SDK text before `Subprocess stderr:`, never quoted stderr.
+  Earlier global auth, entitlement, quota and request-error classification
+  keeps precedence. This
+  does not enable account failover (only quota/billing classes do that).
+  Shutdown still drains admitted work before its deadline; deadline expiry
+  force-closes sockets rather than promising delivery of an SSE error. See
+  [signal/drain evidence](../../docs/maintenance/SIGNAL_EXIT_TRANSIENT.md).
+
 - **OpenAI Responses (`/v1/responses`) for Codex** is pure translation
   forwarded in-process to `/v1/messages`, reusing auth, model mapping, sessions
   and the tool loop.
@@ -134,20 +156,49 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   Claude Code validates the key as a positive integer and older versions read
   `0` as "write no transcripts".
   - *Why opt-in:* the cleanup deletes every file of its kind older than the
-    period in the whole config directory (transcripts Meridian still maps or
-    pins, file history, plans, tasks, uploads, shell snapshots, debug logs,
-    backups…), by mtime only, and can race a resume (`session` → *Known
-    limitations*). That is a data-deletion choice for the operator.
-  - *Why no Meridian-owned sweep yet:* the proposed idle sweep launched a
-    promptless Claude Code child per profile root without process custody (its
-    SDK slot was released before the child was joined, `close()` could succeed
-    with it unjoined, root reservation raced) and exported
-    `ProxyServer.transcriptSweep` without contract approval. Retention
-    therefore runs only inside request children; a profile that serves no
-    requests is not cleaned.
-  - *Follow-ups:* a pin-aware transcript GC that honors durable mappings and
-    publication leases, then an idle sweep with full process custody (slot held
-    until the child is joined, joined on close, atomic root reservation).
+    period in the whole config directory (file history, plans, tasks, uploads,
+    shell snapshots, debug logs, backups…), by mtime only. That is a
+    data-deletion choice for the operator.
+  - *Transcripts Meridian still needs survive it.* Before a child whose
+    cleanup is due (`.last-cleanup` a day old) starts, every transcript the
+    session store maps or a request has pinned in that root, and that the
+    cleanup could reach, gets a current mtime, its sidecar directory included
+    (`transcriptSweep.ts` → `protectPinnedTranscripts`). Files are found by
+    session id under `projects/`; roots are compared after resolving
+    symlinks. If any pinned file cannot be read or touched (other than being
+    gone), the request child runs without a period and the idle sweep skips
+    the root, so the cleanup never runs unprotected. Cost: one walk of
+    `projects/` per root per day, at most once an hour.
+  - *Idle sweep* (`transcriptSweep.ts`, only where retention is on). The
+    cleanup runs only inside a CLI process, so a root that serves no requests,
+    or only requests shorter than ~5 s, is never cleaned. Every three hours
+    (`MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS`, `0` off) Meridian starts one
+    promptless, network-less CLI process per due root, one root at a time, and
+    stops it once `.last-cleanup` advances (10-minute cap). Its custody:
+    - the child runs on the same gated path as a request (SDK process gate,
+      close-and-join) without the stall guard or reachability tracking, and
+      takes only a free SDK permit that leaves one for a client turn;
+    - the permit is released only once the exact process is joined; a child
+      that outlives the join budget keeps it until it does exit;
+    - `close()` stops the child before draining and joins it before the
+      backend closes, so it never succeeds with the child alive (past the
+      shutdown deadline it rejects with ownership retained);
+    - the root is reserved before its login is read and kept until the join;
+      request admission refuses the reservation while a request runs there and
+      preempts it when one arrives, so the child is stopped, never started;
+    - every outbound connection goes to a loopback proxy that refuses it, a
+      login due for refresh within 30 minutes is skipped, and
+      `MERIDIAN_CREDENTIALS_READONLY` starts nothing;
+    - an instance under `MERIDIAN_FOLLOW_ACTIVE` sweeps nothing: it shares
+      the followed instance's directories, whose pins live in that store;
+    - the stored login is compared before and after; a login that is usable
+      and expires no earlier afterwards was renewed elsewhere (the child has
+      no network) and is logged, any other change stops the sweep until
+      restart.
+    The sweep is internal: neither `ProxyServer` nor `ProxyInstance` carries
+    it (`proxy-server-no-transcript-sweep` test); `startProxyServer` finds it
+    in a module-level `WeakMap`, so embedders using `createProxyServer().app`
+    get none.
   - Settings writes are same-origin only (`transcriptRetentionSettings.ts`).
 - **`max_tokens` is not enforced by default:** the Agent SDK exposes no output
   cap, and the CLI's cap counts thinking plus text, so an answer-sized cap can
@@ -174,8 +225,8 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   - *55 minutes, 3 beats.* One beat 55 minutes after the latest real turn
     started, and 55 minutes after each reached beat: five minutes of margin
     under the hour for tick jitter (10 s), the 15 s settle after a new
-    mapping, a retry, and SDK start-up. At most three per idle period (≈3 h)
-    bounds the cost of a session that never comes back. A real turn ends the
+    mapping, a retry, and SDK start-up. At most three per idle period (≈3 h;
+    `MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS` changes it) bounds the cost of a session that never comes back. A real turn ends the
     period (and no beat runs while one is running); auxiliary/independent
     requests never touch the schedule.
   - *Main conversations only.* Subagent and one-shot requests (OpenCode's
@@ -189,6 +240,15 @@ Contract*, *Cancellation Contract*; public routes and headers are in
     rewrote 86,385 tokens; with it, one beat at 55.3 min read 90,018 and the
     next turn read 90,018 and wrote 340, about 89% cheaper in input-token
     equivalents net of the beat.
+  - *Client mode* (deploy-only). `MERIDIAN_CACHE_KEEPALIVE=client` tracks the
+    same sessions but starts no beat on its own; `POST
+    /v1/sessions/:key/cache-beat` runs one now and answers with its outcome.
+    Only the operator chooses this mode; otherwise the endpoint answers
+    `disabled`. A client that knows whether its user is coming back picks the
+    time, within the same per-period cap (`MERIDIAN_CACHE_KEEPALIVE_MAX_BEATS`,
+    default 3) and no sooner than 20 minutes after the latest turn or beat;
+    eligibility, the account rules, the in-flight cap and "never refresh an
+    expired prefix" still apply. The key must match the session key exactly.
   - *Never on someone's money or an exhausted window.* No beat on API-key or
     token profiles, while any live window reports `isUsingOverage`, a
     rejected or fully used window, priority cooldown, a spent refusal, or a
@@ -254,6 +314,11 @@ response response.created → response.in_progress → output_item.added →
 - **Implicit SDK attachments** in passthrough are suppressed by default
   (`CLAUDE_CODE_DISABLE_ATTACHMENTS=1`), which also bypasses the CLI's
   kept-deferred-tools optimization.
+- **No proxy-side compaction in passthrough:** the CLI's auto-compaction is
+  off (`DISABLE_AUTO_COMPACT=1`) because the client owns the history. A turn
+  over the context window fails with the canonical prompt-too-long error
+  (400 `invalid_request_error`), which the client answers by compacting.
+  Inherited env or profile `envOverrides` may set another value.
 - **Passthrough turns default to `maxTurns=1`** to stop at the tool boundary;
   the client must send another request after executing tools.
 

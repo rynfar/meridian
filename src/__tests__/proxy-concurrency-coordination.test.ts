@@ -1322,6 +1322,9 @@ describe("SDK and Session concurrency coordination", () => {
       defaultProfile: "work",
     }).app
     const sessionId = `hot-profile-${crypto.randomUUID()}`
+    // An unrelated earlier mapping on work, visible at arrival, so the
+    // conversation is restored there and fails over to hot.
+    await storeSharedSession(`work:${sessionId}`, "work-earlier-sdk", 2, "work-lineage", ["old-c", "old-d"])
     const lease = await processSessionTurns.acquire(`session:${sessionId}`)
     const pending = app.fetch(request([{ role: "user", content: "stale body" }], sessionId))
 
@@ -1329,7 +1332,13 @@ describe("SDK and Session concurrency coordination", () => {
     // profile and its durable mapping visible before the queued turn is granted.
     await Bun.sleep(20)
     profiles.push({ id: "hot", claudeConfigDir: "/tmp/meridian-test-hot-new" })
-    await storeSharedSession(`hot:${sessionId}`, "hot-existing-sdk", 2, "hot-lineage", ["old-a", "old-b"])
+    // Older than work's mapping, so the restore still picks work.
+    const clock = spyOn(Date, "now").mockReturnValue(Date.now() - 60 * 60_000)
+    try {
+      await storeSharedSession(`hot:${sessionId}`, "hot-existing-sdk", 2, "hot-lineage", ["old-a", "old-b"])
+    } finally {
+      clock.mockRestore()
+    }
     rateLimitWorkQueries = true
     lease.release()
 

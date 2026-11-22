@@ -23,7 +23,6 @@ export function attachSharedTranscriptLocator(directory: string, key: string, id
     existing.revision = (existing.revision ?? 0) + 1
     existing.generationId = randomUUID()
     writeMappingRow(tx, key, existing, true)
-    advanceStoreSlot(tx, key)
     const attached = readMappingGeneration(tx, key)
     refreshMappingRoutes(tx, key, attached)
     return attached
