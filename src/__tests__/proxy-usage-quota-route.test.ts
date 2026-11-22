@@ -199,7 +199,7 @@ describe("GET /v1/usage/quota", () => {
         { type: "seven_day", utilization: 0.05, resetsAt: 1_730_222_222_222 },
         { type: "seven_day_omelette", utilization: 0.01, resetsAt: 1_730_333_333_333 },
       ],
-      extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" },
+      extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 236.3, utilization: null, currency: "USD", exponent: 2 },
       bankedResets: null,
       fetchedAt: 1_730_000_000_000,
     }))
@@ -233,7 +233,7 @@ describe("GET /v1/usage/quota", () => {
 
     // extra_usage block exposed at top level
     expect(body.extraUsage).toBeDefined()
-    expect(body.extraUsage!.usedCredits).toBe(23630)
+    expect(body.extraUsage!.usedCredits).toBe(236.3)
 
     // afterEach handles cleanup.
   })
@@ -352,14 +352,17 @@ describe("GET /v1/usage/quota/all — null attribution", () => {
     expect(body.profiles.find(p => p.id === "personal")?.error).toBe("no_token")
   })
 
-  it("serves each profile's last good reset inventory with its original freshness", async () => {
+  it("serves normalized grant metadata on each profile's last good quota snapshot", async () => {
     const bankedResets: OAuthBankedResets = {
       eligible: true,
       ineligibleReason: null,
-      nextGrantId: "remaining",
+      nextGrantId: "launch-2610-fable",
       grants: [
-        { id: "expired", resetsLeft: 0, expiresAt: Date.UTC(2020, 0, 1), startsAt: null, paused: false, usableNow: false },
-        { id: "remaining", resetsLeft: 2, expiresAt: Date.UTC(2030, 0, 1), startsAt: Date.UTC(2026, 0, 1), paused: false, usableNow: true },
+        { id: "future-promotion", resetsLeft: 0, expiresAt: Date.UTC(2020, 0, 1), startsAt: null, paused: false, usableNow: false,
+          kind: "unknown", providerType: "scoped-promotion", clears: ["future_window"], description: "Future promotion" },
+        { id: "launch-2610-fable", resetsLeft: 2, expiresAt: Date.UTC(2030, 0, 1), startsAt: Date.UTC(2026, 0, 1), paused: false, usableNow: true,
+          kind: "fable", providerType: "full", clears: ["seven_day_overage_included"], givesBackWeekly: true,
+          description: "Fable launch grant", percentUsed: { seven_day_overage_included: 0 } },
       ],
     }
     const store = {
@@ -372,9 +375,12 @@ describe("GET /v1/usage/quota/all — null attribution", () => {
       force: true, profileId: "work", store,
       fetchImpl: async () => Response.json({
         five_hour: { utilization: 25 },
-        cedar_ember: { eligible: true, next_grant_id: "remaining", grants: [
-          { id: "expired", resets_left: 0, ends_at: "2020-01-01T00:00:00Z", paused: false, usable_now: false },
-          { id: "remaining", resets_left: 2, ends_at: "2030-01-01T00:00:00Z", starts_at: "2026-01-01T00:00:00Z", paused: false, usable_now: true },
+        cedar_ember: { eligible: true, next_grant_id: "launch-2610-fable", grants: [
+          { id: "future-promotion", resets_left: 0, ends_at: "2020-01-01T00:00:00Z", paused: false, usable_now: false,
+            type: "scoped-promotion", clears: ["future_window"], label: "Future promotion" },
+          { id: "launch-2610-fable", resets_left: 2, ends_at: "2030-01-01T00:00:00Z", starts_at: "2026-01-01T00:00:00Z", paused: false, usable_now: true,
+            type: "full", clears: ["seven_day_overage_included"], gives_back_weekly: true,
+            label: "Fable launch grant", percent_used: { seven_day_overage_included: 0 } },
         ] },
       }),
     })

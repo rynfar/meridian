@@ -2,6 +2,7 @@
  * Tests for the Pi coding agent adapter.
  */
 import { describe, it, expect } from "bun:test"
+import type { Context } from "hono"
 import { piAdapter } from "../proxy/adapters/pi"
 
 describe("piAdapter — identity", () => {
@@ -384,5 +385,60 @@ describe("piAdapter.getSessionId — body identity fallback (#734)", () => {
     const main = piAdapter.getSessionId(ctx(), ompBody("omp-main"))
     const advisor = piAdapter.getSessionId(ctx(), ompBody("omp-advisor"))
     expect(main).not.toBe(advisor)
+  })
+})
+
+describe("piAdapter.isAuxiliaryRequest — Oh My Pi side calls", () => {
+  // The adapter reads only `req.header`; a full hono Context is not needed.
+  const ctx = (headers: Record<string, string> = {}): Context => ({
+    req: { header: (n: string) => headers[n.toLowerCase()] },
+  }) as unknown as Context
+  const ompBody = (sessionId: string) => ({
+    metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+  })
+
+  it("marks a side call that carries the conversation's session id", () => {
+    // Captured from omp 18.20.3: the recap and composer predictions send the
+    // main session id in the body and `<main>:side:<id>` in this header.
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:15d02de42621c9eb" })
+    expect(piAdapter.isAuxiliaryRequest?.(side, ompBody("omp-main"))).toBe(true)
+  })
+
+  it("keeps the conversation's own turn a turn", () => {
+    const main = ctx({ "x-claude-code-session-id": "omp-main" })
+    expect(piAdapter.isAuxiliaryRequest?.(main, ompBody("omp-main"))).toBe(false)
+  })
+
+  it("does not mark a side call of another session, even one sharing a prefix", () => {
+    const other = ctx({ "x-claude-code-session-id": "omp-main-2:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(other, ompBody("omp-main"))).toBe(false)
+  })
+
+  it("marks a side call whose body session id an extension suffixed", () => {
+    // An omp extension rotating accounts sends `<session>~<suffix>` in the
+    // body; omp still names the bare session in the header.
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(side, ompBody("omp-main~rmwj21284"))).toBe(true)
+  })
+
+  it("does not mark a side call of a session whose id is only a prefix of the key", () => {
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
+    for (const key of ["omp-main2", "omp-main-2", "omp-main.2", "omp-main:child"]) {
+      expect(piAdapter.isAuxiliaryRequest?.(side, ompBody(key))).toBe(false)
+    }
+  })
+
+  it("does not mark a request without a body session id", () => {
+    const side = ctx({ "x-claude-code-session-id": "omp-main:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(side, {})).toBe(false)
+  })
+
+  it("compares against the session key in use, not the body id under an affinity key", () => {
+    // Keyed by `x-session-affinity`, the request does not share the body
+    // session's key, so a side id of the body session is not one of its own.
+    const keyed = ctx({ "x-session-affinity": "affinity-key", "x-claude-code-session-id": "omp-main:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(keyed, ompBody("omp-main"))).toBe(false)
+    const own = ctx({ "x-session-affinity": "affinity-key", "x-claude-code-session-id": "affinity-key:side:abc" })
+    expect(piAdapter.isAuxiliaryRequest?.(own, ompBody("omp-main"))).toBe(true)
   })
 })

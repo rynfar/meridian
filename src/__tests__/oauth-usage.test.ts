@@ -114,7 +114,7 @@ describe("oauthUsage", () => {
     expect(sevenDay!.utilization).toBeCloseTo(0.05, 5)
     expect(result?.bankedResets).toEqual({
       eligible: true, ineligibleReason: null, nextGrantId: null,
-      grants: [{ id: "sample-reset", resetsLeft: 1, expiresAt: Date.parse("2026-11-01T00:00:00Z"), startsAt: null, paused: null, usableNow: null }],
+      grants: [{ id: "sample-reset", resetsLeft: 1, expiresAt: Date.parse("2026-11-01T00:00:00Z"), startsAt: null, paused: null, usableNow: null, kind: "unknown" }],
     })
   })
 
@@ -135,13 +135,13 @@ describe("oauthUsage", () => {
     }))
     const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl })
     expect(result?.bankedResets?.grants).toEqual([
-      { id: "expired", resetsLeft: 0, expiresAt: Date.UTC(2020, 0, 1), startsAt: null, paused: null, usableNow: null },
-      { id: "paused", resetsLeft: 2, expiresAt: Date.UTC(2030, 0, 1), startsAt: null, paused: true, usableNow: null },
-      { id: "future", resetsLeft: Number.MAX_SAFE_INTEGER, expiresAt: Date.UTC(2091, 0, 1), startsAt: Date.UTC(2090, 0, 1), paused: null, usableNow: null },
-      { id: null, resetsLeft: 1, expiresAt: null, startsAt: null, paused: null, usableNow: null },
-      { id: null, resetsLeft: 3, expiresAt: null, startsAt: null, paused: null, usableNow: null },
-      { id: null, resetsLeft: 4, expiresAt: null, startsAt: null, paused: null, usableNow: null },
-      { id: null, resetsLeft: 5, expiresAt: Date.UTC(2030, 0, 1, 5), startsAt: null, paused: null, usableNow: null },
+      { id: "expired", resetsLeft: 0, expiresAt: Date.UTC(2020, 0, 1), startsAt: null, paused: null, usableNow: null, kind: "unknown" },
+      { id: "paused", resetsLeft: 2, expiresAt: Date.UTC(2030, 0, 1), startsAt: null, paused: true, usableNow: null, kind: "unknown" },
+      { id: "future", resetsLeft: Number.MAX_SAFE_INTEGER, expiresAt: Date.UTC(2091, 0, 1), startsAt: Date.UTC(2090, 0, 1), paused: null, usableNow: null, kind: "unknown" },
+      { id: null, resetsLeft: 1, expiresAt: null, startsAt: null, paused: null, usableNow: null, kind: "unknown" },
+      { id: null, resetsLeft: 3, expiresAt: null, startsAt: null, paused: null, usableNow: null, kind: "unknown" },
+      { id: null, resetsLeft: 4, expiresAt: null, startsAt: null, paused: null, usableNow: null, kind: "unknown" },
+      { id: null, resetsLeft: 5, expiresAt: Date.UTC(2030, 0, 1, 5), startsAt: null, paused: null, usableNow: null, kind: "unknown" },
     ])
   })
 
@@ -156,7 +156,7 @@ describe("oauthUsage", () => {
     const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl })
     expect(result?.bankedResets).toEqual({
       eligible: true, ineligibleReason: null, nextGrantId: null,
-      grants: [{ id: null, resetsLeft: 0, expiresAt: null, startsAt: null, paused: null, usableNow: null }],
+      grants: [{ id: null, resetsLeft: 0, expiresAt: null, startsAt: null, paused: null, usableNow: null, kind: "unknown" }],
     })
   })
 
@@ -190,8 +190,8 @@ describe("oauthUsage", () => {
     expect(result?.bankedResets).toEqual({
       eligible: true, ineligibleReason: null, nextGrantId: "next-grant",
       grants: [
-        { id: "next-grant", resetsLeft: 1, expiresAt: null, startsAt: Date.UTC(2026, 9, 1), paused: false, usableNow: true },
-        { id: "later", resetsLeft: 1, expiresAt: null, startsAt: Date.UTC(2027, 0, 1), paused: true, usableNow: false },
+        { id: "next-grant", resetsLeft: 1, expiresAt: null, startsAt: Date.UTC(2026, 9, 1), paused: false, usableNow: true, kind: "unknown" },
+        { id: "later", resetsLeft: 1, expiresAt: null, startsAt: Date.UTC(2027, 0, 1), paused: true, usableNow: false, kind: "unknown" },
       ],
     })
     const ineligible = await fetchOAuthUsage({
@@ -214,9 +214,63 @@ describe("oauthUsage", () => {
       })
       expect(result?.bankedResets).toEqual({
         eligible: true, ineligibleReason: null, nextGrantId: null,
-        grants: [{ id: "grant", resetsLeft: 1, expiresAt: null, startsAt: null, paused: null, usableNow: null }],
+        grants: [{ id: "grant", resetsLeft: 1, expiresAt: null, startsAt: null, paused: null, usableNow: null, kind: "unknown" }],
       })
     }
+  })
+
+  test("reads whole-week and Fable grants from provider scope without changing usability at zero", async () => {
+    const result = await fetchOAuthUsage({
+      force: true, store: makeStore("t"),
+      fetchImpl: fixedFetch(() => Response.json({ cedar_ember: {
+        eligible: true, next_grant_id: "launch-2610-fable",
+        grants: [
+          { id: "full-reset-2611", type: "weekly", clears: ["seven_day", "seven_day_overage_included"],
+            gives_back_weekly: false, label: "Whole-week grant", resets_left: 2, resets_total: 2,
+            percent_used: { seven_day: 100, seven_day_overage_included: 27.5 }, paused: false, usable_now: true },
+          { id: "launch-2610-fable", type: "full", clears: ["seven_day_overage_included"],
+            gives_back_weekly: true, label: "  Fable launch grant  ", resets_left: 1, resets_total: 1,
+            percent_used: { seven_day_overage_included: 0, future_window: 17.25, negative: -1, over: 101, strings: "100", nested: { percent: 50 } },
+            paused: false, usable_now: true, use_requires_limit: false, blocking: [], arm: "launch",
+            unavailable_reason: null, starts_at: "2026-10-01T00:00:00Z", ends_at: "2026-12-01T00:00:00Z" },
+        ],
+      } })),
+    })
+    expect(result?.bankedResets).toEqual({
+      eligible: true, ineligibleReason: null, nextGrantId: "launch-2610-fable",
+      grants: [
+        { id: "full-reset-2611", resetsLeft: 2, startsAt: null, expiresAt: null, paused: false, usableNow: true,
+          kind: "full", providerType: "weekly", clears: ["seven_day", "seven_day_overage_included"], givesBackWeekly: false,
+          description: "Whole-week grant", percentUsed: { seven_day: 100, seven_day_overage_included: 27.5 } },
+        { id: "launch-2610-fable", resetsLeft: 1, startsAt: Date.UTC(2026, 9, 1), expiresAt: Date.UTC(2026, 11, 1), paused: false, usableNow: true,
+          kind: "fable", providerType: "full", clears: ["seven_day_overage_included"], givesBackWeekly: true,
+          description: "  Fable launch grant  ", percentUsed: { seven_day_overage_included: 0, future_window: 17.25 } },
+      ],
+    })
+  })
+
+  test.each([
+    ["a whole-week Team grant that also clears both Fable windows", { id: "team-grant", type: "full", clears: ["five_hour", "seven_day_overage_included", "seven_day"] }, "full"],
+    ["the legacy full grant without scope", { id: "full-reset-2611" }, "full"],
+    ["the legacy six-month Fable grant without scope", { id: "launch-2610-fable-6mo" }, "fable"],
+    ["the twelve-month Fable grant with scope", { id: "launch-2610-fable-12mo", clears: ["seven_day_overage_included"], gives_back_weekly: true }, "fable"],
+    ["the Team Fable launch grant", { id: "launch-2610-fable", type: "full", clears: ["five_hour", "seven_day_overage_included"], gives_back_weekly: true }, "fable"],
+    ["the six-month Team Fable grant with reversed window order", { id: "launch-2610-fable-6mo", type: "full", clears: ["seven_day_overage_included", "five_hour"], gives_back_weekly: true }, "fable"],
+    ["the twelve-month Team Fable grant with a repeated window", { id: "launch-2610-fable-12mo", type: "full", clears: ["five_hour", "seven_day_overage_included", "five_hour"], gives_back_weekly: true }, "fable"],
+    ["an unrelated grant reusing the Team Fable launch scope and flag", { id: "another-campaign", type: "full", clears: ["five_hour", "seven_day_overage_included"], gives_back_weekly: true }, "unknown"],
+    ["a Fable launch ID with an additional unrelated window", { id: "launch-2610-fable", type: "full", clears: ["five_hour", "seven_day_overage_included", "seven_day_sonnet"], gives_back_weekly: true }, "unknown"],
+    ["a Fable launch ID clearing only the five-hour window", { id: "launch-2610-fable", type: "full", clears: ["five_hour"], gives_back_weekly: true }, "unknown"],
+    ["a full provider type without actual scope", { id: "another-campaign", type: "full" }, "unknown"],
+    ["an explicit different window on the legacy full grant", { id: "full-reset-2611", clears: ["five_hour"] }, "unknown"],
+    ["an explicit empty scope on the legacy Fable grant", { id: "launch-2610-fable", clears: [] }, "unknown"],
+    ["a contradictory weekly flag on the Team Fable launch grant", { id: "launch-2610-fable", clears: ["five_hour", "seven_day_overage_included"], gives_back_weekly: false }, "unknown"],
+    ["a malformed scope on the legacy full grant", { id: "full-reset-2611", clears: "seven_day" }, "unknown"],
+  ] as const)("normalizes the scope of %s", async (_case, grant, kind) => {
+    const result = await fetchOAuthUsage({
+      force: true, store: makeStore("t"),
+      fetchImpl: fixedFetch(() => Response.json({ cedar_ember: { eligible: true, grants: [{ ...grant, resets_left: 1 }] } })),
+    })
+    expect(result?.bankedResets?.grants.map(item => item.kind)).toEqual([kind])
   })
 
   test("usage reads send only the cedar_ember flag and the bundled Claude Code identity", async () => {
@@ -252,7 +306,7 @@ describe("oauthUsage", () => {
     expect(withBlock.extraUsage).toEqual(without.extraUsage)
     expect(malformed.windows).toEqual(without.windows)
     expect(malformed.extraUsage).toEqual(without.extraUsage)
-    expect(without.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" })
+    expect(without.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 0, usedCredits: 236.3, utilization: null, currency: "USD", exponent: 2 })
   })
 
   test("retains cached and stale reset inventory without leaking it across profiles", async () => {
@@ -346,9 +400,30 @@ describe("oauthUsage", () => {
     const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl })
     expect(result!.extraUsage).not.toBeNull()
     expect(result!.extraUsage!.isEnabled).toBe(true)
-    expect(result!.extraUsage!.usedCredits).toBe(23630)
+    expect(result!.extraUsage!.usedCredits).toBe(236.3)
     expect(result!.extraUsage!.utilization).toBeNull()
     expect(result!.extraUsage!.currency).toBe("USD")
+  })
+
+  // Anthropic sends extra_usage amounts in minor units: claude.ai's admin API
+  // reports the same member's limit as { amount_minor: 500, exponent: 2 },
+  // i.e. $5.00, where this endpoint says monthly_limit: 500.
+  test("converts extra_usage amounts from cents to dollars, past the limit included", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: true, monthly_limit: 500, used_credits: 539, utilization: 100, currency: "USD" } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toEqual({ isEnabled: true, monthlyLimit: 5, usedCredits: 5.39, utilization: 1, currency: "USD", exponent: 2 })
+  })
+
+  test("uses decimal_places when the response names it", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: true, monthly_limit: 800, used_credits: 120, utilization: 15, currency: "JPY", decimal_places: 0 } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toMatchObject({ monthlyLimit: 800, usedCredits: 120, currency: "JPY", exponent: 0 })
+  })
+
+  test("reads a disabled extra_usage block with null amounts as zero", async () => {
+    const body = { ...SAMPLE_RESPONSE, extra_usage: { is_enabled: false, monthly_limit: null, used_credits: null, utilization: null, currency: null, decimal_places: null } }
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl: fixedFetch(() => Response.json(body)) })
+    expect(result!.extraUsage).toEqual({ isEnabled: false, monthlyLimit: 0, usedCredits: 0, utilization: null, currency: "USD", exponent: 2 })
   })
 
   test("returns null on upstream error (non-401)", async () => {
@@ -1085,5 +1160,70 @@ describe("token refresh outside the 401 path", () => {
     expect(freshCalls).toBe(1)
     expect(afterClear.error).toBeNull()
     expect(afterClear.failure).toBeNull()
+  })
+})
+
+describe("MERIDIAN_USAGE_CACHE_TTL_MS", () => {
+  const ok = () => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+
+  beforeEach(() => {
+    resetOAuthUsageCache()
+  })
+
+  afterEach(() => {
+    setSystemTime()
+    delete process.env.MERIDIAN_USAGE_CACHE_TTL_MS
+  })
+
+  test("a raised TTL keeps serving the cached reading until it expires", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "150000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "raised" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 149_000)
+    const cached = await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+    expect(cached.snapshot?.stale).toBeUndefined()
+
+    setSystemTime(start + 151_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
+  })
+
+  test("a value below the 30s default cannot shorten the cache", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "1000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "lowered" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 29_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+
+    setSystemTime(start + 31_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
+  })
+
+  test("a value above five minutes is capped at five minutes", async () => {
+    process.env.MERIDIAN_USAGE_CACHE_TTL_MS = "3600000"
+    const { fetchImpl, getCalls } = countingFetch(ok)
+    const opts = { store: makeStore("t"), fetchImpl, profileId: "capped" }
+    const start = Date.now()
+    setSystemTime(start)
+    await fetchOAuthUsageResult(opts)
+
+    setSystemTime(start + 299_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(1)
+
+    setSystemTime(start + 301_000)
+    await fetchOAuthUsageResult(opts)
+    expect(getCalls()).toBe(2)
   })
 })

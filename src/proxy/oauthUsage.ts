@@ -17,18 +17,24 @@
  * (reports say the endpoint rate-limits per access token, so a new token gets a
  * new bucket).
  *
- * Per-profile caching: each profile has its own 30s TTL cache so multi-account
- * setups can be queried independently without cross-contamination. Concurrent
- * callers for the same profile share a single in-flight request.
+ * Per-profile caching: each profile has its own TTL cache (30s by default,
+ * `MERIDIAN_USAGE_CACHE_TTL_MS`) so multi-account setups can be queried
+ * independently without cross-contamination. Concurrent callers for the same
+ * profile share a single in-flight request.
  */
 
 import { createHash } from "node:crypto"
 import { z } from "zod"
 import { claudeLog } from "../logger"
+import { envIntValue } from "../env"
 import { isCredentialsReadOnly } from "./credentialsMode"
 import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
+import { followedUsageSnapshot } from "./followUsage"
 import { bundledClaudeCodeVersion } from "./models"
+import { parseResetGrantMetadata, type OAuthBankedResetGrant, type OAuthBankedResets } from "./oauthResetGrants"
+
+export type { OAuthBankedResetGrant, OAuthBankedResets } from "./oauthResetGrants"
 
 // Policy for the query flag and User-Agent: profiles-routing.spec.md, "OAuth usage request identity".
 const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
@@ -55,10 +61,15 @@ interface RawOAuthWindow {
 
 interface RawOAuthExtraUsage {
   is_enabled?: boolean
-  monthly_limit?: number
-  used_credits?: number
+  /** Minor units (cents for USD): 500 is $5.00. */
+  monthly_limit?: number | null
+  /** Minor units, like `monthly_limit`. */
+  used_credits?: number | null
+  /** 0..100, clamped by Anthropic at 100 even when used exceeds the limit. */
   utilization?: number | null
-  currency?: string
+  currency?: string | null
+  /** Decimal places of the minor unit; absent on some responses. */
+  decimal_places?: number | null
 }
 
 interface RawOAuthLimit {
@@ -96,30 +107,19 @@ export interface OAuthUsageWindow {
 
 export interface OAuthExtraUsageInfo {
   isEnabled: boolean
+  /** Major units of `currency` (dollars for USD). */
   monthlyLimit: number
+  /** Major units; may exceed `monthlyLimit`, since a turn can overshoot it. */
   usedCredits: number
   utilization: number | null
   currency: string
-}
-
-export interface OAuthBankedResetGrant {
-  id: string | null
-  resetsLeft: number
-  expiresAt: number | null
-  /** Epoch ms the grant becomes usable, or null when absent/unreadable. */
-  startsAt: number | null
-  /** Provider's flags; null when absent or not a boolean. */
-  paused: boolean | null
-  usableNow: boolean | null
-}
-
-export interface OAuthBankedResets {
-  eligible: boolean
-  /** Provider's reason the account is ineligible, or null when absent/unreadable. */
-  ineligibleReason: string | null
-  /** The grant the provider would redeem next; null unless it names a listed grant. */
-  nextGrantId: string | null
-  grants: OAuthBankedResetGrant[]
+  /**
+   * Decimal places applied to Anthropic's minor-unit amounts. Its presence
+   * tells a consumer that `monthlyLimit` and `usedCredits` are major units:
+   * Meridian versions without this field served the minor units under the
+   * same names.
+   */
+  exponent: number
 }
 
 export interface OAuthUsageSnapshot {
@@ -225,7 +225,15 @@ export function toUsageEntry(result: OAuthUsageResult): UsageEntryFields {
   }
 }
 
+// The cache lifetime unforced reads use; `MERIDIAN_USAGE_CACHE_TTL_MS` can
+// raise it, never lower it. While anything polls `/v1/usage/quota/all`
+// steadily, every read past the TTL reaches Anthropic, so the TTL sets the
+// upstream rate per profile. Anthropic answers 429 to a token read about every
+// 30–60 s for a few minutes, so a setup with many polling clients can raise it.
 const CACHE_TTL_MS_DEFAULT = 30_000
+// A longer cache would keep showing figures for a login that has since expired
+// or been revoked.
+const CACHE_TTL_MS_MAX = 5 * 60_000
 // A transiently failing fetch serves the last-good snapshot instead of
 // blanking the consumer ("no usage data yet" flapping) — but only within
 // this bound, so genuinely dead credentials still surface as missing data.
@@ -318,13 +326,15 @@ function parseBankedResets(raw: unknown): OAuthBankedResets | null {
     if (typeof grant !== "object" || grant === null || !("resets_left" in grant)
       || typeof grant.resets_left !== "number" || !Number.isSafeInteger(grant.resets_left) || grant.resets_left < 0) continue
 
+    const id = "id" in grant && typeof grant.id === "string" ? grant.id : null
     grants.push({
-      id: "id" in grant && typeof grant.id === "string" ? grant.id : null,
+      id,
       resetsLeft: grant.resets_left,
       expiresAt: parseResetDate("ends_at" in grant ? grant.ends_at : null),
       startsAt: parseResetDate("starts_at" in grant ? grant.starts_at : null),
       paused: optionalBoolean(grant, "paused"),
       usableNow: optionalBoolean(grant, "usable_now"),
+      ...parseResetGrantMetadata(grant, id),
     })
   }
   const next: unknown = "next_grant_id" in raw ? raw.next_grant_id : null
@@ -335,6 +345,17 @@ function parseBankedResets(raw: unknown): OAuthBankedResets | null {
     nextGrantId: typeof next === "string" && GRANT_ID_FORMAT.test(next) && grants.some(grant => grant.id === next) ? next : null,
     grants,
   }
+}
+
+/** Anthropic's minor unit is cents for USD; `decimal_places` names it when present. */
+const EXTRA_USAGE_DEFAULT_EXPONENT = 2
+
+function extraUsageExponent(raw: number | null | undefined): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 4 ? raw : EXTRA_USAGE_DEFAULT_EXPONENT
+}
+
+function minorToMajor(amount: number | null | undefined, exponent: number): number {
+  return typeof amount === "number" && Number.isFinite(amount) ? amount / 10 ** exponent : 0
 }
 
 function normalizeUtilization(raw: number | null | undefined): number | null {
@@ -383,13 +404,15 @@ function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
   }
 
   const extra = raw.extra_usage
+  const exponent = extraUsageExponent(extra?.decimal_places)
   const extraUsage: OAuthExtraUsageInfo | null = extra
     ? {
         isEnabled: !!extra.is_enabled,
-        monthlyLimit: extra.monthly_limit ?? 0,
-        usedCredits: extra.used_credits ?? 0,
+        monthlyLimit: minorToMajor(extra.monthly_limit, exponent),
+        usedCredits: minorToMajor(extra.used_credits, exponent),
         utilization: normalizeUtilization(extra.utilization ?? null),
         currency: extra.currency ?? "USD",
+        exponent,
       }
     : null
 
@@ -739,7 +762,9 @@ export function __setFetchOAuthUsageOverride(
  * Anthropic's endpoint when many clients poll concurrently. Concurrent
  * callers for the same profile share a single in-flight request.
  *
- * @param ttlMs           Override the cache TTL (default 30s).
+ * @param ttlMs           Override the cache TTL (default 30s, or
+ *                        `MERIDIAN_USAGE_CACHE_TTL_MS` when larger, at most
+ *                        5 minutes).
  * @param force           Bypass the TTL cache and fetch fresh. Does NOT bypass
  *                        the in-flight de-dupe or the 429 cooldown — both still
  *                        apply, so a forced caller can still get a stale (or
@@ -791,7 +816,7 @@ export async function fetchOAuthUsageResult(opts?: FetchOAuthUsageOpts): Promise
 }
 
 async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsageResult> {
-  const ttl = opts?.ttlMs ?? CACHE_TTL_MS_DEFAULT
+  const ttl = opts?.ttlMs ?? Math.min(CACHE_TTL_MS_MAX, Math.max(CACHE_TTL_MS_DEFAULT, envIntValue("USAGE_CACHE_TTL_MS") ?? 0))
   const cacheKey = opts?.profileId ?? DEFAULT_KEY
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch
   const staleMaxMs = opts?.staleMaxMs ?? STALE_MAX_MS_DEFAULT
@@ -820,6 +845,23 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsage
   }
   const existing = inflightByProfile.get(cacheKey)
   if (existing) return existing
+
+  // A followed instance's figures, when there is one. Taken before the
+  // credential read because the point is to make no upstream call at all:
+  // two instances polling the same account share one rate-limit budget, and
+  // the one that loses it gets 429 for every account it holds. Above the
+  // cooldown for the same reason: these figures cost the rate limit nothing,
+  // so a 429 this instance collected earlier must not suppress them.
+  // A forced read wants this account's figures now (a limit just hit, a new
+  // login), not a copy that may be minutes old.
+  const followed = opts?.force ? undefined : followedUsageSnapshot(opts?.profileId ?? "default")
+  if (followed) {
+    const local = cacheByProfile.get(cacheKey)
+    if (local && local.fetchedAt > followed.fetchedAt) return { snapshot: local, error: null }
+    cacheByProfile.set(cacheKey, followed)
+    failureByProfile.delete(cacheKey)
+    return { snapshot: followed, error: null }
+  }
 
   // A 429 must throttle forced and normal callers alike. Without a negative
   // cache, every quota poll retries immediately and can keep Anthropic's

@@ -202,6 +202,20 @@ describe("Stream error recovery after message_start", () => {
     expect((recoveryDelta?.data as any).delta.stop_reason).toBe("max_tokens")
   })
 
+  it("reports a signal-stopped SDK as a transient SSE error after text", async () => {
+    mockMessages = [messageStart("msg_signal"), textBlockStart(0), textDelta(0, "partial")]
+    mockErrorAfter = 3
+    mockErrorMessage = "Claude Code process exited with code 143"
+
+    const events = await postStream(createTestApp())
+    const errorIndex = events.findIndex(event => event.event === "error")
+    const error = events[errorIndex]?.data as { error: { type: string; message: string } }
+    expect(error.error.type).toBe("api_error")
+    expect(error.error.message).toBe("Service temporarily unavailable: the Claude Code process serving this request was stopped by a signal (exit code 143), as happens when Meridian restarts or the process is killed for memory. Retry the request.")
+    expect(events.findIndex(event => event.event === "content_block_delta")).toBeLessThan(errorIndex)
+    expect(events.findIndex(event => event.event === "message_stop")).toBeGreaterThan(errorIndex)
+  })
+
   it("closes a dangling content block before the terminal error envelope", async () => {
     mockMessages = [
       messageStart("msg_dangling"),

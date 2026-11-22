@@ -172,8 +172,17 @@ describe("profile surface routing", () => {
     expect(s.activate("user-c__ws-cccccc")).toMatchObject({ ok: true })
   })
 
-  it("ignores a pin that names no ChatGPT seat", () => {
-    expect(surface().route("kwiat-dh-p", "work").kind).toBe("pool")
+  it("ignores a pin that names a Claude profile", () => {
+    const s = createChatGptProfileSurface({
+      source, observed: () => new Map(), usage: () => null, reserved: () => new Set(["kwiat-dh-p"]), names: () => undefined,
+      activeSeat: () => undefined, spent: () => undefined,
+    })
+    expect(s.route("kwiat-dh-p", "work").kind).toBe("pool")
+  })
+
+  it("names a pin that matches no profile at all instead of serving it from the pool", () => {
+    expect(surface().route("no-such-seat", "work")).toEqual({ kind: "unknown", id: "no-such-seat" })
+    expect(surface().route("  ", "work").kind).toBe("pool")
   })
 
   it("fails over in the saved profile order, which may name seats by id, former id or seat id", () => {

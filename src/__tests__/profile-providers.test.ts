@@ -280,6 +280,45 @@ describe("brand colours", () => {
     expect(landingHtml).toContain(".profile-card.switchable:hover { border-color: var(--brand-bright, var(--accent));")
   })
 
+  test("landing: the activation strip is a 12px band of the card's brand, inked to read on every brand", () => {
+    const css = landingHtml.slice(0, landingHtml.indexOf("</style>"))
+    const rule = (selector: string) => css.slice(css.indexOf(`  ${selector} {`), css.indexOf("}", css.indexOf(`  ${selector} {`)))
+    const strip = rule(".card-strip")
+    for (const decl of ["position: absolute;", "top: 0; left: 0; right: 0;", "height: 12px;", "background: var(--brand, var(--accent));",
+      "color: var(--on-brand);", "font-size: 9px;", "text-transform: uppercase;", "text-align: center;"]) expect(strip).toContain(decl)
+    const hint = rule(".card-strip.strip-hint")
+    expect(hint).toContain("background: var(--brand-bright, var(--accent));")
+    expect(hint).toContain("clip-path: inset(0 0 100% 0);")
+    expect(css).toContain(".profile-card.switchable:hover > .strip-hint, .profile-card.switchable:focus-visible > .strip-hint { clip-path: inset(0); }")
+    // Hover lifts a dimmed card's fade; keyboard focus lifts it from the hint, which it reveals.
+    expect(css).toContain(".profile-card.spend-fading:focus-visible > .strip-hint, .profile-card.spend-spent:focus-visible > .strip-hint { filter: none; opacity: 1; }")
+    // The fade dims a card's children; the active strip is spared with the name row.
+    expect(css).toContain(".profile-card.active.spend-fading > .card-strip, .profile-card.active.spend-spent > .card-strip { filter: none; opacity: 1; }")
+    expect(css).not.toContain(".switch-hint")
+    expect(themeCss).toContain("--on-brand:       #000000;")
+  })
+
+  test("landing: the strip's ink clears WCAG AA on each brand and its hover tint", () => {
+    const hex = (name: string) => themeCss.match(new RegExp(`--${name}:\\s+(#[0-9a-f]{6});`))![1]!
+    const luminance = (h: string) => {
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+    }
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+      return (hi! + 0.05) / (lo! + 0.05)
+    }
+    for (const p of PROFILE_PROVIDERS) {
+      expect(contrast(hex(p.id), hex("on-brand"))).toBeGreaterThanOrEqual(4.5)
+      expect(contrast(hex(`${p.id}-bright`), hex("on-brand"))).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  test("landing: on a phone, a card that can show a strip has room for it above its name row", () => {
+    expect(landingHtml).toContain("  @media (max-width: 720px) {\n    .profile-card.active, .profile-card.switchable { padding-top: 18px; }\n  }")
+  })
+
   test("landing: a needs-login border is solid red, and an active card keeps its brand ring outside it", () => {
     // Beside the Claude brand the red differs in hue alone, which a protanope
     // cannot see; the active card's ring, which this rule leaves alone, is what
@@ -293,8 +332,8 @@ describe("brand colours", () => {
   })
 
   test("landing: a spent active card dims its figures, never its name row", () => {
-    // The Active pill and the spent badge live in that row, and they are what
-    // say which account is serving and why the rest of the card is dimmed.
+    // The spent badge lives in that row, and with the Active strip it is what
+    // says which account is serving and why the rest of the card is dimmed.
     const spare = ".profile-card.active.spend-fading > .profile-head, .profile-card.active.spend-spent > .profile-head { filter: none; opacity: 1; }"
     expect(landingHtml).toContain(spare)
     expect(landingHtml.indexOf(spare)).toBeGreaterThan(landingHtml.indexOf(".profile-card.spend-fading > *, .profile-card.spend-spent > * {"))
@@ -483,6 +522,81 @@ describe("the landing page draws one grid, grouped by provider", () => {
   })
 })
 
+describe("the landing page marks activation with a strip across a card's top", () => {
+  const render = (q: unknown, pl: unknown) =>
+    loadPage(landingHtml, new MemoryStorage()).run<{ html: string }>(
+      `profileSection(${JSON.stringify(q)}, {}, ${JSON.stringify(pl)}, { auth: { loggedIn: true } })`,
+    ).html
+  /** Each card's id and the strip drawn as its first child, if any. */
+  const strips = (html: string) =>
+    [...html.matchAll(/<div class="profile-card [^"]*"[^>]* data-id="(\w+)"[^>]*>(?:<div class="(card-strip[^"]*)">([^<]*)<\/div>)?/g)]
+      .map(m => [m[1], m[2] ?? null, m[3] ?? null])
+
+  test("the active card of each provider says Active; every switchable one offers Click to activate", () => {
+    const html = render(null, { profiles: mixed(), routing: "active" })
+    expect(strips(html)).toEqual([
+      ["c1", "card-strip", "Active"],
+      ["c2", "card-strip strip-hint", "Click to activate"],
+      ["g1", "card-strip strip-hint", "Click to activate"],
+      ["g2", "card-strip", "Active"],
+    ])
+    expect(html).not.toContain("switch-hint")
+  })
+
+  test("the strip is the active card's only Active label: no pill repeats it in the name row", () => {
+    const html = render(null, { profiles: mixed(), routing: "active" })
+    expect(html.split('<div class="card-strip">Active</div>').length - 1).toBe(2)
+    expect(html).not.toContain("active-pill")
+    expect(landingHtml.slice(0, landingHtml.indexOf("</style>"))).not.toContain(".active-pill")
+  })
+
+  test("name row badges sit one container gap apart, with no margin of their own to stack on it", () => {
+    // The row's gap alone spaces the name from the first badge and each badge
+    // from the next; a badge margin would add to it between badges only.
+    const rules = (html: string, selector: string) => {
+      const css = html.slice(0, html.indexOf("</style>")) + profileProvidersCss
+      return [...css.matchAll(new RegExp(`(?:^|[\\s,}])${selector.replace(/[.-]/g, "\\$&")}(?:[\\s,][^{]*)?\\{([^}]*)\\}`, "g"))].map(m => m[1]!)
+    }
+    const nameRow = rules(landingHtml, ".profile-name").join("")
+    expect(nameRow).toContain("display: flex;")
+    expect(nameRow).toContain("gap: 8px;")
+    for (const badge of [".provider-pill", ".provider-badge", ".plan-chip", ".pool-chip", ".spend-pill"]) {
+      expect(rules(landingHtml, badge).length).toBeGreaterThan(0)
+      for (const body of rules(landingHtml, badge)) expect(body).not.toMatch(/margin/)
+    }
+    expect(rules(profilePageHtml, ".profile-card-header").join("")).toContain("gap: 8px 12px;")
+    for (const body of rules(profilePageHtml, ".profile-badge")) expect(body).not.toMatch(/margin/)
+  })
+
+  test("pure priority routing gives a Claude card no strip, while a seat keeps its own", () => {
+    const html = render(null, { profiles: mixed(), routing: "priority", profileOrder: ["c1", "c2", "g1", "g2"] })
+    expect(strips(html)).toEqual([
+      ["c1", null, null],
+      ["c2", null, null],
+      ["g1", "card-strip strip-hint", "Click to activate"],
+      ["g2", "card-strip", "Active"],
+    ])
+  })
+
+  test("an active card that needs a login keeps its strip beside the needs-login flag", () => {
+    const html = render(null, { profiles: [claude("c1", { isActive: true, loggedIn: false }), claude("c2")], routing: "active" })
+    expect(strips(html)[0]).toEqual(["c1", "card-strip", "Active"])
+    expect(html).toMatch(/<div class="profile-card provider-claude active needs-login"/)
+  })
+
+  test("a seat's credits pace takes the row's full width, with no label", () => {
+    const quota = {
+      id: "g1",
+      credits: { hasCredits: true, unlimited: false, overageLimitReached: false, balance: 62500 },
+      creditsPolicy: "reserve",
+      creditsBurn: { status: "burning", creditsPerHour: 40000, windowMinutes: 60, turns: 12, mix: [{ model: "gpt-6-sol", share: 1 }], approximate: [] },
+    }
+    const html = render({ profiles: [quota] }, { profiles: mixed(), routing: "active" })
+    expect(html).toContain('"><span class="w-credits-note credits-pace">after all seats\u2019 plan limits; lasts ~1h34m at current pace</span></div>')
+    expect(html).not.toContain('<span class="w-label">lasts</span>')
+  })
+})
+
 describe("the profiles page draws the same groups", () => {
   const rendered = (storage: MemoryStorage, profiles: unknown[]) => {
     const page = loadPage(profilePageHtml, storage)
@@ -507,6 +621,19 @@ describe("the profiles page draws the same groups", () => {
     expect(html).toContain('<span class="profile-badge provider-badge">ChatGPT</span>')
     expect(html).not.toContain('badge-type">chatgpt<')
     expect(html).toContain('class="switch-btn switch-to"')
+  })
+
+  test("the header badge names an account's allowance, with its plan and tier on hover, in place of the type", () => {
+    const { html } = rendered(new MemoryStorage(), [
+      claude("c1", { isActive: true, allowance: "20x", planLabel: "Claude Max 20x", rateLimitTier: "default_claude_max_20x" }),
+      claude("c2", { allowance: "5x", planLabel: "Claude Max 5x" }),
+      claude("c3"),
+      seat("g1", { isActive: true, allowance: "1x", planLabel: "ChatGPT Plus" }),
+    ])
+    expect(html).toContain('<span class="profile-badge provider-badge">Claude</span><span class="profile-badge badge-type" title="Claude Max 20x \u00b7 default_claude_max_20x">20x</span>')
+    expect(html).toContain('<span class="profile-badge provider-badge">Claude</span><span class="profile-badge badge-type" title="Claude Max 5x">5x</span>')
+    expect(html).toContain('<span class="profile-badge provider-badge">ChatGPT</span><span class="profile-badge badge-type" title="ChatGPT Plus">1x</span>')
+    expect(html.split('badge-type">claude-max<').length - 1).toBe(1)
   })
 
   test("a chip and the search compose; the count covers only the providers on screen", () => {
@@ -591,6 +718,19 @@ describe("the profiles page draws the same groups", () => {
     page.run("location.hash = '#g1'; jumpToProfileAnchor()")
     expect(page.run<boolean>("meridianProviders.isHidden('chatgpt')")).toBe(false)
     expect(storage.getItem(HIDDEN_PROVIDERS_KEY)).toBe("[]")
+  })
+
+  test("every card can be removed, each through its own provider's route", () => {
+    const { page, html } = rendered(new MemoryStorage(), mixed())
+    const removeButtons = [...html.matchAll(/title="(Remove [a-z]+)" onclick="startRemove\(&quot;([^&]+)&quot;\)"/g)].map(m => [m[2], m[1]])
+    expect(removeButtons).toEqual([["c1", "Remove profile"], ["c2", "Remove profile"], ["g1", "Remove seat"], ["g2", "Remove seat"]])
+
+    page.run("var removeRoutes = []; fetch = function (url, init) { removeRoutes.push([url, init.body]); return new Promise(function () {}); }")
+    page.run("commitRemove('c2'); commitRemove('g1')")
+    expect(page.run<string[][]>("removeRoutes")).toEqual([
+      ["/profiles/claude/remove", '{"profile":"c2"}'],
+      ["/profiles/chatgpt/remove", '{"profile":"g1"}'],
+    ])
   })
 })
 
@@ -1194,3 +1334,57 @@ for (const [name, html, path, rootId, selector, apply] of [
     expect(open(base).shown()).toEqual(["g1"])
   })
 }
+
+describe("a refused account explains itself in its out-of badge's tooltip, not a permanent block", () => {
+  const until = () => Date.now() + (3 * 60 + 46) * 60_000
+  const spent = () => ({ at: Date.now() - 21 * 60_000, until: until(), diagnosis: { bucket: "five_hour", reported: true, rationale: "the SDK reported this window rejected" } })
+  /** The markup from an element's opening tag to the opening tag that follows it. */
+  const after = (html: string, marker: string, end: string) => {
+    const start = html.indexOf(marker)
+    expect(start).toBeGreaterThanOrEqual(0)
+    return html.slice(start, html.indexOf(end, start))
+  }
+
+  test("/profiles: the badge is focusable and described by a tooltip carrying the note", () => {
+    const page = loadPage(profilePageHtml, new MemoryStorage())
+    const quota = { profiles: [{ id: "c1", windows: [], spent: spent() }] }
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: [claude("c1", { isActive: true })] })}; render(lastProfiles, ${JSON.stringify(quota)})`)
+    const html = page.element("content").innerHTML
+    expect(html).not.toContain('<div class="spent-note')
+    expect(html).toContain('<span class="profile-badge badge-spent" tabindex="0" aria-describedby="spent-tip-c1">out of 5h</span>')
+    const tip = after(html, '<span class="spent-note spent-pop" id="spent-tip-c1" role="tooltip">', '<span class="profile-card-actions">')
+    expect(tip).toContain('<strong style="color:var(--red)">\u26a0 Anthropic is refusing this account</strong> - out of <strong>5h</strong>, expected back in 3h 4')
+    expect(tip).toContain(". Refused 21m ago.")
+    expect(tip).toContain('<span class="spent-why">the SDK reported this window rejected. The percentages below are the last successful read, not live.</span>')
+    // Inside the header row, where the badge is: never under it as its own block.
+    expect(html.indexOf("spent-tip-c1")).toBeLessThan(html.indexOf('<span class="profile-card-actions">'))
+  })
+
+  test("/profiles: a healthy account draws neither", () => {
+    const page = loadPage(profilePageHtml, new MemoryStorage())
+    page.run(`lastProfiles = ${JSON.stringify({ profiles: [claude("c1")] })}; render(lastProfiles, ${JSON.stringify({ profiles: [{ id: "c1", windows: [] }] })})`)
+    const html = page.element("content").innerHTML
+    expect(html).not.toContain("badge-spent")
+    expect(html).not.toContain("spent-pop")
+  })
+
+  test("/profiles: hover or keyboard focus on the badge shows the tooltip", () => {
+    expect(profilePageHtml).toContain(".spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }")
+  })
+
+  test("landing: the out-of chip carries the banner as its tooltip, in the name row", () => {
+    const html = loadPage(landingHtml, new MemoryStorage()).run<{ html: string }>(
+      `profileSection(${JSON.stringify({ profiles: [{ id: "c1", windows: [], spent: spent() }] })}, {}, ${JSON.stringify({ profiles: [claude("c1", { isActive: true })], routing: "active" })}, { auth: { loggedIn: true } })`,
+    ).html
+    expect(html).not.toContain('<div class="spent-banner')
+    expect(html).toContain('<span class="pool-chip exhausted" tabindex="0" aria-describedby="spent-tip-c1">out of 5h</span>')
+    const tip = after(html, '<span class="spent-banner spent-pop" id="spent-tip-c1" role="tooltip">', '<span class="profile-cost">')
+    expect(tip).toContain("<strong>\u26a0 Anthropic is refusing this account</strong> - out of 5h, back in 3h 4")
+    expect(tip).toContain('<span class="spent-banner-sub">the SDK reported this window rejected; figures below are the last successful read, not live</span>')
+  })
+
+  test("landing: hover or keyboard focus shows it, and neither switches the account", () => {
+    expect(landingHtml).toContain(".spent-tip:hover .spent-pop, .spent-tip:focus-within .spent-pop { opacity: 1; visibility: visible; }")
+    expect(landingHtml).toContain("e.target.closest('.prof-info, .spent-tip')")
+  })
+})
