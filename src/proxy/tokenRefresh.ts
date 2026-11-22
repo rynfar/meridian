@@ -21,7 +21,7 @@ import { homedir, platform, userInfo } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { claudeLog } from "../logger"
-import { authLifecycleFor, noteRefreshRejected, noteRefreshSucceeded, refreshTokenId } from "./authLifecycle"
+import { authLifecycleFor, noteRefreshRejected, noteRefreshSucceeded, recordInBackground, refreshTokenId } from "./authLifecycle"
 import { isCredentialsReadOnly, refuseCredentialWrite } from "./credentialsMode"
 import { planReadingDue, readPlanUpdate, resetPlanRecheck, runCredentialMaintenance } from "./planRecheck"
 
@@ -432,7 +432,7 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     // `invalid_request`, `invalid_client`, a throttle or an outage says nothing
     // about whether the login is alive.
     const code = oauthErrorCode(body)
-    if (code === "invalid_grant") await noteRefreshRefused(store, refreshToken, code)
+    if (code === "invalid_grant") recordInBackground(() => noteRefreshRefused(store, refreshToken, code))
     return false
   }
 
@@ -504,10 +504,8 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     refreshTokenExpiresAt,
     backfilledPlan: Object.keys(planUpdate?.fields ?? {}),
   })
-  await noteRefreshSucceeded(store.refreshKey, {
-    refreshTokenExpiresAt: credentials.claudeAiOauth.refreshTokenExpiresAt,
-    refreshToken: credentials.claudeAiOauth.refreshToken,
-  })
+  const { refreshTokenExpiresAt: renewedDeadline, refreshToken: renewedToken } = credentials.claudeAiOauth
+  recordInBackground(() => noteRefreshSucceeded(store.refreshKey, { refreshTokenExpiresAt: renewedDeadline, refreshToken: renewedToken }))
   return true
 }
 

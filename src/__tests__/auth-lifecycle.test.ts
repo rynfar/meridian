@@ -23,6 +23,7 @@ import {
   formatSpan,
   noteAuthLogin,
   noteCredentialObserved,
+  observeCredentialInBackground,
   noteRefreshRejected,
   noteRefreshSucceeded,
   onAuthLifecycleTransition,
@@ -30,6 +31,7 @@ import {
   refreshTokenId,
   renameAuthLifecycleKey,
   resetAuthLifecycleListenersForTesting,
+  settleAuthLifecycleWrites,
   type AuthLifecycleRecord,
   type AuthLifecycleTransition,
 } from "../proxy/authLifecycle"
@@ -426,6 +428,7 @@ describe("refreshOAuthToken feeds the record", () => {
     const { store } = keyedStore("rt-1")
     respond(200, JSON.stringify({ access_token: "a", refresh_token: "rt-2", expires_in: 28_800, refresh_token_expires_in: 10 * 86_400 }))
     expect(await refreshOAuthToken(store)).toBe(true)
+    await settleAuthLifecycleWrites()
     const record = authLifecycleFor(store.refreshKey)!
     expect(record.lastRefreshAt).toBeGreaterThan(Date.now() - 5000)
     expect(record.refreshTokenExpiresAt! - Date.now()).toBeGreaterThan(10 * DAY - 5000)
@@ -436,6 +439,7 @@ describe("refreshOAuthToken feeds the record", () => {
     const { store } = keyedStore("rt-1", Date.now() - HOUR)
     respond(400, JSON.stringify({ error: "invalid_grant", error_description: "Refresh token expired" }))
     expect(await refreshOAuthToken(store)).toBe(false)
+    await settleAuthLifecycleWrites()
     const record = authLifecycleFor(store.refreshKey)!
     expect(record.unauthedReason).toBe("refresh_rejected")
     expect(record.events.at(-1)!.detail).toBe("invalid_grant")
@@ -454,6 +458,7 @@ describe("refreshOAuthToken feeds the record", () => {
       const { store } = keyedStore("rt-1")
       respond(status, body)
       expect(await refreshOAuthToken(store)).toBe(false)
+      await settleAuthLifecycleWrites()
       expect(authLifecycleFor(store.refreshKey)).toBeUndefined()
     })
   }
@@ -464,6 +469,7 @@ describe("refreshOAuthToken feeds the record", () => {
     afterFirstRead(() => null)
     respond(400, JSON.stringify({ error: "invalid_grant" }))
     expect(await refreshOAuthToken(store)).toBe(false)
+    await settleAuthLifecycleWrites()
     expect(authLifecycleFor(store.refreshKey)).toBeUndefined()
   })
 
@@ -472,12 +478,14 @@ describe("refreshOAuthToken feeds the record", () => {
     failing.afterFirstRead(() => { throw new Error("keychain locked") })
     respond(400, JSON.stringify({ error: "invalid_grant" }))
     await refreshOAuthToken(failing.store)
+    await settleAuthLifecycleWrites()
     expect(authLifecycleFor(failing.store.refreshKey)).toBeUndefined()
 
     const late = keyedStore("rt-1")
     let reads = 0
     late.afterFirstRead(() => (++reads === 1 ? { claudeAiOauth: { accessToken: "a", refreshToken: "rt-1", expiresAt: Date.now() } } : null))
     await refreshOAuthToken(late.store)
+    await settleAuthLifecycleWrites()
     expect(authLifecycleFor(late.store.refreshKey)).toBeUndefined()
   })
 
@@ -485,6 +493,7 @@ describe("refreshOAuthToken feeds the record", () => {
     const { store, rotate } = keyedStore("rt-1")
     respond(400, JSON.stringify({ error: "invalid_grant" }), () => rotate("rt-rotated-by-claude-code"))
     expect(await refreshOAuthToken(store)).toBe(false)
+    await settleAuthLifecycleWrites()
     expect(authLifecycleFor(store.refreshKey)).toBeUndefined()
   })
 
@@ -492,7 +501,50 @@ describe("refreshOAuthToken feeds the record", () => {
     const { store, rotate } = keyedStore("rt-1")
     respond(400, JSON.stringify({ error: "invalid_grant" }), () => { setTimeout(() => rotate("rt-written-late"), ROTATION_SETTLE_MS / 3) })
     expect(await refreshOAuthToken(store)).toBe(false)
+    await settleAuthLifecycleWrites()
     expect(authLifecycleFor(store.refreshKey)).toBeUndefined()
+  })
+})
+
+// A lock left by an interrupted writer is never cleared automatically, so a
+// request that awaited the history would wait out the whole lock timeout.
+describe("the history never holds up a request", () => {
+  const lock = () => configPath("auth-lifecycle.json") + ".lock"
+  const originalFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    resetInflightRefresh()
+    rmSync(lock(), { force: true })
+  })
+
+  test("a refresh returns at once while the history file is locked, and its entry is written once the lock clears", async () => {
+    const { store } = keyedStore("rt-1")
+    globalThis.fetch = (async () => new Response(JSON.stringify({ access_token: "a", refresh_token: "rt-2", expires_in: 28_800 }), { status: 200 })) as unknown as typeof fetch
+    writeFileSync(lock(), "")
+    const started = Date.now()
+    expect(await refreshOAuthToken(store)).toBe(true)
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(authLifecycleFor(store.refreshKey)).toBeUndefined()
+
+    rmSync(lock())
+    await settleAuthLifecycleWrites()
+    expect(authLifecycleFor(store.refreshKey)?.refreshTokenId).toBe(refreshTokenId("rt-2")!)
+  })
+
+  test("an observation shows its record before it is written, and repeating it queues no second write", async () => {
+    const key = uniqueKey()
+    const seen = { presence: "present" as const, refreshTokenExpiresAt: Date.now() + 20 * DAY, refreshTokenId: refreshTokenId("rt-seen")! }
+    writeFileSync(lock(), "")
+    const started = Date.now()
+    const shown = observeCredentialInBackground(key, seen)
+    expect(shown?.refreshTokenId).toBe(seen.refreshTokenId)
+    expect(observeCredentialInBackground(key, seen)).toEqual(shown)
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(authLifecycleFor(key)).toBeUndefined()
+
+    rmSync(lock())
+    await settleAuthLifecycleWrites()
+    expect(authLifecycleFor(key)).toEqual(shown)
   })
 })
 

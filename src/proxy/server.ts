@@ -118,7 +118,7 @@ import type { RequestMetric } from "../telemetry"
 import { assistantRefusalOf, type AssistantRefusal, canRecoverCapturedToolUses, uncapturedRecoveryVeto, streamedToolBlockVeto, cliRejectedToolResults, type StreamedToolBlockRecord, type UncapturedDeliveryVeto, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
 import { createSseRelayStream, relayStreamAttempt } from "./sseFailureSniff"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialSnapshot, getAuthRenewalStatus, getStoredPlanFields, renewalStatusFor, resolveRenewalWarnDays, type CredentialStore, type StoredPlanFields } from "./tokenRefresh"
-import { authLifecycleLoggedOut, describeAuthLifecycleEvent, noteCredentialObserved, onAuthLifecycleTransition, type AuthLifecycleTransition } from "./authLifecycle"
+import { authLifecycleLoggedOut, describeAuthLifecycleEvent, observeCredentialInBackground, onAuthLifecycleTransition, type AuthLifecycleTransition } from "./authLifecycle"
 import { planAllowance } from "./planAllowance"
 import { isCredentialsReadOnly, logCredentialsModeBanner } from "./credentialsMode"
 import { runtimeCancelWarning } from "./runtimeCancelWarning"
@@ -10909,7 +10909,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // renewal only counts as logged out once the access token it left
       // behind has run out; until then the account still serves.
       const lifecycle = profileStore && stored
-        ? await noteCredentialObserved(profileStore.refreshKey, stored)
+        ? observeCredentialInBackground(profileStore.refreshKey, stored)
         : undefined
       const loggedOut = authLifecycleLoggedOut(lifecycle, stored?.accessTokenExpiresAt, expiryObservedAt)
       return {

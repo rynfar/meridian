@@ -220,6 +220,12 @@ different refresh token with a different deadline is a new login; one that
 cannot be told apart from a rotation of the old login is recorded without a
 login time instead of a wrong one.
 
+The history is best-effort. Renewals and `/profiles/list` write it in the
+background and never wait for it, so a problem with `auth-lifecycle.json`
+(such as a lock file left by a crashed process) only drops history entries; it
+never slows a request. Removing a profile deletes the history of the
+credentials it removes, and renaming one carries the history to the new name.
+
 ### Duplicate profiles
 
 Signing a profile in from a browser that is still signed in to another account leaves two profiles holding one account: two names, one quota. Meridian flags them. Each such card on `/` and `/profiles` carries a **duplicate of &lt;other&gt;** badge naming the other profile, so you can sign one of them in to the account it was meant for, or remove it. Nothing is removed, renamed or excluded automatically.

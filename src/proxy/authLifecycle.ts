@@ -449,21 +449,21 @@ function warnUnwritten(err: unknown): void {
  * Read, apply and publish under one cross-process lock, so a transition
  * another process (the server, `meridian profile login`) wrote in the meantime
  * is never overwritten with a stale copy. A failed lock or read leaves the file
- * as it was and returns the record as last read.
+ * as it was and returns the record as last read. Never rejects.
  */
 async function update(
   key: string | undefined,
   apply: (prev: AuthLifecycleRecord | undefined) => AuthLifecycleUpdate,
 ): Promise<AuthLifecycleRecord | undefined> {
   if (!key) return undefined
-  // Most reads change nothing (every page poll observes every profile), and
-  // they need no lock: nothing is written, so nothing can be lost.
-  const seen = authLifecycleFor(key)
-  if (!apply(seen).changed) return seen
   const file = lifecycleFile()
   let previous: AuthLifecycleRecord | undefined
   let result: AuthLifecycleUpdate
   try {
+    // Most reads change nothing (every page poll observes every profile), and
+    // they need no lock: nothing is written, so nothing can be lost.
+    const seen = authLifecycleFor(key)
+    if (!apply(seen).changed) return seen
     result = await withFileLock(file, BUSY, () => {
       const records = readForUpdate(file)
       previous = records[key]
@@ -477,6 +477,27 @@ async function update(
   }
   announce(key, previous, result)
   return result.record
+}
+
+// Request paths (a token refresh, a /profiles/list read) hand their history
+// writes to this queue instead of awaiting them: the file lock fails closed,
+// so a lock left by an interrupted writer would otherwise stall every one of
+// them for the full lock wait. One write at a time, in order.
+let queue: Promise<unknown> = Promise.resolve()
+const queuedObservations = new Set<string>()
+
+function enqueue(write: () => Promise<unknown>): void {
+  queue = queue.then(write).catch(warnUnwritten)
+}
+
+/** Resolves once every queued history write has finished. */
+export async function settleAuthLifecycleWrites(): Promise<void> {
+  await queue
+}
+
+/** Queue `write` without awaiting it; the history is best-effort. */
+export function recordInBackground(write: () => Promise<unknown>): void {
+  enqueue(write)
 }
 
 export function noteAuthLogin(
@@ -518,12 +539,51 @@ export function noteCredentialObserved(
   input: { presence: "present" | "absent" | "unknown"; refreshTokenExpiresAt?: number; refreshTokenId?: string; at?: number },
 ): Promise<AuthLifecycleRecord | undefined> {
   if (input.presence === "unknown") return Promise.resolve(authLifecycleFor(key))
-  return update(key, prev => applyObservation(prev, {
-    at: input.at ?? Date.now(),
+  return update(key, observation({ ...input, presence: input.presence }))
+}
+
+function observation(
+  input: { presence: "present" | "absent"; refreshTokenExpiresAt?: number; refreshTokenId?: string; at?: number },
+): (prev: AuthLifecycleRecord | undefined) => AuthLifecycleUpdate {
+  const at = input.at ?? Date.now()
+  return prev => applyObservation(prev, {
+    at,
     presence: input.presence,
     refreshTokenExpiresAt: input.refreshTokenExpiresAt,
     refreshTokenId: input.refreshTokenId,
-  }))
+  })
+}
+
+/**
+ * The record this observation leads to, without waiting for it to be written:
+ * the write is queued. A request that reads the history must not wait on the
+ * history file's lock.
+ */
+export function observeCredentialInBackground(
+  key: string | undefined,
+  input: { presence: "present" | "absent" | "unknown"; refreshTokenExpiresAt?: number; refreshTokenId?: string; at?: number },
+): AuthLifecycleRecord | undefined {
+  if (!key) return undefined
+  const seen = authLifecycleFor(key)
+  if (input.presence === "unknown") return seen
+  const apply = observation({ ...input, presence: input.presence })
+  let next: AuthLifecycleUpdate
+  try {
+    next = apply(seen)
+  } catch (err) {
+    warnUnwritten(err)
+    return seen
+  }
+  if (!next.changed) return seen
+  // Every poll repeats the same observation while a write is pending.
+  if (!queuedObservations.has(key)) {
+    queuedObservations.add(key)
+    enqueue(async () => {
+      try { await update(key, apply) }
+      finally { queuedObservations.delete(key) }
+    })
+  }
+  return next.record
 }
 
 /**
@@ -540,6 +600,29 @@ export function renameAuthLifecycleKey(from: string | undefined, to: string | un
       if (!record) return
       delete records[from]
       records[to] = record
+      publish(file, records)
+    })
+  } catch (err) {
+    warnUnwritten(err)
+  }
+}
+
+/**
+ * Forget the records of credentials that no longer exist, such as a removed
+ * profile's. Runs inside the synchronous removal, so it waits for the lock
+ * synchronously; a busy lock leaves the records for the next removal.
+ */
+export function removeAuthLifecycleKeys(keys: readonly (string | undefined)[]): void {
+  const doomed = keys.filter((key): key is string => typeof key === "string" && key.length > 0)
+  if (doomed.length === 0) return
+  const file = lifecycleFile()
+  try {
+    if (!existsSync(file)) return
+    withFileLockSync(file, BUSY, () => {
+      const records = readForUpdate(file)
+      const present = doomed.filter(key => key in records)
+      if (present.length === 0) return
+      for (const key of present) delete records[key]
       publish(file, records)
     })
   } catch (err) {

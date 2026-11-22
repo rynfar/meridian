@@ -155,14 +155,22 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   last renewal of that grant, the last deadline seen, a truncated SHA-256 of
   the refresh token (never the token), and when and why authentication was
   first found failing. A rename that moves the credential directory moves
-  the record. Every transition is logged and stored in diagnostics under
-  `auth`.
+  the record, and removing a profile deletes the records of the credential
+  directories it removed. Every transition is logged and stored in
+  diagnostics under `auth`.
 - **Writers serialize across processes.** The server and
   `meridian profile login` both write the file. Each update reads, applies
   and publishes under one exclusive lock file (`lockedFile.ts`, shared with
   `profileConfigStore.ts`), so no transition is overwritten by a stale copy.
   A file that cannot be parsed is never replaced, and a held or failed lock
   leaves the file as it was. Reads for display take no lock.
+- **The history never holds up a request.** Token refreshes and
+  `/profiles/list` queue their history writes in the background, one at a
+  time, and never await them; `/profiles/list` shows the record the
+  observation leads to before it is written. A lock left behind by an
+  interrupted writer therefore costs only skipped history entries, never a
+  slower refresh or page. Only `meridian profile login`, a rename and a
+  removal wait for the lock.
 - **Only a grant rejection is a logout.** A refresh answered with RFC 6749
   `invalid_grant` is `refresh_rejected`, and only when a successful re-read
   shows the refused refresh token is still the stored one, twice, 750 ms
