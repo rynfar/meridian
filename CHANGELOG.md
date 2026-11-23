@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.95.0](https://github.com/rynfar/meridian/compare/meridian-v1.94.0...meridian-v1.95.0) (2026-11-23)
+
+
+### Features
+
+* bound Antigravity warm context and cold replay ([#1567](https://github.com/rynfar/meridian/issues/1567)) ([54c352b](https://github.com/rynfar/meridian/commit/54c352b76a518305bf629146207fa2b66842a38b))
+* keep Claude accounts on Extra Usage behind those with plan allowance ([#1550](https://github.com/rynfar/meridian/issues/1550)) ([2f3d27f](https://github.com/rynfar/meridian/commit/2f3d27f2b597d3e13ec55e3f2c1dbbf4c8eb55bc))
+
+
+### Bug Fixes
+
+* **antigravity:** pause model deadlines while waiting for client tools ([#1560](https://github.com/rynfar/meridian/issues/1560)) ([23d5c9b](https://github.com/rynfar/meridian/commit/23d5c9bcee70b083cf7fd6088f19494ac57f8677))
+* **antigravity:** recover complete history after failed tool continuations ([#1561](https://github.com/rynfar/meridian/issues/1561)) ([d065fb0](https://github.com/rynfar/meridian/commit/d065fb02cddddfe37d1d8582b449e4a83cd45f51))
+* normalize Anthropic requests for Antigravity ([#1562](https://github.com/rynfar/meridian/issues/1562)) ([8235f8c](https://github.com/rynfar/meridian/commit/8235f8cc8db8b3e1ece13870e0a7ce5b591af480))
+* **session:** keep a proxy's transcript bookkeeping in the store it was created for ([#1599](https://github.com/rynfar/meridian/issues/1599)) ([b051e2d](https://github.com/rynfar/meridian/commit/b051e2dcdb50d28c9cf7998c0c5e61241f9faafa))
+
 ## [1.94.0](https://github.com/rynfar/meridian/compare/meridian-v1.93.0...meridian-v1.94.0) (2026-11-22)
 
 
