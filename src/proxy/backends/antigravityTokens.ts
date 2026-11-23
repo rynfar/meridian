@@ -9,7 +9,7 @@ export function agTextTokenWeight(text: string): number {
 export function estimateAgTextTokens(text: string): number { return Math.ceil(agTextTokenWeight(text)) }
 
 /** Planning estimate only: agy exposes neither its tokenizer nor hidden harness context. */
-export function estimateAgTokens(request: AgRequest) {
+export function estimateAgTokens(request: AgRequest, restate = true) {
   let images = 0, unprocessedMedia = 0
   function attachment(block: Exclude<AgBlock, { type: 'tool_use' | 'tool_result' }>): { type: 'text'; text: string } {
     if (block.type === 'text') return block
@@ -26,7 +26,7 @@ export function estimateAgTokens(request: AgRequest) {
     return attachment(block)
   }) }))
   return {
-    input_tokens: estimateAgTextTokens(renderAgPrompt({ ...request, messages })) + images * 1568,
+    input_tokens: estimateAgTextTokens(renderAgPrompt({ ...request, messages }, [], false, restate)) + images * 1568,
     estimated: true,
     estimation: { method: 'max-utf8-bytes/4-ascii/4-plus-non-ascii-utf8-bytes', image_tokens_per_attachment: 1568, includes_cli_context: false, exact_tokenizer_available: false, excluded_unprocessed_media: unprocessedMedia },
   }

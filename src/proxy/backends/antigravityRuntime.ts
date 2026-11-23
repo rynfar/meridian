@@ -142,7 +142,7 @@ export class AntigravityRun {
   }
   fitsContinuation(request: AgRequest): boolean {
     const delta = { ...request, messages: request.messages.slice(this.history.length) }
-    return this.contextFits(estimateAgTokens(delta).input_tokens, request.max_tokens)
+    return this.contextFits(estimateAgTokens(delta, false).input_tokens, request.max_tokens)
   }
   private writeInput(prompt: string): void {
     this.writtenTokens += estimateAgTextTokens(prompt) + 32
@@ -403,7 +403,7 @@ export class AntigravityRun {
       this.history = request.messages
       this.terminal = false; this.idle = false; this.outputBytes = 0
       this.steps = []; this.stepIndex = 0
-      const prompt = assertAgStep(renderAgPrompt({ ...request, messages: delta }, agNativeTools(this.runtime.options)) + this.promptSuffix, this.runtime.promptBytes, this.runtime.historyLimits.stepTokens)
+      const prompt = assertAgStep(renderAgPrompt({ ...request, messages: delta }, agNativeTools(this.runtime.options), false, false) + this.promptSuffix, this.runtime.promptBytes, this.runtime.historyLimits.stepTokens)
       this.checkContext(prompt, request.max_tokens)
       this.writeInput(prompt)
       this.runtime.reused++

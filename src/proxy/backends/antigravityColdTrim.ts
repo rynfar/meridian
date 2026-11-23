@@ -31,7 +31,7 @@ export function renderAgColdTrim(
   const fits = (prompt: string) =>
     (!budget.bytes || Buffer.byteLength(prompt) <= budget.bytes) &&
     budget.estimateTokens(prompt) <= budget.tokens
-  const full = renderAgPrompt(request, native) + suffix
+  const full = renderAgPrompt(request, native, false, false) + suffix
   if (fits(full)) return full
   const boundaries = agColdTrimBoundaries(request.messages)
   const current = request.messages.findLastIndex(message =>
@@ -43,13 +43,13 @@ export function renderAgColdTrim(
   if (boundaries.at(-1) === request.messages.length) boundaries.pop()
   const prefix = "Older completed turns may have been omitted to fit the input budget.\n\n"
   const compact = (history: AgRequest, head = "") => {
-    let bytes = budget.bytes || Buffer.byteLength(renderAgPrompt(history, native) + suffix) + Buffer.byteLength(head)
+    let bytes = budget.bytes || Buffer.byteLength(renderAgPrompt(history, native, false, false) + suffix) + Buffer.byteLength(head)
     for (let attempts = 0; attempts < 8; attempts++) {
       const allowed = bytes - Buffer.byteLength(head)
       if (allowed < 1) return
       let prompt: string
       try {
-        prompt = head + renderAgPromptWithinLimit(history, native, suffix, allowed)
+        prompt = head + renderAgPromptWithinLimit(history, native, suffix, allowed, false)
       } catch (error) {
         if (error instanceof AntigravityError && error.message.startsWith("prompt is too long:")) return
         throw error
@@ -64,7 +64,7 @@ export function renderAgColdTrim(
     ...request,
     messages: start > current && anchor.length ? [...anchor, ...request.messages.slice(start)] : request.messages.slice(start),
   })
-  const render = (start: number) => prefix + renderAgPrompt(at(start), native) + suffix
+  const render = (start: number) => prefix + renderAgPrompt(at(start), native, false, false) + suffix
   // Within a replay with omissions, suffix sizes decrease at each safe boundary.
   let lo = 1, hi = boundaries.length
   while (lo < hi) {
