@@ -53,29 +53,21 @@ provider service*; public routes and headers are in
 [`api-contract`](../../../.agents/references/api-contract.md); feature status in
 `docs/antigravity-support.md`.
 
-## Input and context budgets
+## Client-tool allowance
 
-Keep the existing byte guard and apply a separate estimated token guard to
-submitted inputs. The count endpoint and the guard use a conservative estimate
-that accounts for dense Unicode text. Neither supplies the provider tokenizer.
-This estimate can reject dense Unicode inputs that fit the former byte-only
-guard; the 52,000 step budget is a safety margin, not a measured cutoff.
-A separate estimated context budget reserves output space and uses submitted
-inputs, observed output and reported input usage. Reused processes take only
-new messages or results. When a new user continuation would exceed the budget,
-retire the cached process and start a bounded fresh replay. Do not partially
-resolve an oversized client tool batch.
-
-Cold replay defaults to one bounded input. It retains the latest user request
-and intact retained tool pairs, using middle omission and, when necessary,
-dropping older completed units. The operator can opt into multi-step history
-loading. This experimental path submits complete historical units, denies
-actions during priming, requires a new indexed input marker for each step and
-does not expose priming text or usage as the final answer. Structured output
-and native capability grants use the single-input policy. Priming failures do
-not retry automatically; a normally completed priming step need not emit a
-visible acknowledgement. When the newest unit is a tool batch, its final
-input also carries the latest typed user goal in its own complete unit.
+The live conversation's cumulative client-tool count and MCP request replay
+ledger are bounded by `MERIDIAN_AGY_MAX_TOOL_CALLS` (default 256, integer
+1–65536, captured at runtime construction). Invalid explicit values fail
+construction. Sequential and parallel calls share this allowance; an excessive
+batch fails before any call is dispatched, and duplicate MCP request IDs replay
+their original result without spending another call. The independent limits of
+32 outstanding client calls and 16 calls per parallel batch remain unchanged.
+This is Meridian's bridge allowance; native CLI/provider limits are unchanged;
+raising it retains more conversation/replay data until that run is retired.
+The existing completed-conversation reuse cutoff (128 client calls) is unchanged.
+A restored live process starts a fresh counter; this is not a persistent native
+conversation lifetime ledger. Model/turn and pending-tool deadlines remain
+independent of the allowance.
 
 ## Known limitations
 
