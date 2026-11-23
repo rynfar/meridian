@@ -364,6 +364,15 @@ CLI behavior references: [headless mode](https://antigravity.google/docs/cli/hea
 [hooks](https://antigravity.google/docs/hooks), and
 [terminal sandbox](https://antigravity.google/docs/sandbox?tab=cli).
 
+## Request compatibility
+
+Hosted Anthropic tools without client schemas are reported in
+`x-meridian-dropped-tools` (up to 16 names) and
+`x-meridian-dropped-tools-count` (the number of distinct dropped names). The warning log uses the same
+bounded name sample; Meridian does not execute these hosted tools. Normalized
+late system steering remains in conversation order and does not replace the
+latest actual user instruction during prompt compaction. A valid choice targeting a dropped hosted tool becomes `auto` while preserving `disable_parallel_tool_use`. Literal user `[system]` text remains a user instruction. Unknown-block descriptions are bounded; unrepresentably deep data and malformed known blocks return 400.
+
 ## Pi and OpenCode
 
 Both clients use their own tools, permissions and saved sessions. Meridian does
@@ -379,8 +388,9 @@ protection is configured, replace `local-placeholder` with that local key.
 ### Configure installed clients
 
 Client acceptance is verified with Pi 0.72.1 and OpenCode V1 1.18.31.
-OpenCode 1.2.15 is known to send unsupported `top_p` defaults; upgrade that
-older client rather than expecting sampling controls to be honored.
+OpenCode 1.2.15 sends numeric `top_p` defaults, which Meridian accepts and ignores
+(not forwarded to `agy`); upgrade if you need current OpenCode V1 behavior rather
+than expecting sampling controls to be honored.
 
 In the web dashboard or macOS app, open **Providers → Antigravity → Connect Pi
 or OpenCode**. Choose an account model and copy the generated setup command. The
@@ -622,7 +632,7 @@ It includes recovery instructions and practical execution budgets.
 | --- | --- | --- |
 | Hard `max_tokens` | Enforce an exact upper bound on generated tokens | The requested limit is advisory. A long answer or tool loop can use more quota and time than that number suggests. Response byte limits and process deadlines remain enforced. |
 | Numeric thinking budget | Allocate a specific number of tokens to internal reasoning | Opt-in adaptation maps client budgets to Gemini low/medium/high effort. This enables client controls without promising an exact reasoning-token allowance. |
-| `temperature`, `top_p`, `top_k` | Tune how the model samples its next tokens | No direct randomness/diversity tuning. Prompts can request a style, but do not implement sampling parameters or guarantee repeatability. |
+| `temperature`, `top_p`, `top_k` | Tune how the model samples its next tokens | Numeric values are accepted and ignored (not forwarded). Prompts can request a style, but do not implement sampling parameters or guarantee repeatability. |
 
 These controls do not determine whether file editing, shell commands, search,
 images or client delegation are available. Truncating returned text locally would
