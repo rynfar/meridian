@@ -210,6 +210,26 @@ export function choosePriorityProfile(
 }
 
 /**
+ * The pool profile that served a client session last, read from the session
+ * mappings each profile keeps durably for it. A process-local assignment is
+ * lost on restart; this recovers it, so a conversation with a warm prompt cache
+ * on one account does not move to the head of the order and replay its whole
+ * history on another. `lastUsedAt` returns undefined for a profile without a
+ * mapping of the session.
+ */
+export function lastMappedProfile(
+  order: readonly string[],
+  lastUsedAt: (id: string) => number | undefined,
+): string | undefined {
+  let latest: { id: string; at: number } | undefined
+  for (const id of order) {
+    const at = lastUsedAt(id)
+    if (at !== undefined && (latest === undefined || at > latest.at)) latest = { id, at }
+  }
+  return latest?.id
+}
+
+/**
  * Candidate order for `active+priority`: the active profile first, then the
  * priority order behind it as fallbacks.
  *

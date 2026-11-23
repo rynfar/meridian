@@ -39,6 +39,13 @@ describe('provider presentation and contract', () => {
     expect(claudeProvider({status:'healthy'}, {}, {}).activity).toBeUndefined()
     expect(claudeProvider({}, {totalRequests:2,tokenUsage:{totalInputTokens:33,totalOutputTokens:4}}, {}).activity?.inputTokens).toBe(33)
   })
+  it('lists only Claude accounts when the quota endpoint also reports ChatGPT seats', () => {
+    const quota = { profiles: [
+      { id: 'work', type: 'claude-max' },
+      { id: 'personal', type: 'chatgpt' },
+    ] }
+    expect(claudeProvider({ status: 'healthy' }, {}, quota).accounts.map(account => account.id)).toEqual(['work'])
+  })
   it('reads Claude\'s own verdict on an instance that also serves ChatGPT, and none when it serves ChatGPT alone', () => {
     const both = { status: 'degraded', backends: { claude: { status: 'unhealthy' }, chatgpt: { status: 'healthy' } } }
     expect(claudeProvider(both, {}, {}).status).toBe('unhealthy')

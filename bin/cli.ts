@@ -64,6 +64,7 @@ Environment variables:
   MERIDIAN_AGY_TURN_TIMEOUT_MS      Per-model-phase deadline, excluding client tool waits (default: 300000)
   MERIDIAN_AGY_TOOL_TIMEOUT_MS      Idle client-tool wait (default: 60000)
   MERIDIAN_AGY_MAX_CONCURRENT       Maximum CLI processes (default: 4)
+  MERIDIAN_AGY_MAX_TOOL_CALLS       Client calls per live process (default: 256; range: 1–65536)
   MERIDIAN_AGY_PLUGIN_PATHS         JSON array of Antigravity plugin modules
   MERIDIAN_AGY_GRAMMAR_PYTHON       Local Python with Lark for custom grammars
   MERIDIAN_AGY_PATH                 Official agy executable (default: agy)

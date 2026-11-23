@@ -1120,7 +1120,7 @@ describe("owned mode signs its own seats in", () => {
       chatGptProfileAliases: { "user-1__workspace-1": ["s1-kspace-1"] },
       profileOrder: ["dead-one", "two-x", "zero"],
       chatGptActiveSeat: "user-1__workspace-1",
-      chatgpt: { seatCreditsPolicy: { "user-1__workspace-1": "immediately", "user-0__workspace-0": "reserve" } },
+      chatgpt: { seatCreditsPolicy: { "user-1__workspace-1": "immediately", "user-0__workspace-0": "reserve" }, seatRenewalHours: { "user-1__workspace-1": 24, "user-0__workspace-0": 48 } },
     })
     const proxy = await server("owned")
     await proxy.chatGpt!.acquire()
@@ -1142,6 +1142,7 @@ describe("owned mode signs its own seats in", () => {
       expect(getSetting("profileOrder")).toEqual([seat2, "zero"])
       expect(getSetting("chatGptActiveSeat")).toBe("user-0__workspace-0")
       expect(getSetting("chatgpt")?.seatCreditsPolicy).toEqual({ "user-0__workspace-0": "reserve" })
+      expect(getSetting("chatgpt")?.seatRenewalHours).toEqual({ "user-0__workspace-0": 48 })
       const after = await listed()
       expect(after.profiles.map(p => p.id)).toEqual(["zero", seat2])
       expect(after.activeProfiles?.chatgpt).toBe("zero")
@@ -1152,6 +1153,7 @@ describe("owned mode signs its own seats in", () => {
       expect((await post(proxy.app, "/profiles/chatgpt/remove", { profile: "zero" })).status).toBe(200)
       expect(getSetting("chatGptActiveSeat")).toBe("user-2__workspace-2")
       expect(getSetting("chatgpt")?.seatCreditsPolicy).toEqual({})
+      expect(getSetting("chatgpt")?.seatRenewalHours).toEqual({})
       expect(tokenCalls).toBe(0)
 
       const settings = async () => (await (await proxy.app.fetch(new Request("http://localhost/settings/api/chatgpt"))).json() as { features: { freeSeatOrder: string } }).features
@@ -1257,7 +1259,7 @@ describe("owned mode signs its own seats in", () => {
         const listed = async () => {
           await proxy.app.fetch(new Request("http://localhost/v1/usage/quota/all"))
           const list = await (await proxy.app.fetch(new Request("http://localhost/profiles/list"))).json() as {
-            profiles: Array<{ seat?: string; loggedIn: boolean; tokenState?: string; firstUnauthedAt?: number | null }>
+            profiles: Array<{ seat?: string; loggedIn: boolean; tokenState?: string; firstUnauthedAt?: number | null; renewals?: unknown[] }>
           }
           return list.profiles.find(p => p.seat === seat)!
         }
@@ -1266,22 +1268,80 @@ describe("owned mode signs its own seats in", () => {
         const pass = proxy.chatGpt!.renewDue()
         while (!started) await new Promise(resolve => setTimeout(resolve, 5))
         expect(JSON.parse(readFileSync(storePath, "utf8")).accounts[0].exchangeStartedAt).not.toBeNull()
-        expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok" })
+        expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok", renewals: [] })
 
         if (ending === "renewed") {
           answer(Response.json({ access_token: token(Date.now()), refresh_token: "rt-renewed", expires_in: 10 * 86_400 }))
           expect(await pass).toBe(true)
-          expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok" })
+          expect(await listed()).toMatchObject({ loggedIn: true, tokenState: "ok", renewals: [{ outcome: "rotated" }] })
         } else {
           answer(new Response(JSON.stringify({ error: { code: "refresh_token_reused" } }), { status: 401, headers: { "content-type": "application/json" } }))
           expect(await pass).toBe(false)
-          expect(await listed()).toMatchObject({ loggedIn: false, tokenState: "requires_reauth" })
+          const after = await listed()
+          expect(after).toMatchObject({ loggedIn: false, tokenState: "requires_reauth" })
+          expect(after.renewals).toEqual([{ at: expect.any(Number), outcome: "refused", cause: "refresh token already used" }])
         }
       } finally {
         proxy.chatGpt!.release()
       }
     })
   }
+
+  // chatgpt.com refused the access token of a seat whose refresh token was
+  // still good, and the seat sat logged out for hours until somebody pressed
+  // Renew now. Meridian renews it on its own now.
+  it("renews a seat whose access token chatgpt.com refused, and lists it logged in again", async () => {
+    mkdirSync(storeDir, { recursive: true, mode: 0o700 })
+    const day = 24 * 3_600_000
+    const seat = "user-6__workspace-6"
+    const token = (issuedAt: number) => `${part({ alg: "none" })}.${part({
+      iat: Math.floor(issuedAt / 1000),
+      exp: Math.floor((issuedAt + 10 * day) / 1000),
+      "https://api.openai.com/auth": { chatgpt_account_id: "workspace-6", chatgpt_account_user_id: seat },
+    })}.sig`
+    const issuedAt = NOW - day
+    const refusedToken = token(issuedAt)
+    writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [{
+      accountUserId: seat, accountId: "workspace-6", email: "refused@example.test",
+      refreshToken: "rt-good", accessToken: refusedToken, expiresAt: issuedAt + 10 * day,
+      tokenRotatedAt: issuedAt, exchangeStartedAt: null,
+    }] }), { mode: 0o600 })
+    wham = (_url, authorization) => authorization === `Bearer ${refusedToken}` ? new Response("{}", { status: 401 }) : undefined
+    let refreshes = 0
+    const serve = globalThis.fetch
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+      if (url === TOKEN_URL && new URLSearchParams(String(init?.body)).get("grant_type") === "refresh_token") {
+        refreshes++
+        return Response.json({ access_token: token(Date.now()), refresh_token: "rt-renewed", expires_in: 10 * 86_400 })
+      }
+      return serve(input, init)
+    }) as typeof fetch
+    const proxy = await server("owned")
+    await proxy.chatGpt!.acquire()
+    try {
+      const listed = async () => {
+        await proxy.app.fetch(new Request("http://localhost/v1/usage/quota/all"))
+        const list = await (await proxy.app.fetch(new Request("http://localhost/profiles/list"))).json() as {
+          profiles: Array<{ seat?: string; loggedIn: boolean; tokenState?: string; renewalRetryAt?: number | null }>
+        }
+        return list.profiles.find(p => p.seat === seat)!
+      }
+      const refusedAt = Date.now()
+      const before = await listed()
+      expect(before).toMatchObject({ loggedIn: false, tokenState: "refused" })
+      expect(before.renewalRetryAt).toBeGreaterThanOrEqual(refusedAt)
+      expect(before.renewalRetryAt).toBeLessThanOrEqual(Date.now())
+
+      expect(await proxy.chatGpt!.renewDue()).toBe(true)
+      expect(refreshes).toBe(1)
+      const after = await listed()
+      expect(after).toMatchObject({ loggedIn: true, tokenState: "ok" })
+      expect(after.renewalRetryAt ?? null).toBeNull()
+    } finally {
+      proxy.chatGpt!.release()
+    }
+  })
 
   it("cancels a pending sign-in on request, so its code can no longer be spent", async () => {
     const proxy = await server("owned")
@@ -1332,8 +1392,10 @@ describe("owned mode signs its own seats in", () => {
       accountUserId: `user-${n}__workspace-${n}`, accountId: `workspace-${n}`, email: `s${n}@example.test`,
       refreshToken: `rt-${n}`, accessToken: signedIn, expiresAt, tokenRotatedAt: NOW, exchangeStartedAt: null,
     })
-    writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [seat(0, Date.now() + 3_600_000)] }), { mode: 0o600 })
+    const history = [{ at: NOW, outcome: "kept", expiresAt: NOW + 3_600_000 }]
+    writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [{ ...seat(0, Date.now() + 3_600_000), renewals: history }] }), { mode: 0o600 })
     const before = readFileSync(storePath, "utf8")
+    saveSettings({ chatgpt: { seatRenewalHours: { "user-0__workspace-0": 6 } } })
     let refreshes = 0
     const serve = globalThis.fetch
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -1354,7 +1416,10 @@ describe("owned mode signs its own seats in", () => {
         const res = await post(proxy.app, path, { profile: "s0-kspace-0" })
         expect([path, res.status]).toEqual([path, 403])
       }
+      // Its own renewal interval long past, the seat is still not renewed here.
       expect(await proxy.chatGpt!.renewDue()).toBe(false)
+      const listed = await (await proxy.app.fetch(new Request("http://localhost/profiles/list"))).json() as { profiles: Array<{ seat?: string; renewalHours?: number | null; renewals?: unknown[] }> }
+      expect(listed.profiles.find(p => p.seat === "user-0__workspace-0")).toMatchObject({ renewalHours: 6, renewals: history })
 
       // A token the owner has not renewed is not renewed here either.
       writeFileSync(storePath, JSON.stringify({ version: 1, accounts: [seat(0, Date.now() - 1000)] }), { mode: 0o600 })

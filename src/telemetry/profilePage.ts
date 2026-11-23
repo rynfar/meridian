@@ -250,6 +250,7 @@ export const profilePageHtml = `<!DOCTYPE html>
     font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
   }
   .login-input:focus { outline: none; border-color: var(--accent); }
+  .login-input.renewal-hours { flex: 0 0 auto; width: 90px; }
   .login-msg { margin-top: 10px; font-size: 12px; }
   .login-msg.err { color: var(--red); }
   .login-msg.busy { color: var(--muted); }
@@ -793,13 +794,26 @@ function renderLoginRows(p) {
       + '<button class="login-btn" data-profile="' + attr(p.id) + '" onclick="startChatGptRelogin(this)">Sign in again</button> '
       + '<button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="renewChatGptSeat(this)">Renew now</button>'
       + '<span class="cmd-note">Meridian renews the token by itself before it expires. Sign in again when the seat needs a login.</span>'
-      + '</div>';
+      + '</div>'
+      + renderRenewalRow(p);
   }
   var rows = commandRow('Login', owner.login, '\\u2192 ' + owner.loginMethod + ' \\u2192 ' + (p.label || p.id) + ' \\u2192 Refresh account \\u00b7 at ' + owner.name);
   if (p.tokenState === 'expired') {
     rows += commandRow('Renew', owner.refresh, 'or the ' + owner.refreshTool + ' tool in an opencode session');
   }
   return rows;
+}
+
+// A seat's own renewal interval, in hours; empty means the default.
+function renderRenewalRow(p) {
+  var own = typeof p.renewalHours === 'number';
+  return '<div class="cmd-row"><span class="cmd-label">Renew every:</span> '
+    + '<input class="login-input renewal-hours" type="number" min="6" max="240" step="1" placeholder="default" ' + PROFILE_INPUT_ATTRS
+    + ' data-profile="' + attr(p.id) + '" aria-label="Renewal interval of ' + attr(p.id) + ' in hours" value="' + (own ? attr(p.renewalHours) : '') + '"> hours '
+    + '<button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, false)">Save</button>'
+    + (own ? ' <button class="switch-btn" style="margin-top:0" data-profile="' + attr(p.id) + '" onclick="saveSeatRenewal(this, true)">Use default</button>' : '')
+    + '<span class="cmd-note">How long after its token was issued Meridian renews this seat, 6 to 240 hours. Empty renews on the token\\u2019s 8th day.</span>'
+    + '</div>';
 }
 
 function renderAccessNote(p) {
@@ -2574,6 +2588,37 @@ async function renewChatGptSeat(button) {
   showLoginMessage(id, text, res && res.ok ? '' : 'err');
   button.disabled = false;
   button.textContent = 'Renew now';
+}
+
+// PATCH /settings/api/chatgpt seatRenewalHours: a number of hours, or null
+// for the default. The renewal pass reads it on its next look.
+async function saveSeatRenewal(button, useDefault) {
+  var id = button.getAttribute('data-profile');
+  var input = button.parentNode.querySelector('.renewal-hours');
+  var typed = input ? input.value.trim() : '';
+  var hours = useDefault || typed === '' ? null : Number(typed);
+  var patch = {};
+  patch[id] = hours;
+  button.disabled = true;
+  var res, data;
+  try {
+    res = await fetch('/settings/api/chatgpt', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seatRenewalHours: patch })
+    });
+    data = await res.json();
+  } catch (err) {
+    data = { error: 'Could not reach Meridian.' };
+  }
+  button.disabled = false;
+  if (!res || !res.ok) {
+    showLoginMessage(id, data.error || 'Not saved.', 'err');
+    return;
+  }
+  if (input && hours === null) input.value = '';
+  showLoginMessage(id, hours === null ? 'Renews on its token\\u2019s 8th day.' : 'Renews ' + hours + ' hours after its token was issued.', '');
+  refresh();
 }
 
 meridianReorder.init({ onSaved: refresh });

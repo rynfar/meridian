@@ -277,6 +277,7 @@ src/
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── transcriptRetention.ts ← Opt-in Claude Code retention period per SDK config root (off by default)
 │   ├── transcriptRetentionSettings.ts ← GET/PUT /settings/api/transcripts (same-origin browser writes)
+│   ├── transcriptSweep.ts     ← Idle-root retention sweep with process custody; pinned-transcript protection
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── toolInputJson.ts       ← Tool input JSON repair for raw control characters in strings (PURE)
 │   ├── retryAfter.ts          ← Retry-After computation for 429/503/529 (PURE)
@@ -315,9 +316,12 @@ src/
 │   │   ├── processIncarnation.ts ← Process/host identity for lock ownership
 │   │   └── durableFileSystem.ts ← Durable file operations
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
+│   ├── sessionGcLimits.ts     ← Session GC deletion, shutdown and backlog limits and their resolution (PURE)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
 │   ├── profileConfigStore.ts  ← cross-process profile writer lock and atomic snapshots (leaf, I/O)
+│   ├── lockedFile.ts          ← Cross-process writer lock and atomic snapshot publication for Meridian's own files (leaf, I/O)
+│   ├── authLifecycle.ts       ← Per-credential login history: logins, renewals, logouts (leaf, I/O)
 │   ├── profileLogin.ts        ← Browser re-authentication state, redirect/paste completion and status
 │   ├── profileAdd.ts          ← Browser profile creation and isolated credential persistence
 │   ├── profileOAuthBody.ts    ← Runtime schemas for browser OAuth request bodies (pure)
@@ -400,7 +404,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `pluginUpdateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts` and `toolInputJson.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` and `pluginUpdateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
+3. **`errors.ts`, `retryAfter.ts`, `toolInputJson.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `pluginUpdateCheck.ts`, `sseFailureSniff.ts`, `sessionGcLimits.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts`, `retryAfter.ts`, `toolInputJson.ts` and `sessionGcLimits.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` and `pluginUpdateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
 
 4. **`server.ts` owns Hono route registration and orchestration.** Hono
    middleware stays at the proxy boundary. Standard `Request`/`Response`
@@ -825,7 +829,7 @@ E2E tests (`E2E.md`) should be run before releases or after major refactors.
 
 Publication leases use the existing unarmed active-lease representation with `purpose: "publication"`. Older collectors also retain them while the owner process is alive; exact process-incarnation death permits recovery. They do not count as exclusive SDK writers, and abandoning publication never removes an actual writer lease. Published transcripts are retained by their durable mappings and become collectible after eviction.
 
-Exception, only with opt-in transcript retention (`MERIDIAN_TRANSCRIPT_RETENTION_DAYS` or `transcriptRetentionDays`, off by default): Meridian then passes `cleanupPeriodDays` to its request children, and Claude Code's own cleanup deletes files in the config root by modification time alone. It does not see publication leases, durable mappings or request pins, so it can retire a published or pinned transcript once it is older than the period. The next resume of an affected conversation is refused as unresumable and replays from the client's history into a fresh session (flattened text; SDK thinking is not restored). A cleanup racing a resume that is still loading the transcript can lose that conversation's SDK-side history; see the `session` spec's *Known limitations*. With retention off, Meridian passes no period and this lifetime contract holds without exception.
+Exception, only with opt-in transcript retention (`MERIDIAN_TRANSCRIPT_RETENTION_DAYS` or `transcriptRetentionDays`, off by default): Meridian then passes `cleanupPeriodDays` to its request children and runs an idle sweep child in roots that serve none, and Claude Code's own cleanup deletes files in the config root by modification time alone. It does not see publication leases, durable mappings or request pins. Before a child whose cleanup is due starts, Meridian gives every mapped or pinned transcript the cleanup could reach a current modification time, so its own children retire none of them; a cleanup started elsewhere in the root (another process, interactive Claude Code in a shared `~/.claude`) still can. The next resume of an affected conversation is refused as unresumable and replays from the client's history into a fresh session (flattened text; SDK thinking is not restored). A cleanup racing a resume that is still loading the transcript can lose that conversation's SDK-side history; see the `session` spec's *Known limitations*. With retention off, Meridian passes no period and this lifetime contract holds without exception.
 
 An SDK writer lease is released once its writer has been joined. If the lifecycle lock is busy at that point, the next GC sweep, including the shutdown sweep, retries the release; the completed turn does not fail. On win32 an executor's death does not prove its descendants gone, so a writer lease left by a crashed proxy is recovered only after the host reboots.
 
@@ -867,6 +871,8 @@ Existing v1 digests cannot establish a v2 prefix. Their next request on an upgra
 A trailing user tool-result slot may gain new content while every stored block remains an exact prefix. Lineage verification allows that continuation and sends only the appended canonical blocks; duplicate result IDs, edits and meaningful removals still replay. This supports text, images and other appended content without treating an ordinary user-message edit as an append-only tool continuation.
 
 The OpenCode adapter separately recognizes complete `user-prompt-submit-hook` JSON envelopes for UserPromptSubmit additional context and common SDK hook-control fields, including `continue`. These per-turn blocks remain in the original SDK request but are excluded from durable lineage comparisons when a durable block remains. Unknown/malformed envelopes, surrounding prose, hook-only messages and assistant-authored lookalikes remain significant. Other adapters do not inherit this rule. A subset of arbitrary user blocks is never sufficient proof of a continuation.
+
+The Claude Code adapter has a rule of its own, for mid-conversation `system` turns only. claude-cli ends a tool-result request with one, and on some models appends a reminder that it sends with that request and never again (`claude-fable-5-1` on 2.1.284 through 2.1.301). Only the exact known batching reminder at the end of a `system` turn is excluded from lineage; every other block remains significant, including durable instructions after a cache breakpoint. The turn keeps its position, and user and assistant turns are never trimmed. A `system` turn holding the reminder alone (seen on 2.1.294) is left out of the lineage only when it ends the request, so no other message moves; the reply's SDK message UUID is then recorded at the lineage's length, where the client puts the reply next time. A reminder-only turn anywhere else is kept whole. This trailing drop is the only owner-approved exception (2026-11-22, #1396) to #879's rule that lineage canonicalization preserves message count; no other adapter may drop a message. The original request still reaches the SDK with the reminder in it. The E2E.md section "Claude Code system turns across tool rounds" has the captured shapes.
 
 Structured resume deltas are delivered in one SDK user input, matching text-delta delivery. SDK streamed inputs are independently answered live turns; splitting a growing request's appended context from its final question can yield concatenated answers. The shared pure coalescer preserves result wrappers and media order, and also backs fresh replay framing.
 
