@@ -12,12 +12,10 @@
  * spoofed control headers regardless of header casing.
  *
  * NOTE: OpenCode-specific. Keep this separate from plugin/meridian.ts: V1
- * expects a default plugin function and V2 expects a Plugin.define() object.
+ * expects a default plugin function and V2 expects an id/setup object.
  */
 
-import * as Plugin from "@opencode-ai/plugin/promise/plugin"
-import { Model } from "@opencode-ai/schema/model"
-import type { CatalogDraft } from "@opencode-ai/plugin/promise/catalog"
+import type * as Plugin from "@opencode-ai/plugin/promise/plugin"
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import {
@@ -191,7 +189,7 @@ type MeridianCatalogClient = {
 type StableModelEntry = {
   name: string
   limit: { context: number }
-  variants: Array<{ id: string; headers: Record<string, string>; body: { effort: string } }>
+  variants: Array<{ id: Pick<string, keyof string>; headers?: Record<string, string>; body?: Record<string, unknown> }>
 }
 
 type StableModelEditor = {
@@ -530,25 +528,15 @@ export function resolveCatalogModels(
  * context to the same model.
  */
 export function applyMeridianModels(
-  catalog: CatalogDraft,
+  catalog: { readonly model: Pick<StableModelEditor, "update"> },
   providerID: string,
   models: readonly MeridianModel[],
 ): void {
-  for (const model of models) {
-    catalog.model.update(providerID, model.id, (entry) => {
-      entry.name = model.name
-      entry.limit.context = model.contextWindow
-      entry.variants = model.efforts.map((effort) => ({
-        id: Model.VariantID.make(effort),
-        headers: {},
-        body: { effort },
-      }))
-    })
-  }
+  applyStableMeridianModels(catalog.model, providerID, models)
 }
 
 function applyStableMeridianModels(
-  editor: StableModelEditor,
+  editor: Pick<StableModelEditor, "update">,
   providerID: string,
   models: readonly MeridianModel[],
 ): void {
@@ -617,7 +605,7 @@ export function findLatestV2HumanMessageId(value: unknown): string | undefined {
   return findLatestV2HumanTurn(value)?.id
 }
 
-const MeridianV2Plugin = Plugin.define({
+const MeridianV2Plugin = {
   id: "meridian",
   setup: async (context) => {
     const stable = isStableModelHost(context) ? context : undefined
@@ -830,6 +818,6 @@ const MeridianV2Plugin = Plugin.define({
       if (failures.length > 0) throw new AggregateError(failures, "Failed to dispose Meridian V2 hooks")
     }
   },
-})
+} satisfies Plugin.Plugin
 
 export default MeridianV2Plugin
