@@ -107,6 +107,26 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   alternative is failing it. Cache-keepalive beats skip held profiles. Pins and
   the `active` / `sticky` modes ignore the reserve. Invalid values and reserves
   naming no profile are logged once and ignored.
+- **Extra Usage is a last resort under pool routing** (`claudeExtraUsage` /
+  `MERIDIAN_CLAUDE_EXTRA_USAGE`, default `reserve`). An account whose next
+  turn would be paid with Extra Usage moves behind every account with plan
+  allowance and is no home for an existing assignment, so a conversation on
+  it moves on its next turn; when no account with plan allowance can take
+  work, the pool keeps its order. The evidence is already observed, never
+  fetched (the usage endpoint rate-limits): the newest of the SDK's
+  `isUsingOverage` from an account-wide bucket (`five_hour`, `seven_day`,
+  `default`, `overage`; a per-model bucket such as `seven_day_opus` says
+  nothing about other models, as in #1524) and a cached OAuth snapshot whose
+  `five_hour` or `seven_day` window is at 100%. `extraUsage.isEnabled` is not
+  consulted: Team seats can report it off while organisation overage serves
+  them (#1347). A reading past its reset, or one with no reset older than an
+  hour, says nothing. `never` drops such accounts and answers 429 with the
+  earliest plan reset as `Retry-After` when none is left; it is not a spend
+  cap, because evidence arrives only after a paid turn and retain-only work
+  still runs on the account. `immediately` changes nothing. Retain-only
+  work keeps its route, as with the weekly reserve. Cache-keepalive beats
+  skip such accounts under every mode. The three words match the ChatGPT
+  Codex credits policy.
 - **Cooldowns are layered:** Anthropic's named reset first, then the profile's
   own observed window (5-hour or 7-day, capped per window), then a 10-minute
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at

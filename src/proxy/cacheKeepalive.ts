@@ -141,6 +141,8 @@ export interface CacheKeepaliveAccountFacts {
   spent: boolean
   /** The account is holding its weekly reserve. */
   reserveHeld?: boolean
+  /** By what Meridian has observed, its next turn would be paid with Extra Usage. */
+  drawsExtraUsage?: boolean
   /** The session's [1m] model is benched, so the next turn uses another model. */
   benched: boolean
   now: number
@@ -156,7 +158,7 @@ export interface CacheKeepaliveAccountFacts {
 export function cacheKeepaliveAccountBlock(facts: CacheKeepaliveAccountFacts): string | undefined {
   if (facts.profileType !== "claude-max") return "not-subscription"
   const live = facts.rateLimits.filter(entry => entry.resetsAt === undefined || entry.resetsAt > facts.now)
-  if (live.some(entry => entry.isUsingOverage === true)) return "overage"
+  if (facts.drawsExtraUsage || live.some(entry => entry.isUsingOverage === true)) return "overage"
   if (live.some(entry => entry.status === "rejected" || (entry.utilization ?? 0) >= 1)) return "rate-limited"
   if (facts.coolingDown) return "cooldown"
   if (facts.spent) return "spent"
