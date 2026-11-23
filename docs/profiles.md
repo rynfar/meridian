@@ -185,8 +185,46 @@ stored-Claude profile's own credential:
 API-key and supplied setup-token profiles report null timestamps/day count and
 false without consulting the host's stored login. Failed credential reads also
 return unavailable expiry facts and preserve the existing authentication
-provenance. A changed or missing current deadline replaces the displayed value;
-Meridian does not infer a new login or retain a separate login-history file.
+provenance. A changed or missing current deadline replaces the displayed value.
+
+### Login history
+
+Claude Code wipes `.credentials.json` once a refresh is refused, and with it
+everything about the login. Meridian keeps its own record of each stored
+credential in `auth-lifecycle.json` beside `settings.json`: when the login
+happened, when Meridian last renewed it, and when the account was first found
+logged out and why. It never holds a token. Every transition is logged
+(`[PROXY] Profile "work" logged out: ...`, naming the deadline and how long
+the login lasted) and kept in the diagnostics log under `auth`.
+
+`GET /profiles/list` adds five fields to every profile, `null` when nothing is
+on record or the profile has no stored login:
+
+| Field | Meaning |
+| --- | --- |
+| `authObtainedAt` | When the current login happened (epoch ms); `null` when a replaced credential cannot be dated |
+| `authObtainedVia` | `login` when Meridian performed it, `observed` when a new login was found on disk (then `authObtainedAt` is when Meridian noticed it) |
+| `lastRefreshAt` | Meridian's last renewal of this login; a renewal by a Claude Code process is not seen |
+| `firstUnauthedAt` | When authentication was first found failing; cleared by a new login or a renewal that works |
+| `unauthedReason` | `refresh_rejected` (Anthropic answered `invalid_grant` for the stored refresh token) or `credentials_cleared` (the stored credential has no access token) |
+
+A refused renewal is not yet a logout: the account keeps serving until its
+access token expires, so `loggedIn` stays as `claude auth status` reports it
+and the card shows **Renewal refused, stops in …**. After that expiry, or once
+the credential is cleared, `loggedIn` is `false` and the card shows
+**Logged out … ago** with the reason on hover. Cards also show **Logged in …
+ago**, saying on hover whether Meridian performed the login or found it.
+
+Other OAuth errors, outages and stores that cannot be read record nothing. A
+different refresh token with a different deadline is a new login; one that
+cannot be told apart from a rotation of the old login is recorded without a
+login time instead of a wrong one.
+
+The history is best-effort. Renewals and `/profiles/list` write it in the
+background and never wait for it, so a problem with `auth-lifecycle.json`
+(such as a lock file left by a crashed process) only drops history entries; it
+never slows a request. Removing a profile deletes the history of the
+credentials it removes, and renaming one carries the history to the new name.
 
 ### Duplicate profiles
 
@@ -213,7 +251,9 @@ A finished sign-in (re-login by paste or redirect, adding a profile, connecting 
 
 An instance serving [ChatGPT subscriptions](configuration.md#chatgpt-subscriptions) lists each seat as a profile of `type: "chatgpt"` beside the Claude ones, and the same commands and routes act on it. Each provider keeps its own active account, so switching a seat never moves the Claude pointer.
 
-Meridian renews each seat in its own store on the eighth day of its ten-day access token, whether or not work is sent to it, one seat per minute at most (`[chatgpt] renewing account … ahead of expiry`). A request renews only the seat it is routed to, so without this a seat no work goes to runs out and cannot serve though nothing refused it. A failed exchange leaves its seat needing a sign-in, so after OpenAI fails one, renewing ahead of expiry pauses for six hours. While a renewal is out, the seat is listed as it was before it: it reads as needing a sign-in only once the exchange fails, or when a stamp is left by one that never finished. An instance with `MERIDIAN_CREDENTIALS_READONLY=1` cannot see another instance's exchanges, so it can take up to about 20 seconds to show a failed renewal.
+Meridian renews each seat in its own store on the eighth day of its ten-day access token, whether or not work is sent to it, one seat per minute at most (`[chatgpt] renewing account … ahead of expiry`). A request renews only the seat it is routed to, so without this a seat no work goes to runs out and cannot serve though nothing refused it. A failed exchange leaves its seat needing a sign-in, so after OpenAI fails one, renewing ahead of expiry pauses for six hours. While a renewal is out, the seat is listed as it was before it: it reads as needing a sign-in only once the exchange fails, or when a stamp is left by one that never finished.
+
+chatgpt.com sometimes refuses a seat's access token while its refresh token is still good. Meridian then renews the seat on its own within a minute (`[chatgpt] renewing account …: chatgpt.com refused its access token`), and the card shows "Next renewal" instead of asking for a sign-in. When the renewed token is refused too, it renews again 5 minutes later, then 30 minutes, 2 hours, and every 6 hours after that. A read that chatgpt.com accepts in between does not restart that schedule; only six hours without a refusal does. A day after the first refusal Meridian stops renewing (`[chatgpt] chatgpt.com kept refusing account …`) and the seat needs a sign-in, since a refusal a fresh token does not fix, such as a deactivated workspace, needs attention. The seat also needs a sign-in once OpenAI refuses the refresh itself, or a renewal's result cannot be established; a refresh token that may already have been spent is never sent again. `GET /profiles/list` reports the next attempt as `renewalRetryAt`. An instance with `MERIDIAN_CREDENTIALS_READONLY=1` cannot see another instance's exchanges, so it can take up to about 20 seconds to show a failed renewal.
 
 When OpenAI refuses a renewal, the log line and the `cause` field of `POST /profiles/chatgpt/refresh` name which refusal it was: `refresh token expired`, `refresh token already used` (another program renewed the same login first) or `refresh token revoked`. A failure on OpenAI's side records `HTTP <status>` instead.
 

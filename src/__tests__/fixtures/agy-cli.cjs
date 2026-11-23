@@ -96,6 +96,52 @@ async function main(inputPrompt) {
     return value.result
   }
   const { tools } = await rpc('tools/list')
+  if (prompt.includes('CLIENT_LEDGER_BOUNDARY')) {
+    for (let at = 0; at < 2; at++) {
+      try {
+        await rpc('tools/call', { name: tools[0].name, arguments: { key: at } })
+        throw new Error('Invalid tool unexpectedly succeeded')
+      } catch (error) {
+        if (!String(error.message).includes('Invalid arguments for lookup')) throw error
+      }
+    }
+    const batch = tools.find(tool => tool.name === 'meridian_parallel')
+    try {
+      await rpc('tools/call', { name: batch.name, arguments: { calls: [{ name: 'lookup', arguments: { key: 'a' } }, { name: 'lookup', arguments: { key: 'b' } }] } })
+      throw new Error('Full replay ledger admitted another batch')
+    } catch (error) {
+      if (!String(error.message).includes('exceeded 2 tool calls')) throw error
+    }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LEDGER_BOUNDARY_PRESERVED' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
+  const longLoop = prompt.match(/CLIENT_TOOL_LOOP_(\d+)/)
+  if (longLoop) {
+    try {
+      for (let at = 0; at < Number(longLoop[1]); at++) {
+        const params = { name: tools[0].name, arguments: { key: String(at) } }
+        const first = await rpc('tools/call', params)
+        const repeated = await rpc('tools/call', params, nextId)
+        if (JSON.stringify(first) !== JSON.stringify(repeated)) throw new Error('Duplicate MCP result changed')
+      }
+    } catch (error) { console.error(error.message); return process.exit(1) }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LONG_LOOP_COMPLETE' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
+  const longBatchLoop = prompt.match(/CLIENT_BATCH_LOOP_(\d+)/)
+  if (longBatchLoop) {
+    const batch = tools.find(tool => tool.name === 'meridian_parallel')
+    try {
+      for (let at = 0; at < Number(longBatchLoop[1]); at += 16) {
+        const params = { name: batch.name, arguments: { calls: Array.from({ length: Math.min(16, Number(longBatchLoop[1]) - at) }, (_, index) => ({ name: 'lookup', arguments: { key: String(at + index) } })) } }
+        const first = await rpc('tools/call', params)
+        const repeated = await rpc('tools/call', params, nextId)
+        if (JSON.stringify(first) !== JSON.stringify(repeated)) throw new Error('Duplicate batch result changed')
+      }
+    } catch (error) { console.error(error.message); return process.exit(1) }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LONG_LOOP_COMPLETE' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
   if (prompt.includes('UNICODE_CHUNKS')) {
     const { request } = require('node:http')
     const input = { key: 'café/你好/🧪.txt' }

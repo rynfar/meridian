@@ -8,10 +8,16 @@ import { initializeSessionBookkeeping, connectionFor, BookkeepingBusyError } fro
 import { checkpointBookkeepingAsync, withBookkeepingWriteAsync } from "../proxy/session/bookkeeping/transaction"
 import { SessionLifecycleLockError, SessionLifecycleQueueCapacityError, SessionLifecycleQueueStalledError } from "../proxy/session/lifecycleErrors"
 import { SessionDeletionCleanupOwner } from "../proxy/session/deletionCleanup"
+import { resolveSessionGcLimits } from "../proxy/sessionGcLimits"
+import type { SessionLifecycleOptions, TranscriptLocator } from "../proxy/sessionLifecycle"
 
 // Execute the authored server closure with explicit dependencies rather than importing
 // the SDK/server's process-global mocks. SQL admission/checkpoint remain real libsql.
-function sweepHarness(run: () => Promise<object>, checkpoint: () => Promise<unknown>) {
+function sweepHarness(
+  run: (pins: readonly TranscriptLocator[], options: SessionLifecycleOptions) => Promise<object>,
+  checkpoint: () => Promise<unknown>,
+  draining = false,
+) {
   const source = ts.createSourceFile("server.ts", readFileSync("src/proxy/server.ts", "utf8"), ts.ScriptTarget.Latest, true)
   let initializer: ts.Expression | undefined
   const visit = (node: ts.Node) => {
@@ -25,11 +31,14 @@ function sweepHarness(run: () => Promise<object>, checkpoint: () => Promise<unkn
   }).outputText
   const rows: Array<{ name: string; data: Record<string, unknown> }> = []
   const warnings: string[] = []
+  const limits = resolveSessionGcLimits((_name, fallback) => fallback, 600_000)
   const create = new Function("runSessionGc", "checkpointProxyBookkeeping", "collectSessionGcPins", "sessionGcOptions",
+    "draining", "sessionGcLimits",
     "profileCopyPruningEnabled", "pruneSupersededProfileCopies", "sessionDeletionOwner",
     "claudeLog", "plog", "SessionLifecycleLockError", "SessionLifecycleQueueCapacityError", "SessionLifecycleQueueStalledError", "BookkeepingBusyError",
     code + "return sweep;")
-  const sweep: () => Promise<void> = create(run, checkpoint, () => [], {}, false, async () => {}, new SessionDeletionCleanupOwner(),
+  const sweep: () => Promise<void> = create(run, checkpoint, () => [], { maxDeletesPerRun: limits.maxDeletesPerRun },
+    draining, limits, false, async () => {}, new SessionDeletionCleanupOwner(),
     (name: string, data: Record<string, unknown>) => rows.push({ name, data }),
     (message: string) => warnings.push(message),
     SessionLifecycleLockError, SessionLifecycleQueueCapacityError, SessionLifecycleQueueStalledError, BookkeepingBusyError)
@@ -79,9 +88,9 @@ it("does not classify fatal checkpoint I/O as contention or a failed GC", async 
   expect(harness.warnings[0]).toContain("checkpoint failed")
 })
 
-it("reports incomplete PASSIVE frames as observable checkpoint debt, not failed GC", async () => {
+for (const draining of [false, true]) it(`reports incomplete PASSIVE frames as observable checkpoint debt (draining=${draining})`, async () => {
   const checkpoint = { busy: 0, log: 9, checkpointed: 4 }
-  const harness = sweepHarness(async () => ({ deleted: 0, notFound: 0, failed: 0 }), async () => checkpoint)
+  const harness = sweepHarness(async () => ({ deleted: 0, notFound: 0, failed: 0 }), async () => checkpoint, draining)
   await harness.sweep()
   expect(harness.rows).toEqual([{ name: "session.checkpoint_deferred", data: checkpoint }])
 })
