@@ -14,7 +14,8 @@ export const openCodeTransforms: Transform[] = [
     // passthrough off (#546). Codex additionally FORCES passthrough on via a
     // follow-on transform (#475). "letta" is the same surface: without it here
     // one tool call executes twice on two machines (see transforms/registry.ts).
-    adapters: ["opencode", "openai", "jcode", "codex", "letta"],
+    // "zed" rides the same endpoint and adds a follow-on transform of its own.
+    adapters: ["opencode", "openai", "jcode", "codex", "letta", "zed"],
 
     onRequest(ctx: RequestContext): RequestContext {
       const body = ctx.body
