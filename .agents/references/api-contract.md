@@ -116,6 +116,32 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+Antigravity token counts are planning estimates. `estimation.method` now
+identifies the ASCII byte/4 estimate plus a conservative non-ASCII UTF-8 byte
+allowance. Dense Unicode input can return a higher estimate and hit the per-step
+guard at a lower byte count than under the previous byte-only policy. The
+estimate does not include hidden CLI context or establish an exact tokenizer.
+Owner-approved 2026-11-22 (#1567), together with cold replay dropping whole older
+completed turns by default (with a note to the model) when history exceeds the
+budget, and one default 480,000-token context budget (`MERIDIAN_AGY_MAX_CONTEXT_TOKENS`) for every model until it is
+sized per model.
+
+When Antigravity Messages (`/v1/messages`, `/v1/messages/count_tokens`) drops
+unsupported hosted server tools without `input_schema` (`web_search_*`,
+`web_fetch_*`, `code_execution_*`), the response exposes the comma-separated
+`x-meridian-dropped-tools` header (the first 16 names) and total in
+`x-meridian-dropped-tools-count` (and emits one bounded warning per request) without
+changing `contractKey` or prompt rendering. Owner-approved 2026-11-22 (#1562),
+together with accepting and ignoring numeric `temperature`, `top_p` and `top_k`
+on the Antigravity path rather than rejecting them as #1074 did.
+
+`antigravity.turnMaxDurationMs` (environment `MERIDIAN_AGY_TURN_MAX_DURATION_MS`,
+default 7,200,000 ms) is an absolute per-turn deadline that includes client tool
+waits and is passed to agy as `--print-timeout`; `turnTimeoutMs` now bounds each
+model phase and pauses while client tools run. An agy process orphaned by a
+Meridian crash may therefore survive up to this cap (previously 300 s).
+Owner-approved 2026-11-22 (#1560).
+
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
 usage without a new model invocation. This cache is separate from OpenAI Responses

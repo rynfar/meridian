@@ -10,7 +10,7 @@
  * capacity is full`.
  */
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { installSdkMock } from "./sdkMock"
@@ -223,6 +223,33 @@ describe("session GC capacity", () => {
       expect(limits).toEqual([64])
       await instance.close()
       expect(limits).toEqual([64, 16])
+    } finally {
+      spy.mockRestore()
+    }
+  }, 60_000)
+  it("finishes a sweep in the store it started for after the store directory changes", async () => {
+    // A response leaves its sweep running. A later test, or embedder, that
+    // points the process at another store must not receive its lock and
+    // sidecar traffic.
+    await seedRetiredTranscripts(1)
+    const other = join(root, "other-sessions")
+    mkdirSync(other)
+    const runGc = lifecycle.runGc
+    const proceed = gate()
+    let deletions = 0
+    const spy = spyOn(lifecycle, "runGc").mockImplementation(async (pins, options) => {
+      await proceed.promise
+      return runGc(pins, { ...options, deleter: async () => { deletions++ } })
+    })
+    try {
+      const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const sweep = proxy.sweepSessionGc?.()
+      setSessionStoreDir(other)
+      proceed.release()
+      await sweep
+      expect(deletions).toBe(1)
+      expect(resourceStates()).toEqual(["deleted"])
+      expect(readdirSync(other)).toEqual([])
     } finally {
       spy.mockRestore()
     }
