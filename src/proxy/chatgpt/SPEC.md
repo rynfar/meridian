@@ -65,6 +65,7 @@ Code: `src/proxy/chatgpt/` (incl. `migrate/`), `src/proxy/codex/`,
   imports them**.
 - Reuses only `session` durability primitives (durable file writes, process
   incarnation, recovery claims) — never session lineage or caches.
+- For Responses telemetry, dispatch passes the client conversation key to the backend as request metadata. It is not forwarded to the provider or used to change cancellation, seat selection, or cache behavior.
 
 User-facing behavior: `docs/configuration.md` → *ChatGPT subscriptions*,
 *ChatGPT migration*, *Moving ChatGPT seats between instances*.

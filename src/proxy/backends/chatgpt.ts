@@ -71,6 +71,7 @@ export interface ChatGptTurnEvent {
   error: string | null
   reasoningSummaryEvents: number
   requestSource?: string
+  readonly clientSessionId?: string
   /** Set when the seat served with its plan quota spent, paying with Codex credits. */
   servedOnCredits?: boolean
 }
@@ -361,6 +362,7 @@ export function createChatGptBackend<Ctx>(options: ChatGptBackendOptions<Ctx>): 
       const report = (fields: Partial<ChatGptTurnEvent> & { status: number }) => {
         hooks?.onTurn?.({
           requestId, startedAt, requestModel: model ?? null, model: model ?? null, seat: null,
+          clientSessionId: request.clientSessionId,
           stream: adapted.clientWantsStream, adaptations: adapted.applied, attempts,
           usage: null, ttfbMs: null, durationMs: now() - startedAt, error: null,
           reasoningSummaryEvents: 0, ...(requestSource ? { requestSource } : {}), ...fields,

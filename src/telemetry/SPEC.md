@@ -46,6 +46,8 @@ Record what Meridian did and show it to the operator:
 
 ## Decisions
 
+- **Client conversation identity is separate from SDK session identity.** Claude request rows and ChatGPT Responses rows can carry `clientSessionId`, retained across SDK sessions and account attempts. `sdkSessionId` retains its existing meaning. Both Responses paths take identity from the original request's adapter or raw Codex thread, not from an internal routing key or a standalone prompt cache key. Keepalive beats, requests without a client identity, and historical rows omit the field. Internal fingerprints and synthesized tool-loop keys are not client conversation IDs.
+
 - **`/` and `/profiles` update in place.** Their polls patch `#content` from
   the fresh markup (`domPatch.ts`) instead of replacing it: nodes are matched
   by `data-key`/`id` (cards by profile id) or by position among unkeyed

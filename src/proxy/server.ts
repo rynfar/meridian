@@ -412,6 +412,7 @@ const SHUTDOWN_CLEANUP_SLOW_MS = 2_000
 
 interface RequestMeta {
   requestId: string
+  readonly clientSessionId?: string
   endpoint: string
   queueEnteredAt: number
   sessionQueueWaitMs: number
@@ -1175,6 +1176,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // exempted by a per-instance token rather than a fixed header name, so the
   // exemption can never be claimed from the wire.
   const internalHopToken = randomUUID()
+  const isSynthesizedSessionHop = (c: Context) =>
+    c.req.header("x-meridian-internal-hop") === internalHopToken
+    && c.req.header(SYNTHESIZED_SESSION_HEADER) === "1"
   /** Which error envelope a public route speaks. */
   type ErrorShape = "anthropic" | "openai"
   const errorEnvelope = (shape: ErrorShape, type: string, message: string) =>
@@ -1209,6 +1213,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
   interface ClaudeAdmissionOwner {
     readonly requestId: string
+    /** For Responses translation only; null means the original request had no conversation ID. */
+    responsesClientSessionId?: string | null
     readonly enteredAt: number
     readonly abort: AbortController
     readonly abortLink: RequestAbortLink
@@ -3888,9 +3894,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // well — the same randomUUID that never leaves the process and already
         // backs the draining exemption — so the marker cannot be spoofed from
         // the wire.
-        const carriesSynthesizedSessionKey =
-          c.req.header("x-meridian-internal-hop") === internalHopToken
-          && c.req.header(SYNTHESIZED_SESSION_HEADER) === "1"
+        const carriesSynthesizedSessionKey = isSynthesizedSessionHop(c)
         const declaresConcurrentFlow =
           declaresPerRequestConcurrentFlow
           || protocolRunsConcurrentTurnsPerSessionKey
@@ -3990,6 +3994,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           const conflictQueueWaitMs = totalQueueWaitMs(requestMeta)
           telemetryStore.record({
             requestId: requestMeta.requestId,
+            clientSessionId: requestMeta.clientSessionId,
             timestamp: Date.now(),
             adapter: adapter.name,
             model,
@@ -6066,6 +6071,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           )
           telemetryStore.record({
             requestId: requestMeta.requestId,
+            clientSessionId: requestMeta.clientSessionId,
             timestamp: Date.now(),
             adapter: adapter.name,
             profileId: profile.id,
@@ -6685,6 +6691,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const queueWaitMs = totalQueueWaitMs(requestMeta)
               observeStreamFailure(() => telemetryStore.record({
                 requestId: requestMeta.requestId, timestamp: Date.now(), adapter: adapter.name,
+                clientSessionId: requestMeta.clientSessionId,
                 profileId: profile.id, routeKind, routeGroupId, routeAttempt, requestSource, model,
                 requestModel: body.model || undefined, resolvedModel: resolvedHaikuModel(), mode: "stream", isResume,
                 isPassthrough: passthrough, hasDeferredTools, toolCount, lineageType,
@@ -8254,6 +8261,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 )
                 telemetryStore.record({
                   requestId: requestMeta.requestId,
+                  clientSessionId: requestMeta.clientSessionId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
             profileId: profile.id,
@@ -8801,6 +8809,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const recoverQueueWaitMs = totalQueueWaitMs(requestMeta)
                 telemetryStore.record({
                   requestId: requestMeta.requestId,
+                  clientSessionId: requestMeta.clientSessionId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
                   profileId: profile.id,
@@ -8952,6 +8961,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const cappedQueueWaitMs = totalQueueWaitMs(requestMeta)
                 telemetryStore.record({
                   requestId: requestMeta.requestId,
+                  clientSessionId: requestMeta.clientSessionId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
                   profileId: profile.id,
@@ -9029,6 +9039,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const streamErrQueueWaitMs = totalQueueWaitMs(requestMeta)
               telemetryStore.record({
                 requestId: requestMeta.requestId,
+                clientSessionId: requestMeta.clientSessionId,
                 timestamp: Date.now(),
                 adapter: adapter.name,
                 profileId: profile.id,
@@ -9268,6 +9279,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const errorTotalMs = Date.now() - requestStartAt
         telemetryStore.record({
           requestId: requestMeta.requestId,
+          clientSessionId: requestMeta.clientSessionId,
           timestamp: Date.now(),
           adapter: adapter.name,
           profileId: attributedProfileId ?? resolvedProfileId,
@@ -9501,6 +9513,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // client-session identity.
       const adapter = detectAdapter(c)
       const agentSessionId = Array.isArray(body?.messages) ? adapter.getSessionId(c, body) : undefined
+      const responsesClientSessionId = inheritedOwner?.responsesClientSessionId
+      const clientSessionId = responsesClientSessionId !== undefined
+        ? responsesClientSessionId ?? undefined
+        : agentSessionId && !isSynthesizedSessionHop(c)
+          ? adapter.getClientSessionId?.(c, body) ?? agentSessionId
+          : undefined
       if (Array.isArray(body?.messages)) {
         routingTurnIdentity = adapter.getRoutingTurnIdentity?.(c, body)
         auxiliaryRequest = agentSessionId !== undefined && adapter.isAuxiliaryRequest?.(c, body) === true
@@ -9606,6 +9624,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             const cancelledWaitMs = Date.now() - queueEnteredAt
             telemetryStore.record({
               requestId,
+              clientSessionId,
               timestamp: Date.now(),
               adapter: adapter.name,
               model: "unknown",
@@ -9656,6 +9675,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
       const requestMeta: RequestMeta = {
         requestId,
+        clientSessionId,
         endpoint,
         queueEnteredAt,
         sessionQueueWaitMs: (sessionTurnLease?.waitedMs ?? 0) + (crossProcessTurnLease?.waitedMs ?? 0),
@@ -9856,6 +9876,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const tokens = usage ? chatGptTokenFields(usage) : undefined
     telemetryStore.record({
       requestId: event.requestId,
+      clientSessionId: event.clientSessionId,
       timestamp: Date.now(),
       adapter: CHATGPT_ADAPTER,
       requestSource: event.requestSource,
@@ -10017,10 +10038,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
   }
 
-  // The client session a ChatGPT turn belongs to: the adapter's own key when
-  // the client sends one (header-derived, read-only), else prompt_cache_key,
-  // which Responses clients set per conversation.
-  const chatGptSessionKey = async (c: Context): Promise<{ key: string; parent?: string } | undefined> => {
+  const chatGptSessionKeys = async (c: Context, endpoint: UpstreamEndpoint) => {
     let body: Record<string, unknown> | undefined
     try {
       const parsed = JSON.parse(await c.req.text()) as unknown
@@ -10030,8 +10048,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
     const adapter = detectAdapter(c)
     const cacheKey = typeof body?.prompt_cache_key === "string" && body.prompt_cache_key ? body.prompt_cache_key : undefined
-    const key = adapter.getSessionId(c, body) ?? cacheKey
-    return key ? { key, parent: adapter.getParentSessionId?.(c, body) } : undefined
+    const adapterKey = adapter.getSessionId(c, body)
+    const cancellationKey = adapterKey ?? cacheKey
+    const clientSessionId = endpoint === "responses"
+      ? (adapter.getClientSessionId?.(c, body) ?? adapterKey)
+        || resolveCodexThreadIdentity(body ?? {}, c.req.header("x-codex-turn-metadata")).threadId
+      : undefined
+    return { cancellationKey, parent: cancellationKey ? adapter.getParentSessionId?.(c, body) : undefined, clientSessionId }
   }
 
   const dispatchUpstream = async (c: Context, endpoint: UpstreamEndpoint, route: string) => {
@@ -10102,14 +10125,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       try {
         // Registered in the session tree like a Claude turn, so
         // /v1/sessions/:key/cancel stops a ChatGPT turn of that session too.
-        const session = await chatGptSessionKey(c)
-        treeEntry = session ? processSessionTree.register({
+        const session = await chatGptSessionKeys(c, endpoint)
+        treeEntry = session.cancellationKey ? processSessionTree.register({
           requestId: `chatgpt-${randomUUID()}`,
-          sessionKey: session.key,
+          sessionKey: session.cancellationKey,
           parentKey: session.parent,
           abort: (reason) => controller.abort(reason),
         }) : undefined
-        const response = await backend.handle({ context: c, endpoint, route })
+        const response = await backend.handle({ context: c, endpoint, route, clientSessionId: session.clientSessionId })
         return completeUpstreamResponse(response, controller.signal, complete)
       } catch (error) {
         complete()
@@ -12170,6 +12193,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // subagent inherits its parent's `prompt_cache_key` — see
     // resolveCodexThreadIdentity for what each signal answers.
     const codexThread = resolveCodexThreadIdentity(rawBody, c.req.header("x-codex-turn-metadata"))
+    const clientAdapter = detectAdapter(c)
+    const clientKey = clientAdapter.getClientSessionId?.(c, rawBody) ?? clientAdapter.getSessionId(c, rawBody)
+    owner.responsesClientSessionId = clientKey || codexThread.threadId || null
     if (codexThread.sessionKey) internalHeaders["x-codex-session"] = codexThread.sessionKey
     if (codexThread.requestSource) internalHeaders["x-meridian-source"] = codexThread.requestSource
     const xApiKey = c.req.header("x-api-key")
