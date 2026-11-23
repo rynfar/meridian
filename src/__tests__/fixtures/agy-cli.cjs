@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 // Deterministic official-CLI protocol fixture. Never contacts a model service.
 const { spawnSync } = require('node:child_process')
-const { readFileSync } = require('node:fs')
+const { readFileSync, appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
-const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
+let contextFrameIndex
+const emit = value => {
+  if (contextFrameIndex !== undefined && value.step_update) {
+    value = { ...value, step_update: { step_index: contextFrameIndex + 1, ...value.step_update } }
+  }
+  process.stdout.write(JSON.stringify(value) + '\n')
+}
 const nativePrompts = []
 async function main(inputPrompt) {
   if (args[0] === '--version') return console.log(process.env.AGY_FIXTURE_VERSION || '1.5.13')
@@ -11,6 +17,46 @@ async function main(inputPrompt) {
   let prompt = args[args.indexOf('-p') + 1]
   if (inputPrompt !== undefined) prompt = inputPrompt
   nativePrompts.push(prompt)
+  if (inputPrompt !== undefined && process.env.AGY_FIXTURE_CONTEXT_LOG) {
+    contextFrameIndex = (nativePrompts.length - 1) * 2
+    if (process.env.AGY_FIXTURE_CONTEXT_PRIMING !== 'no-marker') {
+      emit({ event: 'step_update', step_update: { step_type: 'user_input', step_index: contextFrameIndex } })
+    }
+    appendFileSync(process.env.AGY_FIXTURE_CONTEXT_LOG, JSON.stringify({ pid: process.pid, prompt }) + '\n')
+    if (prompt.startsWith('History loading step.')) {
+      const result = spawnSync(process.execPath, ['policy.cjs'], {
+        input: JSON.stringify({ toolCall: { name: 'call_mcp_tool', args: { ServerName: 'meridian_client', ToolName: 'lookup' } } }),
+        encoding: 'utf8',
+      })
+      if (JSON.parse(result.stdout).decision !== 'deny') throw new Error('History loading allowed a client tool')
+      const mode = process.env.AGY_FIXTURE_CONTEXT_PRIMING
+      if (mode === 'tool-frame') {
+        emit({ event: 'step_update', step_update: { step_type: 'tool', tool_name: 'lookup' } })
+      }
+      if (mode === 'rpc') {
+        const config = JSON.parse(readFileSync('.agents/mcp_config.json', 'utf8'))
+        const response = await fetch(config.mcpServers.meridian_client.serverUrl, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 770, method: 'tools/call', params: { name: 'lookup', arguments: { key: 'priming' } } }),
+        })
+        const reply = await response.json()
+        if (!reply.error?.message.includes('disabled during Antigravity history loading')) {
+          throw new Error('Priming MCP dispatch was not denied')
+        }
+      }
+      if (mode !== 'silent') emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'PRIMING_ACK' } })
+      emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', usage: { input_tokens: 100, output_tokens: 1 } } })
+      return emit({ event: 'result', result: { status: 'SUCCESS' } })
+    }
+    if (prompt.startsWith('The earlier input steps')) {
+      emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'STALE_ACK', step_index: contextFrameIndex - 1 } })
+      const policy = spawnSync(process.execPath, ['policy.cjs'], {
+        input: JSON.stringify({ toolCall: { name: 'call_mcp_tool', args: { ServerName: 'meridian_client', ToolName: 'lookup' } } }),
+        encoding: 'utf8',
+      })
+      if (JSON.parse(policy.stdout).decision !== 'allow') throw new Error('Final input did not restore client tool policy')
+    }
+  }
   if (prompt === '/config' && process.env.AGY_FIXTURE_CONFIG_EXIT) return process.exit(2)
   if (prompt === '/config') return emit({ conversation_id: '', status: 'SUCCESS', duration_seconds: 0, num_turns: 0, response: 'customModelsConfig\t' + (process.env.AGY_FIXTURE_CUSTOM ? '{"fixture":{}}' : '') + '\nmodelProvider\t' + (process.env.AGY_FIXTURE_API ? 'gemini' : '') + '\nuseG1Credits\tfalse' })
   if (prompt === '/usage') return emit({command:{data:{groups:[{name:'Gemini Models',buckets:[{id:'gemini-5h',window:'5h',remaining_fraction:0.75,reset_time:'2099-01-01T00:00:00Z'}]}]}}})
@@ -50,6 +96,7 @@ async function main(inputPrompt) {
     return value.result
   }
   const { tools } = await rpc('tools/list')
+  if (prompt.includes('MODEL_DELAY')) await new Promise(resolve => setTimeout(resolve, 3100))
   if (prompt.includes('CLIENT_LEDGER_BOUNDARY')) {
     for (let at = 0; at < 2; at++) {
       try {
@@ -153,12 +200,7 @@ async function main(inputPrompt) {
     const calls = Array.from({ length: prompt.includes('PARALLEL2') ? 2 : 1 }, (_, n) => rpc('tools/call', { name: tools[0].name, arguments: { key: `probe${n}` } }))
     if (prompt.includes('RPC_RETRY')) calls.push(rpc('tools/call', {name:tools[0].name,arguments:{key:'probe0'}},2))
     const results = await Promise.all(calls)
-    if (prompt.includes('FAIL_CONTINUATION_504')) { setInterval(() => {}, 1000); return }
-    if (prompt.includes('FAIL_CONTINUATION')) {
-      const error = prompt.includes('_503') ? 'Service unavailable' : prompt.includes('_429') ? 'Quota exhausted; retry in 1 seconds' : prompt.includes('_401') ? 'Authentication required' : 'Fixture process lost after receiving tool results'
-      return emit({ event: 'result', result: { status: 'ERROR', error } })
-    }
-    if (prompt.includes('LARGE_NEXT_TOOL')) await Promise.all([0, 1].map(() => rpc('tools/call', { name: tools[0].name, arguments: { key: 'x'.repeat(700000) } })))
+    if (prompt.includes('MODEL_DELAY')) await new Promise(resolve => setTimeout(resolve, 3100))
     if (prompt.includes('NEXT_TOOL')) await rpc('tools/call', { name: tools[0].name, arguments: { key: 'next' } })
     if (prompt.includes('STEERING')) {
       const followup = JSON.parse(results[0].content[0].text).meridian_client_followup
