@@ -211,6 +211,9 @@ import {
   perModelRefusalFamily,
   parseWeeklyReserves,
   WeeklyReserveTracker,
+  drawsExtraUsage,
+  getClaudeExtraUsagePolicy,
+  orderForExtraUsage,
   WEEKLY_RESERVE_WINDOW,
   type CooldownWindow,
   type PriorityAssignment,
@@ -931,8 +934,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // Meridian deployments run one proxy per terminal, so the same OpenCode
   // session must also be serialized through the shared session directory.
   const crossProcessTurnStaleMs = Math.max(1_000, envInt("SESSION_TURN_STALE_MS", 30_000))
+  // Turn locks and transcript bookkeeping stay in the store this instance was
+  // created for. Work a response leaves running (fork abandonment, the sweep
+  // after it) must not follow a later setSessionStoreDir into another store.
+  const sessionStoreDir = getSessionStoreDir()
   const crossProcessSessionTurns = new CrossProcessTurnCoordinator(
-    join(getSessionStoreDir(), "turn-locks"),
+    join(sessionStoreDir, "turn-locks"),
     {
       acquireTimeoutMs: Math.max(
         1_000,
@@ -947,6 +954,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // retirement below the deletion rate (sessionGcLimits.ts).
   const sessionGcLimits = resolveSessionGcLimits(envInt, SESSION_TURN_MAX_HOLD_MS)
   const sessionGcOptions: SessionLifecycleOptions = {
+    storeDir: sessionStoreDir,
     maxPending: sessionGcLimits.maxPending,
     maxDeletesPerRun: sessionGcLimits.maxDeletesPerRun,
     // Also reaches a sweep already running when beginDrain flips the state.
@@ -1539,6 +1547,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         spent: spentProfiles.get(recipe.profileId) !== undefined,
         benched: recipe.extendedContext && isExtendedContextKnownUnavailable(recipe.profileId, recipe.benchSessionKey),
         reserveHeld: currentWeeklyReserveHolds([recipe.profileId]).has(recipe.profileId),
+        drawsExtraUsage: profileDrawsExtraUsage(recipe.profileId),
         now: Date.now(),
       }),
     }),
@@ -1760,6 +1769,37 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const window = oauth?.windows.find(w => w.type === WEEKLY_RESERVE_WINDOW)
     if (oauth && window) readings.push({ utilization: window.utilization, resetsAt: window.resetsAt, observedAt: oauth.fetchedAt })
     return readings
+  }
+
+  /** Already-observed facts only: never fetches. */
+  function profileDrawsExtraUsage(profileId: string): boolean {
+    const oauth = peekOAuthUsage(profileId)
+    return drawsExtraUsage({
+      sdk: rateLimitStore.getAll(profileId),
+      oauth: oauth && {
+        fetchedAt: oauth.fetchedAt,
+        windows: oauth.windows,
+      },
+    }, Date.now())
+  }
+
+  /** The earliest future reset among the pool's observed plan windows, for `Retry-After`. */
+  function earliestPlanReset(ids: readonly string[], now: number): number | null {
+    const plan = (type: string | undefined) => type === "five_hour" || type === "seven_day"
+    const resets = ids.flatMap(id => [
+      ...rateLimitStore.getAll(id).filter(e => plan(e.rateLimitType)).map(e => e.resetsAt),
+      ...(peekOAuthUsage(id)?.windows ?? []).filter(w => plan(w.type)).map(w => w.resetsAt),
+    ]).filter((t): t is number => typeof t === "number" && t > now)
+    return resets.length > 0 ? Math.min(...resets) : null
+  }
+
+  let lastExtraUsageLastResort = ""
+  /** Log when the set of accounts kept behind plan allowance changes, not on every request. */
+  function logExtraUsageLastResort(ids: ReadonlySet<string>): void {
+    const key = [...ids].sort().join(",")
+    if (key === lastExtraUsageLastResort) return
+    lastExtraUsageLastResort = key
+    claudeLog("priority.extra_usage_last_resort", { profiles: [...ids] })
   }
 
   const weeklyReserve = new WeeklyReserveTracker()
@@ -2918,7 +2958,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             const reserveHolds = currentWeeklyReserveHolds(configuredOrder)
             const routable = configuredOrder.filter(id => !reserveHolds.has(id))
             const allReserveHeld = routable.length === 0
-            const order = allReserveHeld ? configuredOrder : routable
+            // A per-model weekly bench skips a profile only for requests of
+            // that model; profile-wide marks skip it for every request.
+            const modelFamily = claudeModelFamily(typeof body.model === "string" ? body.model : "sonnet")
+            const benched = (id: string) => priorityExhaustion.isExhausted(id, modelFamily)
+            const extraUsagePolicy = getClaudeExtraUsagePolicy(process.env.MERIDIAN_CLAUDE_EXTRA_USAGE ?? getSetting("claudeExtraUsage"))
+            const extraUsage = orderForExtraUsage(
+              allReserveHeld ? configuredOrder : routable,
+              extraUsagePolicy,
+              profileDrawsExtraUsage,
+              id => !benched(id),
+            )
+            logExtraUsageLastResort(extraUsage.lastResort)
+            const order = extraUsage.order
             const assignmentCwd = adapter.extractClientWorkingDirectory?.(body)
               ?? adapter.extractWorkingDirectory(body)
             // The durable route below stays on the request's own key: it is
@@ -3057,10 +3109,6 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 assignment = priorityAssignments.get(sessionKey)
               }
 
-              // A per-model weekly bench skips a profile only for requests of
-              // that model; profile-wide marks skip it for every request.
-              const modelFamily = claudeModelFamily(typeof body.model === "string" ? body.model : "sonnet")
-              const benched = (id: string) => priorityExhaustion.isExhausted(id, modelFamily)
               const shouldPromote = assignment !== undefined
                 && durableRoute !== undefined
                 && routeMappingIsCurrent
@@ -3078,6 +3126,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const assignmentIsHealthy = assignedProfile !== undefined
                 && order.includes(assignedProfile)
                 && !benched(assignedProfile)
+                && !extraUsage.lastResort.has(assignedProfile)
               const retainOnlyProfile = durableRoute && !promotionTurn
                 ? assignedProfile
                 : undefined
@@ -3101,14 +3150,25 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   ...retryAfterBodyFields(retryAfter),
                 }, 429, retryAfterHeaders(retryAfter))
               }
-              const unavailable = (id: string) => benched(id) || reserveHolds.has(id)
+              if (extraUsage.refused && retainOnlyProfile === undefined) {
+                const retryAfter = retryAfterSeconds({ status: 429, resetAtMs: earliestPlanReset(configuredOrder, Date.now()) })
+                return c.json({
+                  type: "error",
+                  error: { type: "rate_limit_error", message: "Every profile's plan usage is spent and Extra Usage is off for this instance" },
+                  ...retryAfterBodyFields(retryAfter),
+                }, 429, retryAfterHeaders(retryAfter))
+              }
+              const unavailable = (id: string) => benched(id) || reserveHolds.has(id) || extraUsage.lastResort.has(id)
               let candidates: string[]
               if (routingMode === ACTIVE_PRIORITY) {
                 const activeId = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
                 candidates = retainOnlyProfile
                   ? [retainOnlyProfile]
-                  : chooseActivePriorityCandidates(activeId, order, unavailable, assignedProfile)
-                      .filter(id => !reserveHolds.has(id))
+                  : [
+                      ...chooseActivePriorityCandidates(activeId, order, unavailable, assignedProfile)
+                        .filter(id => !reserveHolds.has(id) && !extraUsage.lastResort.has(id)),
+                      ...order.filter(id => extraUsage.lastResort.has(id) && !benched(id)),
+                    ]
                 if (candidates.length === 0) candidates = [order[0]!]
               } else {
                 const pick = choosePriorityProfile(order, benched)

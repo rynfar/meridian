@@ -211,7 +211,8 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_WHISPER_MODEL` | unset | Local whisper.cpp model for audio transcription |
 | `MERIDIAN_AGY_MAX_CONCURRENT` | `4` | Maximum live processes; idle pending tools can yield capacity |
 | `MERIDIAN_AGY_MAX_TOOL_CALLS` | `256` | Client-call and MCP replay-ledger allowance per live process, integer 1–65536; independent of deadlines and the 128-call warm-reuse cutoff |
-| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Per-turn deadline, including preprocessing and tool waits |
+| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Full model/preprocessing deadline for each phase, refreshed after each accepted tool-result batch; paused while waiting for client tools |
+| `MERIDIAN_AGY_TURN_MAX_DURATION_MS` | `7200000` | Absolute per-turn deadline including client tool waits; also passed as CLI `--print-timeout` on every turn (including tool-less turns) |
 | `MERIDIAN_AGY_TOOL_TIMEOUT_MS` | `60000` | Pending client tool-result deadline |
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
 | `MERIDIAN_AGY_MAX_PROMPT_BYTES` | `190000` | UTF-8 byte limit of one prompt sent to agy, which keeps only about 192,000 bytes of an input step and drops the rest (the newest messages). Past it the oldest large tool results, arguments and text are shortened, the newest last; a current request that alone does not fit returns 400 `prompt is too long`. `0` disables it. |
@@ -224,10 +225,14 @@ directories. Meridian does not edit or garbage-collect those private records.
 Capacity exhaustion returns 429 with `Retry-After`. No unbounded request queue
 is created. Bodies are capped at 8 MiB; upstream stdout is capped at 16 MiB.
 Prompts use stdin to avoid OS argument-size limits. Shutdown terminates owned
-process groups and closes the MCP listener.
+process groups and closes the MCP listener. Because child processes are spawned
+detached and receive `--print-timeout` equal to `turnMaxDurationMs` (two hours
+by default), an unclean Meridian crash can leave an active `agy` child running
+up to that limit instead of the previous 300 s CLI backstop; real `agy`
+`--print-timeout` semantics across reused stdin turns are unverified.
 
 Embedders can set `backend: "antigravity"` and `antigravity: { executable,
-allowToolBridge, maxConcurrent, turnTimeoutMs, pendingToolTimeoutMs }` on
+allowToolBridge, maxConcurrent, turnTimeoutMs, turnMaxDurationMs, pendingToolTimeoutMs }` on
 `startProxyServer`. Call `ProxyInstance.close()` to release resources. Direct
 `createProxyServer().app.fetch` embedders must call the optional
 `closeBackend()` when finished.
@@ -364,6 +369,15 @@ CLI behavior references: [headless mode](https://antigravity.google/docs/cli/hea
 [hooks](https://antigravity.google/docs/hooks), and
 [terminal sandbox](https://antigravity.google/docs/sandbox?tab=cli).
 
+## Request compatibility
+
+Hosted Anthropic tools without client schemas are reported in
+`x-meridian-dropped-tools` (up to 16 names) and
+`x-meridian-dropped-tools-count` (the number of distinct dropped names). The warning log uses the same
+bounded name sample; Meridian does not execute these hosted tools. Normalized
+late system steering remains in conversation order and does not replace the
+latest actual user instruction during prompt compaction. A valid choice targeting a dropped hosted tool becomes `auto` while preserving `disable_parallel_tool_use`. Literal user `[system]` text remains a user instruction. Unknown-block descriptions are bounded; unrepresentably deep data and malformed known blocks return 400.
+
 ## Pi and OpenCode
 
 Both clients use their own tools, permissions and saved sessions. Meridian does
@@ -379,8 +393,9 @@ protection is configured, replace `local-placeholder` with that local key.
 ### Configure installed clients
 
 Client acceptance is verified with Pi 0.72.1 and OpenCode V1 1.18.31.
-OpenCode 1.2.15 is known to send unsupported `top_p` defaults; upgrade that
-older client rather than expecting sampling controls to be honored.
+OpenCode 1.2.15 sends numeric `top_p` defaults, which Meridian accepts and ignores
+(not forwarded to `agy`); upgrade if you need current OpenCode V1 behavior rather
+than expecting sampling controls to be honored.
 
 In the web dashboard or macOS app, open **Providers → Antigravity → Connect Pi
 or OpenCode**. Choose an account model and copy the generated setup command. The
@@ -646,7 +661,7 @@ It includes recovery instructions and practical execution budgets.
 | --- | --- | --- |
 | Hard `max_tokens` | Enforce an exact upper bound on generated tokens | The requested limit is advisory. A long answer or tool loop can use more quota and time than that number suggests. Response byte limits and process deadlines remain enforced. |
 | Numeric thinking budget | Allocate a specific number of tokens to internal reasoning | Opt-in adaptation maps client budgets to Gemini low/medium/high effort. This enables client controls without promising an exact reasoning-token allowance. |
-| `temperature`, `top_p`, `top_k` | Tune how the model samples its next tokens | No direct randomness/diversity tuning. Prompts can request a style, but do not implement sampling parameters or guarantee repeatability. |
+| `temperature`, `top_p`, `top_k` | Tune how the model samples its next tokens | Numeric values are accepted and ignored (not forwarded). Prompts can request a style, but do not implement sampling parameters or guarantee repeatability. |
 
 These controls do not determine whether file editing, shell commands, search,
 images or client delegation are available. Truncating returned text locally would
