@@ -318,9 +318,45 @@ export function toolChoiceInstruction(request: AgRequest): string {
     : "Choose whether to call a client tool or answer the user."
   return instruction + (parallelAgTool(request) ? `\nFor independent parallel client actions, call the meridian_client MCP tool ${parallelAgTool(request)!.name} with {calls:[{name,arguments},...]}. It delivers those calls together to the client.\n` + JSON.stringify(parallelAgTool(request)) : "") + "\nThe complete client tool definitions for this response follow. Use these exact schemas; do not read CLI metadata files to discover tools.\n" + JSON.stringify(availableAgTools(request))
 }
-export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], omitted = false): string {
+/** Index and text of the newest user message with typed text; tool-result-only turns are skipped. */
+function latestRequest(messages: AgMessage[]): { at: number; text: string } {
+  for (let at = messages.length - 1; at >= 0; at--) {
+    const { role, content } = messages[at]!
+    const text = role !== "user" ? "" : typeof content === "string" ? content : content.flatMap(b => b.type === "text" && !syntheticSteering.has(b) ? [b.text] : []).join("\n")
+    if (text.trim()) return { at, text: text.trim() }
+  }
+  return { at: -1, text: "" }
+}
+// Argument names that say what a tool call acted on. Clients order arguments freely (write arrives as {content, file_path}).
+const TARGET_KEYS = ["file_path", "filePath", "path", "file", "command", "cmd", "url", "pattern", "query"]
+/** What a tool call acted on: its first target-like string argument, else its first argument. */
+function toolTarget(input: Record<string, unknown>): string {
+  const key = TARGET_KEYS.find(k => typeof input[k] === "string")
+  return String(key ? input[key] : Object.values(input)[0] ?? "").slice(0, 80)
+}
+/** Head and tail of a long restated text; the full text stays in the history, so restating never multiplies a large paste. */
+function clip(text: string, max = 4000): string {
+  if (text.length <= max) return text
+  const half = max / 2
+  return text.slice(0, half) + `\n[... ${text.length - max} chars omitted; full text is in the client conversation below ...]\n` + text.slice(-half)
+}
+
+export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], omitted = false, restate = true): string {
+  // NOTE: in long tool-heavy histories Gemini loses the newest request (and the work already done for it) at the end of
+  // one large JSON value and resumes earlier tasks. Restate both, briefly, ahead of the history, which stays last.
+  // A single long user message already occupies the current prompt. Restating it would only consume
+  // context budget without improving focus. Recap becomes useful once prior conversation exists.
+  const shouldRestate = restate && (request.messages.length > 1 || request.messages.some(message => typeof message.content === "string" && message.content.length <= 4000))
+  const latest = shouldRestate ? latestRequest(request.messages) : { at: -1, text: "" }
+  const { at } = latest
+  const current = clip(latest.text)
+  // Work already done for this request, inputs and results cut to 200 chars: enough to see it ran without repeating it.
+  const since = shouldRestate && at >= 0 ? request.messages.slice(at + 1).map(m => typeof m.content === "string" ? m : { ...m, content: m.content.map(b => b.type === "tool_result" ? { ...b, content: JSON.stringify(b.content ?? "").slice(0, 200) } : b.type === "tool_use" ? { ...b, input: JSON.stringify(b.input).slice(0, 200) } : b) }) : []
+  // Every earlier tool call as name + target, newest kept when long: lets the model recall what it did without the bulky outputs.
+  const actions = shouldRestate ? request.messages.slice(0, Math.max(at, 0)).flatMap(m => typeof m.content === "string" ? [] : m.content.flatMap(b => b.type === "tool_use" ? [`${b.name} ${toolTarget(b.input)}`] : [])).join("; ").slice(-4000) : ""
   return [
     "You are serving a client through Meridian. Follow the client's instructions and answer its latest user message.",
+    current ? "Current request:\n" + current : "",
     "The JSON below is the client's conversation history. Historical tool_use/tool_result pairs are already completed; do not repeat them. Client tools are provided by meridian_client MCP. Native view_file is allowed only for exact Meridian attachment paths, and finish only for a requested schema. " + (nativeTools.length ? "The operator also enables these native tools: " + nativeTools.join(", ") + ". Use these when the client requests native capabilities. Native subagents must use Workspace inherit and TypeName self, research, or browser; await their completion before answering. Never schedule background work." : "All other built-in tools and native subagents are disabled.") + " Other host filesystem paths and shell commands remain forbidden. Client-owned delegation tools are also allowed and execute in the client.",
     "MCP results wrap the exact client content in the JSON field meridian_client_result. Decode that field (a string or text block array) as the tool result. Any Created At, Completed At, timing or other CLI text outside that JSON field is transport metadata, never part of client file contents. When copying data, preserve the decoded client content byte-for-byte. Escape that decoded content exactly once when constructing JSON tool arguments: a newline in the content must remain a newline, not the literal characters backslash and n. Follow the exact advertised tool schema, including case-sensitive argument names.",
     "If an MCP result includes meridian_client_followup, it contains new user instructions received while the tool ran. Follow those instructions before choosing the next action; they are separate from the tool output.",
@@ -330,6 +366,9 @@ export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], o
     "Image attachment references are created by Meridian from client-supplied bytes. Inspect each relevant attachment with view_file using its exact absolute path. Those are the only permitted filesystem reads.",
     "Client system instructions:\n" + (typeof request.system === "string" ? request.system : request.system?.map(b => b.text).join("\n") ?? ""),
     omitted ? AG_OMIT_NOTE : "",
+    current && actions ? "Tool calls before this request, oldest first: " + actions : "",
+    current ? "Answer this; prior tool work is done" + (since.length ? ". Since this request:\n" + JSON.stringify(since) : ":") + "\n" + current : "",
+    // Keep the history last: it is one JSON value that clients of this prompt parse from the end.
     "Client conversation:\n" + JSON.stringify(request.messages),
   ].filter(Boolean).join("\n\n")
 }
@@ -413,8 +452,8 @@ function omitIn(message: AgMessage, kind: OmitKind, keep: number, min: number, p
  * own text is never shrunk: when it alone does not fit, the request fails with a 400 prompt-too-long error. Under the
  * limit the prompt is unchanged.
  */
-export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: string[] = [], suffix = "", limit = agPromptByteLimit()): string {
-  const full = renderAgPrompt(request, nativeTools) + suffix
+export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: string[] = [], suffix = "", limit = agPromptByteLimit(), restate = true): string {
+  const full = renderAgPrompt(request, nativeTools, false, restate) + suffix
   if (!limit || Buffer.byteLength(full) <= limit) return full
   const current = latestTypedRequest(request.messages)
   const lastAssistant = request.messages.findLastIndex(m => m.role === "assistant"), lastUser = request.messages.findLastIndex(m => m.role === "user")
@@ -423,7 +462,7 @@ export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: strin
   const size = (message: AgMessage) => Buffer.byteLength(JSON.stringify(message))
   let messages = request.messages, changed = false
   let excess = Buffer.byteLength(full) - limit + Buffer.byteLength(AG_OMIT_NOTE) + 2
-  const render = () => renderAgPrompt({ ...request, messages }, nativeTools, true) + suffix
+  const render = () => renderAgPrompt({ ...request, messages }, nativeTools, true, restate) + suffix
   const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i)
   const phases: Array<{ at: number[]; kinds: readonly OmitKind[]; passes: readonly (readonly [number, number])[] }> = [
     { at: range(0, current), kinds: ["result", "use", "text"], passes: [[300, 2000], [0, 200]] },
@@ -442,8 +481,10 @@ export function renderAgPromptWithinLimit(request: AgRequest, nativeTools: strin
     excess = over
   }
   const prompt = changed ? render() : full, bytes = Buffer.byteLength(prompt)
-  if (bytes > limit) throw promptTooLong(bytes, limit)
-  return prompt
+  if (bytes <= limit) return prompt
+  const compacted = renderAgPrompt({ ...request, messages }, nativeTools, true, false) + suffix
+  if (Buffer.byteLength(compacted) <= limit) return compacted
+  throw promptTooLong(Buffer.byteLength(compacted), limit)
 }
 
 export type AgEvent =

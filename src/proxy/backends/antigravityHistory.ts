@@ -57,7 +57,7 @@ function historyUnits(messages: AgMessage[]): AgMessage[][] {
 
 /** Plan everything before spawning: no partially loaded histories on cap/size failures. */
 export function planAgHistory(request: AgRequest, native: string[], suffix: string, limit: number, maxSteps: number, tokenLimit = 52_000): string[] {
-  const full = renderAgPrompt(request, native) + suffix
+  const full = renderAgPrompt(request, native, false, false) + suffix
   if (Buffer.byteLength(full) <= limit && estimateAgTextTokens(full) <= tokenLimit) return [full]
   const units = historyUnits(request.messages)
   const last = units.pop() ?? []
@@ -68,7 +68,7 @@ export function planAgHistory(request: AgRequest, native: string[], suffix: stri
   // Keep the goal's entire tool batch if its instruction accompanies a tool result.
   const [goal] = goalIndex < 0 ? [] : units.splice(goalIndex, 1)
   const finalRequest = { ...request, messages: [...(goal ?? []), ...last] }
-  const final = assertAgStep('The earlier input steps contain completed conversation history. Use it together with the current user goal and latest messages in this final step.\n\n' + renderAgPrompt(finalRequest, native) + suffix, limit, tokenLimit)
+  const final = assertAgStep('The earlier input steps contain completed conversation history. Use it together with the current user goal and latest messages in this final step.\n\n' + renderAgPrompt(finalRequest, native, false, false) + suffix, limit, tokenLimit)
   const steps: string[] = []
   let chunk: AgMessage[] = []
   let bytes = Buffer.byteLength(AG_HISTORY_PREFIX) + 2
