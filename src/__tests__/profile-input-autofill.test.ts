@@ -18,6 +18,6 @@ describe("profile page text fields", () => {
     expect(inputs.length).toBe(6)
     for (const input of inputs) expect(input.includes("PROFILE_INPUT_ATTRS") || input.includes('data-lpignore="true"')).toBe(true)
     expect(profilePageHtml).toContain(`var PROFILE_INPUT_ATTRS = '${PROFILE_INPUT_ATTRS}';`)
-    expect(profilePageHtml).toContain('id=\\"rename-input\\" type=\\"text\\"')
+    expect(profilePageHtml).toContain('id="rename-input" type="text"')
   })
 })

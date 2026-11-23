@@ -20,6 +20,8 @@ import { freeResetView } from "./freeResets"
 import { domPatchJs } from "./domPatch"
 import { profileCardStatusCss, profileCardStatusJs } from "./profileCardStatus"
 import { textSelectionJs } from "./textSelection"
+import { profileTableCss, profileTableJs } from "./profileTable"
+import { profileTableFactsJs } from "./profileTableFacts"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -109,6 +111,11 @@ export const landingHtml = `<!DOCTYPE html>
   ${profileProvidersCss}
   ${profileLoginStatesCss}
   ${profileCardStatusCss}
+  ${profileTableCss}
+  .profile-activate { font: inherit; color: var(--accent); background: var(--surface2);
+    border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .profile-activate:hover { background: var(--surface); }
+  .profile-activate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* The name row carries every badge the card can earn - Active, the plan
      chip, pool position, exhausted/refused, needs login, spent - and on a
      narrow card they do not fit beside the cost. The row wraps its badges
@@ -185,6 +192,15 @@ export const landingHtml = `<!DOCTYPE html>
   .prof-pop-value .cached-tag { color: var(--muted); font-size: 10px; font-style: italic; white-space: nowrap; }
   .prof-pop-value .fact-explanation { display: none; margin-top: 4px; color: var(--muted); font-family: inherit; line-height: 1.4; }
   .prof-pop-value:focus > .fact-explanation { display: block; }
+  .profile-table-home-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 4px 8px; }
+  .profile-account-info summary { width: fit-content; min-height: 32px; padding-block: 5px; color: var(--accent); cursor: pointer; }
+  .profile-account-info summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .profile-account-info[open] { flex-basis: 100%; min-width: min(16rem, 66vw); }
+  .profile-account-info .prof-pop-grid { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
+  .profile-account-info .prof-pop-label { white-space: normal; }
+  @media (pointer: coarse) {
+    .profile-account-info summary { min-height: 44px; padding-block: 10px; }
+  }
   @media (max-width: 720px) {
     .prof-pop { left: -4px; right: -4px; }
   }
@@ -401,6 +417,7 @@ function sortTabs(count){
 // never sent to the server — the saved pool order (/settings) is untouched.
 var SORT_STORAGE_KEY='meridian.accountSort';
 var lastData=null;
+function redrawAccounts(){if(lastData)render(...lastData)}
 function readStoredSort(){
   try{
     var stored=localStorage.getItem(SORT_STORAGE_KEY);
@@ -413,7 +430,7 @@ function setViewSort(mode){
   var refocus=!!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.sort-tab'));
   viewSort=mode;
   try{localStorage.setItem(SORT_STORAGE_KEY,mode)}catch(_){/* a lost preference is not worth failing over */}
-  if(lastData)render(lastData[0],lastData[1],lastData[2],lastData[3]);
+  redrawAccounts();
   if(refocus){var el=document.querySelector('.sort-tab[data-sort="'+mode+'"]');if(el)el.focus()}
 }
 
@@ -423,6 +440,8 @@ ${profileLoginStatesJs}
 ${domPatchJs}
 ${profileCardStatusJs}
 ${textSelectionJs}
+${profileTableFactsJs}
+${profileTableJs("home")}
 
 var providersPresent=[];
 // How many cards the login-state chips count; below two they are not drawn.
@@ -439,6 +458,7 @@ function cardShown(group,state,updating){
 // page, so a drag still saves their place in the order. A heading shows while
 // any card of its provider does.
 function applyProviderFilter(){
+  if(meridianProfileTable.isTable()){redrawAccounts();return}
   var root=document.getElementById('content');
   var cards=root.querySelectorAll('.profile-card[data-group]');
   var groupShown={};var shown=0;
@@ -526,7 +546,7 @@ function profileCost(byProfile,p){
   return sum;
 }
 
-function infoIcon(entry,type){
+function infoFactsHtml(entry,type){
   var facts=profileFacts(entry);
   var rows='';
   for(var i=0;i<facts.length;i++){
@@ -538,13 +558,23 @@ function infoIcon(entry,type){
     rows+='<span class="prof-pop-label">'+esc(f.label)+'</span>'
       +'<span class="prof-pop-value'+tone+'"'+title+'>'+esc(f.value)+cached+explanation+'</span>';
   }
+  return '<span class="prof-pop-type">'+esc(type||'claude-max')+'</span>'
+    +'<span class="prof-pop-grid">'+rows+'</span>'
+    +'<a class="prof-pop-link" href="'+esc(profileHref(entry.id))+'">Open in Profiles \\u2192</a>';
+}
+
+function infoIcon(entry,type){
   return '<span class="prof-info">'
     +'<span class="prof-info-dot" tabindex="0" role="button" aria-label="Details for '+esc(entry.id)+'">i</span>'
-    +'<span class="prof-pop" role="tooltip">'
-    +'<span class="prof-pop-type">'+esc(type||'claude-max')+'</span>'
-    +'<span class="prof-pop-grid">'+rows+'</span>'
-    +'<a class="prof-pop-link" href="'+esc(profileHref(entry.id))+'">Open in Profiles \\u2192</a>'
-    +'</span></span>';
+    +'<span class="prof-pop" role="tooltip">'+infoFactsHtml(entry,type)+'</span></span>';
+}
+
+function accountDetails(entry,type){
+  var id='account-details-'+entry.id;
+  var open=document.getElementById(id)?.open;
+  return '<details class="profile-account-info" id="'+esc(id)+'"'+(open?' open':'')+'>'
+    +'<summary aria-label="Details for '+esc(entry.id)+'">Details</summary>'
+    +infoFactsHtml(entry,type)+'</details>';
 }
 
 // Retain the active element across a switch to another application too:
@@ -552,10 +582,11 @@ function infoIcon(entry,type){
 function infoPopOpen(){
   var active=document.activeElement;
   return !!document.querySelector('.prof-info:hover, .prof-info:focus-within')
-    || !!(active && active.closest('.prof-info'));
+    || !!(active && (active.closest('.prof-info') || active.closest('.profile-account-info .prof-pop-value')));
 }
 
 function profileSection(q,s,pl,h){
+  var table=meridianProfileTable.isTable();
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
   var spentByProfile={};
@@ -588,7 +619,7 @@ function profileSection(q,s,pl,h){
     var quota=quotaByProfile[p.id]||{};
     return computeProfileSpend({windows:quota.windows,error:quota.error,loggedIn:p.loggedIn,provider:p.entry&&p.entry.provider}).fraction;
   }
-  profs=sortProfilesForView(profs,viewSort,spentOf);
+  if(!table)profs=sortProfilesForView(profs,viewSort,spentOf);
   // One grid, a group per provider. Grouping keeps the order each card
   // arrived in, so the view sort above applies within every group.
   var groups=meridianProviders.group(profs,function(p){return meridianProviders.providerOf(p.entry||p)});
@@ -609,6 +640,7 @@ function profileSection(q,s,pl,h){
   for(var g=0;g<slots.length;g++)if(cardShown(slots[g].provider,loginStates[g],updatingOf(slots[g].item))){groupShown[slots[g].provider]=true;anyCardShown=true}
   var reorderable=multi&&!meridianReorder.envPinned()&&viewSort==='configured';
   var cards='';
+  var tableRows=[];
   var shown=[];
   var pos=0;
   for(var i=0;i<slots.length;i++){
@@ -616,7 +648,7 @@ function profileSection(q,s,pl,h){
     var update=updateOf(slot.item);
     var updating=!!(update&&update.state==='updating');
     var cardHidden=!cardShown(slot.provider,loginStates[i],updating);
-    if(grouped&&slot.place===0)cards+=meridianProviders.headingHtml(slot.group,!groupShown[slot.provider]);
+    if(!table&&grouped&&slot.place===0)cards+=meridianProviders.headingHtml(slot.group,!groupShown[slot.provider]);
     var p=slot.item;var cost=profileCost(byProfile,p);
     var chat=isChatGptProfile(p.entry);
     var quota=quotaByProfile[p.id]||{};
@@ -657,7 +689,8 @@ function profileSection(q,s,pl,h){
       +(credits.pace?'<div class="usage-row credits-row" title="'+esc(credits.pace.title)+'">'
         +'<span class="w-credits-note credits-pace">'+esc(credits.pace.text)+'</span></div>':'');
     // Redeeming one is deliberate and lives on /profiles; the card only counts them.
-    if(!chat)rows+=freeResetRows(freeResetView(quota.bankedResets,Date.now(),quota));
+    var resets=chat?null:freeResetView(quota.bankedResets,Date.now(),quota);
+    if(!table)rows+=freeResetRows(resets);
     var isPriority=pl&&pl.routing==='priority';
     // active+priority keeps the active profile meaningful - switching it is how
     // you move traffic, so the card stays clickable, unlike in pure priority.
@@ -668,8 +701,13 @@ function profileSection(q,s,pl,h){
     var switchable=multi&&p.configured&&!p.isActive&&(chat||(!isPriority&&!follow));
     var showsActive=p.isActive&&!(isPriority&&!chat);
     var badge='';
+    var routingDetail=[];
     var cardStrip=showsActive?'<div class="card-strip">Active</div>':switchable?'<div class="card-strip strip-hint">Click to activate</div>':'';
-    if(follow&&p.isActive&&!chat)badge+=' <span class="pool-chip">'+(follow.activeProfile?'following '+esc(follow.url):'local — '+esc(follow.url)+' unreachable')+(follow.stale?' · stale':'')+'</span>';
+    if(follow&&p.isActive&&!chat){
+      var following=(follow.activeProfile?'following '+follow.url:'local — '+follow.url+' unreachable')+(follow.stale?' · stale':'');
+      routingDetail.push(following);
+      badge+=' <span class="pool-chip">'+esc(following)+'</span>';
+    }
     // Sits beside the name because it qualifies the percentages below it: 70%
     // of a 20x account is several times the work left in 70% of a 5x one.
     if(p.allowance)badge+='<span class="plan-chip" title="'+esc((p.planLabel||'')+(p.rateLimitTier?' · '+p.rateLimitTier:''))+'">'+esc(p.allowance)+'</span>';
@@ -679,26 +717,37 @@ function profileSection(q,s,pl,h){
       // its place is a fallback one in either mode.
       var poolOrder=(pl.profileOrder||[]).filter(function(id){return !!entryById[id]&&isChatGptProfile(entryById[id])===chat});
       var orderIdx=poolOrder.indexOf(p.id);
-      if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority||chat?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';
+       if(orderIdx>=0){
+         var position='#'+(orderIdx+1)+(isActivePriority||chat?' fallback':' in pool');
+         routingDetail.push(position);
+         badge+='<span class="pool-chip">'+position+'</span>';
+       }
       var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
       // Suppressed when a refusal is being reported: both say the same
       // thing, and the out-of chip with its tooltip says it better.
       if(exh&&!spentByProfile[p.id]){\n        // A billing refusal has no reset to wait for — the pool re-probes on the
         // same timer, but nothing changes until a human fixes the account.
         // Showing it as 'resets in 9m' promises a recovery that never comes.
-        badge+=exh.reason==='billing_error'
-          ?' <span class="pool-chip exhausted" title="Subscription or payment refused — this does not clear on its own">subscription refused</span>'
-          :exh.reason==='requires_reauth'
-            ?' <span class="pool-chip exhausted" title="chatgpt.com refused this seat\u2019s access token; it is tried again then">token refused · retry '+resetIn(exh.until)+'</span>'
-            :' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
+         var exhaustion=exh.reason==='billing_error'?'subscription refused'
+           :exh.reason==='requires_reauth'?'token refused · retry '+resetIn(exh.until)
+             :'exhausted · resets '+resetIn(exh.until);
+         var exhaustionTitle=exh.reason==='billing_error'?' title="Subscription or payment refused — this does not clear on its own"'
+           :exh.reason==='requires_reauth'?' title="chatgpt.com refused this seat\u2019s access token; it is tried again then"':'';
+         routingDetail.push(exhaustion);
+         badge+=' <span class="pool-chip exhausted"'+exhaustionTitle+'>'+esc(exhaustion)+'</span>';
       }
     }
     if(credits&&credits.serving)badge+=' <span class="pool-chip on-credits" title="This seat\u2019s plan usage is spent; its turns are paid with Codex credits">on credits</span>';
     var sp=spentByProfile[p.id];
+    var spentLabel='';
+    var spentDetail='';
     if(sp){\n      var spBucket=(sp.diagnosis&&sp.diagnosis.bucket)?winLabel(sp.diagnosis.bucket):'its limit';
       var spGuess=(sp.diagnosis&&sp.diagnosis.reported)?'':' (guess)';
       var spWhy=(sp.diagnosis&&sp.diagnosis.rationale)||'';
       var refused=refusalSubject(p.entry);
+      spentLabel='Out of '+spBucket+spGuess;
+      spentDetail=refused.vendor+' is refusing this '+refused.noun+(sp.until?', back '+resetIn(sp.until):'')+'. Usage is the last successful read, not live.'
+        +(spWhy?' '+spWhy:'');
       var spTipId=esc('spent-tip-'+p.id);
       // The chip says it in the name row; the banner explaining it is the
       // chip's tooltip, so the card does not carry it permanently.
@@ -716,8 +765,33 @@ function profileSection(q,s,pl,h){
     // A free-plan seat serves unpinned work after the paid ones even while it
     // is the active seat, which the active badge alone would hide.
     var freeFact=chat&&p.entry&&p.entry.planTier==='free'?profileFacts(p.entry).filter(function(f){return f.label==='Routing'})[0]:null;
-    if(p.entry)badge+=' '+meridianCardStatus.duplicateBadgeHtml(p.entry,'pool-chip');
-    if(freeFact)badge+=' <span class="spend-pill" title="'+esc(freeFact.value+'. '+freeFact.title)+'">'+esc(p.entry.freeSeatDeferred?'free \u00b7 paid seats first':'free plan')+'</span>';
+    var duplicateBadge=p.entry?meridianCardStatus.duplicateBadgeHtml(p.entry,'pool-chip'):'';
+    badge+=' '+duplicateBadge;
+    if(freeFact){
+      routingDetail.push(freeFact.value);
+      badge+=' <span class="spend-pill" title="'+esc(freeFact.value+'. '+freeFact.title)+'">'+esc(p.entry.freeSeatDeferred?'free \u00b7 paid seats first':'free plan')+'</span>';
+    }
+    var costLabel=usd(cost?cost.estimatedUsd:0);
+    var costDetail=cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h';
+    if(table){
+      var ambientLogin=h&&h.auth&&h.auth.loggedIn;
+      var login=p.configured?loginStates[i]:isUnusable({loggedIn:ambientLogin,error:quota.error})?'needs-auth':ambientLogin===true?'authenticated':null;
+      var cells=meridianTableFacts({profile:p.entry||p,quota:quota,name:p.label||p.id,provider:slot.provider,
+        login:login,active:p.configured?showsActive:quota.isActive,spentLabel:spentLabel||(spend.reason==='usage'?'Spent':null),
+        spentDetail:spentDetail,routingDetail:routingDetail.join(' · ')});
+      Object.assign(cells,freeResetTableCells(resets));
+      if(p.configured)cells.name.html='<a href="'+esc(profileHref(p.id))+'">'+esc(p.label||p.id)+'</a> '+duplicateBadge;
+      if(s&&s.costEstimate)cells.cost={value:cost?cost.estimatedUsd:0,html:'<span title="'+esc(costDetail)+'">'+esc(costLabel)+'</span>'};
+      if(chat)cells.credits=meridianTableCredits(quota.credits,credits);
+      if(chat&&typeof p.entry.resets?.available==='number'){
+        cells.chatgptReset={value:p.entry.resets.available,html:esc(formatResets(p.entry.resets,Date.now()))};
+      }
+      var activate=switchable?'<button type="button" class="profile-activate" data-activate-profile="'+esc(p.id)+'" aria-label="Activate '+esc(p.id)+'">Activate</button>':'';
+      tableRows.push({id:p.id,hidden:cardHidden,cells:cells,
+        actionsHtml:'<div class="profile-table-home-actions">'+activate+(p.entry?accountDetails(p.entry,p.type):'')+'</div>',
+        detailHtml:meridianCardStatus.updateHtml(update)});
+      continue;
+    }
     var spendClass=spend.reason==='unusable'?' needs-login':spend.fade>0?' spend-'+spend.state:'';
     var spendStyle=spend.fade>0?' style="--spend-fade:'+spend.fade.toFixed(2)+'"':'';
     var spendTip=access?' title="'+esc(access.summary)+'"'
@@ -731,18 +805,19 @@ function profileSection(q,s,pl,h){
       +(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +cardStrip
       +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,slot.place,slot.size):'')+'<span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+''+esc(p.label||p.id)+' '+meridianProviders.badgeHtml(slot.provider,'provider-pill')+badge+'</span>'
-      +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
-      +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
+      +'<span class="profile-cost">'+costLabel+'</span></div>'
+      +'<div class="profile-sub">'+costDetail+'</div>'
       +meridianCardStatus.updateHtml(update)+rows+'</div>';
     if(p.configured)pos++;
   }
-  if(!cards)return {html:'',shown:shown};
-  return {shown:shown,html:'<div class="section"><div class="section-head"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div>'+sortTabs(profs.length)+'</div>'
+  if(!cards&&!tableRows.length)return {html:'',shown:shown};
+  return {shown:shown,html:'<div class="section"><div class="section-head"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div>'
+    +(table?'':sortTabs(profs.length))+meridianProfileTable.toolbarHtml()+'</div>'
     +'<div class="chip-row">'+meridianProviders.chipsHtml(groups)+meridianLoginStates.chipsHtml(meridianLoginStates.counts(loginStates),loginTotal)+'</div>'
-    +(multi?meridianReorder.noteHtml(reorderable,configured.some(isChatGptProfile),grouped):'')
+    +(!table&&multi?meridianReorder.noteHtml(reorderable,configured.some(isChatGptProfile),grouped):'')
     +(grouped?meridianProviders.noneShownHtml(meridianProviders.anyShown(providersPresent)):'')
     +(loginTotal>1?meridianLoginStates.noneShownHtml(!meridianProviders.anyShown(providersPresent)||anyCardShown):'')
-    +'<div class="profile-grid">'+cards+'</div></div>'};
+    +(table?meridianProfileTable.tableHtml(tableRows):'<div class="profile-grid">'+cards+'</div>')+'</div>'};
 }
 
 function strip(items){
@@ -754,7 +829,7 @@ function strip(items){
 }
 
 async function refresh(){
-  if(infoPopOpen())return;
+  if(infoPopOpen()||meridianProfileTable.dragging())return;
   try{
     const [health,stats,quota,profiles,routing]=await Promise.all([
       fetch('/health').then(r=>r.json()),
@@ -763,10 +838,10 @@ async function refresh(){
       fetch('/profiles/list').then(r=>r.json()).catch(function(){return null}),
       fetch('/settings/api/routing').then(r=>r.json()).catch(function(){return null})
     ]);
-    if(infoPopOpen())return;
+    if(infoPopOpen()||meridianProfileTable.dragging())return;
     meridianReorder.adopt(routing);
     render(health,stats,quota,profiles);
-  }catch(e){if(!infoPopOpen())document.getElementById('content').innerHTML='<div style="color:var(--red);padding:40px;text-align:center">Could not connect</div>'}
+  }catch(e){if(!infoPopOpen()&&!meridianProfileTable.dragging())document.getElementById('content').innerHTML='<div style="color:var(--red);padding:40px;text-align:center">Could not connect</div>'}
 }
 
 function tokens(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(1)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'k';return String(v)}
@@ -843,6 +918,8 @@ document.getElementById('content').addEventListener('click',function(e){
   if(e.target.closest('a'))return;
   var tab=e.target.closest('.sort-tab');
   if(tab&&tab.dataset.sort){setViewSort(tab.dataset.sort);return}
+  var activate=e.target.closest('[data-activate-profile]');
+  if(activate){switchProfile(activate.dataset.activateProfile);return}
   // Releasing a drag-select over a card dispatches a click on it too; that
   // click finished a copy, so it is not a request to switch account.
   if(meridianSelection.live())return;
@@ -858,6 +935,7 @@ document.getElementById('content').addEventListener('keydown',function(e){
 });
 viewSort=readStoredSort()||viewSort;
 meridianReorder.init({onSaved:refresh});
+meridianProfileTable.init(document.getElementById('content'),redrawAccounts);
 refresh();
 function pollRefresh(){
   if(document.visibilityState!=='visible'||meridianReorder.dragging()||infoPopOpen())return;

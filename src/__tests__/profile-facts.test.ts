@@ -388,7 +388,7 @@ describe("qualified current credential expiry facts", () => {
     const escape = (s: unknown) => String(s).replace(/[&<>"']/g, ch => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[ch]!)
-    const source = landingHtml.slice(landingHtml.indexOf("function infoIcon(entry,type)"),
+    const source = landingHtml.slice(landingHtml.indexOf("function infoFactsHtml(entry,type)"),
       landingHtml.indexOf("function infoPopOpen"))
     const infoIcon = new Function("profileFacts", "esc", "profileHref", source + "\nreturn infoIcon;")(
       () => [{ label: "Refresh deadline", value: "in 2d", tone: "warn", title: 'Stored "expiry" <only>', cached: true }],
@@ -457,8 +457,8 @@ describe("expiry fact focus survives automatic refresh", () => {
             profilePageHtml.indexOf("function esc(s)", profilePageHtml.indexOf("function detailFactFocused()")))
         : landingHtml.slice(landingHtml.indexOf("function infoPopOpen(){"), landingHtml.indexOf("function profileSection(q,s,pl,h)"))
           + landingHtml.slice(landingHtml.indexOf("async function refresh(){"), landingHtml.indexOf("function tokens(v)"))
-      const refresh = new Function("document", "fetch", "render", "meridianReorder",
-        source + "\nreturn refresh;")(document, fetch, () => { renders++ }, { adopt: () => {} }) as () => Promise<void>
+      const refresh = new Function("document", "fetch", "render", "meridianReorder", "meridianProfileTable",
+        source + "\nreturn refresh;")(document, fetch, () => { renders++ }, { adopt: () => {} }, { dragging: () => false }) as () => Promise<void>
       return {
         refresh, resolve: () => resolve(response), reject: () => reject(new Error("fixture unavailable")),
         focus: () => { focused = true }, blur: () => { focused = false }, hover: () => { hovered = true }, content, document,

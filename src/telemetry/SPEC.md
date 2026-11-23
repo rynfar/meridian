@@ -53,6 +53,7 @@ Record what Meridian did and show it to the operator:
   removed nodes are touched, so find-in-page, a selection, focus and scroll
   survive a refresh. A node marked `data-patch-own` (an open sign-in panel)
   keeps its script-owned children.
+- **Profile table preferences are presentation-only.** Both pages reuse `profileTable.ts` and project their existing profile and quota data into keyed rows. Changing view, columns or sort never changes the profile pool or triggers a provider read. Row actions use the existing page handlers.
 - **Card status is shared between both pages** (`profileCardStatus.ts`): the
   informational duplicate badge and the post-sign-in *updating* / *failed*
   line. The page remembers a sign-in it finished, so an answer requested
