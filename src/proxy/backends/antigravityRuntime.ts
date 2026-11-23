@@ -73,6 +73,7 @@ export class AntigravityRun {
   private exited = false
   private cleaning?: Promise<void>
   private timer?: ReturnType<typeof setTimeout>
+  private absoluteTimer?: ReturnType<typeof setTimeout>
   private pendingTimer?: ReturnType<typeof setTimeout>
   private killTimer?: ReturnType<typeof setTimeout>
   private readonly pending = new Map<string, { call: AgCall; resolve: (result: AgToolReply) => void; reject: (error: Error) => void }>()
@@ -94,9 +95,23 @@ export class AntigravityRun {
     const native = agNativeTools(this.runtime.options)
     return renderAgPromptWithinLimit(request, native, this.runtime.options.allowNativeBrowser ? "\nFor browser work, invoke_subagent with TypeName browser and Workspace inherit. Its chrome_devtools MCP tools are enabled; ordinary self agents may not have that browser tool catalog." : "")
   }
+  private beginTurn(): void {
+    clearTimeout(this.timer)
+    clearTimeout(this.absoluteTimer)
+    this.absoluteTimer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn exceeded its absolute deadline", 504, "api_error")), this.runtime.turnMaxDurationMs)
+    this.absoluteTimer.unref()
+    this.resumeModelTimer()
+  }
+  private resumeModelTimer(): void {
+    clearTimeout(this.timer)
+    this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity model phase timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
+    this.timer.unref()
+  }
+  private pauseModelTimer(): void {
+    clearTimeout(this.timer)
+  }
   async start(): Promise<void> {
-      this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
-      this.timer.unref()
+    this.beginTurn()
     try {
       await this.grammars.prepare()
       this.workspace = this.restored?.workspace ?? await realpath(await mkdtemp(this.runtime.nativeSessions ? join(this.runtime.nativeSessions.directory, "conversation-") : join(tmpdir(), "meridian-agy-")))
@@ -119,7 +134,7 @@ export class AntigravityRun {
         } } : {}),
       } }))
       if (this.stopped) { await this.cleanup(); return }
-      const args = [...(this.restored ? ["--conversation", this.restored.conversationId] : ["--new-project"]), "--add-dir", this.workspace, "--input-format", "stream-json", "--model", this.request.model, "--output-format", "stream-json", "--print-timeout", `${Math.ceil(this.runtime.turnTimeoutMs / 1000)}s`, "--disable-slash-commands", "--sandbox"]
+      const args = [...(this.restored ? ["--conversation", this.restored.conversationId] : ["--new-project"]), "--add-dir", this.workspace, "--input-format", "stream-json", "--model", this.request.model, "--output-format", "stream-json", "--print-timeout", `${Math.ceil(this.runtime.turnMaxDurationMs / 1000)}s`, "--disable-slash-commands", "--sandbox"]
       if (this.request.output_config?.format) {
         const schemaPath = join(this.workspace, "output-schema.json")
         await writeFile(schemaPath, JSON.stringify(agUpstreamSchema(this.request.output_config.format.schema)))
@@ -164,7 +179,8 @@ export class AntigravityRun {
             }
             if (!this.stopped && this.reusable) {
               this.runtime.completed++
-              clearTimeout(this.timer)
+              this.pauseModelTimer()
+              clearTimeout(this.absoluteTimer)
               this.idle = true
               this.queue.push({ kind: "end" })
               this.pendingTimer = setTimeout(() => this.abort(new Error("Idle conversation expired"), "retired"), this.runtime.idleConversationMs)
@@ -264,8 +280,7 @@ export class AntigravityRun {
     this.busy = true
     this.idle = false
     clearTimeout(this.pendingTimer)
-    this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
-    this.timer.unref()
+    this.beginTurn()
     const cancel = () => this.abort(new AntigravityError("Request cancelled", 499, "api_error"))
     signal?.addEventListener("abort", cancel, { once: true })
     if (signal?.aborted) cancel()
@@ -284,6 +299,8 @@ export class AntigravityRun {
     } finally { signal?.removeEventListener("abort", cancel) }
   }
   markDelivered(calls: AgCall[]): void {
+    this.pauseModelTimer()
+    clearTimeout(this.pendingTimer)
     this.delivered = calls
     this.pendingTimer = setTimeout(() => this.abort(new AntigravityError("Client tool result deadline expired; completed history can be replayed", 409, "invalid_request_error")), this.runtime.pendingToolTimeoutMs)
     this.pendingTimer.unref()
@@ -299,6 +316,7 @@ export class AntigravityRun {
     this.continuation = "tool-result"
     if (results.length !== this.delivered.length || results.some(result => !this.delivered.some(call => call.id === result.tool_use_id))) throw new AntigravityError("Tool results must match the entire delivered batch", 409)
     if (hasAgImages([{ role: "user", content: results }, ...clientMessages]) && !this.runtime.options.allowToolBridge) throw new AntigravityError("Images require explicit MERIDIAN_AGY_ALLOW_TOOL_BRIDGE=1")
+    this.resumeModelTimer()
     // Prepare the whole batch before resolving anything: malformed attachments
     // must never partially execute a continuation.
     const prepared: AgResult[] = []
@@ -330,7 +348,7 @@ export class AntigravityRun {
     this.queue.fail(error)
     for (const [id, pending] of this.pending) { this.runtime.toolOwners.delete(id); pending.reject(error) }
     this.pending.clear()
-    clearTimeout(this.timer); clearTimeout(this.pendingTimer)
+    clearTimeout(this.timer); clearTimeout(this.absoluteTimer); clearTimeout(this.pendingTimer)
     if (this.child?.pid && !this.exited) {
       this.signal("SIGTERM")
       this.killTimer = setTimeout(() => this.signal("SIGKILL"), 1000)
@@ -347,7 +365,7 @@ export class AntigravityRun {
     return this.cleaning
   }
   private async cleanupOnce(): Promise<void> {
-    clearTimeout(this.timer); clearTimeout(this.pendingTimer); clearTimeout(this.killTimer)
+    clearTimeout(this.timer); clearTimeout(this.absoluteTimer); clearTimeout(this.pendingTimer); clearTimeout(this.killTimer)
     this.runtime.settling.add(this.settled)
     this.runtime.runs.delete(this.id)
     if (this.workspace) {
@@ -378,6 +396,7 @@ export class AntigravityRuntime {
   readonly settling = new Set<Promise<void>>()
   readonly executable: string
   readonly turnTimeoutMs: number
+  readonly turnMaxDurationMs: number
   readonly pendingToolTimeoutMs: number
   readonly idleConversationMs: number
   readonly maxConcurrent: number
@@ -466,8 +485,11 @@ export class AntigravityRuntime {
     this.executable = options.executable ?? "agy"
     this.maxConcurrent = options.maxConcurrent ?? 4
     this.turnTimeoutMs = options.turnTimeoutMs ?? 300_000
+    if (!Number.isSafeInteger(this.turnTimeoutMs) || this.turnTimeoutMs <= 0 || this.turnTimeoutMs > 2_147_483_647) throw new Error("Antigravity model phase deadline must be an integer from 1 to 2147483647 ms")
     this.pendingToolTimeoutMs = options.pendingToolTimeoutMs ?? 60_000
-    for (const value of [this.maxConcurrent, this.turnTimeoutMs, this.pendingToolTimeoutMs]) if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Antigravity limits must be positive integers")
+    for (const value of [this.maxConcurrent, this.pendingToolTimeoutMs]) if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Antigravity limits must be positive integers")
+    this.turnMaxDurationMs = options.turnMaxDurationMs ?? 7_200_000
+    if (!Number.isSafeInteger(this.turnMaxDurationMs) || this.turnMaxDurationMs <= 0 || this.turnMaxDurationMs > 2_147_483_647) throw new Error("Antigravity absolute turn deadline must be an integer from 1 to 2147483647 ms")
     this.idleConversationMs = options.idleConversationMs ?? this.pendingToolTimeoutMs
     // The new option has its own range; leaving it unset retains every
     // previously accepted tool deadline rather than adding a startup refusal.
