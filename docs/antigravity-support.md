@@ -101,7 +101,7 @@ or active-resume guarantee. No automatic client-side reconciliation UI is claime
 
 ## Practical execution budgets
 
-`MERIDIAN_AGY_TURN_TIMEOUT_MS` bounds an active CLI turn (default 300,000 ms).
+`MERIDIAN_AGY_TURN_TIMEOUT_MS` bounds each model/preprocessing phase (default 300,000 ms), refreshing after each accepted client-tool batch and pausing during client waits. `MERIDIAN_AGY_TURN_MAX_DURATION_MS` separately caps wall time including those waits (default two hours) and is passed as `--print-timeout` to every detached `agy` child, so an unclean Meridian crash can leave a child running up to that cap (live `agy` behavior across reused stdin turns is unverified).
 `MERIDIAN_AGY_TOOL_TIMEOUT_MS` bounds idle waiting for a client result
 (default 60,000 ms); a late result can recover through completed history.
 `MERIDIAN_AGY_IDLE_CONVERSATION_MS` keeps a completed conversation's live process
