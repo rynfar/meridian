@@ -116,6 +116,16 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+Antigravity token counts are planning estimates. `estimation.method` now
+identifies the ASCII byte/4 estimate plus a conservative non-ASCII UTF-8 byte
+allowance. Dense Unicode input can return a higher estimate and hit the per-step
+guard at a lower byte count than under the previous byte-only policy. The
+estimate does not include hidden CLI context or establish an exact tokenizer.
+Owner-approved 2026-11-22 (#1567), together with cold replay dropping whole older
+completed turns by default (with a note to the model) when history exceeds the
+budget, and one default 480,000-token context budget (`MERIDIAN_AGY_MAX_CONTEXT_TOKENS`) for every model until it is
+sized per model.
+
 When Antigravity Messages (`/v1/messages`, `/v1/messages/count_tokens`) drops
 unsupported hosted server tools without `input_schema` (`web_search_*`,
 `web_fetch_*`, `code_execution_*`), the response exposes the comma-separated
