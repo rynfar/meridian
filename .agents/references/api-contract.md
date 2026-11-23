@@ -121,6 +121,10 @@ identifies the ASCII byte/4 estimate plus a conservative non-ASCII UTF-8 byte
 allowance. Dense Unicode input can return a higher estimate and hit the per-step
 guard at a lower byte count than under the previous byte-only policy. The
 estimate does not include hidden CLI context or establish an exact tokenizer.
+Owner-approved 2026-11-22 (#1567), together with cold replay dropping whole older
+completed turns by default (with a note to the model) when history exceeds the
+budget, and one default 480,000-token context budget (`MERIDIAN_AGY_MAX_CONTEXT_TOKENS`) for every model until it is
+sized per model.
 
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
