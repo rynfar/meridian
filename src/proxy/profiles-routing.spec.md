@@ -278,6 +278,12 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   Anthropic call. Forced reads, and profiles the followed instance could not
   read, use this instance's own credentials; a forced read newer than the
   followed copy is not replaced by it.
+- **Usage polling cooldown is independent of display age.** After the existing
+  token-refresh retry, a final 429 with a positive `Retry-After` sets the
+  per-profile wait, capped at one hour. Without a positive hint, the wait grows
+  exponentially with jitter, capped at 15 minutes. A successful read or profile
+  reset clears escalation. A stale snapshot may expire before the next permitted
+  read; freshness does not authorize an early retry.
 - **OAuth usage request identity.** Usage, identity and reset requests send
   `User-Agent: claude-cli/<version> (external, cli)`, where `<version>` is the
   `@anthropic-ai/claude-code` package installed with Meridian
