@@ -96,8 +96,9 @@ process.env.TEMP = tempDir
 // own `bun test` invocations: a fresh process meant a fresh budget.
 //
 // This is the knob server.ts already reads (`envInt("SESSION_GC_MAX_PENDING",
-// 256)` at sessionGcOptions), so no production code changes. Unset in
-// production, where the default of 256 applies unchanged.
+// ...)` at sessionGcOptions), so no production code changes. Unset in
+// production, where the default follows the GC's grace and deletion rate
+// (defaultSessionGcMaxPending in sessionGcLimits.ts).
 //
 // Two earlier attempts were wrong and are recorded so they are not retried.
 // Rotating the session root per test: preload hooks are process-scoped, so
@@ -109,3 +110,6 @@ process.env.MERIDIAN_SESSION_GC_MAX_PENDING = "1000000"
 
 // SDK mocks do not spawn an operating-system child. Real proxy/E2E processes do not load this preload.
 process.env.MERIDIAN_TEST_DISABLE_SDK_PROCESS_GATE = "1"
+
+// No idle transcript sweep timer in servers tests start; tests drive passes directly.
+process.env.MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS = "0"

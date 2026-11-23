@@ -84,6 +84,8 @@ export interface ChatGptSeatRefusal {
   until: number
   /** The limit state the refusing response stated, when it stated one. */
   rateLimit: ChatGptRateLimit | null
+  /** When the refused attempt started, so a refusal of a token since renewed can be told apart. */
+  startedAt: number
 }
 
 export interface ChatGptHooks {
@@ -502,6 +504,7 @@ export function createChatGptBackend<Ctx>(options: ChatGptBackendOptions<Ctx>): 
         // read: look once more before giving up on the seat.
         if (!credential.ok && credential.reason === "expired") credential = await source.credentials(seat, { model, reread: true, spendCredits: onCredits })
         if (!credential.ok) { reasons.add(credential.reason); continue }
+        let authAttemptStartedAt = now()
         dispatched.add(seat)
 
         let retriedAuth = false
@@ -589,6 +592,7 @@ export function createChatGptBackend<Ctx>(options: ChatGptBackendOptions<Ctx>): 
             if (fresh.ok && fresh.account.accessToken !== credential.account.accessToken) {
               void sniffed.body.cancel().catch(() => {})
               credential = fresh
+              authAttemptStartedAt = now()
               retriedAuth = true
               continue
             }
@@ -596,7 +600,7 @@ export function createChatGptBackend<Ctx>(options: ChatGptBackendOptions<Ctx>): 
 
           const refusal: ChatGptSeatRefusal = {
             requestId, seat, kind: failureKind, status: upstream.status,
-            until: bench(seat, failureKind, rateLimit), rateLimit,
+            until: bench(seat, failureKind, rateLimit), rateLimit, startedAt: authAttemptStartedAt,
           }
           refusals.push(refusal)
           if (onCredits) reserveRefusedUntil.set(reserveKey(seat, model), refusal.until)

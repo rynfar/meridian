@@ -192,6 +192,13 @@ export function renderAgPrompt(request: AgRequest, nativeTools: string[] = [], o
 // so the newest messages and tool results are what disappears. Measured in UTF-8 bytes for English, JSON-heavy and
 // Chinese text alike; JSON escaping is not counted twice.
 export const AG_MAX_PROMPT_BYTES = 190_000
+export function agClientToolCallLimit(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.MERIDIAN_AGY_MAX_TOOL_CALLS
+  if (raw === undefined || raw === "") return 256
+  const limit = Number(raw)
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65_536) throw new Error("MERIDIAN_AGY_MAX_TOOL_CALLS must be an integer from 1 to 65536")
+  return limit
+}
 const AG_OMIT_NOTE = "To fit Antigravity's input limit, Meridian omitted the middle of some larger tool results, tool arguments or messages (marked \"omitted by Meridian\"). Re-read anything you still need, in smaller parts if it is large."
 /** MERIDIAN_AGY_MAX_PROMPT_BYTES overrides the prompt byte limit; 0 disables it. */
 export function agPromptByteLimit(env: Record<string, string | undefined> = process.env): number {

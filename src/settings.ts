@@ -18,7 +18,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { dirname } from "node:path"
 import { configPath } from "./configDir"
-import type { PriorityFailbackPolicy } from "./proxy/routing"
+import type { ClaudeExtraUsagePolicy, PriorityFailbackPolicy } from "./proxy/routing"
 import type { ClaudeExecutableMode } from "./proxy/claudeExecutablePreference"
 import type { PageLayout } from "./telemetry/pageLayout"
 
@@ -47,6 +47,9 @@ export interface MeridianSettings {
   /** Pool-routing weekly reserve per profile id, in percent (e.g.
    *  `{ "personal": 20 }`). MERIDIAN_WEEKLY_RESERVE env var takes precedence. */
   weeklyReserve?: Record<string, number>
+  /** Pool routing: when an account on Extra Usage may take work (`reserve`
+   *  default). MERIDIAN_CLAUDE_EXTRA_USAGE env var takes precedence. */
+  claudeExtraUsage?: ClaudeExtraUsagePolicy
   /** The ChatGPT seat (accountUserId) unpinned ChatGPT turns go to first; POST /profiles/active. */
   chatGptActiveSeat?: string
   /** Operator-chosen profile ids for ChatGPT seats, keyed by seat id (accountUserId). */
@@ -153,6 +156,8 @@ export type ChatGptFeatureSettings = {
   seatCreditsPolicy?: Record<string, string>
   /** "before-credits" | "after-credits"; see ChatGptFreeSeatOrder. */
   freeSeatOrder?: string
+  /** Seat id (accountUserId) -> hours between renewals, overriding the default for that seat. */
+  seatRenewalHours?: Record<string, number>
 }
 
 /**
