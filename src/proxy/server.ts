@@ -931,8 +931,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // Meridian deployments run one proxy per terminal, so the same OpenCode
   // session must also be serialized through the shared session directory.
   const crossProcessTurnStaleMs = Math.max(1_000, envInt("SESSION_TURN_STALE_MS", 30_000))
+  // Turn locks and transcript bookkeeping stay in the store this instance was
+  // created for. Work a response leaves running (fork abandonment, the sweep
+  // after it) must not follow a later setSessionStoreDir into another store.
+  const sessionStoreDir = getSessionStoreDir()
   const crossProcessSessionTurns = new CrossProcessTurnCoordinator(
-    join(getSessionStoreDir(), "turn-locks"),
+    join(sessionStoreDir, "turn-locks"),
     {
       acquireTimeoutMs: Math.max(
         1_000,
@@ -947,6 +951,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // retirement below the deletion rate (sessionGcLimits.ts).
   const sessionGcLimits = resolveSessionGcLimits(envInt, SESSION_TURN_MAX_HOLD_MS)
   const sessionGcOptions: SessionLifecycleOptions = {
+    storeDir: sessionStoreDir,
     maxPending: sessionGcLimits.maxPending,
     maxDeletesPerRun: sessionGcLimits.maxDeletesPerRun,
     // Also reaches a sweep already running when beginDrain flips the state.
