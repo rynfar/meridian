@@ -136,7 +136,9 @@ Code dropped-stream histories without re-executing the old pending call.
 Exact consumed-result continuations can retry after joined 401/408/429/499/5xx
 failures, before another client tool was delivered. Other deterministic failures
 remain 409; failed fingerprint persistence logs an error and preserves the
-original status and Retry-After. This is not exactly-once external execution.
+original status and Retry-After. This is not exactly-once external execution. Owner-approved
+2026-11-22 (#1561), on the condition that the recovery never re-executes a client
+tool.
 
 Identified Antigravity Messages requests may set `x-meridian-replay-only: true`
 to recover a saved response without starting generation. The same fingerprint,
