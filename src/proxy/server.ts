@@ -105,6 +105,9 @@ import { parseToolInputObject } from "./toolInputJson"
 import { createPassthroughMcpServer, sharedPassthroughMcpServer, sharedToolList, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, resolveAutoDeferDecision, clientOwnsToolSearch, sdkOwnsPrefixedToolSearch, referencedToolNames, clientSearchRegistrationTools } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { openCodePrimaryAgentContextHash, requiresOpenCodeAgentReplay } from "./adapters/opencodeAgentContext"
+import { openCodeInstructionSections } from "./adapters/opencodeInstructionSections"
+import { PendingSystemPromptResets, requestsSystemPromptReset, SYSTEM_PROMPT_RESET_HEADER } from "./systemPromptReset"
+import { hasInstructionSectionChange, instructionSectionState, planInstructionSections, renderInstructionSectionReminder } from "./session/instructionSections"
 import { getOpenCodeSourceFeatureOverrides } from "./adapters/opencodeSourceFeatures"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { isSdkToolSearchCall, clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
@@ -151,7 +154,7 @@ import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapter
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "./replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, withTrailingText, layoutReplayBlocks, type ReplayPart } from "./replay"
 import { unstreamedAssistantBlockFrames } from "./unstreamedAssistant"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
@@ -852,6 +855,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     authOwner.run(() => getClaudeAuthStatusAsync(profileId, envOverrides))
   const finalConfig = resolveBackendConfig(config)
   const claudeProviderFacts = new ClaudeProviderFacts()
+  const pendingSystemPromptResets = new PendingSystemPromptResets()
   const antigravity = finalConfig.backend === "combined" ? createAntigravityServer({ ...finalConfig, profiles: undefined, defaultProfile: undefined }) : undefined
   // Decided once per instance. Absent means GPT model names keep meaning
   // Claude, exactly as before ChatGPT support existed.
@@ -3583,7 +3587,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // can differ per attempt), but "did this session advance" is only
         // meaningful within one profile's cache scope — so commits and the
         // conflict check below both carry profileSessionId.
+        // An armed reset holds until a turn of this conversation publishes:
+        // that turn ran in a fresh SDK session (see executionReplay below).
+        const systemPromptResetArmed = Boolean(agentSessionId && pendingSystemPromptResets.isArmed(agentSessionId))
         const commitSessionTurn = (committedSdkSessionId: string | undefined) => {
+          if (systemPromptResetArmed && agentSessionId) pendingSystemPromptResets.settle(agentSessionId)
           if (profileSessionId) {
             requestMeta.sessionTurnLease?.markCommitted(profileSessionId)
             // Tool inheritance belongs to the successfully published branch.
@@ -4170,12 +4178,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           cachedSession.resumeContextHash,
           resumeContextHash,
         ))
+        // Claude Code resends the system prompt a transcript recorded; only a
+        // fresh session renders the client's current one.
+        const systemPromptReset = Boolean(cachedSession) && (systemPromptResetArmed
+          || requestsSystemPromptReset(c.req.header(SYSTEM_PROMPT_RESET_HEADER)))
         const executionReplay = executionHistory.changed || Boolean(cachedSession && !cachedSession.lineageHash)
-          || agentContextReplay
+          || agentContextReplay || systemPromptReset
         const executionReplayToolSessionId = executionReplay && isResume ? resumeSessionId : undefined
         const executionReplayReason = !executionReplay ? undefined
           : executionHistory.changed ? "transformed_history"
-            : agentContextReplay ? "changed_or_unproved_primary_agent" : "unproved_sdk_prefix"
+            : agentContextReplay ? "changed_or_unproved_primary_agent"
+              : systemPromptReset ? "system_prompt_reset" : "unproved_sdk_prefix"
         if (executionReplay) {
           claudeLog("session.execution_replay", { reason: executionReplayReason })
           isResume = false
@@ -4379,6 +4392,33 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
       const freshReplay = !isResume && !resumeSessionId
+      // NOTE: OpenCode-specific section extraction (adapters/opencodeInstructionSections.ts).
+      // A resumed transcript keeps the system prompt its first turn recorded,
+      // so compare the client's instruction files against what it has seen.
+      const instructionSections = adapterBase === "opencode" && sdkFeatures.clientSystemPrompt !== false
+        ? openCodeInstructionSections(extractSystemText(body.system))
+        : undefined
+      const instructionPlan = instructionSections
+        ? planInstructionSections(cachedSession?.instructionSections, instructionSections, !freshReplay)
+        : undefined
+      // A fallback that replays into a fresh session renders the current prompt.
+      let instructionSectionPublication = instructionPlan?.state
+      const publishFreshInstructionSections = () => {
+        if (instructionSections) instructionSectionPublication = instructionSectionState(instructionSections)
+      }
+      // The resumed model is told what changed in this turn's input; once
+      // published, the transcript holds it, so the current sections are seen.
+      // The reminder is SDK input only: lineage and UUID mapping hash the
+      // client messages, which it never enters.
+      let instructionReminder: string | undefined
+      if (instructionSections && instructionPlan && hasInstructionSectionChange(instructionPlan.change)) {
+        claudeLog("session.instruction_sections_changed", {
+          changed: instructionPlan.change.changed.length,
+          removed: instructionPlan.change.removed,
+        })
+        instructionReminder = renderInstructionSectionReminder(instructionPlan.change, instructionSections)
+        instructionSectionPublication = instructionSectionState(instructionSections)
+      }
       // Client usage describes its resumed context, not the fresh transcript;
       // derive replay capacity from the actual SDK model's window instead.
       const modelReplayBudget = () => replayBudgetFor(model, model === "sonnet" ? resolvedSonnetModel : resolvedHaikuModel())
@@ -4748,10 +4788,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // Create a fresh prompt value — can be called multiple times for retry
       function makePrompt(): string | AsyncIterable<any> {
         if (structuredMessages) {
-          const msgs = structuredMessages
+          const msgs = instructionReminder ? withTrailingText(structuredMessages, instructionReminder) : structuredMessages
           return (async function* () { for (const msg of msgs) yield msg })()
         }
-        return textPrompt!
+        return instructionReminder ? `${instructionReminder}\n\n${textPrompt!}` : textPrompt!
       }
 
       // Passthrough tool_use capture. `capturedToolUses` holds the DISTINCT
@@ -5426,6 +5466,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     await abandonManagedFork("resume_replay")
                     await evictBeforeFreshFallback("resume")
                     await replaceWithFreshTarget("non_stream_resume_replay")
+                    publishFreshInstructionSections()
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
                     for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
@@ -5481,6 +5522,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     await abandonManagedFork("fresh_model_fallback")
                     await evictBeforeFreshFallback("model")
                     await replaceWithFreshTarget("non_stream_model_fallback")
+                    publishFreshInstructionSections()
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
                     for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
@@ -6174,6 +6216,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           options.priorityPublication,
                           !executionHistory.changed,
                           resumeContextHash,
+                          instructionSectionPublication,
                           assertDurableWritesAllowed,
                         ), stored => {
                           // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
@@ -6841,6 +6884,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       await abandonManagedFork("resume_replay")
                       await evictBeforeFreshFallback("resume")
                       await replaceWithFreshTarget("stream_resume_replay")
+                      publishFreshInstructionSections()
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
                       for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
@@ -6892,6 +6936,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       await abandonManagedFork("fresh_model_fallback")
                       await evictBeforeFreshFallback("model")
                       await replaceWithFreshTarget("stream_model_fallback")
+                      publishFreshInstructionSections()
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
                       for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
@@ -7635,6 +7680,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         options.priorityPublication,
                         !executionHistory.changed,
                         resumeContextHash,
+                        instructionSectionPublication,
                         assertDurableWritesAllowed,
                       ), stored => {
                         // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
@@ -7980,6 +8026,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         options.priorityPublication,
                         !executionHistory.changed,
                         resumeContextHash,
+                        instructionSectionPublication,
                         assertDurableWritesAllowed,
                       ), stored => {
                         // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
@@ -8706,6 +8753,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         options.priorityPublication,
                         !executionHistory.changed,
                         resumeContextHash,
+                        instructionSectionPublication,
                         assertDurableWritesAllowed,
                       ), stored => {
                         // JSON cancellation shares this request queue; SQL flags wait for COMMIT below.
@@ -10182,6 +10230,21 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const outcomes = await Promise.all(trackedKeys.map((trackedKey) => cacheKeepalive.beatNow(trackedKey)))
     const outcome = outcomes.find((value) => value === "reached") ?? outcomes[0]
     return c.json({ session: key, outcome })
+  })
+
+  /**
+   * Arm a system prompt reset for a session key: its next turn that publishes
+   * replays the client history into a fresh SDK session, which renders the
+   * client's current system prompt. Process-local; gated by `/v1/*` auth.
+   */
+  app.post("/v1/sessions/:key/system-prompt-reset", (c) => {
+    const key = c.req.param("key")
+    if (!key) {
+      return c.json({ type: "error", error: { type: "invalid_request_error", message: "Session key is required" } }, 400)
+    }
+    pendingSystemPromptResets.arm(key)
+    claudeLog("session.system_prompt_reset_armed", { session: truncateSessionKey(key) })
+    return c.json({ session: key, pending: true })
   })
 
   // Telemetry dashboard and API

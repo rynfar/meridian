@@ -3,6 +3,7 @@ import { resourceKey, canonicalizeLocator } from "./locator"
 import { SessionLifecycleCorruptError } from "../lifecycleErrors"
 import { BookkeepingMaintenanceRequiredError } from "./storagePaths"
 import type { CanonicalStoredSession } from "./types"
+import { isInstructionSectionState } from "../instructionSections"
 import { mappingGeneration, legacyUserDenial, mappingObjectIndex, MAPPING_OBJECT_ORDER } from "./mappingMetadata"
 import type {
   BookkeepingReader,
@@ -43,6 +44,8 @@ function validateEntry(entry: StoredSession): void {
   if (entry.resumeContextHash !== undefined && (
     typeof entry.resumeContextHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.resumeContextHash)
   )) throw new TypeError("invalid mapping resumeContextHash")
+  if (entry.instructionSections !== undefined && !isInstructionSectionState(entry.instructionSections))
+    throw new TypeError("invalid mapping instructionSections")
   for (const field of ["messageHashes", "passthroughToolCallIds"] as const) {
     if (
       entry[field] !== undefined &&
@@ -115,6 +118,7 @@ export function writeMappingRow(
     : {
         clientLineageHash: entry.clientLineageHash,
         resumeContextHash: entry.resumeContextHash,
+        instructionSections: entry.instructionSections,
         messageHashes: entry.messageHashes,
         messageBlockHashes: entry.messageBlockHashes,
         sdkMessageUuids: entry.sdkMessageUuids,
@@ -178,7 +182,7 @@ export function readMapping(reader: BookkeepingReader, key: string): StoredSessi
   const payload = JSON.parse(String(history.history_json)) as Record<string, unknown>
   if (
     Object.keys(payload).some(
-      (key) => !["clientLineageHash", "resumeContextHash", "messageHashes", "messageBlockHashes", "sdkMessageUuids", "passthroughResumeUuid"].includes(key),
+      (key) => !["clientLineageHash", "resumeContextHash", "instructionSections", "messageHashes", "messageBlockHashes", "sdkMessageUuids", "passthroughResumeUuid"].includes(key),
     )
   )
     throw new Error("unexpected mapping history field")

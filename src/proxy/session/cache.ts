@@ -46,6 +46,7 @@ import {
   type InterruptedTurn,
   type InterruptedTurnRecord,
 } from "./interruptedTurn"
+import type { InstructionSectionState } from "./instructionSections"
 
 export type { InterruptedSessionSource }
 
@@ -267,6 +268,7 @@ function stateFromSharedSession(
     lineageHash: shared.lineageHash || "",
     clientLineageHash: shared.clientLineageHash,
     resumeContextHash: shared.resumeContextHash,
+    instructionSections: shared.instructionSections,
     messageHashes: shared.messageHashes,
     messageBlockHashes: shared.messageBlockHashes,
     sdkMessageUuids: shared.sdkMessageUuids,
@@ -651,6 +653,7 @@ export function storeSession(
   priorityPublication?: PrioritySessionPublication,
   sdkPrefixMatchesClient = true,
   resumeContextHash?: string,
+  instructionSections?: InstructionSectionState,
   beforePublish?: () => void,
 ): StoredSessionGeneration | false | Promise<StoredSessionGeneration | false> {
   if (!claudeSessionId) return false
@@ -675,6 +678,7 @@ export function storeSession(
     lineageHash,
     ...(clientLineageHash ? { clientLineageHash } : {}),
     resumeContextHash,
+    ...(instructionSections ? { instructionSections } : {}),
     messageHashes,
     messageBlockHashes,
     sdkMessageUuids: publishedUuids,
@@ -703,6 +707,7 @@ export function storeSession(
       lineageHash,
       clientLineageHash,
       resumeContextHash,
+      instructionSections,
       messageHashes,
       sdkMessageUuids: publishedUuids,
       contextUsage,
@@ -753,6 +758,7 @@ export function storeSession(
       expectedGeneration,
       clientLineageHash ?? null,
       resumeContextHash ?? null,
+      instructionSections ?? null,
       beforePublish,
     )
   }
