@@ -225,6 +225,16 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_HISTORY_STEP_BYTES` | `180000` | Extra byte bound for each experimental replay input; 1–190000. |
 | `MERIDIAN_AGY_HISTORY_MAX_STEPS` | `12` | Total experimental replay inputs including the final request; 1–64. |
 
+The context safety budget is selected by model family before cold replay and
+continuation checks. Gemini models keep the verified 480,000-token safety budget
+derived from the 512K window. `claude-*` uses 200,000 tokens and `gpt-oss-*`
+uses 128,000 tokens as conservative assumptions because the agy 1.5.13 model
+list exposes those families but does not expose their context-window sizes.
+Confirm those two values with agy model metadata or vendor documentation before
+raising them. Unknown families use the existing 480,000-token default. The
+existing `MERIDIAN_AGY_MAX_CONTEXT_TOKENS` override remains the single explicit
+override and applies to every family.
+
 Capacity exhaustion returns 429 with `Retry-After`. No unbounded request queue
 is created. Bodies are capped at 8 MiB; upstream stdout is capped at 16 MiB.
 Prompts use stdin to avoid OS argument-size limits. Shutdown terminates owned

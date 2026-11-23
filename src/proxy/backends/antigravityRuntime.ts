@@ -16,7 +16,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { createInterface } from "node:readline"
 import { z } from "zod"
 import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, agClientToolCallLimit, agPromptByteLimit, renderAgPrompt, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
-import { agHistoryLimits, assertAgStep, planAgHistory } from "./antigravityHistory"
+import { agHistoryLimits, agContextBudget, assertAgStep, planAgHistory } from "./antigravityHistory"
 import { estimateAgTextTokens, estimateAgTokens } from "./antigravityTokens"
 import { renderAgColdTrim } from "./antigravityColdTrim"
 
@@ -117,8 +117,9 @@ export class AntigravityRun {
   }
   private plan(request: AgRequest): string[] {
     const { historyLimits: limits, promptBytes } = this.runtime
+    const contextTokens = this.runtime.contextBudget(request.model)
     const native = agNativeTools(this.runtime.options)
-    const maxTokens = Math.min(limits.stepTokens, limits.contextTokens - (request.max_tokens ?? 8192) - 32)
+    const maxTokens = Math.min(limits.stepTokens, contextTokens - (request.max_tokens ?? 8192) - 32)
     if (maxTokens < 1) throw new AntigravityError("prompt is too long: output reserve exceeds the estimated context budget")
     const full = renderAgPrompt(request, native) + this.promptSuffix
     if (this.restored) {
@@ -128,14 +129,14 @@ export class AntigravityRun {
     if ((!promptBytes || Buffer.byteLength(full) <= promptBytes) && estimateAgTextTokens(full) <= maxTokens) return [full]
     if (limits.chunked && !request.output_config?.format &&
       !this.runtime.options.allowNativeBrowser && !this.runtime.options.allowNativeSubagents &&
-      estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) <= limits.contextTokens) {
+      estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) <= contextTokens) {
       const steps = planAgHistory(request, native, this.promptSuffix, Math.min(promptBytes || limits.stepBytes, limits.stepBytes), limits.maxSteps, maxTokens)
-      if (steps.reduce((sum, step) => sum + estimateAgTextTokens(step) + 32, 0) + (request.max_tokens ?? 8192) <= limits.contextTokens) return steps
+      if (steps.reduce((sum, step) => sum + estimateAgTextTokens(step) + 32, 0) + (request.max_tokens ?? 8192) <= contextTokens) return steps
     }
     return [renderAgColdTrim(request, native, this.promptSuffix, { bytes: promptBytes, tokens: maxTokens, estimateTokens: estimateAgTextTokens })]
   }
   private contextFits(next: number, output?: number): boolean {
-    return Math.max(this.writtenTokens, this.reportedInput) + this.outputTokens + next + 32 + (output ?? 8192) <= this.runtime.historyLimits.contextTokens
+    return Math.max(this.writtenTokens, this.reportedInput) + this.outputTokens + next + 32 + (output ?? 8192) <= this.runtime.contextBudget(this.request.model)
   }
   private checkContext(prompt: string, output?: number): void {
     if (!this.contextFits(estimateAgTextTokens(prompt), output)) throw new AntigravityError("prompt is too long: new input exceeds the estimated Antigravity context budget")
@@ -599,6 +600,7 @@ export class AntigravityRuntime {
   private checking?: Promise<string[]>
   private closing?: Promise<void>
   readonly maxClientToolCalls = agClientToolCallLimit()
+  contextBudget(model: string): number { return agContextBudget(model) }
   constructor(readonly options: AntigravityOptions = {}) {
     this.plugins = new AgPlugins(options.plugins, options.pluginPaths)
     this.executable = options.executable ?? "agy"
@@ -759,7 +761,7 @@ export class AntigravityRuntime {
       if (!(await this.availableModels()).includes(request.model)) throw new AntigravityError("Unknown Antigravity model; use GET /v1/models for account model slugs")
       if (this.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
       if (signal?.aborted) throw new AntigravityError("Request cancelled", 499, "api_error")
-      const restored = !reusable && estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) + 32 <= this.historyLimits.contextTokens ? this.nativeSessions?.claim(request) : undefined
+      const restored = !reusable && estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) + 32 <= this.contextBudget(request.model) ? this.nativeSessions?.claim(request) : undefined
       const run = new AntigravityRun(this, request, restored)
       if (restored) this.restored++
       this.runs.set(run.id, run)

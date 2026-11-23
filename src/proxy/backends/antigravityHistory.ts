@@ -9,6 +9,25 @@ export interface AgHistoryLimits {
   contextTokens: number
 }
 
+export const AG_DEFAULT_CONTEXT_TOKENS = 480_000
+export const AG_MODEL_CONTEXT_BUDGETS = [
+  // Gemini's 512K window is the verified source for the existing 480K safety budget.
+  { family: 'gemini-', tokens: AG_DEFAULT_CONTEXT_TOKENS, source: 'verified 512K window, 32K safety reserve' },
+  // Conservative assumptions until agy models metadata or vendor documentation confirms these windows.
+  { family: 'claude-', tokens: 200_000, source: 'conservative assumption; confirm with agy model metadata or vendor documentation' },
+  { family: 'gpt-oss-', tokens: 128_000, source: 'conservative assumption; confirm with agy model metadata or vendor documentation' },
+] as const
+
+export function agContextBudget(model: string, env: Record<string, string | undefined> = process.env): number {
+  const raw = env.MERIDIAN_AGY_MAX_CONTEXT_TOKENS
+  if (raw !== undefined && raw !== '') {
+    const value = Number(raw)
+    if (!Number.isSafeInteger(value) || value < 1 || value > 512_000) throw new Error('MERIDIAN_AGY_MAX_CONTEXT_TOKENS must be an integer from 1 to 512000')
+    return value
+  }
+  return AG_MODEL_CONTEXT_BUDGETS.find(entry => model.startsWith(entry.family))?.tokens ?? AG_DEFAULT_CONTEXT_TOKENS
+}
+
 export function agHistoryLimits(env: Record<string, string | undefined> = process.env): AgHistoryLimits {
   const integer = (name: string, fallback: number, maximum: number) => {
     const raw = env[name]
@@ -24,7 +43,7 @@ export function agHistoryLimits(env: Record<string, string | undefined> = proces
     stepBytes: integer('MERIDIAN_AGY_HISTORY_STEP_BYTES', 180_000, 190_000),
     stepTokens: integer('MERIDIAN_AGY_MAX_STEP_TOKENS', 52_000, 63_000),
     maxSteps: integer('MERIDIAN_AGY_HISTORY_MAX_STEPS', 12, 64),
-    contextTokens: integer('MERIDIAN_AGY_MAX_CONTEXT_TOKENS', 480_000, 512_000),
+    contextTokens: agContextBudget('gemini-default', env),
   }
 }
 
