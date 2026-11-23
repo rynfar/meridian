@@ -96,6 +96,10 @@ Contract*, *Cancellation Contract*; public routes and headers are in
   history block (full history every turn would otherwise read as undo or
   divergence); clients with a recognized session key keep real history so
   lineage can resume.
+  Packed requests neither look up nor publish a fingerprint mapping; their
+  translated first user message can be the latest turn shared by otherwise
+  unrelated conversations. An echoed tool-call ID still derives a key for
+  later rounds that preserve full history.
   - Content parts map to Claude blocks: `text` and assistant `refusal` to
     text, data-URL `image_url` to image, a base64 PDF data URL in `file` to
     document, through the same `parseDataUrlImage` / `parseDataUrlPdf` the

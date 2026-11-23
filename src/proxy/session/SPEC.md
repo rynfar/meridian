@@ -84,6 +84,15 @@ Management*, *Lineage Verification*, *SQLite bookkeeping boundary*, *Transcript
 publication lifetime*, *Session store write cost*, *Lineage hash encoding* and
 *Appended content and transient hooks*.
 
+## Packed chat identity
+
+The trusted internal Chat Completions hop in unkeyed, packed-history mode
+runs as `independent-request:packed-chat`. It neither looks up nor publishes
+fingerprint mappings, including when it recovers tool calls at the SDK turn
+cap. A later request carrying a derived tool-loop key can start a resumable
+lineage. Mapping generation checks for resumable requests and the direct
+Messages fingerprint fallback are unchanged.
+
 ## Interrupted turns
 
 A client that stops a streaming turn after output reached it (Stop, Esc, a
