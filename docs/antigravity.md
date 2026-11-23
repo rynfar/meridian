@@ -216,6 +216,11 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_TOOL_TIMEOUT_MS` | `60000` | Pending client tool-result deadline |
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
 | `MERIDIAN_AGY_MAX_PROMPT_BYTES` | `190000` | UTF-8 byte limit of one prompt sent to agy, which keeps only about 192,000 bytes of an input step and drops the rest (the newest messages). Past it the oldest large tool results, arguments and text are shortened, the newest last; a current request that alone does not fit returns 400 `prompt is too long`. `0` disables it. |
+| `MERIDIAN_AGY_MAX_STEP_TOKENS` | `52000` | Estimated tokens per submitted input, independently of the byte guard; 1–63000. |
+| `MERIDIAN_AGY_MAX_CONTEXT_TOKENS` | `480000` | Estimated context safety budget derived from a 512K model window; 1–512000. Includes an output reserve. This is not a provider limit or a retention guarantee. |
+| `MERIDIAN_AGY_CHUNKED_HISTORY` | `0` | Set to `1` to opt into experimental multi-step cold replay. The default is one trimmed input. |
+| `MERIDIAN_AGY_HISTORY_STEP_BYTES` | `180000` | Extra byte bound for each experimental replay input; 1–190000. |
+| `MERIDIAN_AGY_HISTORY_MAX_STEPS` | `12` | Total experimental replay inputs including the final request; 1–64. |
 
 Capacity exhaustion returns 429 with `Retry-After`. No unbounded request queue
 is created. Bodies are capped at 8 MiB; upstream stdout is capped at 16 MiB.
@@ -621,6 +626,30 @@ schema output, forced tool selection/continuation, text stops through JSON/SSE
 and a multi-megabyte image request through production Node and live CLI vision.
 
 
+## Warm context and cold replay
+
+Matching live conversations already submit only the new input. The per-step
+and context budgets bound how far that reuse can grow. On context exhaustion,
+the next ordinary continuation starts a fresh trimmed conversation, which can
+then reuse its process again. A cold replay can shorten or omit older completed
+turns. The latest user instruction and complete retained tool pairs are kept.
+If the latest content still cannot fit, the request fails explicitly.
+The step estimate reserves one token per non-ASCII UTF-8 byte, intentionally
+overestimating many dense CJK inputs. With the default settings, a CJK-only input
+around 54 KB may now need splitting even though it fit the older byte guard.
+The 52,000 and 480,000 defaults are safety margins below the observed 64,000
+single-step limit and the reported 512,000 model window, respectively.
+
+Optional chunking sends old history in separate priming inputs with tools
+disabled. Each completed input must be identified before the next is sent.
+Priming output is not part of the client answer; its usage is counted in
+telemetry. Structured output or native browser/subagent grants use one bounded
+cold input. Dense histories with tools have encountered native subscriber lag
+even when each planned step fits, so chunking remains opt-in.
+The final input explicitly includes the most recent user goal when the last
+unit is only a tool result. Plans exceeding the step count or an indivisible
+unit's input budget fail before starting the model.
+
 ## What the remaining limits mean
 
 The [support and recovery checklist](antigravity-support.md) separates supported
@@ -733,7 +762,8 @@ returns the same explicitly labeled estimate.
 
 `/v1/messages/count_tokens` returns `input_tokens`, `estimated: true`, the
 `x-meridian-token-count: estimate` header and an `estimation` object. It uses
-UTF-8 bytes divided by four plus an image allowance. Hidden CLI context and
+an estimate of ASCII bytes divided by four plus a conservative allowance for
+each non-ASCII UTF-8 byte and images. Hidden CLI context and
 unprocessed PDF/audio/video contents are excluded and explicitly counted in
 `excluded_unprocessed_media`. It performs no fetching, rendering, transcription
 or model call. It is neither an exact tokenizer nor an upper-bound quota estimate.
