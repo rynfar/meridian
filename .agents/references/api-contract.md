@@ -121,7 +121,9 @@ unsupported hosted server tools without `input_schema` (`web_search_*`,
 `web_fetch_*`, `code_execution_*`), the response exposes the comma-separated
 `x-meridian-dropped-tools` header (the first 16 names) and total in
 `x-meridian-dropped-tools-count` (and emits one bounded warning per request) without
-changing `contractKey` or prompt rendering.
+changing `contractKey` or prompt rendering. Owner-approved 2026-11-22 (#1562),
+together with accepting and ignoring numeric `temperature`, `top_p` and `top_k`
+on the Antigravity path rather than rejecting them as #1074 did.
 
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
