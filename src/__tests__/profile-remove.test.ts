@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { authLifecycleFor, noteAuthLogin } from "../proxy/authLifecycle"
 import { applyProfileRemove, planProfileRemove, profileRemovalSettings } from "../proxy/profileRemove"
 import {
   enableDiskProfileDiscovery,
@@ -24,6 +25,7 @@ import {
 } from "../proxy/profiles"
 import { createProxyServer } from "../proxy/server"
 import { getSetting, saveSettings } from "../settings"
+import { createPlatformCredentialStore } from "../proxy/tokenRefresh"
 
 const PROFILES_DIR = "/cfg/meridian/profiles"
 
@@ -138,6 +140,21 @@ describe("applyProfileRemove", () => {
     expect(result.dirsOrphaned).toEqual([])
     expect(existsSync(workDir)).toBe(false)
     expect(readConfig().map(p => p.id)).toEqual(["personal"])
+  })
+
+  test("forgets the login history of the credentials it deleted, and only those", async () => {
+    const workDir = seedProfileDir("work")
+    const keptDir = seedProfileDir("personal")
+    seed([{ id: "work", claudeConfigDir: workDir }, { id: "personal", claudeConfigDir: keptDir }])
+    const workKey = createPlatformCredentialStore({ claudeConfigDir: workDir }).refreshKey
+    const keptKey = createPlatformCredentialStore({ claudeConfigDir: keptDir }).refreshKey
+    await noteAuthLogin(workKey, { refreshToken: "rt-work" })
+    await noteAuthLogin(keptKey, { refreshToken: "rt-personal" })
+
+    expect(applyProfileRemove("work", { profilesDir: ctx.profilesDir, configFile: ctx.configFile }).ok).toBe(true)
+
+    expect(authLifecycleFor(workKey)).toBeUndefined()
+    expect(authLifecycleFor(keptKey)?.authObtainedVia).toBe("login")
   })
 
   test("keeps a credential directory another profile still uses", () => {

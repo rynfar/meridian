@@ -273,6 +273,7 @@ export function createChatGptProfileSurface(deps: ChatGptProfileSurfaceDeps) {
           // same evidence Claude's "Last Verified" rests on.
           lastCheckedAt: reading?.failure?.lastFailureAt ?? reading?.fetchedAt ?? null,
           lastSuccessAt: reading?.fetchedAt ?? null,
+          renewalRetryAt: profile.renewalRetryAt,
           // Meridian renews only the seats in its own store, so a followed
           // seat has neither an interval nor a history.
           renewalHours: owner.mode === "owned" ? deps.renewalHours?.(profile.seat) ?? null : null,

@@ -7634,6 +7634,199 @@ Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 
 
 `--capture` runs only the real client's wire-format probe against a scripted local endpoint. It does not contact the SDK and is not a substitute for the full E2E gate. The fixture checks the exact client version; newer versions are separate compatibility targets. This case does not validate OpenCode/Orca cross-tool session ownership (#946).
 
+## Claude Code system turns across tool rounds (E77)
+
+The title's label is the one this gate carried where it was written, unrelated
+to the progress-captions section above. Code refers to this section by its name.
+
+**What it proves:** every tool round of a Claude Code conversation resumes its
+SDK session, where on `claude-fable-5-1` every round after the first replayed
+the whole conversation into a new one.
+
+With its `mid-conversation-system` feature on, claude-cli ends a tool-result
+request with a `system` turn. For Fable 5.1 it appends a reminder to that turn
+which lives for the one request. Captured from claude-cli 2.1.289 against a
+scripted API, turn by turn:
+
+```
+request 2   … user[tool_result ×2]
+            system[ "<total_tokens>14994880 tokens left</total_tokens>" (cache_control),
+                    "First privately list what you need next; then request every item
+                     that doesn't depend on another's result in this one response." ]
+request 3   … user[tool_result ×2]
+            system "<total_tokens>14994880 tokens left</total_tokens>"
+            assistant[tool_use] user[tool_result]
+            system[ "<total_tokens>14989880 tokens left</total_tokens>" (cache_control),
+                    "First privately list what you need next; …" ]
+```
+
+The token notice stays, with the number it was sent with. The reminder is gone
+from the earlier turn and a new one trails the new results. Its transcript
+records it as a `batching_reminder_sent` attachment. `claude-opus-5-5` and
+`claude-sonnet-5-5` get the system turn and no reminder (same client, same
+gate).
+
+Meridian hashed the request as it arrived, reminder included, so the next
+request never matched the stored history: `lineage=new
+diverged=modified-history`, a fresh SDK session and the conversation sent
+again as a replay. The first tool round did resume, because the request
+before it has no such turn, and that is the one round the earlier real-client
+gate (`e2e-claude-code-client.mjs`, 2.1.259) runs.
+
+Measured on a working proxy, 2026-10-05 18:30–18:53Z (nine Fable 5.1
+subagents of four Claude Code sessions; that proxy's telemetry rows and
+session log, which are private and not in the repository):
+
+| Fable request, by what the proxy made of it | Requests | Cache written | Cache read | Output |
+|---|---|---|---|---|
+| Tool round, `modified-history` (replayed) | 32 | 5,375,755 (167,992 each) | 1,147,626 | 351,685 (10,990 each) |
+| Tool round, `continuation` (resumed) | 6 | 60,110 (10,018 each) | 348,063 | 10,283 (1,714 each) |
+| Progress summary (auxiliary request) | 82 | 788,256 | 2,942,308 | 4,927 |
+| First request of a subagent (`not-found`) | 6 | 133,440 | 214,623 | 1,761 |
+
+The replayed rounds wrote seventeen times the cache of a resumed one and, with
+none of the model's earlier reasoning in a replay, produced six times the
+output.
+
+The fix is `canonicalizeClaudeCodeMessagesForLineage`
+(`src/proxy/adapters/claudecode.ts`), the hook OpenCode already uses for
+text it sends with one request only. Only the exact known batching reminder
+at the end of a `system` turn is excluded. Cache breakpoints do not establish
+that later text is transient: every other block, including durable text after
+a breakpoint and reminder lookalikes, remains significant. Message positions
+are kept, and the request the model reads is
+untouched: the reminder is still delivered with its round.
+
+### A system turn that is the reminder alone (claude-cli 2.1.294)
+
+On 2026-10-07/08 a contributor's orchestrators (client 2.1.294) sent Fable
+subagent rounds ending in a system turn that held the reminder and nothing
+else, and the next request carried no trace of it: the reply sat where the
+turn had been.
+
+```
+request k     … user[tool_result]  system[ "First privately list what you need next; …" ]
+request k+1   … user[tool_result]  assistant[thinking, text, tool_use]  user[tool_result]
+              system[ "First privately list what you need next; …" ]
+```
+
+The token notice is the CLI's `totalTokensReminder` (default
+`padded-countdown`), which its own budget settings leave out at times, so the
+turn can be the reminder alone. Stored as the tail of the lineage, it made
+every later round `modified-history`. From that proxy's persisted telemetry
+(Oct 6 18:38 to Oct 8 06:43; private, not in the repository): 187 Fable
+rounds replayed, every one with the same stored digest `eff8768460e3`, which
+is `system: [reminder]` hashed the way `lineage.ts` hashes a message. That
+came to 41.1M cache writes, about 226K each, where a resumed round of the
+same subagents wrote 21K. They came in bursts (Oct 7 13:00-17:00, Oct 8
+01:00-06:00): within one subagent the first three rounds resumed, then every
+round after replayed.
+
+Such a turn is left out of the lineage, but only at the end of a request, so
+no other message moves. The reply's SDK message UUID is recorded where the
+client puts the reply next time (`replyPosition`, the lineage's length). Before,
+it went after the request's last message, one past where the reply then sits,
+so an undo there would have rolled back to the wrong message.
+
+### Run it
+
+```bash
+bun scripts/e2e-claude-code-system-turns.mjs                    # claude-fable-5-1
+bun scripts/e2e-claude-code-system-turns.mjs claude-opus-5-5 --expect-no-reminder
+E2E_CLAUDE_CLIENT=node_modules/.bin/claude bun scripts/e2e-claude-code-system-turns.mjs
+```
+
+No model calls and no credentials: the client talks to the proxy with a dummy
+token, and the proxy's one profile is an API key against the scripted API.
+`ROUNDS` sets the number of tool rounds (default 5, minimum 2), `E2E_CLAUDE_CLIENT` the
+client (default `claude` on PATH) and `E2E_CLAUDE_PATH` the CLI the SDK
+drives. Not in CI: it needs the `claude` client binary.
+
+The gate tells the conversation's own SDK queries from the client's side calls
+by the client tools they are handed, not by their turn budget: tools the
+client defers lift the one-turn cap, and current clients defer.
+
+### Pass criteria
+
+- The client finishes and makes one request per tool round plus one for the
+  answer.
+- Every request after the first is `lineageType: continuation` with
+  `isResume`, and its SDK query has `resume` and `resumeSessionAt`.
+- No query after the first is a `<conversation_history>` replay, and the last
+  Messages call carries every round as structured `tool_use` and
+  `tool_result` turns.
+- The request's own reminder is in the last user turn the model reads.
+- The default gate requires a consecutive request pair showing the exact
+  reminder disappear at the same system-message position while every durable
+  block stays (historical strings and text blocks are compared without cache
+  hints). Missing or changed wording fails this affected-case gate.
+- `--expect-no-reminder` explicitly selects a negative control: it requires
+  no known reminder and all resume checks, and labels its result
+  `coverage: negative-control`. It cannot establish affected-case acceptance.
+
+### Verified
+
+2026-10-05, macOS arm64, five tool rounds, `claude-fable-5-1` unless noted.
+
+| Client | SDK child CLI | Fix | Lineage of the six requests | Result |
+|---|---|---|---|---|
+| 2.1.289 | 2.1.284 | off | new, continuation, new, new, new, new | FAIL (5 checks) |
+| 2.1.289 | 2.1.284 | on | new, then five continuation | PASS |
+| 2.1.284 | 2.1.289 | on | new, then five continuation | PASS |
+| 2.1.289, `claude-opus-5-5` | 2.1.284 | on | new, then five continuation (no reminder sent) | PASS |
+| 2.1.289, `claude-sonnet-5-5` | 2.1.284 | on | new, then five continuation (no reminder sent) | PASS |
+
+"Fix off" is the same gate with the adapter hook removed, and it reproduces
+the live pattern: the first tool round resumes and every later one replays.
+`src/__tests__/claude-code-system-turn-lineage.test.ts` holds the rule as a
+pure function and `passthrough-early-stop-integration.test.ts` ("one-request
+reminder") holds three requests through the mocked SDK; both fail without the
+hook.
+
+2026-10-08, the reminder alone: `claude-code-system-turn-lineage.test.ts`
+("reminder-only") and `passthrough-early-stop-integration.test.ts`
+("reminder-only system turn", streamed and not) failed before the change. The
+pure test failed with the live diagnosis exactly (`modified-history`, stored
+digest `eff8768460e3…`). The integration test also holds where the reply's
+SDK UUID is recorded. The gate with client 2.1.294 still passed, but it does
+not reach this shape: that client sent the two-block turn on every round, and
+`CLAUDE_CODE_TOTAL_TOKENS_REMINDER=off` in the gate's environment did not
+change that. The real-traffic check is whether `eff8768460e3` replays stop
+once a proxy that saw them runs this build.
+
+The runs above were made on macOS arm64 with clients and SDK child CLIs
+2.1.284 through 2.1.294, by the change's author on the fork it was written
+on; they were not re-run for this branch. Rebased onto current main, the gate
+was run on Linux x86_64 (2026-10-16, SDK child CLI 2.1.301, five tool rounds):
+
+| Client | Model | Fix | Lineage of the six requests | Result |
+|---|---|---|---|---|
+| 2.1.301 | `claude-fable-5-1` | off | new, continuation, new, new, new, new | FAIL (5 checks) |
+| 2.1.301 | `claude-fable-5-1` | on | new, then five continuation | PASS |
+| 2.1.296 | `claude-fable-5-1` | on | new, then five continuation | PASS |
+| 2.1.301 | `claude-opus-5-5` | on | new, then five continuation (no reminder sent) | PASS |
+
+Both clients still append the one-request reminder on Fable. No client sent
+a reminder-only turn in these runs either.
+
+### Not covered
+
+- A subagent of a live session on the real model. The shapes are the client's
+  own, but no Fable call has been made through a proxy with the fix. A live
+  Fable run through this build is owed.
+- A system turn that is nothing but a one-request reminder anywhere but the
+  end of a request. It keeps its place, since resume indexes are by position;
+  the client has only been seen sending it last.
+- The reminder alone through the real client: no gate makes the client send
+  it (see Verified).
+- Sessions stored before either fix. Their lineage has the reminder in it, so
+  their next tool round replays once more and resumes from then on.
+- Windows. Linux was run only against the scripted API (see Verified).
+- A resent reminder-only turn. If a client ever sends a trailing
+  reminder-only turn again in its next request, that turn takes the index
+  where the reply's SDK UUID was recorded, so the UUID map is off by one for
+  undo from then on. No client has been seen doing this.
+
 ## CLI model-version rejection
 
 Run `E2E_CLAUDE_PATH=/path/to/old/claude bun scripts/e2e-cli-model-version.mjs --expect-rejection` and again with `--stream`. Use an old CLI that actually rejects the default `fable` model (2.1.177 was validated). Require HTTP 400/invalid_request_error or a single actionable SSE invalid_request_error without message_stop, the installed/required versions and override remedy, and exactly one proxy SDK query.
@@ -7878,6 +8071,107 @@ Final packaged arm64 validation on September 18:
 
 These results supersede the earlier Mac sign-in, notification and handoff gates.
 Windows/Linux desktop runtime evidence remains absent. No release was published.
+
+## Session GC keeps up with the transcripts turns leave
+
+**What it proves:** at its default limits the session GC retires and deletes
+orphaned transcripts faster than parallel runs leave them, so they cannot
+fill the transcript ownership ceiling, and stopping the proxy costs no more
+than it did.
+
+Every managed turn runs on a fork of its conversation's SDK session, so every
+turn leaves one transcript for the GC. One that no mapping pins is retired,
+waits out the grace (`MERIDIAN_SESSION_GC_GRACE_MS`, the session turn's hold
+and a minute: 11 minutes by default) and is then deleted through the Agent
+SDK in a gated child. Sweeps run one at a time, every
+`MERIDIAN_SESSION_GC_INTERVAL_MS` (60 s) **and after every managed fork
+publication or abandonment**, so under load they run back to back.
+- **The backlog is the fix under load.** `MERIDIAN_SESSION_GC_MAX_PENDING`
+  over the grace caps how many transcripts can be retired a minute, however
+  often sweeps run. The fixed 256 allowed about 23 a minute (about 1,400 an
+  hour) against the 1,100–1,700 an hour parallel runs left in the source's
+  live report, with no headroom for bursts. It now defaults to three graces
+  of deletions at the interval's rate, never under 256: 64 × 11 × 3 =
+  **2,112**, about 190 a minute. The ownership ceiling (twice
+  `MERIDIAN_MAX_STORED_SESSIONS` plus the backlog) rises with it,
+  20,256 → 22,112.
+- **The per-sweep cap sets interval and idle cadence.**
+  `MERIDIAN_SESSION_GC_MAX_DELETES` (was 16, now 64) bounds each sweep, not
+  the rate under load. It decides how fast a backlog drains once publications
+  stop and only the interval sweeps: a full 2,112 in about 33 minutes at 64,
+  more than two hours at 16.
+- **Shutdown stays at 16.** Once the proxy is draining, its sweeps, close()'s
+  final one among them, delete at most 16 (or the per-sweep cap when lower).
+- `sessionGcLimits.ts` holds the defaults and resolves the settings. The
+  lifecycle lock, deferral, generation fencing and publication leases are
+  unchanged.
+
+### Run it
+
+```bash
+bun test src/__tests__/session-gc-limits.test.ts src/__tests__/proxy-session-gc-capacity.test.ts
+bun scripts/e2e-session-gc-throughput.mjs                                  # 300 orphans
+DRAINING=1 bun scripts/e2e-session-gc-throughput.mjs                       # a draining proxy's sweep
+ORPHANS=20000 MAX_PENDING=2112 bun scripts/e2e-session-gc-throughput.mjs   # a large lifecycle file
+MAX_DELETES=16 ORPHANS=20000 MAX_PENDING=2112 bun scripts/e2e-session-gc-throughput.mjs   # the old cap
+```
+
+The proxy tests register 300 orphaned transcripts and run one sweep at the
+default limits, and check the per-sweep cap that reaches `runGc` before and
+after the drain, including `startProxyServer`'s `close()`. The gate makes real
+transcript files where the SDK keeps sessions, none pinned; past the first
+300 they are written straight into the lifecycle file. One sweep retires them
+up to the backlog; after a 1-second grace a second sweep deletes as many as it
+may, each through the SDK's `deleteSession` in a gated child. No model calls,
+no accounts.
+
+**Pass criteria** (asserted, non-zero exit on any), at the default 300:
+- The proxy tests: one sweep retires all 300 (main at ca716c36: 255); a
+  draining proxy's sweeps, and close()'s final one, run with a cap of 16.
+- The gate: one sweep deletes 64 transcript files within the sweep's
+  30-second budget (`MERIDIAN_SESSION_GC_RUN_TIMEOUT_MS`); with `DRAINING=1`,
+  16.
+
+**Measured 2026-10-16** on this build, Linux, Bun 1.3.14, Agent SDK 0.2.141,
+a shared 20-core host (load average about 11):
+
+| Live transcripts | Lifecycle file | Deletes per sweep | Deleted | Sweep | Per deletion |
+|---|---|---|---|---|---|
+| 300 | 0.1 MB | 64 | 64 | 11.3–14.1 s | 177–220 ms |
+| 300 | 0.1 MB | 16 (draining) | 16 | 3.5 s | 219 ms |
+| 2,000 | 1.0 MB | 64 | 64 | 19.9 s | 310 ms |
+| 10,000 | 4.8 MB | 64 | 64 | 25.9 s | 405 ms |
+| 20,000 | 9.6 MB | 64 | 49, 51 | 30.5, 30.7 s (budget) | 601–623 ms |
+| 20,000 | 9.6 MB | 16 (old cap) | 16 | 9.8–11.3 s | 613–705 ms |
+| 20,000 | 9.6 MB | 16 (draining) | 16 | 8.7 s | 541 ms |
+
+Each deletion rewrites the whole lifecycle file under its lock (claim,
+executor handshake, settlement), so a deletion costs more as the file grows.
+- **Lock occupancy** is the per-deletion cost times the deletion rate, not a
+  per-minute figure: while sweeps run back to back after publications, a
+  large backlog draining on a 20,000-transcript store can keep the lifecycle
+  lock busy almost continuously. That was already so at 16 a sweep; 64 only
+  shortens the gaps between sweeps on the interval.
+- **Past about 10,000 live transcripts a sweep stops at its 30-second budget**
+  short of 64. The deletion the budget cuts short goes back to retired and is
+  retried; none were left `deleting`. The gate reports FAIL at 20,000 for that
+  reason; it is the measured limit, not a regression against main.
+- **Wasted last claim:** from about 15,000 live transcripts, a sweep that runs
+  into its budget claims one last deletion with almost none left, kills its
+  child, counts it failed and backs it off. That costs three full rewrites of
+  the lifecycle file under the lock and logs `session GC deferred 1 failed
+  deletion(s)` at warn level on every such sweep. Not fixed here; a follow-up
+  can stop claiming once the remaining budget is below one deletion's cost.
+
+**Live evidence owed.** The source runs (macOS, Claude CLI 2.1.284–2.1.294)
+were not re-run against this build. Owed before release, on the affected
+platform with real parallel Claude Code runs through the proxy:
+- `session.gc` log lines and `deleted` tombstones per minute keep pace with the
+  transcripts turns create, over an hour of parallel runs.
+- No `session transcript ownership capacity is full` 503s.
+- Request admission latency on the lifecycle lock while a large backlog
+  drains in back-to-back sweeps.
+- Stop time (`close()`) of a proxy with a large retired backlog.
 
 ## Windows session garbage collection (#895 / #896)
 

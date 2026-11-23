@@ -38,6 +38,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError, type LateIdleDeadline } from "./streamIdleGuard"
 import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey } from "./idleStallCeiling"
+import { resolveSessionGcLimits } from "./sessionGcLimits"
 import { isClientStop, linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import {
@@ -118,6 +119,7 @@ import type { RequestMetric } from "../telemetry"
 import { assistantRefusalOf, type AssistantRefusal, canRecoverCapturedToolUses, uncapturedRecoveryVeto, streamedToolBlockVeto, cliRejectedToolResults, type StreamedToolBlockRecord, type UncapturedDeliveryVeto, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
 import { createSseRelayStream, relayStreamAttempt } from "./sseFailureSniff"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialSnapshot, getAuthRenewalStatus, getStoredPlanFields, renewalStatusFor, resolveRenewalWarnDays, type CredentialStore, type StoredPlanFields } from "./tokenRefresh"
+import { authLifecycleLoggedOut, describeAuthLifecycleEvent, observeCredentialInBackground, onAuthLifecycleTransition, type AuthLifecycleTransition } from "./authLifecycle"
 import { planAllowance } from "./planAllowance"
 import { isCredentialsReadOnly, logCredentialsModeBanner } from "./credentialsMode"
 import { runtimeCancelWarning } from "./runtimeCancelWarning"
@@ -536,6 +538,15 @@ function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | 
   )
 }
 
+function profileIdsForCredentialKey(config: ProxyConfig, key: string): string[] {
+  const profiles = getEffectiveProfiles(config.profiles)
+  if (profiles.length === 0) return createPlatformCredentialStore().refreshKey === key ? ["default"] : []
+  return profiles
+    .map(profile => resolveProfile(config.profiles, config.defaultProfile, profile.id))
+    .filter(resolved => credentialStoreForProfile(resolved)?.refreshKey === key)
+    .map(resolved => resolved.id)
+}
+
 async function ensureFreshTokenForProfiles(config: ProxyConfig): Promise<void> {
   const profiles = getEffectiveProfiles(config.profiles)
   if (profiles.length === 0) {
@@ -932,19 +943,24 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       retryDelayMs: Math.max(1, envInt("SESSION_TURN_RETRY_MS", 25)),
     },
   )
+  // The backlog follows the grace, so a longer turn hold cannot throttle
+  // retirement below the deletion rate (sessionGcLimits.ts).
+  const sessionGcLimits = resolveSessionGcLimits(envInt, SESSION_TURN_MAX_HOLD_MS)
   const sessionGcOptions: SessionLifecycleOptions = {
-    maxPending: Math.max(1, envInt("SESSION_GC_MAX_PENDING", 256)),
-    maxDeletesPerRun: Math.max(1, envInt("SESSION_GC_MAX_DELETES", 16)),
+    maxPending: sessionGcLimits.maxPending,
+    maxDeletesPerRun: sessionGcLimits.maxDeletesPerRun,
+    // Also reaches a sweep already running when beginDrain flips the state.
+    // The lifecycle lowers remaining work only between joined transactions.
+    maxRemainingDeletes: () => draining
+      ? sessionGcLimits.shutdownMaxDeletesPerRun
+      : sessionGcLimits.maxDeletesPerRun,
     // A prepared fork is an active write lease. Never age it out before the
     // request watchdog plus a drain margin, even if an unsafe lower value is configured.
     preparedGraceMs: Math.max(
       SESSION_TURN_MAX_HOLD_MS + 60_000,
       envInt("SESSION_GC_PREPARED_GRACE_MS", SESSION_TURN_MAX_HOLD_MS + 60_000),
     ),
-    retiredGraceMs: Math.max(
-      0,
-      envInt("SESSION_GC_GRACE_MS", SESSION_TURN_MAX_HOLD_MS + 60_000),
-    ),
+    retiredGraceMs: sessionGcLimits.retiredGraceMs,
     // JSON budgets external acquisition at the FIFO head. SQLite uses the shared
     // admission deadline from enqueue, including local FIFO wait.
     ...(bookkeepingMode() === "json"
@@ -1043,7 +1059,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     if (sessionGcRunning) return sessionGcRunning
     sessionGcRunning = (async () => {
       if (profileCopyPruningEnabled) await pruneSupersededProfileCopies()
-      const result = await sessionDeletionOwner.run(() => runSessionGc(collectSessionGcPins(), sessionGcOptions))
+      // New draining sweeps start at the shutdown cap; maxRemainingDeletes
+      // also lowers an existing sweep that close() joins. No deletion is
+      // abandoned. The next process deletes what the bounded sweep leaves.
+      const runOptions = draining
+        ? { ...sessionGcOptions, maxDeletesPerRun: sessionGcLimits.shutdownMaxDeletesPerRun }
+        : sessionGcOptions
+      const result = await sessionDeletionOwner.run(() => runSessionGc(collectSessionGcPins(), runOptions))
       if (result.deleted || result.notFound || result.failed) {
         claudeLog("session.gc", { ...result })
         if (result.failed) {
@@ -2850,6 +2872,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // not persist it as durable conversation ancestry.
         const lineageMessages = adapter.canonicalizeMessagesForLineage?.(body.messages)
           ?? body.messages
+        // Where the reply sits in the client's next request, which is where its
+        // SDK message UUID is recorded: after the messages the conversation
+        // keeps. A trailing turn sent for this request only is gone by then.
+        const replyPosition = lineageMessages.length
 
         // Native Anthropic server tools (web_search_*, web_fetch_*) can't run
         // through the Max/SDK path — fail fast with an actionable message
@@ -5204,7 +5230,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             ? inheritSdkUuids(cachedSession, lineageResult, lineageMessages)
             : []
           // Pad to current message count (the last user message has no UUID yet)
-          while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+          while (sdkUuidMap.length < replyPosition) sdkUuidMap.push(null)
           let currentClientAssistantUuid: string | null = null
 
           claudeLog("upstream.start", { mode: "non_stream", model })
@@ -5402,7 +5428,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     await replaceWithFreshTarget("non_stream_resume_replay")
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
-                    for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                    for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
                       prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_resume_replay"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
@@ -5457,7 +5483,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     await replaceWithFreshTarget("non_stream_model_fallback")
                     currentSessionId = managedForkTarget?.sessionId
                     sdkUuidMap.length = 0
-                    for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                    for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
                       prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "non_stream_model_fallback"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
@@ -5673,10 +5699,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 if (!passthrough || earlyStop.expected.size === 0 || assistantAddedForwardedCall) {
                   sdkUuidMap = withClientAssistantUuid(
                     sdkUuidMap,
-                    allMessages.length,
+                    replyPosition,
                     (message as any).uuid
                   )
-                  currentClientAssistantUuid = sdkUuidMap[allMessages.length] ?? null
+                  currentClientAssistantUuid = sdkUuidMap[replyPosition] ?? null
                 }
                 if (!firstChunkAt) {
                   firstChunkAt = Date.now()
@@ -6134,7 +6160,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           profileScopedCwd,
                           reconcileReturnedSessionUuids(
                             sdkUuidMap,
-                            allMessages.length,
+                            replyPosition,
                             currentClientAssistantUuid,
                             resumeSessionId,
                             currentSessionId,
@@ -6364,7 +6390,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession
               ? inheritSdkUuids(cachedSession, lineageResult, lineageMessages)
               : []
-            while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+            while (sdkUuidMap.length < replyPosition) sdkUuidMap.push(null)
             let currentClientAssistantUuid: string | null = null
 
             let messageStartEmitted = false
@@ -6817,7 +6843,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       await replaceWithFreshTarget("stream_resume_replay")
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
-                      for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                      for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
                         prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_resume_replay"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
@@ -6868,7 +6894,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       await replaceWithFreshTarget("stream_model_fallback")
                       currentSessionId = managedForkTarget?.sessionId
                       sdkUuidMap.length = 0
-                      for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                      for (let i = 0; i < replyPosition; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
                         prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, modelReplayBudget(), "stream_model_fallback"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
@@ -7079,10 +7105,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   ) {
                     sdkUuidMap = withClientAssistantUuid(
                       sdkUuidMap,
-                      allMessages.length,
+                      replyPosition,
                       (message as any).uuid
                     )
-                    currentClientAssistantUuid = sdkUuidMap[allMessages.length] ?? null
+                    currentClientAssistantUuid = sdkUuidMap[replyPosition] ?? null
                   }
                   if (message.type === "assistant") assistantRefusal = assistantRefusalOf(message)
                   if (message.type === "assistant" && !messageStartEmitted) {
@@ -7595,7 +7621,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         profileScopedCwd,
                         reconcileReturnedSessionUuids(
                           sdkUuidMap,
-                          allMessages.length,
+                          replyPosition,
                           currentClientAssistantUuid,
                           resumeSessionId,
                           currentSessionId,
@@ -7932,7 +7958,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   recoveryCompleted && silentTurnRecovered && recoverySessionId &&
                   !isIndependentSession && !sawDuplicateToolUse
                 ) {
-                  const recoverySdkUuidMap = allMessages.map(() => null)
+                  const recoverySdkUuidMap: Array<string | null> = Array.from({ length: replyPosition }, () => null)
                   if (!bookkeepingHandle) await commitFork(recoveryForkTarget, admissionLifecycleOptions)
                   assertDurableWritesAllowed()
                   const recoveryMappingStored = await publishPinnedTranscript(
@@ -8666,7 +8692,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         profileScopedCwd,
                         reconcileReturnedSessionUuids(
                           sdkUuidMap,
-                          allMessages.length,
+                          replyPosition,
                           currentClientAssistantUuid,
                           resumeSessionId,
                           currentSessionId,
@@ -9697,9 +9723,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   const refreshChatGptUsage = (): Promise<void> | undefined => {
     if (!chatGptSource) return undefined
     if (!chatGptUsageRefresh && Date.now() - chatGptUsageAt >= 30_000) {
-      chatGptUsageAt = Date.now()
+      const startedAt = Date.now()
+      chatGptUsageAt = startedAt
       chatGptUsageRefresh = getCodexUsage({ loadPool: () => chatGptSource.usagePool() })
-        .then(result => { chatGptUsage = result })
+        .then(result => {
+          chatGptUsage = result
+          // A refused access token may only need renewing (chatgpt/owned.ts).
+          for (const entry of result.entries) {
+            if (entry.error === "unauthorized") chatGptSource.accessRefused?.(entry.id, startedAt)
+            else if (entry.fetchedAt !== null && !entry.error && !entry.stale) chatGptSource.accessAccepted?.(entry.id, startedAt)
+          }
+        })
         .catch(error => { plog(`[PROXY] ChatGPT usage refresh failed: ${error instanceof Error ? error.message : String(error)}`) })
         .finally(() => { chatGptUsageRefresh = undefined })
     }
@@ -9775,6 +9809,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   }
 
   const recordChatGptRefusal = (refusal: ChatGptSeatRefusal): void => {
+    if (refusal.kind === "requires_reauth") chatGptSource?.accessRefused?.(refusal.seat, refusal.startedAt)
     const profileId = chatGptProfiles?.profileIdFor(refusal.seat) ?? refusal.seat
     const diagnosis = chatGptRefusalDiagnosis(refusal)
     // `spent` means quota, as it does for Claude; a refused credential is an
@@ -10902,6 +10937,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       if (accountCurrent) currentAccounts.set(p.id, organization)
       const email = (accountCurrent ? organization.email : null) || auth?.email || null
       const renewal = renewalStatusFor(stored?.refreshTokenExpiresAt, renewalWarnDays, expiryObservedAt)
+      // Login history, updated from this read of the credential. A refused
+      // renewal only counts as logged out once the access token it left
+      // behind has run out; until then the account still serves.
+      const lifecycle = profileStore && stored
+        ? observeCredentialInBackground(profileStore.refreshKey, stored)
+        : undefined
+      const loggedOut = authLifecycleLoggedOut(lifecycle, stored?.accessTokenExpiresAt, expiryObservedAt)
       return {
         ...p,
         email,
@@ -10914,7 +10956,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         planLabel: allowance.label,
         accountType: allowance.accountType,
         planName: allowance.planName,
-        loggedIn: presence === "absent" ? false : (auth?.loggedIn ?? false),
+        loggedIn: presence === "absent" || loggedOut ? false : (auth?.loggedIn ?? false),
         lastCheckedAt: cacheInfo.lastCheckedAt || null,
         lastSuccessAt: cacheInfo.lastSuccessAt || null,
         // Additive: which reading the three fields above came from. A failed
@@ -10931,6 +10973,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         daysUntilRenewal: renewal.daysUntilRenewal ?? null,
         renewalRequiredSoon: renewal.renewalRequiredSoon,
         accessTokenExpiresAt: stored?.accessTokenExpiresAt ?? null,
+        // Meridian's own login history for this credential (authLifecycle.ts),
+        // null when nothing is on record or the profile has no stored login.
+        authObtainedAt: lifecycle?.authObtainedAt ?? null,
+        authObtainedVia: lifecycle?.authObtainedVia ?? null,
+        lastRefreshAt: lifecycle?.lastRefreshAt ?? null,
+        firstUnauthedAt: lifecycle?.firstUnauthedAt ?? null,
+        unauthedReason: lifecycle?.unauthedReason ?? null,
         // Present for EVERY profile, null included, so a follower can tell an
         // instance too old to answer (field absent) from one saying this
         // profile cannot be shared (field null). Never a secret — see
@@ -13007,6 +13056,18 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   // Idempotent — re-calling start() on a hot-reload is a no-op.
   startBackgroundRefresh()
 
+  // Logins, logouts and new logins found on disk, in the log and in the
+  // persisted diagnostics, so a logout can be read against the deadline it fell
+  // on long after Claude Code has wiped the credential that held it.
+  const stopAuthLifecycleLog = onAuthLifecycleTransition((transition: AuthLifecycleTransition) => {
+    const ids = profileIdsForCredentialKey(finalConfig, transition.key)
+    const who = ids.length > 0 ? ids.map(id => `"${id}"`).join(", ") : transition.key
+    const message = `Profile ${who} ${describeAuthLifecycleEvent(transition.event, transition.previous)}`
+    plog(`[PROXY] ${message}`)
+    diagnosticLog.log({ level: transition.event.kind === "logged_out" ? "warn" : "info", category: "auth", message })
+    claudeLog("auth.lifecycle", { profiles: ids, ...transition.event })
+  })
+
   // Profile-scoped OAuth token refresh: the default scheduler above only
   // watches the default Claude credential store. Multi-profile credentials
   // live under each profile's CLAUDE_CONFIG_DIR, so poll the discovered
@@ -13075,6 +13136,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         stopFollowPolling()
         stopFollowUsagePolling()
         stopBackgroundRefresh()
+        stopAuthLifecycleLog()
         stopUpdateCheck()
 
         let httpCloseError: unknown
