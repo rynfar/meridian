@@ -116,6 +116,13 @@ of Anthropic numeric thinking budgets to Gemini effort variants. Response header
 and health expose adaptation; effective model IDs appear in responses and telemetry.
 Strict rejection remains the default; this does not provide native token limits.
 
+`antigravity.turnMaxDurationMs` (environment `MERIDIAN_AGY_TURN_MAX_DURATION_MS`,
+default 7,200,000 ms) is an absolute per-turn deadline that includes client tool
+waits and is passed to agy as `--print-timeout`; `turnTimeoutMs` now bounds each
+model phase and pauses while client tools run. An agy process orphaned by a
+Meridian crash may therefore survive up to this cap (previously 300 s).
+Owner-approved 2026-11-22 (#1560).
+
 Antigravity Messages exact tool-result retries may return a bounded saved terminal
 text answer with `x-meridian-response-replayed: true`, preserving message ID and
 usage without a new model invocation. This cache is separate from OpenAI Responses
