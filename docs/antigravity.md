@@ -21,7 +21,7 @@ on a separate port if you already have a Claude service.
 ## Feature status
 
 Validated on macOS arm64 with agy **1.2.7**, Pi **0.72.1** and OpenCode V1
-**1.18.31**, and on Linux x64 with agy **1.5.5** and Pi **1.5.2**.
+**1.18.31**, and on Linux x64 with agy **1.5.13** and Pi **1.3.0**.
 [E2E.md](../E2E.md) records the actual-client evidence.
 
 | Area | Available in 1.74.0 |
@@ -161,8 +161,10 @@ or edits private CLI transcripts.
 
 Repeated MCP request IDs reuse their original result within their MCP session;
 conflicting reuse is rejected. Native children have independent MCP sessions. Each
-live conversation permits 256 client calls, 32 outstanding calls and 64 MCP
-sessions. Warm reuse retires long tool conversations before exhausting that budget.
+live conversation permits 256 client calls by default (configurable with
+`MERIDIAN_AGY_MAX_TOOL_CALLS`), 32 outstanding calls and 64 MCP sessions. The
+existing warm-reuse eligibility cutoff remains 128 completed client calls; raising
+the allowance does not raise that separate cutoff.
 
 If the proxy or CLI dies, or the tool deadline expires, a later client request
 containing the complete tool-call/result history starts a fresh CLI conversation.
@@ -208,8 +210,8 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS` | off | Guarded native self/research subagent opt-in |
 | `MERIDIAN_AGY_WHISPER_MODEL` | unset | Local whisper.cpp model for audio transcription |
 | `MERIDIAN_AGY_MAX_CONCURRENT` | `4` | Maximum live processes; idle pending tools can yield capacity |
-| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Full model/preprocessing deadline for each phase, refreshed after each accepted tool-result batch; paused while waiting for client tools |
-| `MERIDIAN_AGY_TURN_MAX_DURATION_MS` | `7200000` | Absolute per-turn deadline including client tool waits; also passed as CLI `--print-timeout` on every turn (including tool-less turns) |
+| `MERIDIAN_AGY_MAX_TOOL_CALLS` | `256` | Client-call and MCP replay-ledger allowance per live process, integer 1–65536; independent of deadlines and the 128-call warm-reuse cutoff |
+| `MERIDIAN_AGY_TURN_TIMEOUT_MS` | `300000` | Per-turn deadline, including preprocessing and tool waits |
 | `MERIDIAN_AGY_TOOL_TIMEOUT_MS` | `60000` | Pending client tool-result deadline |
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
 | `MERIDIAN_AGY_MAX_PROMPT_BYTES` | `190000` | UTF-8 byte limit of one prompt sent to agy, which keeps only about 192,000 bytes of an input step and drops the rest (the newest messages). Past it the oldest large tool results, arguments and text are shortened, the newest last; a current request that alone does not fit returns 400 `prompt is too long`. `0` disables it. |
@@ -217,14 +219,10 @@ directories. Meridian does not edit or garbage-collect those private records.
 Capacity exhaustion returns 429 with `Retry-After`. No unbounded request queue
 is created. Bodies are capped at 8 MiB; upstream stdout is capped at 16 MiB.
 Prompts use stdin to avoid OS argument-size limits. Shutdown terminates owned
-process groups and closes the MCP listener. Because child processes are spawned
-detached and receive `--print-timeout` equal to `turnMaxDurationMs` (two hours
-by default), an unclean Meridian crash can leave an active `agy` child running
-up to that limit instead of the previous 300 s CLI backstop; real `agy`
-`--print-timeout` semantics across reused stdin turns are unverified.
+process groups and closes the MCP listener.
 
 Embedders can set `backend: "antigravity"` and `antigravity: { executable,
-allowToolBridge, maxConcurrent, turnTimeoutMs, turnMaxDurationMs, pendingToolTimeoutMs }` on
+allowToolBridge, maxConcurrent, turnTimeoutMs, pendingToolTimeoutMs }` on
 `startProxyServer`. Call `ProxyInstance.close()` to release resources. Direct
 `createProxyServer().app.fetch` embedders must call the optional
 `closeBackend()` when finished.
@@ -313,13 +311,13 @@ app does not collect Google credentials or repurpose Claude profile login.
 
 ## Compatibility and operational contract
 
-The supported text/client-tools path is gated to official `agy` **1.5.5**
+The supported text/client-tools path is gated to official `agy` **1.5.13**
 (validated on Linux x64; the macOS 1.2.7 acceptance below predates the gate
-move and awaits a 1.5.5 re-run on that platform).
+moves and awaits a 1.5.13 re-run on that platform).
 An unverified CLI update is refused before a new model process starts. Validate
 new versions with the live gates below before changing the compatibility gate.
 `/health` still reports Linux as `preview` and macOS as `supported` until each
-platform has full 1.5.5 client evidence. Windows
+platform has full 1.5.13 client evidence. Windows
 process-tree termination and hook quoting are implemented and exercised in CI;
 normal execution stays gated until authenticated live verification. The embedder
 option `allowUnverifiedWindows: true` is solely for that acceptance gate. This is a supported, bounded protocol surface, not full Claude parity.
@@ -1014,3 +1012,26 @@ apart (up to 12 frames). Each frame carries its measured source timestamp from
 ffmpeg; times are not inferred from image numbering. These references help
 locate content but do not establish native citations, perfect transcription,
 continuous motion understanding or coverage of brief events between samples.
+
+## Long client-tool conversations
+
+`MERIDIAN_AGY_MAX_TOOL_CALLS` sets the cumulative client-tool and MCP replay-ledger
+allowance for one live conversation. It defaults to 256 and accepts integers
+from 1 to 65536; invalid explicit values fail startup. An operator can raise the
+allowance for a long agent task, for example to 512, before starting Meridian.
+Higher allowances retain more conversation and replay data until the run is
+retired. The existing completed-conversation reuse policy is unchanged.
+
+A restored live process starts with a fresh allowance; the count is not a
+lifetime ledger for a saved native conversation. Model/turn and pending-tool
+deadlines remain independent: raising the call allowance does not extend them.
+
+This setting does not change native CLI/provider limits, client tool
+permissions, the 32 outstanding-call limit, or the 16-call parallel batch limit.
+Duplicate MCP request IDs replay their original result without spending another
+client call. A batch that exceeds the remaining allowance is rejected before
+any call in it is dispatched.
+
+A client-call limit error retains the existing error wording. Use
+`MERIDIAN_AGY_MAX_TOOL_CALLS` to configure this allowance, independently of turn
+and client-tool wait deadlines.
