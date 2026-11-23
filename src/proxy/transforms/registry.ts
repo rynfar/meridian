@@ -10,6 +10,7 @@ import { cherryTransforms } from "./cherry"
 import { codexTransforms } from "./codex"
 import { claudeCodeTransforms } from "./claudecode"
 import { polytokenTransforms } from "./polytoken"
+import { zedTransforms } from "./zed"
 
 const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   opencode: openCodeTransforms,
@@ -41,6 +42,10 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   // Codex (/v1/responses): OpenCode's tool config + a follow-on transform
   // that forces passthrough (Codex executes its own tools). See #475.
   codex: [...openCodeTransforms, ...codexTransforms],
+  // Zed (/v1/chat/completions): OpenCode's tool config + a follow-on
+  // transform that keeps Zed's catalog un-deferred and loads nothing from
+  // the proxy host (Zed ships its own instructions).
+  zed: [...openCodeTransforms, ...zedTransforms],
   // Polytoken native client: pure passthrough plumbing keyed by base name.
   // Keyed by adapter.name ("polytoken"); instances resolve behavior via
   // baseName, so an instance keeps these transforms.
