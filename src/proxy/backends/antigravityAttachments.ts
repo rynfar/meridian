@@ -40,7 +40,7 @@ export class AgAttachments {
           await writeFile(path, bytes, { flag: "wx", mode: 0o600 })
           this.paths.add(path)
         }
-        result.push({ type: "text", text: `Meridian image attachment (${mime}): use view_file to inspect exactly ${path}` })
+        result.push({ type: "text", text: `Meridian image attachment (${mime}): use view_file (read_file in agy 1.5) to inspect exactly ${path}` })
       } else if (block.type === "audio" || block.type === "video") {
         const bytes = Buffer.from(block.source.data, "base64")
         if (bytes.toString("base64") !== block.source.data || !bytes.length) throw new AntigravityError("Media requires canonical nonempty base64")
@@ -54,7 +54,7 @@ export class AgAttachments {
           await chmod(frame, 0o600)
           this.reserve((await stat(frame)).size)
           this.paths.add(frame)
-          result.push({ type: "text", text: `Video sampled frame ${index + 1} at source time ${media.frameTimes[index]!.toFixed(3)} seconds: use view_file to inspect exactly ${frame}` })
+          result.push({ type: "text", text: `Video sampled frame ${index + 1} at source time ${media.frameTimes[index]!.toFixed(3)} seconds: use view_file (read_file in agy 1.5) to inspect exactly ${frame}` })
         }
       } else if (block.type === "document") {
         const bytes = block.source.type === "text" ? Buffer.from(block.source.data) : Buffer.from(block.source.data, "base64")
@@ -87,7 +87,7 @@ export class AgAttachments {
               this.reserve(size)
               if (size > 8 * 1024 * 1024) throw new AntigravityError("Rendered PDF page exceeded 8 MiB")
               this.paths.add(path)
-              result.push({ type: "text", text: `Document page ${page + 1}: use view_file to inspect exactly ${path}` })
+              result.push({ type: "text", text: `Document page ${page + 1}: use view_file (read_file in agy 1.5) to inspect exactly ${path}` })
             }
           } catch (error) {
             if (error instanceof AntigravityError) throw error

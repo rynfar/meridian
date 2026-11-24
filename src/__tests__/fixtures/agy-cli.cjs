@@ -75,9 +75,17 @@ async function main(inputPrompt) {
   if (prompt.includes('IMAGE_PROBE')) {
     const paths = JSON.parse(readFileSync('attachment-paths.json', 'utf8'))
     if (paths.length !== 1 || !prompt.includes(paths[0]) || prompt.includes('iVBORw0KGgo')) throw new Error('Image reference missing or bytes leaked')
+    // agy 1.5 exposes the viewer as read_file({Path}); older builds used view_file({AbsolutePath}).
     for (const [path, decision] of [[paths[0], 'allow'], ['/etc/passwd', 'deny'], [paths[0] + '/../policy.cjs', 'deny']]) {
-      const result = spawnSync(process.execPath, ['policy.cjs'], { input: JSON.stringify({ toolCall: { name: 'view_file', args: { AbsolutePath: path } } }), encoding: 'utf8' })
-      if (JSON.parse(result.stdout).decision !== decision) throw new Error('Image policy mismatch')
+      for (const toolCall of [{ name: 'view_file', args: { AbsolutePath: path } }, { name: 'read_file', args: { Path: path } }]) {
+        const result = spawnSync(process.execPath, ['policy.cjs'], { input: JSON.stringify({ toolCall }), encoding: 'utf8' })
+        if (JSON.parse(result.stdout).decision !== decision) throw new Error('Image policy mismatch: ' + toolCall.name)
+      }
+    }
+    // The parameter names stay tool-specific: an attachment path under the other tool's key is not accepted.
+    for (const toolCall of [{ name: 'read_file', args: { AbsolutePath: paths[0] } }, { name: 'view_file', args: { Path: paths[0] } }]) {
+      const result = spawnSync(process.execPath, ['policy.cjs'], { input: JSON.stringify({ toolCall }), encoding: 'utf8' })
+      if (JSON.parse(result.stdout).decision !== 'deny') throw new Error('Image policy accepted a mismatched argument: ' + toolCall.name)
     }
   }
   if (prompt.includes('EFFORT_PROBE') && args[args.indexOf('--effort') + 1] !== 'high') throw new Error('Native effort flag missing')
