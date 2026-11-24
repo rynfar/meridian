@@ -49,7 +49,16 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
 | `POST /profiles/claude/remove` request/response | `server.ts`, `profileRemove.ts` | Profile management UI; same removal as `meridian profile remove`. Proposed in #1488, owner-approved 2026-11-16: body `{profile}`; same-origin browser writes and `MERIDIAN_CREDENTIALS_READONLY` (403); 400 invalid body; 409 `owned_elsewhere` for a configured or followed profile; 404 `unknown_profile`; 503 `store_write_failed`. 200 returns `success, profile, provider: "claude", activeProfile` (only when the pointer moved, `null` when none remain), `remaining`, `dirsOrphaned[{dir,reason}]` |
 | ChatGPT additions: OpenAI model ids on `/v1/responses` routed to ChatGPT seats; new `POST /v1/images/generations` and `/v1/images/edits` (ChatGPT only, 404 without it); `/health` `chatgpt` and `backends`; `/profiles/list` entries with `type: "chatgpt"`, `activeProfiles`, `chatgpt.owner`; `provider` on `POST /profiles/active`; `chatgpt` in `GET /inflight`; `/profiles/chatgpt/*`, `/settings/api/chatgpt` | `server.ts`, `upstream/`, `backends/chatgpt.ts`, `chatgpt/` | Additive and absent unless `MERIDIAN_CHATGPT_CREDENTIALS` (or a populated owned store) enables ChatGPT; existing fields keep their meaning: `activeProfile` stays the Claude pointer wherever Claude profiles exist |
+| Public `GET /callback/:id/*`; same-origin `GET /profiles/chatgpt/connect/callbacks` (behind `MERIDIAN_API_KEY` when one is configured) (`{callbacks:[{id,provider,redirect{host,port,path,url},path,expiresAt,expiresAtMs,localListener}]}`, `Cache-Control: no-store`) | `server.ts`, `oauthCallbacks.ts`, `chatgpt/login.ts` | **Awaiting owner approval** (ChatGPT callback relay PR). Additive; present only where ChatGPT sign-in is; unknown, closed or expired ids are 404; [relay](../../docs/configuration.md#signing-in-from-another-machine) |
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
+
+The ChatGPT callback relay rows above await the owner's approval.
+`/callback/:id/*` is public like `/callback`: its 128-bit id exists only while
+a browser-redirect sign-in waits, and the provider's `state` and the
+in-process PKCE verifier still guard the code. The listing that reveals the id
+uses the optional API key and the existing same-origin policy for reads, and
+never carries a code, `state`, verifier or token. Meridian executes nothing on
+a relay's behalf.
 
 The owner approved #1446's `/profiles/list` additions on 2026-10-26. Every
 entry gains `duplicateOf` (ids of other profiles signed in to the same account,
