@@ -1,7 +1,9 @@
 import { providerSetupHtml } from './providerSetup'
 /** Shared provider presentation for the web dashboard and native desktop renderer. */
-export type ProviderId = 'claude' | 'antigravity' | 'chatgpt'
-const PROVIDER_IDS: readonly ProviderId[] = ['claude', 'antigravity', 'chatgpt']
+export type ProviderId = 'claude' | 'antigravity' | 'chatgpt' | 'copilot'
+const PROVIDER_IDS: readonly ProviderId[] = ['claude', 'antigravity', 'chatgpt', 'copilot']
+/** Opt-in providers get a tab only where the instance serves them. */
+const SERVED_ONLY: readonly ProviderId[] = ['chatgpt', 'copilot']
 export interface ProviderUsage {
   id: ProviderId; name: string; enabled: boolean; status: string; endpoint: string;
   error?: string; models?: string[]; observedSince?: number;
@@ -44,11 +46,10 @@ export function parseProviderSnapshot(value: unknown): ProviderSnapshot {
 export function providerOverview(data: ProviderSnapshot, filter: ProviderFilter = 'all'): string {
   const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
   const windowLabel = (value: string) => ({'gemini-weekly':'Weekly','3p-weekly':'Weekly','gemini-5h':'5 hours','3p-5h':'5 hours','five_hour':'5 hours','seven_day':'Weekly','5h':'5 hours','7d':'Weekly','30d':'30 days'})[value as 'gemini-weekly'] || value.replaceAll('_', ' ')
-  const label = { claude: 'Claude', antigravity: 'Antigravity', chatgpt: 'ChatGPT' } as const
-  const eyebrow = { claude: 'Anthropic subscription', antigravity: 'Google subscription', chatgpt: 'OpenAI subscription' } as const
+  const label = { claude: 'Claude', antigravity: 'Antigravity', chatgpt: 'ChatGPT', copilot: 'Copilot' } as const
+  const eyebrow = { claude: 'Anthropic subscription', antigravity: 'Google subscription', chatgpt: 'OpenAI subscription', copilot: 'GitHub Copilot subscription · preview' } as const
   const num = (value: number) => value.toLocaleString()
-  // ChatGPT gets a tab only where the instance serves it.
-  const tabs = PROVIDER_IDS.filter(id => id !== 'chatgpt' || data.providers.some(p => p.id === id))
+  const tabs = PROVIDER_IDS.filter(id => !SERVED_ONLY.includes(id) || data.providers.some(p => p.id === id))
   if (filter !== 'all' && !tabs.includes(filter)) filter = 'all'
   const providers = data.providers.filter(p => filter === 'all' || p.id === filter)
   const active = providers.filter(p => p.enabled)
@@ -68,7 +69,7 @@ export function providerOverview(data: ProviderSnapshot, filter: ProviderFilter 
       ${p.capabilities?.length ? `<details class="provider-capabilities"><summary>Capabilities and limits</summary><dl>${p.capabilities.map(capability => `<div><dt>${esc(capability.name)} <span>${esc(capability.status)}</span></dt><dd>${esc(capability.detail)}</dd></div>`).join('')}</dl></details>` : ''}
       ${p.models?.length ? `<details><summary>${p.models.length} account models</summary><ul class="provider-models">${p.models.map(m => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}
       ${p.id === 'antigravity' ? providerSetupHtml(p.models, p.endpoint) : ''}
-      ${p.id === 'claude' ? '<a class="provider-link" href="/profiles" data-provider-page="/profiles">Manage Claude accounts →</a>' : p.id === 'chatgpt' ? '<p class="provider-caption">Pass-through to the ChatGPT Codex backend via /v1/responses. Reasoning arrives only as ChatGPT\'s short summaries.</p>' : '<p class="provider-caption">Uses the account signed in to Antigravity CLI. Client tools keep their own approval controls.</p>'}` : `<p class="provider-caption">${p.id === 'antigravity' ? 'Enable Antigravity alongside Claude in service settings.' : p.id === 'chatgpt' ? 'Set MERIDIAN_CHATGPT_CREDENTIALS to enable ChatGPT on this service.' : 'Claude is not enabled on this service.'}</p>`}</article>`).join('')}</div>`
+      ${p.id === 'claude' ? '<a class="provider-link" href="/profiles" data-provider-page="/profiles">Manage Claude accounts →</a>' : p.id === 'chatgpt' ? '<p class="provider-caption">Pass-through to the ChatGPT Codex backend via /v1/responses. Reasoning arrives only as ChatGPT\'s short summaries.</p>' : p.id === 'copilot' ? '<p class="provider-caption">Uses the account signed in to the Copilot CLI, through the official Copilot SDK. Client tools keep their own approval controls.</p>' : '<p class="provider-caption">Uses the account signed in to Antigravity CLI. Client tools keep their own approval controls.</p>'}` : `<p class="provider-caption">${p.id === 'antigravity' ? 'Enable Antigravity alongside Claude in service settings.' : p.id === 'chatgpt' ? 'Set MERIDIAN_CHATGPT_CREDENTIALS to enable ChatGPT on this service.' : p.id === 'copilot' ? 'Set MERIDIAN_COPILOT=1 to enable the Copilot preview on this service.' : 'Claude is not enabled on this service.'}</p>`}</article>`).join('')}</div>`
 }
 export const providerViewCss = `
 .provider-tabs{display:flex;gap:20px;border-bottom:1px solid var(--border);margin-bottom:24px}.provider-tabs button{border:0;border-radius:0;background:transparent;padding:12px 0;color:var(--muted);font:inherit;cursor:pointer}.provider-tabs button[aria-pressed="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}

@@ -27,6 +27,7 @@ detailed contracts stay in the sections below and are linked from there.
 | User plugins | [`plugins`](src/proxy/plugins/SPEC.md) | `src/proxy/plugins/` |
 | Antigravity backend | [`antigravity-backend`](src/proxy/backends/SPEC.md) | `src/proxy/backends/antigravity*.ts` |
 | ChatGPT backend | [`chatgpt-backend`](src/proxy/chatgpt/SPEC.md) | `src/proxy/chatgpt/`, `codex/`, `upstream/`, `instanceImport/`, `backends/chatgpt*.ts` |
+| Copilot backend (preview) | [`copilot-backend`](src/proxy/backends/copilot.spec.md) | `src/proxy/backends/copilot*.ts` |
 | Telemetry & web UI | [`telemetry-ui`](src/telemetry/SPEC.md) | `src/telemetry/` |
 | Desktop app | [`desktop-app`](apps/desktop/SPEC.md) | `apps/desktop/` |
 | Client integrations | [`client-integrations`](plugin/SPEC.md) | `plugin/` |
@@ -220,6 +221,17 @@ ownership is unchanged.
 
 See [the backend guide](docs/antigravity.md) for the explicit permission opt-in,
 capability errors and recovery limits. Contract work is tracked in #1073.
+
+### Copilot backend (preview)
+
+`MERIDIAN_COPILOT=1` mounts a Copilot backend at `/copilot/*` beside Claude
+(`backend: "claude"` or `"combined"`), sharing the combined mount's auth,
+admission, drain and in-flight accounting. It serves OpenAI Chat Completions
+through the operator-installed `@microsoft/copilot-sdk`, loaded at runtime only
+when enabled, with its runtime in a child process. Each conversation keeps one
+Copilot session; client tools are declaration-only, so every call is handed
+back to the client. It never imports Claude session or cache modules. See
+[`copilot-backend`](src/proxy/backends/copilot.spec.md).
 
 ### Default Claude runtime
 
