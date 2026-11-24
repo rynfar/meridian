@@ -118,7 +118,7 @@ export function assistantMessage(content: Array<Record<string, unknown>>): SDKAs
   return {
     type: "assistant",
     message: {
-      id: `msg_${Date.now()}`,
+      id: `msg_${crypto.randomUUID()}`,
       type: "message",
       role: "assistant",
       content,

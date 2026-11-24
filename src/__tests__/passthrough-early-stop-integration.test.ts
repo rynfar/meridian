@@ -3894,6 +3894,233 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll[5]?.options.allowedTools).not.toContain("mcp__oc__read")
   })
 
+  for (const earlyStopEnabled of [false, true]) for (const missingUuid of ["none", "first", "later", "both"]) {
+    it(`JSON turn identity hides a new digest call (${JSON.stringify({ earlyStopEnabled, missingUuid })})`, async () => {
+      if (!earlyStopEnabled) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
+      const sessionKey = `json-turn-identity-${earlyStopEnabled}-${missingUuid}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = [0, 1].map(index => ({ type: "tool_use", id: `turn1-${index}`, name: "read",
+        input: { file_path: `/file-${index}` } }))
+      const fragments = calls.map((call, index) => {
+        const fragment = assistantMessage([call])
+        fragment.message.id = "msg_visible_tools"
+        return { ...fragment, ...((missingUuid === "both" || missingUuid === (index === 0 ? "first" : "later")) ? { uuid: undefined } : {}), test_skip_pre_tool_hook: true }
+      })
+      const hidden = assistantMessage([
+        { type: "text", text: "TURN2_PRIVATE_TEXT" },
+        { type: "thinking", thinking: "TURN2_PRIVATE_THINKING", signature: "hidden-signature" },
+        { type: "tool_use", id: "turn2-new-call", name: "read", input: { file_path: "/hidden" } },
+      ])
+      hidden.message.id = "msg_hidden_retry"
+      const tools = [READ_TOOL, { name: "lsp_diagnostics", defer_loading: true,
+        input_schema: { type: "object", properties: { file: { type: "string" } } } }]
+      // Bare-name refusals bypass the hook/held-deny release. All results arrive
+      // before the first turn's wire boundary; no assistant/user follows it
+      // until the hidden model turn is already generating.
+      mockMessages = [messageStart("msg_visible_tools"),
+        ...calls.flatMap((call, index) => [toolUseBlockStart(index, call.name, call.id),
+          inputJsonDelta(index, JSON.stringify(call.input)), fragments[index]!, blockStop(index)]),
+        ...calls.map(call => unavailableToolMessage(call.id, call.name)),
+        messageDelta("tool_use"), messageStop(), messageStart("msg_hidden_retry"),
+        { ...hidden, test_skip_pre_tool_hook: true },
+        messageDelta("end_turn"), messageStop(), { type: "result", subtype: "success", is_error: false },
+      ]
+      const messages = [{ role: "user", content: "read both files" }]
+      const response = await post(app, { model: "opus[1m]", max_tokens: 400, stream: false, tools, messages }, "unused", headers)
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body.content).toEqual(calls)
+      expect(body.stop_reason).toBe("tool_use")
+      expect(JSON.stringify(body)).not.toContain("TURN2_PRIVATE")
+      expect(JSON.stringify(body)).not.toContain("turn2-new-call")
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBeGreaterThan(1)
+      expect(yieldedCount).toBe(mockMessages.length)
+    })
+  }
+
+  for (const missingId of ["first", "later", "both", "empty", "different"]) {
+    it(`JSON turn identity fails closed for unproven fragment membership (${missingId})`, async () => {
+      const first = assistantMessage([{ type: "tool_use", id: "visible", name: "read", input: { file_path: "/visible" } }])
+      const later = assistantMessage([
+        { type: "text", text: "UNPROVEN_TEXT" },
+        { type: "thinking", thinking: "UNPROVEN_THOUGHT", signature: "unproven" },
+        { type: "tool_use", id: "unproven", name: "read", input: { file_path: "/unproven" } },
+      ])
+      first.message.id = "msg_tools"
+      later.message.id = "msg_tools"
+      // Omit IDs at runtime without weakening the SDK's declared message type.
+      const firstMessage = { ...first.message, ...(["first", "both"].includes(missingId) ? { id: undefined } : {}) }
+      const laterMessage = { ...later.message, id: missingId === "different" ? "msg_other"
+        : missingId === "empty" ? "" : ["later", "both"].includes(missingId) ? undefined : "msg_tools" }
+      mockMessages = [
+        { ...first, message: firstMessage, test_skip_pre_tool_hook: true },
+        { ...later, message: laterMessage, test_skip_pre_tool_hook: true },
+        { type: "result", subtype: "success", is_error: false },
+      ]
+      const response = await post(app, { model: "opus[1m]", max_tokens: 400, stream: false,
+        tools: [READ_TOOL], messages: [{ role: "user", content: "read visible file" }],
+      })
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.content).toEqual(first.message.content)
+      expect(body.stop_reason).toBe("tool_use")
+      expect(JSON.stringify(body)).not.toContain("UNPROVEN")
+    })
+  }
+
+  for (const missingUuid of ["none", "first", "later", "both"]) {
+    it(`JSON same-response UUID follows the final fragment after settlement (${missingUuid})`, async () => {
+      const sessionKey = `json-fragment-uuid-${missingUuid}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = [0, 1].map(index => ({ type: "tool_use", id: `uuid-call-${index}`, name: "read",
+        input: { file_path: `/file-${index}` } }))
+      const fragments = calls.map((call, index) => {
+        const fragment = assistantMessage([call])
+        fragment.message.id = "msg_uuid_fragments"
+        return { ...fragment,
+          ...((missingUuid === "both" || missingUuid === (index === 0 ? "first" : "later")) ? { uuid: undefined } : {}),
+          test_skip_pre_tool_hook: true }
+      })
+      const hidden = assistantMessage([{ type: "text", text: "PRIVATE_UUID_DIGEST" }])
+      // No partial events: settlement may precede the final assistant fragment.
+      mockMessages = [fragments[0]!, userDenyMessage(calls[0]!.id), fragments[1]!,
+        userDenyMessage(calls[1]!.id), hidden,
+        { type: "result", subtype: "success", is_error: false }]
+      const response = await post(app, { model: "opus[1m]", max_tokens: 400, stream: false,
+        tools: [READ_TOOL], messages: [{ role: "user", content: "read both files" }],
+      }, "unused", headers)
+      expect(response.status).toBe(200)
+      expect((await response.json()).content).toEqual(calls)
+      const stored = lookupSharedSession(sessionKey)
+      if (missingUuid === "both") {
+        expect(stored).toBeUndefined()
+      } else {
+        expect(stored).toBeDefined()
+        expect(stored?.sdkMessageUuids?.at(-1)).toBe(fragments[1]!.uuid ?? null)
+        expect(stored?.sdkMessageUuids).not.toContain(hidden.uuid)
+      }
+    })
+  }
+
+  it("JSON structured-output retry records the successful internal attempt UUID", async () => {
+    const sessionKey = `json-structured-retry-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+    const rejectedUuid = "11111111-1111-4111-8111-111111111111"
+    const acceptedUuid = "22222222-2222-4222-8222-222222222222"
+    const rejected = assistantMessage([
+      { type: "tool_use", id: "structured-rejected", name: "StructuredOutput", input: { answer: 1 } },
+    ])
+    rejected.message.id = "msg_A"
+    rejected.uuid = rejectedUuid
+    const accepted = assistantMessage([
+      { type: "tool_use", id: "structured-accepted", name: "StructuredOutput", input: { answer: "ok" } },
+    ])
+    accepted.message.id = "msg_B"
+    accepted.uuid = acceptedUuid
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    }
+    mockMessages = [
+      { ...rejected, test_skip_pre_tool_hook: true },
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "structured-rejected",
+            content: "Output does not match the required schema", is_error: true }],
+        },
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: "test-session",
+      },
+      { ...accepted, test_skip_pre_tool_hook: true },
+      { type: "result", subtype: "success", is_error: false, structured_output: { answer: "ok" } },
+    ]
+    const response = await post(app, {
+      model: "opus[1m]", max_tokens: 400, stream: false,
+      messages: [{ role: "user", content: "Return an answer." }],
+      output_config: { format: { type: "json_schema", schema } },
+    }, "unused", headers)
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.content).toEqual([{ type: "text", text: '{"answer":"ok"}' }])
+    expect(body.stop_reason).toBe("end_turn")
+    expect(JSON.stringify(body)).not.toContain("structured-rejected")
+    expect(JSON.stringify(body)).not.toContain("structured-accepted")
+    const stored = lookupSharedSession(sessionKey)
+    expect(stored?.sdkMessageUuids?.at(-1)).toBe(acceptedUuid)
+    expect(stored?.sdkMessageUuids).not.toContain(rejectedUuid)
+  })
+
+  for (const stream of [false, true]) for (const count of [2, 3]) for (const lateMetadata of [false, true]) {
+    it(`fragmented refused batch forwards every call (${JSON.stringify({ stream, count, lateMetadata })})`, async () => {
+      const sessionKey = `fragmented-refused-${stream}-${count}-${lateMetadata}-${TEST_RUN_ID}`
+      usedSessionKeys.add(sessionKey)
+      const headers = { "x-meridian-agent": "pi", "user-agent": "pi/1.4.0", "x-session-affinity": sessionKey }
+      const calls = Array.from({ length: count }, (_, index) => ({
+        type: "tool_use", id: `refused-${index}`, name: "read", input: { file_path: `/file-${index}` },
+      }))
+      const fragments = calls.map(call => {
+        const fragment = assistantMessage([call])
+        fragment.message.id = "msg_fragmented_refused"
+        return { ...fragment, test_skip_pre_tool_hook: true }
+      })
+      const digest = assistantMessage([{ type: "text", text: "hidden digest" }])
+      digest.message.id = "msg_hidden_digest"
+      const refusals = calls.map(call => unavailableToolMessage(call.id, call.name))
+      const tools = [READ_TOOL, { name: "lsp_diagnostics", defer_loading: true,
+        input_schema: { type: "object", properties: { file: { type: "string" } } } }]
+      mockMessages = [
+        messageStart("msg_fragmented_refused"),
+        ...calls.flatMap((call, index) => [
+          toolUseBlockStart(index, call.name, call.id), inputJsonDelta(index, JSON.stringify(call.input)),
+          ...(lateMetadata ? [] : [fragments[index]!]), blockStop(index),
+        ]),
+        messageDelta("tool_use"), messageStop(),
+        ...(lateMetadata ? [fragments[0]!, ...refusals, ...fragments.slice(1)] : refusals),
+        messageStart("msg_hidden_digest"), textBlockStart(0), textDelta(0, "hidden digest"), blockStop(0),
+        messageDelta("end_turn"), messageStop(), digest,
+        { type: "result", subtype: "success", is_error: false },
+      ]
+      const messages = [{ role: "user", content: "read every file" }]
+      const response = await post(app, {
+        model: "opus[1m]", max_tokens: 400, stream, tools, messages,
+      }, "unused", headers)
+      const body = await response.text()
+      expect(response.status).toBe(200)
+      expect(body).not.toContain("hidden digest")
+      expect(body).not.toContain("event: error")
+      let delivered: unknown[]
+      if (stream) {
+        const events = parseSSE(body).map(row => ({ ...row, data: row.data as {
+          index?: number
+          content_block?: Record<string, unknown>
+          delta?: { type?: string; partial_json?: string; stop_reason?: string }
+        } }))
+        delivered = events.filter(row => row.event === "content_block_start").map(row => ({
+          ...row.data.content_block,
+          input: JSON.parse(events.filter(delta => delta.event === "content_block_delta" &&
+            delta.data.index === row.data.index && delta.data.delta?.type === "input_json_delta")
+            .map(delta => delta.data.delta?.partial_json).join("")),
+        }))
+        expect(events.find(row => row.event === "message_delta")?.data.delta?.stop_reason).toBe("tool_use")
+      } else {
+        const json = JSON.parse(body)
+        delivered = json.content
+        expect(json.stop_reason).toBe("tool_use")
+      }
+      expect(delivered).toEqual(calls)
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(4)
+      expect(yieldedCount).toBe(mockMessages.length)
+    })
+  }
+
   it("stream: a second headerless CLI refusal grants the next result turn its tools", async () => {
     delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }
