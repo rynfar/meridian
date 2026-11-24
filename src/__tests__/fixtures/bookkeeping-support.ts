@@ -1,9 +1,23 @@
-import { mkdirSync, writeFileSync, symlinkSync } from "node:fs"
+import { expect } from "bun:test"
+import { mkdirSync, readFileSync, writeFileSync, symlinkSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { spawn } from "node:child_process"
 
 export function bookkeepingBunPreloadArgs(): string[] {
   return ["--preload", resolve("src/__tests__/fixtures/bookkeeping-engine-preload.mjs")]
+}
+
+/**
+ * A test actor ran on real Node, not Bun (whose `process.versions.node` is a
+ * compatibility version), at or above package.json's engines floor. Any newer
+ * Node major qualifies: the native engine's own WAL-reset gate still applies.
+ */
+export function expectRealNodeRuntime(runtime: { node: string; bun: string | null }): void {
+  expect(runtime.bun).toBeNull()
+  const engines = (JSON.parse(readFileSync(resolve("package.json"), "utf8")) as { engines: { node: string } }).engines.node
+  const floor = /^>=(\d+)$/.exec(engines)
+  expect(floor).not.toBeNull()
+  expect(Number(runtime.node.split(".")[0])).toBeGreaterThanOrEqual(Number(floor![1]))
 }
 
 /** Keep unexpected native stderr fatal while allowing Node 22's exact builtin SQLite notice. */
