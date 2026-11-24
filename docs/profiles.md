@@ -337,6 +337,15 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 - **Extra Usage comes last.** An account whose plan windows are spent but that keeps serving on paid Extra Usage is moved behind every account that still has plan allowance, and a conversation on it moves to such an account on its next turn. Meridian sees this from the SDK's `isUsingOverage` on the account's last response (only from its five-hour, weekly or account-wide limit; an Opus- or Sonnet-only weekly limit does not move the account for other models), or from a cached usage read that shows a spent five-hour or weekly window; it never makes extra usage requests for it. Once no account has plan allowance left, the pool uses Extra Usage in its normal order. `MERIDIAN_CLAUDE_EXTRA_USAGE` (or `"claudeExtraUsage"` in the settings file) changes this: `reserve` (default) as described, `never` stops routing to an account once it is seen on Extra Usage and answers `429` with a `Retry-After` for the earliest plan reset when no other account can take the work. `never` is not a spending cap: Meridian only learns an account is on Extra Usage from a response, so the first turn after a plan window runs out can already be paid, and internal work that must resume its existing route (such as a title or compaction request) still runs there. Set a spending limit on the account itself if you need a hard cap. With `immediately`, Meridian treats Extra Usage like plan allowance. Cache-keepalive pings never run on such an account. Changes are logged as `priority.extra_usage_last_resort`. Pins and the `active`/`sticky` modes are not affected.
 - Failovers are logged (`profile.failover` in the diagnostic stream; `profile=<id>(priority)` in request lines).
 
+### Refreshing a profile
+
+The refresh icon on each card re-reads what Meridian knows about that profile right away, for example after a reset or a re-login made outside Meridian, and shows one line per part:
+
+- **Login:** asks Claude Code again whether the profile is signed in and which account it holds. If it now holds another account, what Meridian knew about the previous one is dropped first.
+- **Usage:** re-reads usage from Anthropic (or ChatGPT). Routing and reserves see the new figures at once, and refusals the new reading shows are over are cleared.
+
+Each part is re-read at most once per profile per 30 seconds. `POST /profiles/<id>/refresh` does the same from a script; `POST /profiles/<id>/usage/refresh` re-reads usage alone.
+
 ### Profile commands
 
 | Command | Description |
