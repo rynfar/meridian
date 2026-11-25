@@ -397,6 +397,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET/PUT /settings/api/updates` | Read or set `checkForUpdates` (JSON `{"checkForUpdates": true}`); takes effect on the running proxy. Also reports each loaded plugin's installed and latest version in `plugins`; turning it on also sends loaded plugins' npm package names to the registry |
 | `GET/PUT /settings/api/header` | Read or set `showHostname` (JSON `{"showHostname": true}`): name the machine beside the header's status; takes effect on the running proxy |
 | `GET/PUT /settings/api/layout` | Read or set the web pages' `layout`: `contained` (default, a centered column) or `wide` (spans the window, more cards per row). JSON `{"layout": "wide"}`, `null` to unset; applies on the next page load |
+| `GET /profiles/chatgpt/connect/callbacks` | ChatGPT sign-in redirect listeners a relay could forward to now (JSON `{"callbacks": [...]}`); see [Signing in from another machine](#signing-in-from-another-machine). Same-origin browser requests only |
+| `GET /callback/<id>/<path>` | A loopback OAuth redirect, relayed from another machine (see [Signing in from another machine](#signing-in-from-another-machine)). No API key; unknown ids are 404 |
 | `GET /plugins` | Plugin management page (`/plugins/list`, `POST /plugins/reload` for JSON/actions) |
 
 Illustrative health response excerpt (versions and status vary by installation):
@@ -1584,7 +1586,9 @@ otherwise, so an instance nobody configured for ChatGPT is unchanged.
 **Connect with ChatGPT**, or run `meridian profile add <name> --chatgpt`
 (`--headless` for a device code). ChatGPT redirects the browser to
 `http://127.0.0.1:1455/auth/callback`; from another machine, paste the address
-the tab ended on into the panel, or use the device code. Seats already signed
+the tab ended on into the panel, use the device code, or run a relay there that
+finishes the sign-in by itself (see
+[Signing in from another machine](#signing-in-from-another-machine)). Seats already signed
 in to oc-codex-multi-auth move over with [`meridian chatgpt-migrate`](#chatgpt-migration).
 
 **Seats are profiles.** `/profiles/list`, `/v1/usage/quota/all`,
@@ -1610,6 +1614,21 @@ the Codex backend's catalog offers.
 
 Point an OpenAI-compatible client's base URL at `http://127.0.0.1:3456/v1`.
 For OpenCode, set `provider.openai.options.baseURL` to that address.
+
+### Signing in from another machine
+
+ChatGPT's sign-in only accepts the redirect `http://127.0.0.1:1455/auth/callback`, so it lands on whatever listens on port 1455 of the **browser's** machine. While a browser-redirect sign-in waits, Meridian also serves that listener at `/callback/<id>/auth/callback` on its own address, so a relay on the browser's machine can finish the sign-in without a paste:
+
+1. Poll `GET /profiles/chatgpt/connect/callbacks` (with `MERIDIAN_API_KEY` when it is set). Each entry has `id`, `provider`, `redirect` (`host`, `port`, `path`, `url`), `path` (`/callback/<id>`), `expiresAt` / `expiresAtMs` and `localListener`.
+2. While an entry is listed, listen on `redirect.host:redirect.port` on the browser's machine, unless `localListener` is `true` and the relay runs on Meridian's own machine, where Meridian already holds the port.
+3. Forward each request there (path and query) to `path` + that path on the address the relay reaches Meridian at, and return Meridian's response to the browser.
+4. Stop when the entry is no longer listed or at `expiresAt`.
+
+The panel on `/profiles` notices the finished sign-in by itself, as it does on Meridian's own machine. Meridian runs nothing on the relay's behalf.
+
+- `<id>` is 128 random bits, one per open listener, and exists only while a sign-in waits. Treat it as a short-lived secret: the listing that reveals it answers only Meridian's own pages or clients without an `Origin`, and requires `MERIDIAN_API_KEY` when one is configured. Without a key, any client on the machine or network that can reach Meridian can read it, as it can every other route.
+- The route needs no API key, because a browser redirect carries none. Unknown, closed or expired ids answer 404 and change nothing. Behind a valid id, the provider's `state` must still match a waiting sign-in, and the code is useless without the PKCE verifier, which never leaves the Meridian process.
+- No listing entry or log line carries an authorization code, `state`, verifier or token.
 
 ## ChatGPT migration
 

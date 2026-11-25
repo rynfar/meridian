@@ -6,6 +6,7 @@
 import { describe, expect, it } from "bun:test"
 import { createHash } from "node:crypto"
 import { __setChatGptLoginRedirectPortOverride, createChatGptLogin, parseCallbackInput, type LoopbackHandler } from "../proxy/chatgpt/login"
+import { createOAuthCallbackRegistry } from "../proxy/oauthCallbacks"
 import type { ChatGptConnectedAccount } from "../proxy/chatgpt/source"
 
 const NOW = 1_800_000_000_000
@@ -336,15 +337,113 @@ describe("ChatGPT device-code sign-in", () => {
   })
 })
 
-describe("ChatGPT sign-in redirect port", () => {
-  it("redirects to the overridden test port", async () => {
+describe("ChatGPT sign-in through a relayed redirect", () => {
+  function relayHarness(listenResult: "bound" | "taken" = "bound") {
+    const clock = { now: NOW }
+    const callbacks = createOAuthCallbackRegistry({ now: () => clock.now })
+    const connected: ChatGptConnectedAccount[] = []
+    const login = createChatGptLogin({
+      connect: account => { connected.push(account) },
+      renderPage: result => (result.ok ? `ok ${result.email}` : `err ${result.message}`),
+      fetchImpl: async () => Response.json({ access_token: ACCESS, refresh_token: "rt-new", id_token: ID_TOKEN, expires_in: 3600 }),
+      now: () => clock.now,
+      listen: async () => (listenResult === "bound" ? { close: () => {} } : null),
+      log: () => {},
+      callbacks,
+    })
+    const relay = (id: string, path: string, query: string) => callbacks.dispatch(id, { method: "GET", path, query: new URLSearchParams(query) })
+    return { login, callbacks, clock, connected, relay }
+  }
+  const stateOf = (started: { authorizeUrl: string }) => new URL(started.authorizeUrl).searchParams.get("state")!
+
+  it("lists the listener with what a relay needs and nothing credential-bearing", async () => {
+    const h = relayHarness()
+    const started = await h.login.start()
+    const listed = h.callbacks.list()
+    expect(listed).toHaveLength(1)
+    expect(listed[0]).toMatchObject({
+      provider: "chatgpt",
+      redirect: { host: "127.0.0.1", port: 1455, path: "/auth/callback", url: "http://127.0.0.1:1455/auth/callback" },
+      path: `/callback/${listed[0]!.id}`,
+      expiresAtMs: started.expiresAt,
+      localListener: true,
+    })
+    expect(JSON.stringify(listed)).not.toContain(stateOf(started))
+  })
+
+  it("finishes a sign-in from the relayed redirect and closes the callback", async () => {
+    const h = relayHarness("taken")
+    const started = await h.login.start()
+    expect(started.loopback).toBe(false)
+    const { id, localListener } = h.callbacks.list()[0]!
+    expect(localListener).toBe(false)
+    expect(await h.relay(id, "/favicon.ico", "")).toBeNull()
+    const page = await h.relay(id, "/auth/callback", `code=one-time&state=${stateOf(started)}`)
+    expect(page).toEqual({ status: 200, html: "ok seat@example.test" })
+    expect(h.connected).toHaveLength(1)
+    expect(h.login.status(started.connectId)?.status).toBe("completed")
+    expect(h.callbacks.list()).toEqual([])
+    expect(await h.relay(id, "/auth/callback", `code=again&state=${stateOf(started)}`)).toBeNull()
+  })
+
+  it("keeps one callback for concurrent sign-ins, serving each by its state", async () => {
+    const h = relayHarness()
+    const first = await h.login.start()
+    const second = await h.login.start()
+    const listed = h.callbacks.list()
+    expect(listed).toHaveLength(1)
+    expect(listed[0]!.expiresAtMs).toBe(second.expiresAt)
+    const id = listed[0]!.id
+    expect((await h.relay(id, "/auth/callback", `code=c2&state=${stateOf(second)}`))?.status).toBe(200)
+    expect(h.callbacks.list()).toHaveLength(1)
+    expect((await h.relay(id, "/auth/callback", `code=c1&state=${stateOf(first)}`))?.status).toBe(200)
+    expect(h.callbacks.list()).toEqual([])
+  })
+
+  it("refuses a relayed redirect whose state belongs to no waiting sign-in", async () => {
+    const h = relayHarness()
+    await h.login.start()
+    const id = h.callbacks.list()[0]!.id
+    expect((await h.relay(id, "/auth/callback", "code=c&state=forged"))?.status).toBe(400)
+    expect(h.connected).toHaveLength(0)
+  })
+
+  it("closes the callback when the sign-in is cancelled, expires or the process shuts down", async () => {
+    const cancelled = relayHarness()
+    const started = await cancelled.login.start()
+    const cancelledId = cancelled.callbacks.list()[0]!.id
+    cancelled.login.cancel(started.connectId)
+    expect(cancelled.callbacks.list()).toEqual([])
+    expect(await cancelled.relay(cancelledId, "/auth/callback", `code=c&state=${stateOf(started)}`)).toBeNull()
+
+    const expired = relayHarness()
+    const late = await expired.login.start()
+    expired.clock.now = NOW + 10 * 60_000
+    expect(expired.login.status(late.connectId)?.status).toBe("failed")
+    expect(expired.callbacks.list()).toEqual([])
+
+    const shutdown = relayHarness()
+    await shutdown.login.start()
+    void shutdown.login.close()
+    expect(shutdown.callbacks.list()).toEqual([])
+  })
+
+  it("redirects to the overridden test port, everywhere the port appears", async () => {
     __setChatGptLoginRedirectPortOverride(41455)
     try {
-      const { login } = harness()
-      const started = await login.start()
+      const h = relayHarness()
+      const started = await h.login.start()
       expect(new URL(started.authorizeUrl).searchParams.get("redirect_uri")).toBe("http://127.0.0.1:41455/auth/callback")
+      expect(h.callbacks.list()[0]!.redirect).toMatchObject({ port: 41455 })
     } finally {
       __setChatGptLoginRedirectPortOverride(null)
     }
+  })
+
+  it("signs in as before when no registry is wired", async () => {
+    const { login, callback, connected } = harness()
+    const started = await login.start()
+    await callback()(new URLSearchParams({ code: "code-1", state: stateOf(started) }))
+    expect(connected).toHaveLength(1)
   })
 })

@@ -1022,6 +1022,50 @@ describe("owned mode signs its own seats in", () => {
     }
   })
 
+  it("lists the waiting redirect listener for a relay and finishes the sign-in through /callback/<id>", async () => {
+    const proxy = await server("owned")
+    await proxy.chatGpt!.acquire()
+    try {
+      const get = (path: string, headers: Record<string, string> = {}) => proxy.app.fetch(new Request(`http://localhost${path}`, { headers }))
+      const listCallbacks = async () => {
+        const res = await get("/profiles/chatgpt/connect/callbacks")
+        expect(res.status).toBe(200)
+        expect(res.headers.get("cache-control")).toBe("no-store")
+        return (await res.json() as { callbacks: Array<{ id: string; path: string; redirect: { port: number }; localListener: boolean }> }).callbacks
+      }
+      expect(await listCallbacks()).toEqual([])
+
+      const started = await (await post(proxy.app, "/profiles/chatgpt/connect/start", {})).json() as { connectId: string; authorizeUrl: string }
+      const state = new URL(started.authorizeUrl).searchParams.get("state")!
+      const listed = await listCallbacks()
+      expect(listed).toHaveLength(1)
+      expect(listed[0]).toMatchObject({ path: `/callback/${listed[0]!.id}`, redirect: { port: 1455 }, localListener: false })
+      expect(JSON.stringify(listed)).not.toContain(state)
+
+      // A foreign page may not learn the id that opens the door.
+      expect((await get("/profiles/chatgpt/connect/callbacks", { origin: "https://elsewhere.example" })).status).toBe(403)
+
+      const unknown = await get(`/callback/not-an-id/auth/callback?code=one-time&state=${state}`)
+      expect(unknown.status).toBe(404)
+      expect(codeExchanges).toBe(0)
+
+      const relayed = await get(`${listed[0]!.path}/auth/callback?code=one-time&state=${state}`)
+      expect(relayed.status).toBe(200)
+      expect(relayed.headers.get("cache-control")).toBe("no-store")
+      expect(await relayed.text()).toContain("is connected to Meridian")
+      expect(codeExchanges).toBe(1)
+      const status = await (await get(`/profiles/chatgpt/connect/status?connectId=${started.connectId}`)).json()
+      expect(status).toMatchObject({ status: "completed", accountUserId: "user-9__workspace-9" })
+
+      expect(await listCallbacks()).toEqual([])
+      const replay = await get(`${listed[0]!.path}/auth/callback?code=again&state=${state}`)
+      expect(replay.status).toBe(404)
+      expect(codeExchanges).toBe(1)
+    } finally {
+      proxy.chatGpt!.release()
+    }
+  })
+
   it("signs a seat in by device code under the name typed for it, keeping the derived id as an alias", async () => {
     const proxy = await server("owned")
     await proxy.chatGpt!.acquire()

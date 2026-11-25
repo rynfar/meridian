@@ -26,6 +26,11 @@
  * separate login command could only write while the instance is stopped, and
  * one that wrote anyway would be the second writer this whole design forbids.
  *
+ * A BROWSER ON ANOTHER MACHINE CAN STILL COME BACK BY ITSELF when something
+ * there relays its 1455 to this instance: while the listener is open it is
+ * also registered as a public callback (oauthCallbacks.ts), listed for relays
+ * and served at `/callback/<id>/auth/callback`.
+ *
  * Nothing here logs a code, a verifier, a user code or a token. The exchange's
  * result goes straight into `connect`, which commits it under the lease.
  */
@@ -33,6 +38,7 @@
 import { createHash, randomBytes } from "node:crypto"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { decodeCodexToken } from "../codex/token"
+import type { OAuthCallbackHandle, OAuthCallbackRegistry, OAuthCallbackRequest } from "../oauthCallbacks"
 import { CHATGPT_OAUTH_CLIENT_ID, CHATGPT_TOKEN_URL, type TokenExchangeFetch } from "./refresh"
 import type { ChatGptConnectedAccount } from "./source"
 
@@ -114,6 +120,8 @@ export interface ChatGptLoginOptions {
   /** Schedules the next device-code poll; tests drive it by hand. */
   schedule?: (run: () => void, ms: number) => { cancel(): void }
   log?: (line: string) => void
+  /** Publishes the redirect listener at `/callback/<id>/...` for a relay. */
+  callbacks?: OAuthCallbackRegistry
 }
 
 export interface ChatGptLogin {
@@ -251,6 +259,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
   const log = options.log ?? ((line: string) => console.log(line))
   const logins = new Map<string, PendingLogin>()
   let listener: Promise<LoopbackListener | null> | undefined
+  let callback: OAuthCallbackHandle | undefined
   let sweepTimer: ReturnType<typeof setTimeout> | undefined
 
   const waiting = (login: PendingLogin) => login.outcome.status === "waiting" || login.outcome.status === "exchanging"
@@ -263,7 +272,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
   }
 
   // Expiry is otherwise noticed only when the page polls; a closed tab would
-  // keep the listener open past it.
+  // keep the listener, its public callback and every relay open past it.
   const armSweep = () => {
     if (sweepTimer) clearTimeout(sweepTimer)
     sweepTimer = undefined
@@ -285,6 +294,10 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       const closing = listener
       listener = undefined
       void closing.then(open => open?.close())
+    }
+    if (callback && !stillWaiting) {
+      callback.close()
+      callback = undefined
     }
     armSweep()
   }
@@ -390,6 +403,25 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       : { status: result.status, html: options.renderPage({ ok: false, message: result.message, returnTo: login.returnTo }) }
   }
 
+  // The public door opens exactly what the loopback listener serves.
+  const handleRelayed = (request: OAuthCallbackRequest) =>
+    request.method === "GET" && request.path === CHATGPT_LOGIN_CALLBACK_PATH ? handleCallback(request.query) : Promise.resolve(null)
+
+  const publish = (expiresAt: number, loopback: boolean) => {
+    if (!options.callbacks) return
+    if (callback) {
+      callback.extend(expiresAt)
+      return
+    }
+    callback = options.callbacks.open({
+      provider: "chatgpt",
+      redirect: { host: "127.0.0.1", port: redirectPort, path: CHATGPT_LOGIN_CALLBACK_PATH },
+      expiresAt,
+      localListener: loopback,
+      handle: handleRelayed,
+    })
+  }
+
   const retireOldest = () => {
     const open = [...logins.values()].filter(waiting)
     for (const stale of open.slice(0, Math.max(0, open.length - MAX_OPEN_LOGINS + 1))) {
@@ -464,6 +496,7 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       listener ??= listen(handleCallback)
       const loopback = (await listener) !== null
       if (!loopback) listener = undefined
+      publish(expiresAt, loopback)
       armSweep()
       const authorize = new URL(AUTHORIZE_URL)
       authorize.search = new URLSearchParams({
@@ -563,6 +596,8 @@ export function createChatGptLogin(options: ChatGptLoginOptions): ChatGptLogin {
       const closing = listener
       listener = undefined
       void closing?.then(open => open?.close())
+      callback?.close()
+      callback = undefined
       return Promise.allSettled([...exchanges]).then(() => undefined)
     },
   }

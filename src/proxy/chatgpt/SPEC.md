@@ -61,6 +61,13 @@ Code: `src/proxy/chatgpt/` (incl. `migrate/`), `src/proxy/codex/`,
   never live in Claude's profile config. All additions are absent unless
   ChatGPT is enabled, and existing fields keep their meaning
   ([`api-contract`](../../../.agents/references/api-contract.md)).
+- A browser-redirect sign-in's loopback listener is also a public door,
+  `/callback/<id>/<path>`, registered in `src/proxy/oauthCallbacks.ts` (a
+  leaf with no provider knowledge) and listed for a relay on the browser's
+  machine by `GET /profiles/chatgpt/connect/callbacks`. The door runs the
+  loopback listener's own handler, so `state` and PKCE still guard the code;
+  it closes when no sign-in waits. Meridian executes nothing for the relay.
+  Owner approval pending.
 - `chatgpt/migrate/` and `instanceImport/` are CLI-only — **the server never
   imports them**.
 - Reuses only `session` durability primitives (durable file writes, process

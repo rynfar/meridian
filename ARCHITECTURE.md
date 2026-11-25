@@ -337,6 +337,7 @@ src/
 │   ├── profileLogin.ts        ← Browser re-authentication state, redirect/paste completion and status
 │   ├── profileAdd.ts          ← Browser profile creation and isolated credential persistence
 │   ├── profileOAuthBody.ts    ← Runtime schemas for browser OAuth request bodies (pure)
+│   ├── oauthCallbacks.ts      ← Public /callback/<id> doors to loopback OAuth listeners, listed for relays (leaf)
 │   ├── statusProbe.ts         ← Asks a busy port whether it is Meridian, and collects what / shows
 │   ├── agentDefs.ts           ← Subagent definition extraction from tool descriptions
 │   ├── agentMatch.ts          ← Fuzzy agent name matching

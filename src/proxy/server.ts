@@ -186,6 +186,7 @@ import { applyProfileRemove } from "./profileRemove"
 import { adoptedProfiles, followStatus, isFollowEnabled, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { startFollowUsagePolling, stopFollowUsagePolling } from "./followUsage"
 import { createChatGptLogin } from "./chatgpt/login"
+import { createOAuthCallbackRegistry } from "./oauthCallbacks"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
 import { organizationNames, organizationNeedsRefresh, organizationRecordCurrent, organizationLookupEnabled, refreshOrganizationNameSoon, refreshOrganizationNow, type OrganizationRecord } from "./organizationName"
 import { findDuplicateProfiles, type IdentifiedProfile } from "./duplicateProfiles"
@@ -11254,6 +11255,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
   // Set when shutdown closes the sign-in flow; resolves once a code exchange
   // still out has saved its seat.
   let chatGptLoginClosed: Promise<void> | undefined
+  // Public doors to the loopback sign-in listener (oauthCallbacks.ts), for a
+  // relay on the browser's machine when that is not this one.
+  const oauthCallbacks = createOAuthCallbackRegistry()
   const chatGptLogin = connectChatGptAccount ? createChatGptLogin({
     connect: (account, context) => {
       connectChatGptAccount(account)
@@ -11275,6 +11279,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       ? { ok: true, okMessage: `ChatGPT seat${result.email ? ` ${result.email}` : ""} is connected to Meridian. You can close this tab.`, ...(result.returnTo ? { backHref: result.returnTo } : {}) }
       : { ok: false, message: result.message, ...(result.returnTo ? { backHref: result.returnTo } : {}) }),
     log: plog,
+    callbacks: oauthCallbacks,
   }) : undefined
 
   const chatGptSignInUnavailable = (c: Context) => c.json({
@@ -11365,6 +11370,20 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     const state = chatGptLogin.status(connectId)
     if (!state) return c.json({ error: "This sign-in is no longer open. Start it again.", code: "expired_login" }, 410)
     return c.json(state)
+  })
+
+  // Which sign-in redirect listeners a relay could forward to right now. A
+  // relay on the browser's machine polls this, binds `redirect` there while a
+  // listener is open (unless `localListener` says Meridian already holds it on
+  // that same machine) and forwards each request to `path` on the address it
+  // reaches Meridian at. Meridian runs nothing for it. The ids open the public
+  // door, so the listing answers only this server's own pages or clients
+  // without an Origin, behind the optional API key like every /profiles route.
+  app.get("/profiles/chatgpt/connect/callbacks", (c) => {
+    c.header("Cache-Control", "no-store")
+    if (!isSameOriginRequest(c.req.raw)) return c.json({ error: "Listing sign-in callbacks requires a same-origin request" }, 403)
+    if (!chatGptLogin) return chatGptSignInUnavailable(c)
+    return c.json({ callbacks: oauthCallbacks.list() })
   })
 
   app.post("/profiles/chatgpt/connect/complete", async (c) => {
@@ -11785,6 +11804,26 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     claudeLog("profile.login_completed", { profile: result.profileId, via: "callback" })
     plog(`[PROXY] Profile login completed for "${result.profileId}" (browser redirect)`)
     return c.html(renderLoginCallbackPage({ ok: true, profileId: result.profileId }))
+  })
+
+  // PUBLIC - no requireAuth, for the same reason as /callback above: what
+  // arrives here is a browser redirect, relayed from the browser's machine to
+  // the loopback sign-in listener that only exists on this one. It carries no
+  // API key. The id is minted per open listener (128 random bits) and removed
+  // when that listener closes; behind it the provider's `state` must still
+  // match a waiting sign-in and the code needs the PKCE verifier held only in
+  // this process. Unknown, closed or expired ids are a 404 that touches
+  // nothing. Its review is in proxy-settings-auth.test.ts.
+  app.get("/callback/:id/*", async (c) => {
+    const id = c.req.param("id")
+    const prefix = `/callback/${id}`
+    const url = new URL(c.req.url)
+    const rest = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) || "/" : "/"
+    const page = await oauthCallbacks.dispatch(id, { method: "GET", path: rest, query: url.searchParams })
+    if (!page) return c.text("Not found", 404, { "cache-control": "no-store" })
+    // Neither the id, the code nor the state is logged.
+    plog(`[PROXY] Relayed OAuth callback answered ${page.status}`)
+    return c.html(page.html, page.status as 200, { "cache-control": "no-store" })
   })
 
   // --- Profile creation routes (browser-completable OAuth) ---
@@ -12800,6 +12839,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     cacheKeepalive.stop()
     antigravity?.beginDrain?.()
     chatGptLoginClosed = chatGptLogin?.close()
+    oauthCallbacks.closeAll()
   }
   let backendClosePromise: Promise<void> | undefined
   const proxyServer: ProxyServer = {
