@@ -26,7 +26,7 @@ const chatSchema = z.object({
   tool_choice: choice.optional(), parallel_tool_calls: z.boolean().optional(),
   stream: z.boolean().optional(), stream_options: z.object({ include_usage: z.boolean().optional() }).strict().optional(),
   max_tokens: z.number().int().positive().optional(), max_completion_tokens: z.number().int().positive().optional(),
-  reasoning_effort: z.enum(['low', 'medium', 'high']).optional(), response_format: format.optional(),
+  reasoning_effort: z.enum(['low', 'medium', 'high', 'xhigh']).optional(), response_format: format.optional(),
   temperature: z.number().optional(), top_p: z.number().optional(),
   stop: z.union([z.string(), z.array(z.string())]).optional(), n: z.literal(1).optional(), store: z.literal(false).optional(), user: z.string().optional(),
 }).strict()
@@ -62,7 +62,7 @@ const responsesSchema = z.object({
 }).strict()
 
 /** Provider-specific validation prevents generic converters silently dropping unsupported fields. */
-export async function agOpenai(request: Request, raw: unknown, responses: boolean, messages: (request: Request) => Promise<Response>, store: AgResponseStore, jobs?: AgResponseJobs, execution?: { id?: string; background?: boolean; countTokens?: boolean }): Promise<Response> {
+export async function agOpenai(request: Request, raw: unknown, responses: boolean, messages: (request: Request) => Promise<Response>, store: AgResponseStore, jobs?: AgResponseJobs, execution?: { id?: string; background?: boolean; countTokens?: boolean; availableModels?: () => Promise<string[]> }): Promise<Response> {
   const parsed = responses ? responsesSchema.safeParse(raw) : chatSchema.safeParse(raw)
   if (!parsed.success) throw new AntigravityError('Unsupported OpenAI request: ' + parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; '))
   const data = parsed.data
@@ -131,14 +131,18 @@ export async function agOpenai(request: Request, raw: unknown, responses: boolea
   const normalizePart = (part: z.infer<typeof responsePart>) => part.type === 'input_audio' ? { type: 'input_text' as const, text: media.audio(part.input_audio.data, part.input_audio.format) } : part.type === 'input_file' ? { type: 'input_text' as const, text: media.file(part.file_data, part.filename) } : part
   const chat = 'messages' in data ? { ...data, messages: data.messages.map(message => ({ ...message, content: Array.isArray(message.content) ? message.content.map(part => part.type === 'input_audio' ? { type: 'text' as const, text: media.audio(part.input_audio.data, part.input_audio.format) } : part) : message.content })) } : undefined
   const resp = 'input' in data ? { ...data, input: Array.isArray(data.input) ? data.input.map(item => 'content' in item ? { ...item, content: typeof item.content === 'string' ? item.content : item.content.map(normalizePart) } : item.type === 'function_call_output' ? { ...item, output: typeof item.output === 'string' ? item.output : item.output.map(normalizePart) } : item) : data.input } : undefined
-  const translated = chat ? translateOpenAiToAnthropic({ ...chat, messages: chat.messages.map(message => ({ ...message, content: message.content ?? "" })) }, { preserveConversationHistory: true, preserveThinkingText: true }) : translateResponsesToAnthropic(resp!)
+  const translated = chat ? translateOpenAiToAnthropic({ ...chat, reasoning_effort: undefined, messages: chat.messages.map(message => ({ ...message, content: message.content ?? "" })) }, { preserveConversationHistory: true, preserveThinkingText: true }) : translateResponsesToAnthropic(resp!)
   if (!translated) throw new AntigravityError('OpenAI request has no supported conversation')
   for (const message of translated.messages) if (message.role === 'assistant' && Array.isArray(message.content) && message.content.some(block => block.type === 'tool_use')) message.content = message.content.filter(block => block.type !== 'text' || block.text !== '')
   const selection = data.tool_choice
   const selectedName = typeof selection === 'object' ? 'function' in selection ? selection.function.name : selection.namespace || selection.type === 'custom' ? responsesToolAlias(selection.namespace, selection.name) : selection.name : undefined
   const toolChoice = selection === 'none' ? { type: 'none' } : selection === 'required' ? { type: 'any' } : typeof selection === 'object' ? { type: 'tool', name: selectedName } : { type: 'auto' }
   if (data.parallel_tool_calls === false && toolChoice.type !== 'none') Object.assign(toolChoice, { disable_parallel_tool_use: true })
-  const effort = chat?.reasoning_effort ?? resp?.reasoning?.effort
+  const requestedEffort = chat?.reasoning_effort
+  const geminiFamily = chat && requestedEffort ? /^(gemini-[a-zA-Z0-9._-]+)-(low|medium|high|xhigh)$/.exec(chat.model)?.[1] : undefined
+  if (requestedEffort === 'xhigh' && !geminiFamily) throw new AntigravityError('Extra high reasoning effort requires a Gemini model variant from GET /v1/models')
+  const model = geminiFamily ? `${geminiFamily}-${requestedEffort}` : translated.model
+  const effort = geminiFamily ? undefined : requestedEffort ?? resp?.reasoning?.effort
   const outputFormat = resp?.text?.format
   const restoreImages = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(restoreImages)
@@ -151,12 +155,15 @@ export async function agOpenai(request: Request, raw: unknown, responses: boolea
     }
     return Object.fromEntries(Object.entries(object).map(([key, child]) => [key, restoreImages(child)]))
   }
-  const body = { ...translated, ...(Object.keys(grammars).length ? { meridian_tool_grammars: grammars } : {}), ...(resp ? { meridian_session_key: resolveCodexThreadIdentity(resp, request.headers.get('x-codex-turn-metadata') ?? undefined).sessionKey } : {}), messages: media.restore(restoreImages(translated.messages)), tool_choice: toolChoice,
+  const body = { ...translated, model, ...(Object.keys(grammars).length ? { meridian_tool_grammars: grammars } : {}), ...(resp ? { meridian_session_key: resolveCodexThreadIdentity(resp, request.headers.get('x-codex-turn-metadata') ?? undefined).sessionKey } : {}), messages: media.restore(restoreImages(translated.messages)), tool_choice: toolChoice,
     ...(chat?.stop !== undefined ? { stop_sequences: typeof chat.stop === 'string' ? [chat.stop] : chat.stop } : {}),
     output_config: { ...translated.output_config, ...(effort ? { effort } : {}), ...(outputFormat?.type === 'json_schema' ? { format: { type: 'json_schema', schema: outputFormat.schema } } : {}) },
   }
   const validatedBody = parseAgRequest(body)
   if (execution?.countTokens) return Response.json({ object: 'response.input_tokens', ...estimateAgTokens(validatedBody) }, { headers: { 'x-meridian-token-count': 'estimate' } })
+  if (geminiFamily && execution?.availableModels && !(await execution.availableModels()).includes(model)) {
+    throw new AntigravityError(`Antigravity model variant ${model} is unavailable; use GET /v1/models for account model slugs`)
+  }
   if (responseRequest?.background) {
     if (!jobs) throw new AntigravityError('Background response service unavailable', 503)
     if (responseRequest.store === false) throw new AntigravityError('Background responses require store: true')

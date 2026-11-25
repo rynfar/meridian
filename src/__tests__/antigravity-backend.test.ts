@@ -138,6 +138,46 @@ describe.skipIf(process.platform === "win32")("Antigravity HTTP/CLI integration"
       }
     })
   }
+  it('selects an advertised Gemini variant from Chat Completions reasoning effort', async () => {
+    const { runtime, server } = fixture()
+    const model = 'gemini-fixture-medium'
+    const post = (body: Record<string, unknown>) => server.app.fetch(new Request('http://local/v1/chat/completions', {
+      method: 'POST', body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Hello' }], ...body }),
+    }))
+    for (const effort of ['low', 'medium', 'high', 'xhigh'] as const) {
+      const response = await post({ reasoning_effort: effort, stream: effort === 'xhigh' })
+      expect(response.status).toBe(200)
+      expect(await response.text()).toContain('"model":"gemini-fixture-medium"')
+      expect(runtime.requests[0]?.model).toBe(`gemini-fixture-${effort}`)
+    }
+    const noOverride = await post({ model: 'gemini-fixture-high' })
+    expect(noOverride.status).toBe(200)
+    await noOverride.text()
+    expect(runtime.requests[0]?.model).toBe('gemini-fixture-high')
+    const missing = await post({ model: 'gemini-limited-medium', reasoning_effort: 'high' })
+    expect(missing.status).toBe(400)
+    expect(await missing.text()).toContain('GET /v1/models')
+    const unsupported = await post({ model: 'fixture-model', reasoning_effort: 'xhigh' })
+    expect(unsupported.status).toBe(400)
+    expect(await unsupported.text()).toContain('Gemini model variant')
+  })
+  it('keeps a pending tool round when an effort is unavailable and accepts equivalent variant selection', async () => {
+    const { server, runtime } = fixture({ maxConcurrent: 1 })
+    const post = (body: unknown) => server.app.fetch(new Request('http://local/v1/chat/completions', { method: 'POST', body: JSON.stringify(body) }))
+    const chat = { model: 'gemini-fixture-medium', messages: [{ role: 'user', content: 'receipt' }], tools: [{ type: 'function', function: { name: 'lookup', parameters: tool.input_schema } }], tool_choice: 'required' }
+    const first = await post({ ...chat, reasoning_effort: 'high' })
+    expect(first.status).toBe(200)
+    const reply = z.object({ choices: z.array(z.object({ message: z.object({ tool_calls: z.array(z.object({ id: z.string() }).passthrough()) }).passthrough() })) }).parse(await first.json())
+    const message = reply.choices[0]!.message
+    const pendingRun = [...runtime.runs.values()][0]!
+    const missing = await post({ ...chat, model: 'gemini-limited-medium', reasoning_effort: 'high' })
+    expect(missing.status).toBe(400)
+    expect(await missing.text()).toContain('gemini-limited-high')
+    expect([...runtime.runs.values()]).toEqual([pendingRun])
+    const continuation = await post({ ...chat, model: 'gemini-fixture-high', tool_choice: 'none', messages: [...chat.messages, message, { role: 'tool', tool_call_id: message.tool_calls[0]!.id, content: 'EFFORT_RECEIPT' }] })
+    expect(continuation.status, await continuation.clone().text()).toBe(200)
+    expect(await continuation.text()).toContain('EFFORT_RECEIPT')
+  })
   it('preserves literal thinking markup in OpenAI assistant history', async () => {
     const { server } = fixture()
     const response = await server.app.fetch(new Request('http://local/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'fixture-model', messages: [{ role: 'user', content: 'First' }, { role: 'assistant', content: '<think>literal client text</think>Answer' }, { role: 'user', content: 'Next' }] }) }))

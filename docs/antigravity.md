@@ -711,7 +711,7 @@ completed-history recovery, not durable exactly-once semantics or native resume.
 
 Chat Completions and Responses support text, data/HTTPS images, standard function
 tools and their full-history continuations, forced/parallel tool selection,
-JSON/SSE, matching Gemini effort and JSON schemas. Responses supports either full
+JSON/SSE and JSON schemas. Responses supports either full
 input history or `previous_response_id` with only new input, including function
 results. Responses additionally supports namespaced function/freeform tools,
 custom-tool outputs, PDF/text/audio/video base64 data-file inputs and audio input;
@@ -728,6 +728,16 @@ for that turn (it does not disable the separate live CLI conversation). Use
 authentication; snapshots are scoped to the supplied API credential. When no key
 is configured, callers without a credential share the local service scope.
 Combined mode prefixes these routes with `/antigravity`.
+
+For Chat Completions, configure one listed Gemini variant per family (for
+example, `gemini-4-hydrogen-medium`). A request with `reasoning_effort: "high"`
+selects that family's `-high` variant without changing the model ID configured
+in the client. `low`, `medium`, `high`, and `xhigh` are supported when the target
+variant appears in the account's `GET /v1/models` response. An unavailable
+variant is rejected, not silently downgraded. Omit `reasoning_effort` to use
+exactly the supplied model ID. This does not add a reasoning selector for
+Google-hosted Claude, or change the matching-effort rules for Messages and
+Responses. Keep the same effort when sending pending tool results.
 
 Storage has a fixed 30-minute lifetime, at most 256 entries,
 64 MiB of serialized state in total, and 16 MiB per entry. Oldest entries are
