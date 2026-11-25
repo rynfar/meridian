@@ -46,6 +46,8 @@ Record what Meridian did and show it to the operator:
 
 ## Decisions
 
+- **Client attribution is self-reported telemetry.** `/telemetry/requests` and ChatGPT turn events carry optional `client: {name, version?, installation?, device?}` and `purpose`; SQLite stores these in nullable `client_name`, `client_version`, `client_installation`, `client_device`, and `purpose` columns. Old rows omit the new fields. See the [client contract](../../docs/client-attribution.md) for validation and internal attribution; it does not change `requestSource` or any routing decision.
+
 - **`/` and `/profiles` update in place.** Their polls patch `#content` from
   the fresh markup (`domPatch.ts`) instead of replacing it: nodes are matched
   by `data-key`/`id` (cards by profile id) or by position among unkeyed

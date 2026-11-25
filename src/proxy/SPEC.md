@@ -44,6 +44,8 @@ The server and the default Claude request path:
   `buildInfo`, `retryAfter`, `toolInputJson` are additionally pure.
 - `query.ts` builds SDK options **through the adapter interface**, never from
   tool constants directly.
+- Meridian attribution headers stay local, including on translated and tool-passthrough requests. Before SDK dispatch, `claudeEgress.ts` removes case-insensitive `x-meridian-*` entries from the effective subprocess `ANTHROPIC_CUSTOM_HEADERS` (one `name: value` per line), preserving unrelated configured headers and profile env.
+- Claude Design builds outbound MCP requests from an explicit protocol and upstream-auth header allowlist; it never forwards client-supplied `x-meridian-*` headers.
 - No `as any`, `@ts-ignore`, `@ts-expect-error` or empty catch blocks.
 
 The full file-level rules, throttling and cancellation contracts are in
