@@ -46,6 +46,7 @@ belong to [`chatgpt-backend`](../chatgpt/SPEC.md).)
   expansion), the same as `meridian setup --client pi`.
 - Persistence (`statePath`) is opt-in and bounded; Antigravity plugins
   (`antigravityPlugins.ts`) are separate from Claude user plugins.
+- [Client attribution](../../../docs/client-attribution.md) stays in Antigravity's existing per-request telemetry, including optional exchange persistence and telemetry observers. No `x-meridian-*` request header reaches the CLI; attribution does not affect routing, conversation reuse or replay.
 
 The full runtime, replay, recovery and persistence contract is in
 [`architecture`](../../../ARCHITECTURE.md) → *Antigravity runtime and combined
