@@ -381,7 +381,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
           return Response.json(current.response, { headers: { 'cache-control': 'no-store' } })
         }
       }
-      if (request.method === "POST" && ["/v1/chat/completions", "/v1/responses"].includes(path)) return await agOpenai(request, await readBody(request), path === "/v1/responses", request => messages(request, false), responses, responseJobs)
+      if (request.method === "POST" && ["/v1/chat/completions", "/v1/responses"].includes(path)) return await agOpenai(request, await readBody(request), path === "/v1/responses", request => messages(request, false), responses, responseJobs, { availableModels: () => runtime.availableModels() })
       if (request.method === "POST" && ["/v1/messages", "/messages"].includes(path)) return await messages(request)
       return errorResponse(new AntigravityError("Endpoint unavailable on the Antigravity backend", 404, "not_found_error"))
     } catch (error) { return errorResponse(error) }

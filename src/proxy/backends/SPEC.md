@@ -101,6 +101,16 @@ input also carries the latest typed user goal in its own complete unit.
 
 ## Request normalization
 
+Chat Completions clients may hold a Gemini variant ID stable and use
+`reasoning_effort` (`low`, `medium`, `high`, or `xhigh`) to select a sibling
+variant in the same family. Resolve the effective slug before Messages
+validation and continuation matching, and keep the client-facing Chat
+Completions response model unchanged. Verify the resolved slug against the
+signed-in account's model list before runtime admission can reclaim a process.
+There is no fallback. Express Gemini Chat Completions effort by the CLI model
+slug alone, so explicit variant IDs and equivalent effort selections share a
+continuation contract. The Messages and Responses effort contracts are unchanged.
+
 Before strict schema validation (`antigravityProtocol.ts`), Anthropic requests
 undergo bounded compatibility normalization:
 - Mid-conversation and late `role: "system"` messages are rendered in-place as
