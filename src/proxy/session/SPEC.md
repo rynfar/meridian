@@ -61,15 +61,26 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   the published mapping retains the source, and if another process retires it
   anyway the beat only fails and is retried or stopped.
 - An auxiliary fork (an adapter's `forksAuxiliaryRequests` side call that
-  `auxiliaryLineage` accepts: user text after a completed turn) also only
+  `auxiliaryLineage` accepts: a side prompt of user text and system notes
+  after the stored session, optionally after the turn in flight) also only
   **reads** the mapping. It resumes the mapping's current transcript into a
   managed fork target, holds no turn lease, takes the writer lease on its
   target alone (the conversation's own turn may hold the source's), neither
   attaches nor re-registers the source, writes no mapping, and abandons the
-  target when it ends. Like a beat, its source is pinned only against this
-  process's GC; a source retired meanwhile is refused by the SDK and the side
-  call replays fresh without evicting anything. A legacy mapping without a
-  transcript locator, or any other shape, is answered from a fresh replay.
+  target when it ends. Over a pending tool checkpoint it resumes at that
+  checkpoint with the results the client filled in for exactly its calls;
+  the checkpoint and `passthroughToolCallIds` stay on the mapping, so the
+  conversation's next turn still settles them with the real results. A reply
+  still streaming when the side call started, and the results the client
+  filled in for its calls, never reached the session: the fork omits them, as
+  every resume omits the assistant messages of its delta. Like a beat, its
+  source is pinned only against this process's GC; a source retired meanwhile
+  is refused by the SDK and the side call replays fresh without evicting
+  anything. A legacy mapping without a transcript locator, a checkpoint delta
+  the checkpoint resume would not accept (`checkpoint-delta`), a structured
+  delta (media) with a system note before its last message, which a
+  structured resume would drop (`structured-system-note`), or any other
+  shape, is answered from a fresh replay.
 - Transcript GC here is the only Meridian-owned transcript deletion. Opt-in
   transcript retention (`proxy/transcriptRetention.ts`, off by default) hands
   Claude Code's own cleanup a period; that cleanup is outside this module's

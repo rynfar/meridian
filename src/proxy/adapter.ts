@@ -97,13 +97,15 @@ export interface AgentIdentity {
 
   /**
    * True when this client's auxiliary requests send the conversation's own
-   * system prompt and tools. One that only adds user text after a completed
-   * turn of the conversation is then resumed as an unpublished fork of the
+   * system prompt and tools. One that adds only the turn in flight and a side
+   * prompt to the stored session is then resumed as an unpublished fork of the
    * conversation's SDK session (`auxiliaryLineage`), which reads the
    * conversation's prompt cache instead of writing the whole history again.
    * A client whose side calls bring their own system prompt or tool set must
    * not set it: the fork would change the cached prefix and lose the replay
-   * breakpoint consecutive side calls share.
+   * breakpoint consecutive side calls share. The fork cuts the body's messages
+   * at indices found in `canonicalizeMessagesForLineage`'s output, so an
+   * adapter that sets it must keep that output index-aligned with the body.
    */
   readonly forksAuxiliaryRequests?: boolean
 

@@ -3818,26 +3818,66 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const advancedAcrossProcesses = arrivalRevision !== undefined
           ? arrivalRevision !== currentDurableRevision && !waitedOutOwnInterruption(arrivalRevision, interruptedClaim)
           : durableMappingAtTurn.status === "found"
+        // NOTE: agent-specific (claude-code, pi, opencode) — trailing system reminder: claude-cli's
+        // mid-conversation-system feature, Oh My Pi upgrading developer-origin notes to a
+        // mid-conversation `system` turn after tool results, and OpenCode 2 sending an instruction
+        // update (a changed AGENTS.md, a date rollover, an MCP or skill catalog change) as a native
+        // `system` update after tool results. Fresh replay already delivers the reminder as user
+        // text, so resuming only avoids rewriting the whole history cache. The opencode adapter is
+        // also the default for unrecognised clients: safety comes from the single echo of the
+        // exact pending tool IDs plus the validated stored history prefix, not from knowing
+        // the client. See allowTrailingSystemReminder.
+        const trailingSystemReminderOptions = adapterBase === "claude-code" || adapterBase === "pi" || adapterBase === "opencode"
+          ? { allowTrailingSystemReminder: true }
+          : undefined
         // An auxiliary request is still independent: it never takes the turn
         // lease, publishes or invalidates the mapping. An adapter whose side
         // calls share the conversation's system prompt and tools
         // (forksAuxiliaryRequests) has it read the conversation's lineage, to
-        // fork the conversation's session when it adds nothing but user text
-        // to a completed turn (auxiliaryLineage). A legacy mapping without a
-        // transcript locator would need a durable write to attach one first,
-        // so it replays fresh instead.
+        // fork the conversation's session when the request adds nothing but
+        // the turn in flight and a side prompt (auxiliaryLineage). A legacy
+        // mapping without a transcript locator would need a durable write to
+        // attach one first, so it replays fresh instead.
         const auxiliaryFork = independentCause === "auxiliary-request" && adapter.forksAuxiliaryRequests === true
           ? auxiliaryLineage(lookupSession(profileSessionId, lineageMessages, profileScopedCwd), lineageMessages)
           : undefined
         const forkLineage = auxiliaryFork?.lineage
-        const auxiliaryResume = forkLineage?.type === "continuation"
+        // The fork's SDK delta: what follows the stored session, without the
+        // reply still streaming when the side call started. The indices come
+        // from lineageMessages; a forking adapter keeps them aligned with the
+        // body (see forksAuxiliaryRequests).
+        const forkDelta = forkLineage?.type === "continuation"
+          ? (auxiliaryFork?.inFlight
+            ? [...(body.messages || []).slice(forkLineage.resumeFrom, auxiliaryFork.inFlight.from), ...(body.messages || []).slice(auxiliaryFork.inFlight.to)]
+            : (body.messages || []).slice(forkLineage.resumeFrom))
+          : undefined
+        // Over a pending tool checkpoint the fork resumes at the tool call, as
+        // the conversation's next turn does, so its delta must settle that
+        // batch the way the checkpoint resume below requires.
+        const forkPending = forkLineage?.type === "continuation" ? forkLineage.session.passthroughToolCallIds : undefined
+        const forkCheckpointDelta = forkPending?.length && forkDelta
+          ? coalesceCompleteToolResultContinuation(forkDelta, forkPending, trailingSystemReminderOptions)
+          : undefined
+        // A structured resume sends only user messages, so a system note
+        // before the last message would be lost; a fresh replay keeps it.
+        const forkLosesNote = forkDelta !== undefined && forkDelta.some((m: { content: unknown }) => hasMultimodalContent(m.content))
+          && forkDelta.slice(0, -1).some((m: { role: string }) => m.role === "system")
+        const forkRefusal = forkPending?.length && !forkCheckpointDelta ? "checkpoint-delta"
+          : forkLosesNote ? "structured-system-note"
+          : undefined
+        const auxiliaryResume = forkLineage?.type === "continuation" && !forkRefusal
           && forkLineage.session.currentTranscript?.sessionId === forkLineage.session.claudeSessionId
           ? forkLineage
           : undefined
         // Why a forking adapter's side call replays fresh, for the request log.
         let auxiliaryRefusal: string | undefined = auxiliaryFork && !auxiliaryResume
-          ? auxiliaryFork.refusal ?? "no-transcript-locator"
+          ? auxiliaryFork.refusal ?? forkRefusal ?? "no-transcript-locator"
           : undefined
+        // What a fork had to bridge, for the request log: a pending tool
+        // checkpoint and the reply still in flight.
+        const auxiliaryForkShape = auxiliaryResume
+          ? [forkPending?.length ? "checkpoint" : "", auxiliaryFork?.inFlight ? "in-flight" : ""].filter(Boolean).join("+")
+          : ""
         let lineageResult: LineageResult = auxiliaryResume
           ?? (isIndependentSession
             ? { type: "diverged", reason: "independent-request" }
@@ -3961,20 +4001,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
-        // NOTE: agent-specific (claude-code, pi, opencode) — trailing system reminder: claude-cli's
-        // mid-conversation-system feature, Oh My Pi upgrading developer-origin notes to a
-        // mid-conversation `system` turn after tool results, and OpenCode 2 sending an instruction
-        // update (a changed AGENTS.md, a date rollover, an MCP or skill catalog change) as a native
-        // `system` update after tool results. Fresh replay already delivers the reminder as user
-        // text, so resuming only avoids rewriting the whole history cache. The opencode adapter is
-        // also the default for unrecognised clients: safety comes from the single echo of the
-        // exact pending tool IDs plus the validated stored history prefix, not from knowing
-        // the client. See allowTrailingSystemReminder.
-        const trailingSystemReminderOptions = adapterBase === "claude-code" || adapterBase === "pi" || adapterBase === "opencode"
-          ? { allowTrailingSystemReminder: true }
-          : undefined
-        // An auxiliary request carries the working session key but must not
-        // continue its pending tool checkpoint.
+        // An auxiliary request carries the working session key but never
+        // advances its pending tool checkpoint: a fork over it is unpublished.
         const durableCheckpointContinuation = independentCause !== "auxiliary-request" && durableCheckpointIds?.length
           && durableMappingAtTurn.status === "found"
           && matchesStoredLineagePrefix(interruptedResumeProof ?? durableMappingAtTurn.session, lineageMessages)
@@ -4272,7 +4300,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${auxiliaryFork ? (isResume ? " auxiliary=fork" : ` auxiliary=replay:${auxiliaryRefusal}`) : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${auxiliaryFork ? (isResume ? ` auxiliary=fork${auxiliaryForkShape ? `:${auxiliaryForkShape}` : ""}` : ` auxiliary=replay:${auxiliaryRefusal}`) : ""}${executionReplayReason ? ` replay=${executionReplayReason.replaceAll("_", "-")}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -4353,7 +4381,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               ...allMessages.slice(resumeFrom + 1),
             ]
           } else if (resumeFrom !== undefined && resumeFrom < allMessages.length) {
-            messagesToConvert = allMessages.slice(resumeFrom)
+            messagesToConvert = auxiliaryResume && lineageResult === auxiliaryResume && forkDelta
+              ? forkDelta
+              : allMessages.slice(resumeFrom)
           } else {
             messagesToConvert = getLastUserMessage(allMessages)
           }
@@ -4369,11 +4399,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // Rewinding to a tool-use checkpoint is valid only when the immediate
         // delta settles that exact batch. Coalesce any subsequent queued user
         // turns so multimodal tool results remain on the final SDK input.
-        const checkpointContinuation = coalesceCompleteToolResultContinuation(
-          messagesToConvert,
-          passthroughToolCallIds ?? [],
-          trailingSystemReminderOptions,
-        )
+        // An auxiliary fork already settled its delta before it was logged.
+        const checkpointContinuation = auxiliaryResume && lineageResult === auxiliaryResume && forkCheckpointDelta
+          ? forkCheckpointDelta
+          : coalesceCompleteToolResultContinuation(
+            messagesToConvert,
+            passthroughToolCallIds ?? [],
+            trailingSystemReminderOptions,
+          )
         // A settled batch followed by an interrupted turn: a full replay would
         // re-read the entire session and can exceed the context window the
         // resumed session fits in.

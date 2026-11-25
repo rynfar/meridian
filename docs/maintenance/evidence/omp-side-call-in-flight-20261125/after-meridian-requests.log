@@ -1,0 +1,25 @@
+Build: running a local build, branch fix/pi-side-call-fork-in-flight, d065fb02, with uncommitted changes — reported version 1.94.0 is the tree's last release, not proof of what is running
+[PROXY] 5f05feed-d63f-4d46-ab54-7d457f9638a3 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=10ms msgCount=1 msgs=user[text,text]
+[PROXY] 5f05feed-d63f-4d46-ab54-7d457f9638a3 usage: input=10 output=38 cache_write=16k cache=0%
+[PROXY] 5d54139c-02b0-4a48-b03e-5f28f826a209 adapter=pi model=opus stream=true tools=12 lineage=continuation session=c7348499 sessionWait=0ms msgCount=3 msgs=user[text,text] → assistant[thinking,text] → user[text]
+[PROXY] 5d54139c-02b0-4a48-b03e-5f28f826a209 usage: input=10 output=115 cache_read=16k cache_write=73 cache=99%
+[PROXY] 7d534511-66e9-42c9-a0d6-a8ca0bf01c77 adapter=pi model=opus stream=true tools=12 lineage=continuation session=e7e87e22 auxiliary=fork:checkpoint sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → user[text] → user[text]
+[PROXY] 7d534511-66e9-42c9-a0d6-a8ca0bf01c77 usage: input=10 output=61 cache_read=16k cache_write=224 cache=99%
+[PROXY] 1b9513b4-650e-460f-972f-0347e15b5228 adapter=pi model=opus stream=true tools=12 lineage=continuation session=e7e87e22 sessionWait=1ms msgCount=5 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result]
+[PROXY] 6a9e681a-d00a-4fb9-8ab6-a969c0864e9b adapter=pi model=opus stream=true tools=12 lineage=continuation session=e7e87e22 auxiliary=fork:checkpoint sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → user[text] → user[text]
+[PROXY] 1b9513b4-650e-460f-972f-0347e15b5228 usage: input=8 output=54 cache_read=16k cache_write=148 cache=99%
+[PROXY] 33d71e4e-b46d-4a0d-addb-e62020b03a69 adapter=pi model=opus stream=true tools=12 lineage=continuation session=393ab699 sessionWait=1ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → assistant[thinking,text] → user[text]
+[PROXY] 6a9e681a-d00a-4fb9-8ab6-a969c0864e9b usage: input=10 output=6 cache_read=16k cache_write=77 cache=99%
+[PROXY] 33d71e4e-b46d-4a0d-addb-e62020b03a69 usage: input=10 output=45 cache_read=16k cache_write=73 cache=99%
+[PROXY] aa3f75f5-daa7-4369-8781-dfdd604e06b3 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text,text]
+[PROXY] aa3f75f5-daa7-4369-8781-dfdd604e06b3 usage: input=10 output=39 cache_read=9k cache_write=7k cache=55%
+[PROXY] b16689a8-170c-41f7-8d40-da53571cb2dd adapter=pi model=opus stream=true tools=12 lineage=continuation session=03497c92 sessionWait=0ms msgCount=3 msgs=user[text,text] → assistant[thinking,text] → user[text]
+[PROXY] b16689a8-170c-41f7-8d40-da53571cb2dd usage: input=10 output=142 cache_read=16k cache_write=83 cache=99%
+[PROXY] d7ed02ac-46f1-451f-977a-3e5c662d508b adapter=pi model=opus stream=true tools=12 lineage=continuation session=e720f02f auxiliary=fork:checkpoint sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → user[text] → user[text]
+[PROXY] d7ed02ac-46f1-451f-977a-3e5c662d508b usage: input=10 output=105 cache_read=16k cache_write=251 cache=98%
+[PROXY] 0be3116d-9e00-48ee-8f3f-4b42e49163f9 adapter=pi model=opus stream=true tools=12 lineage=continuation session=e720f02f sessionWait=1ms msgCount=5 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result]
+[PROXY] b5cd7366-b74f-47bc-a2bd-970fa0ef5513 adapter=pi model=opus stream=true tools=12 lineage=continuation session=e720f02f auxiliary=fork:checkpoint+in-flight sessionWait=0ms msgCount=8 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → assistant[thinking,text] → user[text] → user[text]
+[PROXY] 0be3116d-9e00-48ee-8f3f-4b42e49163f9 usage: input=8 output=147 cache_read=16k cache_write=175 cache=99%
+[PROXY] fdec5059-349b-414f-84be-17bdde004e9f adapter=pi model=opus stream=true tools=12 lineage=continuation session=77e06baa sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → assistant[thinking,text] → user[text]
+[PROXY] b5cd7366-b74f-47bc-a2bd-970fa0ef5513 usage: input=10 output=98 cache_read=16k cache_write=77 cache=99%
+[PROXY] fdec5059-349b-414f-84be-17bdde004e9f usage: input=10 output=44 cache_read=16k cache_write=166 cache=99%

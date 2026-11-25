@@ -1,0 +1,13 @@
+Build: running a local build, branch fix/pi-side-call-fork-in-flight, d065fb02, with uncommitted changes — reported version 1.94.0 is the tree's last release, not proof of what is running
+[PROXY] 6b5c44a7-7c76-4e67-ba98-01a123db08a2 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=1ms msgCount=1 msgs=user[text,text]
+[PROXY] 6b5c44a7-7c76-4e67-ba98-01a123db08a2 usage: input=10 output=42 cache_read=9k cache_write=7k cache=55%
+[PROXY] b4863ac4-d8af-44da-a9bf-df2162ea3eac adapter=pi model=opus stream=true tools=12 lineage=continuation session=3722b134 sessionWait=1ms msgCount=3 msgs=user[text,text] → assistant[thinking,text] → user[text]
+[PROXY] b4863ac4-d8af-44da-a9bf-df2162ea3eac usage: input=10 output=161 cache_read=16k cache_write=86 cache=99%
+[PROXY] 092cb379-43e3-4b31-81e6-01f8e51c1621 adapter=pi model=opus stream=true tools=12 lineage=continuation session=9a9d1601 auxiliary=fork:checkpoint sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → user[text] → user[text]
+[PROXY] 33e6feb5-271f-4c74-b2fe-203cabf20542 adapter=pi model=opus stream=true tools=12 lineage=continuation session=9a9d1601 sessionWait=0ms msgCount=5 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result]
+[PROXY] 862412f3-dca9-49ef-bbc1-beebbb2ca7b9 adapter=pi model=opus stream=true tools=12 lineage=continuation session=9a9d1601 auxiliary=fork:checkpoint+in-flight sessionWait=0ms msgCount=8 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → assistant[thinking,text] → user[text] → user[text]
+[PROXY] 092cb379-43e3-4b31-81e6-01f8e51c1621 usage: input=10 output=48 cache_read=16k cache_write=270 cache=98%
+[PROXY] 862412f3-dca9-49ef-bbc1-beebbb2ca7b9 usage: input=10 output=42 cache_read=16k cache_write=77 cache=99%
+[PROXY] 33e6feb5-271f-4c74-b2fe-203cabf20542 usage: input=8 output=145 cache_read=16k cache_write=285 cache=98%
+[PROXY] 768c7912-c929-46fd-8ec3-9545703576ec adapter=pi model=opus stream=true tools=12 lineage=continuation session=330997f1 sessionWait=0ms msgCount=7 msgs=user[text,text] → assistant[thinking,text] → user[text] → assistant[thinking,tool_use] → user[tool_result] → assistant[thinking,text] → user[text]
+[PROXY] 768c7912-c929-46fd-8ec3-9545703576ec usage: input=10 output=40 cache_read=16k cache_write=164 cache=99%
