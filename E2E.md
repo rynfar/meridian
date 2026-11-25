@@ -951,6 +951,24 @@ subscription-configuration probe (TSV `response` envelope) through
 `e2e-antigravity-account-settings.mjs` (`TSV_EFFECTIVE_SETTINGS_OBSERVED`,
 binary hash stable before/after).
 
+**Verified 2026-11-25 (agy 1.5.17 gate move, 1M Gemini window):** Linux arm64
+(Oracle Cloud Ampere), Node 22, official `agy` 1.5.17 linux-arm64 release, a Pro
+and an Ultra subscription account. `agy -p /config --output-format json` keeps the
+1.5.5/1.5.13 TSV `response` shape with `useG1Credits` `false` and empty
+`customModelsConfig`, `modelProvider` and `gcp`. `agy models` keeps the tab-separated
+catalog. `agy acp` `session/new` reports `usage_update.size` 1048576 for the Gemini
+default and no change when switching between Gemini models; switching to
+`claude-sonnet-4-6` or `claude-opus-4-6-thinking` reports 250000, and
+`gpt-oss-120b-medium` reports 131072. Through the proxy: non-streaming and streaming
+text each returned exactly one copy of the requested marker; a client tool call and
+its continuation returned 200 with one final marker; a single 2.6 MB request (about
+690,000 cached tokens after split ingestion) with one code at the start and one in
+the middle returned 200, and `gemini-3.8-flash-low` answered both codes. The same
+request was rejected with 400 under the previous 480,000-token budget. A Claude Code
+client through an Anthropic-compatible gateway repeated the long recall with
+`gemini-3.8-flash-high` (683,053 cache-read tokens, both codes correct). The Pi and
+OpenCode live gates were not re-run for this move.
+
 **Verified 2026-11-22 (agy 1.5.13 gate move):** Linux x64 (WSL2), Node 22.15.1,
 official `agy` 1.5.13, `gemini-3.8-flash-low`, Pi 1.3.0. Unchanged main refused
 the CLI before any model process (`Unsupported agy version 1.5.13`); the

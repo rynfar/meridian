@@ -16,7 +16,12 @@ import { createHash, randomUUID } from "node:crypto"
 import { createInterface } from "node:readline"
 import { z } from "zod"
 import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, agClientToolCallLimit, agPromptByteLimit, renderAgPrompt, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
-import { agHistoryLimits, assertAgStep, planAgHistory } from "./antigravityHistory"
+import { agHistoryLimits, agContextBudget, assertAgStep, planAgHistory } from "./antigravityHistory"
+
+/** agy release whose probes, model catalog and context windows this build validates. */
+export const AG_VALIDATED_CLI_VERSION = "1.5.17"
+/** Default agy auto-compaction threshold: the whole model window, so the client decides when to compact. */
+export const AG_DEFAULT_AUTO_COMPACT_OVERRIDE = "100%"
 import { estimateAgTextTokens, estimateAgTokens } from "./antigravityTokens"
 import { renderAgColdTrim } from "./antigravityColdTrim"
 
@@ -117,8 +122,9 @@ export class AntigravityRun {
   }
   private plan(request: AgRequest): string[] {
     const { historyLimits: limits, promptBytes } = this.runtime
+    const contextTokens = this.runtime.contextBudget(request.model)
     const native = agNativeTools(this.runtime.options)
-    const maxTokens = Math.min(limits.stepTokens, limits.contextTokens - (request.max_tokens ?? 8192) - 32)
+    const maxTokens = Math.min(limits.stepTokens, contextTokens - (request.max_tokens ?? 8192) - 32)
     if (maxTokens < 1) throw new AntigravityError("prompt is too long: output reserve exceeds the estimated context budget")
     const full = renderAgPrompt(request, native) + this.promptSuffix
     if (this.restored) {
@@ -128,14 +134,14 @@ export class AntigravityRun {
     if ((!promptBytes || Buffer.byteLength(full) <= promptBytes) && estimateAgTextTokens(full) <= maxTokens) return [full]
     if (limits.chunked && !request.output_config?.format &&
       !this.runtime.options.allowNativeBrowser && !this.runtime.options.allowNativeSubagents &&
-      estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) <= limits.contextTokens) {
+      estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) <= contextTokens) {
       const steps = planAgHistory(request, native, this.promptSuffix, Math.min(promptBytes || limits.stepBytes, limits.stepBytes), limits.maxSteps, maxTokens)
-      if (steps.reduce((sum, step) => sum + estimateAgTextTokens(step) + 32, 0) + (request.max_tokens ?? 8192) <= limits.contextTokens) return steps
+      if (steps.reduce((sum, step) => sum + estimateAgTextTokens(step) + 32, 0) + (request.max_tokens ?? 8192) <= contextTokens) return steps
     }
     return [renderAgColdTrim(request, native, this.promptSuffix, { bytes: promptBytes, tokens: maxTokens, estimateTokens: estimateAgTextTokens })]
   }
   private contextFits(next: number, output?: number): boolean {
-    return Math.max(this.writtenTokens, this.reportedInput) + this.outputTokens + next + 32 + (output ?? 8192) <= this.runtime.historyLimits.contextTokens
+    return Math.max(this.writtenTokens, this.reportedInput) + this.outputTokens + next + 32 + (output ?? 8192) <= this.runtime.contextBudget(this.request.model)
   }
   private checkContext(prompt: string, output?: number): void {
     if (!this.contextFits(estimateAgTextTokens(prompt), output)) throw new AntigravityError("prompt is too long: new input exceeds the estimated Antigravity context budget")
@@ -599,6 +605,7 @@ export class AntigravityRuntime {
   private checking?: Promise<string[]>
   private closing?: Promise<void>
   readonly maxClientToolCalls = agClientToolCallLimit()
+  contextBudget(model: string): number { return agContextBudget(model) }
   constructor(readonly options: AntigravityOptions = {}) {
     this.plugins = new AgPlugins(options.plugins, options.pluginPaths)
     this.executable = options.executable ?? "agy"
@@ -621,6 +628,9 @@ export class AntigravityRuntime {
     } catch (error) { this.state?.close(); throw error }
     this.childEnv = { ...process.env }
     for (const key of Object.keys(this.childEnv)) if (/^(GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_APPLICATION_CREDENTIALS|GOOGLE_GENAI_USE_.*|GOOGLE_GEMINI_BASE_URL|ANTHROPIC_.*|OPENAI_.*|OPENROUTER_.*|AZURE_OPENAI_.*|MERIDIAN_API_KEY)$/.test(key)) delete this.childEnv[key]
+    // agy 1.5.17 compacts server-side at its default checkpoint (512K for Gemini) unless overridden.
+    // The client owns compaction in passthrough, so let agy keep the full model window by default.
+    if (!this.childEnv.AGY_CLI_AUTO_COMPACT_OVERRIDE) this.childEnv.AGY_CLI_AUTO_COMPACT_OVERRIDE = AG_DEFAULT_AUTO_COMPACT_OVERRIDE
   }
   record(exchange: AgExchange, persist = true): void {
     if (persist) try { this.state?.put('exchanges', exchange.requestId, '', JSON.stringify(exchange), Date.now() + 30 * 86400000, 10000, 8 * 1024 * 1024) } catch (error) { this.stateError = String(error) }
@@ -687,9 +697,9 @@ export class AntigravityRuntime {
     const options = { env: this.childEnv, signal: this.shutdown.signal }
     this.cliVersion = (await readAgProbe(this.executable, "version", options)).trim()
     // Validate the binary before asking it to inspect subscription configuration.
-    if (this.cliVersion !== "1.5.13") throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy 1.5.13. Validate a CLI upgrade before updating the compatibility gate.`)
+    if (this.cliVersion !== AG_VALIDATED_CLI_VERSION) throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy ${AG_VALIDATED_CLI_VERSION}. Validate a CLI upgrade before updating the compatibility gate.`)
     const config = await readAgProbe(this.executable, "configuration", options)
-    // agy 1.5.5 and 1.5.13 print the effective settings as a TSV block inside `response`,
+    // agy 1.5.5, 1.5.13 and 1.5.17 print the effective settings as a TSV block inside `response`,
     // replacing 1.2.7's command.data.config envelope. An explicit `false` credits
     // row is required: a missing or malformed row is indeterminate, not verified disabled.
     const envelope = z.object({ status: z.string(), response: z.string() }).parse(JSON.parse(config))
@@ -759,7 +769,7 @@ export class AntigravityRuntime {
       if (!(await this.availableModels()).includes(request.model)) throw new AntigravityError("Unknown Antigravity model; use GET /v1/models for account model slugs")
       if (this.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
       if (signal?.aborted) throw new AntigravityError("Request cancelled", 499, "api_error")
-      const restored = !reusable && estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) + 32 <= this.historyLimits.contextTokens ? this.nativeSessions?.claim(request) : undefined
+      const restored = !reusable && estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) + 32 <= this.contextBudget(request.model) ? this.nativeSessions?.claim(request) : undefined
       const run = new AntigravityRun(this, request, restored)
       if (restored) this.restored++
       this.runs.set(run.id, run)
