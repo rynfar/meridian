@@ -21,7 +21,8 @@ on a separate port if you already have a Claude service.
 ## Feature status
 
 Validated on macOS arm64 with agy **1.2.7**, Pi **0.72.1** and OpenCode V1
-**1.18.31**, and on Linux x64 with agy **1.5.13** and Pi **1.3.0**.
+**1.18.31**, on Linux x64 with agy **1.5.13** and Pi **1.3.0**, and on Linux arm64
+with agy **1.5.17** (the current compatibility gate).
 [E2E.md](../E2E.md) records the actual-client evidence.
 
 | Area | Available in 1.74.0 |
@@ -220,18 +221,20 @@ directories. Meridian does not edit or garbage-collect those private records.
 | `MERIDIAN_AGY_IDLE_CONVERSATION_MS` | tool timeout | How long a completed conversation keeps its live process for the next turn (explicit values: 1–86400000); afterwards that turn replays the full history. Unset preserves the existing tool timeout, including values above this new option's limit. |
 | `MERIDIAN_AGY_MAX_PROMPT_BYTES` | `190000` | UTF-8 byte limit of one prompt sent to agy, which keeps only about 192,000 bytes of an input step and drops the rest (the newest messages). Past it the oldest large tool results, arguments and text are shortened, the newest last; a current request that alone does not fit returns 400 `prompt is too long`. `0` disables it. |
 | `MERIDIAN_AGY_MAX_STEP_TOKENS` | `52000` | Estimated tokens per submitted input, independently of the byte guard; 1–63000. |
-| `MERIDIAN_AGY_MAX_CONTEXT_TOKENS` | `480000` | Estimated context safety budget derived from a 512K model window; 1–512000. Includes an output reserve. This is not a provider limit or a retention guarantee. |
+| `MERIDIAN_AGY_MAX_CONTEXT_TOKENS` | per model family | Explicit estimated context safety budget for every family; 1–1048576. Unset uses the per-family budgets below. Includes an output reserve. This is not a provider limit or a retention guarantee. |
+| `AGY_CLI_AUTO_COMPACT_OVERRIDE` | `100%` | Passed to the agy child. agy 1.5.17 otherwise compacts server-side at its default checkpoint (512K for Gemini); the default keeps the whole model window so the client owns compaction. Any agy value works (`800K`, `90%`, `700000`). |
 | `MERIDIAN_AGY_CHUNKED_HISTORY` | `0` | Set to `1` to opt into experimental multi-step cold replay. The default is one trimmed input. |
 | `MERIDIAN_AGY_HISTORY_STEP_BYTES` | `180000` | Extra byte bound for each experimental replay input; 1–190000. |
 | `MERIDIAN_AGY_HISTORY_MAX_STEPS` | `12` | Total experimental replay inputs including the final request; 1–64. |
 
 The context safety budget is selected by model family before cold replay and
-continuation checks. Gemini models keep the verified 480,000-token safety budget
-derived from the 512K window. `claude-*` uses 200,000 tokens and `gpt-oss-*`
-uses 128,000 tokens as conservative assumptions because the agy 1.5.13 model
-list exposes those families but does not expose their context-window sizes.
-Confirm those two values with agy model metadata or vendor documentation before
-raising them. Unknown families use the existing 480,000-token default. The
+continuation checks. The windows come from agy 1.5.17 itself: `agy acp` sends a
+`usage_update` with the context `size` when a session starts and when the model
+changes. It reports 1,048,576 for every Gemini model, 250,000 for
+`claude-sonnet-4-6` and `claude-opus-4-6-thinking`, and 131,072 for
+`gpt-oss-120b-medium`. The budgets keep a reserve below each window: Gemini
+1,000,000, `claude-*` 230,000 and `gpt-oss-*` 120,000. Unknown families use the
+Gemini default. The
 existing `MERIDIAN_AGY_MAX_CONTEXT_TOKENS` override remains the single explicit
 override and applies to every family.
 
@@ -334,13 +337,13 @@ app does not collect Google credentials or repurpose Claude profile login.
 
 ## Compatibility and operational contract
 
-The supported text/client-tools path is gated to official `agy` **1.5.13**
-(validated on Linux x64; the macOS 1.2.7 acceptance below predates the gate
-moves and awaits a 1.5.13 re-run on that platform).
+The supported text/client-tools path is gated to official `agy` **1.5.17**
+(validated on Linux arm64; the Linux x64 Pi gates were last run on 1.5.13, and the
+macOS 1.2.7 acceptance below predates the gate moves and awaits a re-run on that platform).
 An unverified CLI update is refused before a new model process starts. Validate
 new versions with the live gates below before changing the compatibility gate.
 `/health` still reports Linux as `preview` and macOS as `supported` until each
-platform has full 1.5.13 client evidence. Windows
+platform has full 1.5.17 client evidence. Windows
 process-tree termination and hook quoting are implemented and exercised in CI;
 normal execution stays gated until authenticated live verification. The embedder
 option `allowUnverifiedWindows: true` is solely for that acceptance gate. This is a supported, bounded protocol surface, not full Claude parity.
@@ -650,8 +653,8 @@ If the latest content still cannot fit, the request fails explicitly.
 The step estimate reserves one token per non-ASCII UTF-8 byte, intentionally
 overestimating many dense CJK inputs. With the default settings, a CJK-only input
 around 54 KB may now need splitting even though it fit the older byte guard.
-The 52,000 and 480,000 defaults are safety margins below the observed 64,000
-single-step limit and the reported 512,000 model window, respectively.
+The 52,000 and 1,000,000 defaults are safety margins below the observed 64,000
+single-step limit and the 1,048,576-token Gemini window that agy 1.5.17 reports.
 
 Optional chunking sends old history in separate priming inputs with tools
 disabled. Each completed input must be identified before the next is sent.

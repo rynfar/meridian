@@ -9,20 +9,23 @@ export interface AgHistoryLimits {
   contextTokens: number
 }
 
-export const AG_DEFAULT_CONTEXT_TOKENS = 480_000
+/** Largest context window agy 1.5.17 reports for any served model (`agy acp` usage_update `size`). */
+export const AG_MAX_CONTEXT_TOKENS = 1_048_576
+export const AG_DEFAULT_CONTEXT_TOKENS = 1_000_000
 export const AG_MODEL_CONTEXT_BUDGETS = [
-  // Gemini's 512K window is the verified source for the existing 480K safety budget.
-  { family: 'gemini-', tokens: AG_DEFAULT_CONTEXT_TOKENS, source: 'verified 512K window, 32K safety reserve' },
-  // Conservative assumptions until agy models metadata or vendor documentation confirms these windows.
-  { family: 'claude-', tokens: 200_000, source: 'conservative assumption; confirm with agy model metadata or vendor documentation' },
-  { family: 'gpt-oss-', tokens: 128_000, source: 'conservative assumption; confirm with agy model metadata or vendor documentation' },
+  // agy 1.5.17 reports size 1048576 for every Gemini model in `agy acp` usage_update; about 48K is kept for output and estimate error.
+  { family: 'gemini-', tokens: AG_DEFAULT_CONTEXT_TOKENS, source: 'agy 1.5.17 acp usage_update size 1048576, 48K reserve' },
+  // agy 1.5.17 reports 250000 for claude-sonnet-4-6 and claude-opus-4-6-thinking.
+  { family: 'claude-', tokens: 230_000, source: 'agy 1.5.17 acp usage_update size 250000, 20K reserve' },
+  // agy 1.5.17 reports 131072 for gpt-oss-120b-medium.
+  { family: 'gpt-oss-', tokens: 120_000, source: 'agy 1.5.17 acp usage_update size 131072, 11K reserve' },
 ] as const
 
 export function agContextBudget(model: string, env: Record<string, string | undefined> = process.env): number {
   const raw = env.MERIDIAN_AGY_MAX_CONTEXT_TOKENS
   if (raw !== undefined && raw !== '') {
     const value = Number(raw)
-    if (!Number.isSafeInteger(value) || value < 1 || value > 512_000) throw new Error('MERIDIAN_AGY_MAX_CONTEXT_TOKENS must be an integer from 1 to 512000')
+    if (!Number.isSafeInteger(value) || value < 1 || value > AG_MAX_CONTEXT_TOKENS) throw new Error(`MERIDIAN_AGY_MAX_CONTEXT_TOKENS must be an integer from 1 to ${AG_MAX_CONTEXT_TOKENS}`)
     return value
   }
   return AG_MODEL_CONTEXT_BUDGETS.find(entry => model.startsWith(entry.family))?.tokens ?? AG_DEFAULT_CONTEXT_TOKENS
