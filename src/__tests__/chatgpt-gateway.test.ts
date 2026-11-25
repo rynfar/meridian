@@ -43,11 +43,17 @@ const { resetCodexUsageCache } = await import("../proxy/codex/service")
 const { __setChatGptLoginListenOverride } = await import("../proxy/chatgpt/login")
 
 const NOW = Date.now()
-const CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
-const IMAGES_PREFIX = "https://chatgpt.com/backend-api/codex/images/"
+const CODEX_PREFIX = "https://chatgpt.com/backend-api/codex/"
+const IMAGES_PREFIX = `${CODEX_PREFIX}images/`
 const TOKEN_URL = "https://auth.openai.com/oauth/token"
 
-interface UpstreamCall { url: string; authorization: string | null; accountId: string | null; body: Record<string, unknown> }
+interface UpstreamCall {
+  url: string
+  authorization: string | null
+  accountId: string | null
+  body: Record<string, unknown>
+  meridianHeaders: string[]
+}
 let upstreamCalls: UpstreamCall[] = []
 let tokenCalls = 0
 let respond: (call: UpstreamCall, index: number) => Response | Promise<Response> = () => completed()
@@ -92,9 +98,13 @@ function mockFetch(input: string | URL | Request, init?: RequestInit): Promise<R
     tokenCalls++
     return Promise.resolve(new Response(JSON.stringify({ access_token: "at-refreshed", refresh_token: "rt-rotated", expires_in: 3600 }), { status: 200, headers: { "content-type": "application/json" } }))
   }
-  if (url === CODEX_URL || url.startsWith(IMAGES_PREFIX)) {
-    const headers = new Headers(init?.headers)
-    const call = { url, authorization: headers.get("authorization"), accountId: headers.get("chatgpt-account-id"), body: JSON.parse(String(init?.body)) as Record<string, unknown> }
+  if (url.startsWith(CODEX_PREFIX) && init?.method === "POST") {
+    const headers = new Headers(init.headers)
+    const call = {
+      url, authorization: headers.get("authorization"), accountId: headers.get("chatgpt-account-id"),
+      body: JSON.parse(String(init.body)) as Record<string, unknown>,
+      meridianHeaders: [...headers.keys()].filter(name => name.startsWith("x-meridian-")),
+    }
     upstreamCalls.push(call)
     return Promise.resolve(respond(call, upstreamCalls.length - 1))
   }
@@ -156,6 +166,22 @@ const LUNA = {
   prompt_cache_key: "conversation-1", // gitleaks:allow - a conversation id, not a credential
 }
 
+const ATTRIBUTION_HEADERS = {
+  "x-meridian-client": "voice-ai/0.9.3",
+  "x-meridian-installation": "verify-client-id",
+  "x-meridian-device": "m4max",
+  "x-meridian-purpose": "test",
+  "x-meridian-session": "verify-1",
+  "x-meridian-source": "gateway-test",
+  "x-meridian-future-metadata": "local-only",
+} as const
+
+const ATTRIBUTION = {
+  client: { name: "voice-ai", version: "0.9.3", installation: "verify-client-id", device: "m4max" },
+  purpose: "test",
+  requestSource: "gateway-test",
+} as const
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "chatgpt-gateway-"))
   process.env.MERIDIAN_CONFIG_DIR = join(dir, "meridian")
@@ -201,10 +227,10 @@ afterAll(() => {
 })
 
 describe("ChatGPT gateway routing", () => {
-  it("serves a GPT model from the seat's token, adapting only what the backend requires", async () => {
+  it("serves a GPT model from the seat's token and keeps client attribution local", async () => {
     writePool([account(0), account(1)])
     const { app } = await server("follow-external")
-    const res = await app.fetch(responses(LUNA))
+    const res = await app.fetch(responses(LUNA, ATTRIBUTION_HEADERS))
     expect(res.status).toBe(200)
     expect(res.headers.get("set-cookie")).toBeNull()
     expect(await res.text()).toContain('"delta":"pong"')
@@ -213,11 +239,16 @@ describe("ChatGPT gateway routing", () => {
     const [call] = upstreamCalls
     expect(call!.authorization).toBe("Bearer at-0")
     expect(call!.accountId).toBe("workspace-0")
+    expect(call!.meridianHeaders).toEqual([])
     const { max_output_tokens: _dropped, ...client } = LUNA
     expect(call!.body).toEqual({ ...client, store: false, include: ["reasoning.encrypted_content"] })
 
-    const [metric] = telemetryStore.getRecent({ limit: 1 })
-    expect(metric).toMatchObject({ adapter: "chatgpt", requestModel: "gpt-6-luna", status: 200, isPassthrough: true, inputTokens: 40, cacheReadInputTokens: 10, outputTokens: 5 })
+    const recent = await app.fetch(new Request("http://localhost/telemetry/requests?limit=1"))
+    expect(recent.status).toBe(200)
+    expect(await recent.json()).toMatchObject([{
+      adapter: "chatgpt", requestModel: "gpt-6-luna", status: 200, isPassthrough: true,
+      inputTokens: 40, cacheReadInputTokens: 10, outputTokens: 5, ...ATTRIBUTION,
+    }])
   })
 
   it("aggregates the stream for a client that did not ask to stream", async () => {
@@ -244,6 +275,20 @@ describe("ChatGPT gateway routing", () => {
     }))
     expect(gptOnMessages.status).toBe(404)
     expect(upstreamCalls).toHaveLength(0)
+  })
+
+  it("rejects GPT on Chat Completions without sending client attribution upstream", async () => {
+    writePool([account(0)])
+    const { app } = await server("follow-external")
+    const res = await app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...ATTRIBUTION_HEADERS },
+      body: JSON.stringify({ model: LUNA.model, messages: [{ role: "user", content: "hi" }] }),
+    }))
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ error: { type: "not_found_error" } })
+    expect(upstreamCalls).toHaveLength(0)
+    expect(sdkCalls).toBe(0)
   })
 
   it("serves an unlisted OpenAI model from ChatGPT, never from Claude", async () => {
@@ -318,18 +363,18 @@ describe("ChatGPT image generation", () => {
   const image = (extra: Record<string, string> = {}) => new Response(JSON.stringify({ created: 1, data: [{ b64_json: PNG_B64 }] }), {
     status: 200, headers: { "content-type": "application/json", "set-cookie": "must-not-leak=1", ...extra },
   })
-  const imagesRequest = (route: string, body: Record<string, unknown>) => new Request(`http://localhost${route}`, {
+  const imagesRequest = (route: string, body: Record<string, unknown>, headers: Record<string, string> = {}) => new Request(`http://localhost${route}`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: "Bearer any-client-key" },
+    headers: { "content-type": "application/json", authorization: "Bearer any-client-key", ...headers },
     body: JSON.stringify(body),
   })
   const GENERATE = { prompt: "a lighthouse at dusk", background: "opaque", model: "gpt-image-2", quality: "auto", size: "auto" }
 
-  it("generates an image on a seat's plan, passing the body and the answer through untouched", async () => {
+  it("generates an image on a seat's plan and keeps client attribution local", async () => {
     writePool([account(0), account(1)])
     respond = () => image()
     const { app } = await server("follow-external")
-    const res = await app.fetch(imagesRequest("/v1/images/generations", GENERATE))
+    const res = await app.fetch(imagesRequest("/v1/images/generations", GENERATE, ATTRIBUTION_HEADERS))
     expect(res.status).toBe(200)
     expect(res.headers.get("set-cookie")).toBeNull()
     expect(await res.json()).toEqual({ created: 1, data: [{ b64_json: PNG_B64 }] })
@@ -339,22 +384,25 @@ describe("ChatGPT image generation", () => {
     expect(call!.url).toBe(`${IMAGES_PREFIX}generations`)
     expect(call!.authorization).toBe("Bearer at-0")
     expect(call!.accountId).toBe("workspace-0")
+    expect(call!.meridianHeaders).toEqual([])
     expect(call!.body).toEqual(GENERATE)
     expect(sdkCalls).toBe(0)
 
     const [metric] = telemetryStore.getRecent({ limit: 1 })
-    expect(metric).toMatchObject({ adapter: "chatgpt", requestModel: "gpt-image-2", status: 200, mode: "non-stream" })
+    expect(metric).toMatchObject({ adapter: "chatgpt", requestModel: "gpt-image-2", status: 200, mode: "non-stream", ...ATTRIBUTION })
   })
 
-  it("sends reference images to the edits endpoint", async () => {
+  it("sends reference images to the edits endpoint and keeps client attribution local", async () => {
     writePool([account(0)])
     respond = () => image()
     const { app } = await server("follow-external")
     const edit = { ...GENERATE, images: [{ image_url: `data:image/png;base64,${PNG_B64}` }] }
-    const res = await app.fetch(imagesRequest("/v1/images/edits", edit))
+    const res = await app.fetch(imagesRequest("/v1/images/edits", edit, ATTRIBUTION_HEADERS))
     expect(res.status).toBe(200)
-    expect(upstreamCalls.map(call => call.url)).toEqual([`${IMAGES_PREFIX}edits`])
+    expect(upstreamCalls.map(call => [call.url, call.meridianHeaders])).toEqual([[`${IMAGES_PREFIX}edits`, []]])
     expect(upstreamCalls[0]!.body).toEqual(edit)
+    const [metric] = telemetryStore.getRecent({ limit: 1 })
+    expect(metric).toMatchObject({ adapter: "chatgpt", requestModel: "gpt-image-2", status: 200, ...ATTRIBUTION })
   })
 
   it("moves an image request past a seat whose plan is spent, and benches that seat", async () => {

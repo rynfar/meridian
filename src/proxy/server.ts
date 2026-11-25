@@ -6,6 +6,8 @@ import { ClaudeProviderFacts, disabledProvider, providerSnapshot } from './backe
 import { chatGptProvider, CHATGPT_ADAPTER } from './backends/chatgptStatus'
 import { chatGptVerdict, combineBackendVerdicts, type BackendStatus } from './chatgpt/health'
 import { createChatGptBackend, type ChatGptSeatCreditState, type ChatGptSeatRefusal, type ChatGptTurnEvent, type ObservedSeatLimits } from './backends/chatgpt'
+import { internalClientAttributionHeaders, readClientAttribution } from "./clientIdentity"
+import { sanitizeClaudeEgressEnv } from "./claudeEgress"
 import { resolveChatGptSource } from './chatgpt/config'
 import { startRenewalSchedule } from './chatgpt/owned'
 import { ChatGptTurnLedger, chatGptTokenFields, createChatGptAdmission, createChatGptParityBackend, createUnpricedModelWarning, decorateChatGptTurn, type ChatGptTurnNotes } from './chatgpt/parity'
@@ -1483,6 +1485,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         params.options.spawnClaudeCodeProcess = processGate.spawnClaudeCodeProcess
       }
       signal.throwIfAborted()
+      const upstreamEnv = sanitizeClaudeEgressEnv(params.options?.env)
+      if (upstreamEnv !== params.options?.env) (params.options ??= {}).env = upstreamEnv
       sdkQuery = query(params)
       if (custody.observeUpstream === false) {
         yield* sdkQuery
@@ -2519,6 +2523,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     options: HandleMessagesOptions,
   ) => {
     const requestStartAt = requestMeta.queueEnteredAt
+    const attribution = readClientAttribution(c.req.raw.headers)
     const requestSignal = options.turnWatchdogSignal
       ? AbortSignal.any([c.req.raw.signal, options.turnWatchdogSignal])
       : c.req.raw.signal
@@ -4049,6 +4054,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           const conflictTotalMs = Date.now() - requestStartAt
           const conflictQueueWaitMs = totalQueueWaitMs(requestMeta)
           telemetryStore.record({
+            ...attribution,
             requestId: requestMeta.requestId,
             timestamp: Date.now(),
             adapter: adapter.name,
@@ -6125,6 +6131,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             passthrough
           )
           telemetryStore.record({
+            ...attribution,
             requestId: requestMeta.requestId,
             timestamp: Date.now(),
             adapter: adapter.name,
@@ -6744,6 +6751,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const totalMs = Date.now() - requestStartAt
               const queueWaitMs = totalQueueWaitMs(requestMeta)
               observeStreamFailure(() => telemetryStore.record({
+                ...attribution,
                 requestId: requestMeta.requestId, timestamp: Date.now(), adapter: adapter.name,
                 profileId: profile.id, routeKind, routeGroupId, routeAttempt, requestSource, model,
                 requestModel: body.model || undefined, resolvedModel: resolvedHaikuModel(), mode: "stream", isResume,
@@ -8313,6 +8321,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   passthrough
                 )
                 telemetryStore.record({
+                  ...attribution,
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
@@ -8860,6 +8869,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const recoverTotalMs = Date.now() - requestStartAt
                 const recoverQueueWaitMs = totalQueueWaitMs(requestMeta)
                 telemetryStore.record({
+                  ...attribution,
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
@@ -9011,6 +9021,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const cappedTotalMs = Date.now() - requestStartAt
                 const cappedQueueWaitMs = totalQueueWaitMs(requestMeta)
                 telemetryStore.record({
+                  ...attribution,
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
@@ -9088,6 +9099,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               const streamErrTotalMs = Date.now() - requestStartAt
               const streamErrQueueWaitMs = totalQueueWaitMs(requestMeta)
               telemetryStore.record({
+                ...attribution,
                 requestId: requestMeta.requestId,
                 timestamp: Date.now(),
                 adapter: adapter.name,
@@ -9327,6 +9339,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const errorQueueWaitMs = totalQueueWaitMs(requestMeta)
         const errorTotalMs = Date.now() - requestStartAt
         telemetryStore.record({
+          ...attribution,
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
           adapter: adapter.name,
@@ -9665,6 +9678,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // symptom this whole feature can cause.
             const cancelledWaitMs = Date.now() - queueEnteredAt
             telemetryStore.record({
+              ...readClientAttribution(c.req.raw.headers),
               requestId,
               timestamp: Date.now(),
               adapter: adapter.name,
@@ -9919,6 +9933,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       timestamp: Date.now(),
       adapter: CHATGPT_ADAPTER,
       requestSource: event.requestSource,
+      client: event.client,
+      purpose: event.purpose,
       // `model` is what served the turn (the fallback when one ran) and is
       // what the cost estimate prices a GPT row by; `requestModel` is the
       // client's own id.
@@ -12039,6 +12055,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // off; a keyed request preserves its real history and resumes instead of
     // packing.
     const internalHeaders: Record<string, string> = {
+      ...internalClientAttributionHeaders(c.req.raw.headers),
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,
     }
@@ -12219,6 +12236,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
 
     const internalHeaders: Record<string, string> = {
+      ...internalClientAttributionHeaders(c.req.raw.headers),
       "Content-Type": "application/json",
       "x-meridian-agent": "codex",
     }

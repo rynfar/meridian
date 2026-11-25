@@ -27,6 +27,7 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { configPath } from "../configDir"
+import { isClientAttributionHeader } from "./clientIdentity"
 import type { AdapterFeatures } from "./sdkFeatures"
 
 export interface AdapterInstanceMatch {
@@ -137,7 +138,8 @@ export function matchesInstance(
 
   if (hasHeaderRules) {
     for (const [name, want] of Object.entries(match.header!)) {
-      if (getHeader(name.toLowerCase()) !== want) return false
+      const header = name.toLowerCase()
+      if (isClientAttributionHeader(header) || getHeader(header) !== want) return false
     }
   }
   if (hasUaRule) {
