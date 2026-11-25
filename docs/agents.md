@@ -595,12 +595,24 @@ its own session key as an auxiliary request, and leaves the conversation's
 mapping alone, so the next main turn still continues the conversation. The key
 may extend the header's session id after `~`, as an omp extension that rotates
 accounts does (`<session>~<suffix>`). omp runs a side call on the
-conversation's own system prompt and tools, so one that only adds user text
-after a completed turn resumes the conversation's SDK session as a fork that is
-never published (`lineage=continuation … auxiliary=fork`). It reads the
-conversation's prompt cache and writes only its own prompt. A side call over a
-pending tool call, or carrying a snapshot of a reply still in flight, is answered
-from a fresh replay (`diverged=independent-request:auxiliary-request`).
+conversation's own system prompt and tools, so it resumes the conversation's
+SDK session as a fork that is never published (`lineage=continuation …
+auxiliary=fork`). It reads the conversation's prompt cache and writes only what
+the session lacks. A side call starts at once, whatever the conversation is
+doing, and still forks:
+
+- over a pending tool call whose results omp filled in (a completion probe
+  while a tool runs gets `No result provided`), the fork resumes that tool
+  checkpoint with those results (`auxiliary=fork:checkpoint`); the
+  conversation's next turn still resumes the same checkpoint with the real
+  results;
+- while the next turn streams, the fork gets that turn's prompt and leaves out
+  the reply streamed so far and any results omp filled in for its calls, since
+  the session never received them (`auxiliary=fork:in-flight`).
+
+Any other shape is answered from a fresh replay
+(`diverged=independent-request:auxiliary-request`, with the reason in
+`auxiliary=replay:<reason>`).
 
 Fresh side requests use their own tool declarations. Tool definitions omitted
 on a continuation can be inherited only from that same published SDK branch;

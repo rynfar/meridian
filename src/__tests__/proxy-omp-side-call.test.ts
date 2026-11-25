@@ -16,28 +16,48 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 const mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-const queries: Array<{ resume?: string; fork: boolean }> = []
+/** The fields of a scripted SDK message the mock reads: assistant tool calls. */
+type ScriptBlock = { type?: string; id?: string; name?: string; input?: unknown }
+type ScriptMessage = { type?: string; message?: { content?: unknown } }
+/** Per-query SDK scripts, consumed one per `query()`; empty leaves `mockMessages` in charge. */
+let scripts: object[][] = []
+const queries: Array<{ resume?: string; fork: boolean; resumeAt?: string; prompt?: unknown }> = []
 /** When set, the query with this index reports `started` and waits for `release` before it answers. */
 let hold: { index: number; started: () => void; release: Promise<void> } | undefined
 /** Resumes of this session id are refused as a transcript that no longer exists. */
 let goneSession: string | undefined
 
 installSdkMock(() => ({
-  query: (params: { options?: Record<string, unknown> }) => {
+  query: (params: { prompt?: unknown; options?: Record<string, unknown> }) => {
     const options = params.options || {}
     const index = queries.push({
       resume: typeof options.resume === "string" ? options.resume : undefined,
       fork: options.forkSession === true,
+      resumeAt: typeof options.resumeSessionAt === "string" ? options.resumeSessionAt : undefined,
+      prompt: params.prompt,
     }) - 1
     const sessionId = resolveMockSdkSessionId(options, "omp-side-call-session")
     const held = hold?.index === index ? hold : undefined
     held?.started()
+    const script: object[] = scripts.shift() ?? mockMessages
+    const hooks = options.hooks as { PreToolUse?: Array<{ hooks: Array<(input: unknown, id: unknown, ctx: unknown) => unknown> }> } | undefined
+    const preHook = hooks?.PreToolUse?.[0]?.hooks?.[0]
     return (async function* () {
       if (held) await held.release
       if (goneSession !== undefined && options.resume === goneSession) {
         throw new Error(`No conversation found with session ID: ${goneSession}`)
       }
-      for (const msg of mockMessages) yield { ...msg, session_id: sessionId }
+      for (const msg of script) {
+        yield { ...msg, session_id: sessionId }
+        // The SDK asks the hook before running each tool the model called.
+        const { type, message } = msg as ScriptMessage
+        const content = type === "assistant" && Array.isArray(message?.content) ? message.content as ScriptBlock[] : []
+        for (const block of content) {
+          if (block?.type === "tool_use") {
+            await preHook?.({ tool_name: block.name, tool_use_id: block.id, tool_input: block.input }, undefined, { signal: new AbortController().signal })
+          }
+        }
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
@@ -90,6 +110,7 @@ describe("Oh My Pi side calls", () => {
 
   beforeEach(async () => {
     queries.length = 0
+    scripts = []
     await clearSessionCache()
     errSpy = spyOn(console, "error")
   })
@@ -191,20 +212,92 @@ describe("Oh My Pi side calls", () => {
     }
   })
 
-  it("replay fresh when the side call carries a reply the session never received", async () => {
+  const promptText = async (prompt: unknown): Promise<string> => {
+    if (typeof prompt === "string") return prompt
+    const messages: unknown[] = []
+    for await (const message of prompt as AsyncIterable<unknown>) messages.push(message)
+    return JSON.stringify(messages)
+  }
+
+  it("fork a side call sent while the next turn streams, without the reply in flight", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     await post(app, turn(FIRST), mainHeaders)
-    // A completion probe sent while the next turn runs: a snapshot of the
-    // reply in flight after the stored history, then the probe's prompt.
-    await post(app, turn(FIRST, ANSWER, { role: "user", content: "and the tests?" }, { role: "assistant", content: "running them" }, RECAP), sideHeaders)
-    await post(app, turn(FIRST, ANSWER, { role: "user", content: "and the tests?" }), mainHeaders)
+    // A `/btw` sent while the next turn streams: that turn's prompt, the reply
+    // streamed so far (a tool call omp filled in a result for), then the side
+    // call's prompt.
+    const next = { role: "user", content: "and the tests?" }
+    const streaming = { role: "assistant", content: [{ type: "text", text: "running them" }, { type: "tool_use", id: "t9", name: "bash", input: {} }] }
+    const filled = { role: "user", content: [{ type: "tool_result", tool_use_id: "t9", content: "No result provided", is_error: true }] }
+    await post(app, turn(FIRST, ANSWER, next, streaming, filled, RECAP), sideHeaders)
+    await post(app, turn(FIRST, ANSWER, next), mainHeaders)
 
     const lines = requestLines()
     expect(lines).toHaveLength(3)
-    expect(lines[1]).toContain("diverged=independent-request:auxiliary-request")
-    expect(lines[1]).toContain("auxiliary=replay:not-side-prompt")
-    expect(queries[1]?.resume).toBeUndefined()
+    expect(lines[1]).toContain("lineage=continuation")
+    expect(lines[1]).toContain("auxiliary=fork:in-flight")
+    const source = queries[1]?.resume
+    expect(typeof source).toBe("string")
+    expect(queries[1]?.fork).toBe(true)
+    // An in-flight fork resumes the stored session's end, not a checkpoint.
+    expect(queries[1]?.resumeAt).toBeUndefined()
+    // The fork gets the turn's prompt and the side prompt; the partial reply
+    // never reached the session, so it is not handed to the model as history.
+    const sent = await promptText(queries[1]?.prompt)
+    expect(sent).toContain("and the tests?")
+    expect(sent).toContain("Summarise where this session stands.")
+    expect(sent).not.toContain("running them")
+    expect(sent).not.toContain("t9")
     expect(lines[2]).toContain("lineage=continuation")
+    expect(queries[2]?.resume).toBe(source)
+  })
+
+  it("fork over a pending tool checkpoint while the tool runs, leaving the checkpoint to the next turn", async () => {
+    const tools = [{ name: "read", description: "Read a file", input_schema: { type: "object", properties: {} } }]
+    const withTools = (...messages: Message[]) => ({ ...turn(...messages), tools })
+    const toolTurn = assistantMessage([{ type: "tool_use", id: "t1", name: "read", input: {} }])
+    const call = { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "read", input: {} }] }
+    scripts = [[toolTurn, {
+      type: "user",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "forwarded to client", is_error: true }] },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+    }, { type: "result", subtype: "success", is_error: false }]]
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    await post(app, withTools(FIRST), mainHeaders)
+    // A completion probe while the tool runs: omp fills in a result for the
+    // running call, then sends the probe's prompt.
+    const running = { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "No result provided", is_error: true }] }
+    await post(app, withTools(FIRST, call, running, RECAP), sideHeaders)
+    // The tool finishes; the real result continues the conversation.
+    const finished = { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "42 lines" }] }
+    await post(app, withTools(FIRST, call, finished), mainHeaders)
+
+    const lines = requestLines()
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toContain("auxiliary=fork:checkpoint")
+    expect(queries[1]?.fork).toBe(true)
+    expect(queries[1]?.resumeAt).toBe(toolTurn.uuid)
+    // The fork never published, so the real result resumes the same checkpoint.
+    expect(lines[2]).toContain("lineage=continuation")
+    expect(queries[2]?.resume).toBe(queries[1]?.resume)
+    expect(queries[2]?.resumeAt).toBe(toolTurn.uuid)
+    expect(await promptText(queries[2]?.prompt)).toContain("42 lines")
+  })
+
+  it("replay fresh when a structured fork would drop a system note", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    await post(app, turn(FIRST), mainHeaders)
+    // The turn in flight carries an image, so the fork would resume with
+    // structured input, which sends only user messages: the note before the
+    // side prompt would be lost.
+    const next = { role: "user", content: [{ type: "text", text: "what is this?" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } }] }
+    const note = { role: "system", content: "The user switched to plan mode." }
+    await post(app, turn(FIRST, ANSWER, next, { role: "assistant", content: "It is" }, note, RECAP), sideHeaders)
+
+    const lines = requestLines()
+    expect(lines).toHaveLength(2)
+    expect(lines[1]).toContain("auxiliary=replay:structured-system-note")
+    expect(queries[1]?.resume).toBeUndefined()
   })
 
   it("replay fresh when the conversation has no stored session", async () => {

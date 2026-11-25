@@ -160,6 +160,25 @@ fresh replay before); the second turn started while the side call was still
 answering and resumed the first turn's session (`lineage=continuation`, read
 15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
 
+`node scripts/e2e-omp-side-call-in-flight.mjs --omp=<omp> --agent-dir=<dir>
+--log=<meridian log> [--model=opus] [--expect=fork|replay]` covers side calls
+sent while a turn is in flight, as omp's completion probes and `/btw` are. Same
+setup. After a first turn, `omp -c` runs a turn that calls one `sleep` tool and
+then writes a paragraph; the hook sends side call A when the tool starts (omp
+fills in `No result provided` for it) and side call B once the reply after the
+tool has streamed some text. With `fork` it asserts A is
+`auxiliary=fork:checkpoint`, B `auxiliary=fork:in-flight` (with `checkpoint+`
+while the turn has not published yet), both read more cache than they write,
+and the next turn continues right after the hooked turn. `replay` asserts both
+replay fresh, the behaviour before.
+
+Recorded 2026-11-25 on Linux x64, Node 24.22.3, omp 19.1.1, Claude Code
+2.1.322, `opus`: on upstream main both side calls replayed fresh
+(`auxiliary=replay:pending-tool`, the first wrote 7k); with the change A forked
+with `checkpoint` and B with `checkpoint+in-flight`, each reading 16k and
+writing 270 and 77 cache tokens on the final head, and the next turn continued.
+[Evidence](docs/maintenance/evidence/omp-side-call-in-flight-20261125/README.md).
+
 ## Priority affinity across a restart
 
 `node scripts/e2e-priority-restart.mjs --omp=<omp> --profiles=<A>,<B>

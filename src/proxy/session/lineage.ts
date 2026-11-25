@@ -528,45 +528,106 @@ export type AuxiliaryForkRefusal =
   | `lineage-${string}`
   | "regrouped"
   | "partial-message"
-  /** The stored session waits for tool results. */
+  /** The stored session waits for tool results the request does not settle
+   *  exactly. */
   | "pending-tool"
-  /** After the session's last reply the request carries more than user text
-   *  and system notes: a reply snapshot, a tool call or a tool result. */
+  /** After the stored session the request carries more than the turn in
+   *  flight and a side prompt of user text and system notes. */
   | "not-side-prompt"
+
+/** An auxiliary request the conversation's session can answer as a fork. */
+export type AuxiliaryFork = {
+  lineage: LineageResult
+  refusal?: AuxiliaryForkRefusal
+  /** Messages `[from, to)` hold the reply still streaming when the side call
+   *  started, with any results the client filled in for its tool calls. The
+   *  session never received them; the fork omits them. */
+  inFlight?: { from: number; to: number }
+}
 
 /**
  * The lineage an auxiliary request is served from, given the conversation's
  * own lineage for its body.
  *
- * A side call that only adds user text after a completed turn of the
- * conversation is resumed as an unpublished fork of the conversation's SDK
- * session: it reads the conversation's prompt cache and writes only its own
- * prompt. After the stored prefix the client's copy of the session's last
- * reply comes first, as on every continuation; it must not call a tool. The
- * side prompt may carry mid-conversation `system` notes, as the conversation's
- * own turns do. Any other shape is answered from a fresh replay, as every
- * auxiliary request was before, and `refusal` says why. Either way the request
- * never publishes, so the conversation's mapping is untouched.
+ * A side call starts at once, whatever the conversation is doing, and carries
+ * the client's copy of it: the stored history, then the turn in flight, then
+ * the side prompt. It is resumed as an unpublished fork of the conversation's
+ * SDK session, reading the conversation's prompt cache and writing only what
+ * the session lacks. After the stored prefix may come:
+ *
+ * - the client's copy of the session's last reply, as on every continuation;
+ *   over a pending tool checkpoint that is the reply calling those tools;
+ * - the input of the turn in flight: user content, system notes, and, over a
+ *   pending checkpoint, tool results settling exactly its calls (Oh My Pi
+ *   fills in `No result provided` for a tool still running);
+ * - one assistant message still streaming, and a message of results the
+ *   client filled in for the calls it made. The session never received them,
+ *   so the fork leaves them out (`inFlight`), as a resume leaves out every
+ *   assistant message of its delta;
+ * - the side prompt: user text and system notes, at least one user message.
+ *
+ * Any other shape is answered from a fresh replay, as every auxiliary request
+ * was before, and `refusal` says why. Either way the request never publishes,
+ * so the conversation's mapping is untouched.
  */
 export function auxiliaryLineage(
   result: LineageResult,
   messages: ReadonlyArray<{ role: string; content: unknown }>,
-): { lineage: LineageResult; refusal?: AuxiliaryForkRefusal } {
+): AuxiliaryFork {
   const independent: LineageResult = { type: "diverged", reason: "independent-request" }
-  const replay = (refusal: AuxiliaryForkRefusal) => ({ lineage: independent, refusal })
+  const replay = (refusal: AuxiliaryForkRefusal): AuxiliaryFork => ({ lineage: independent, refusal })
   if (result.type === "diverged") return replay(`lineage-diverged:${result.reason}`)
   if (result.type !== "continuation") return replay(`lineage-${result.type}`)
   if (result.regrouped) return replay("regrouped")
   if (result.resumeContentFrom !== undefined) return replay("partial-message")
-  if (result.session.passthroughToolCallIds?.length) return replay("pending-tool")
-  const blocks = (content: unknown): Array<{ type?: unknown } | null> => Array.isArray(content) ? content : []
+  const pending = new Set(result.session.passthroughToolCallIds ?? [])
+  const blocks = (content: unknown): Array<{ type?: unknown; id?: unknown; tool_use_id?: unknown } | null> =>
+    Array.isArray(content) ? content : []
   const textOnly = (content: unknown): boolean => typeof content === "string" || blocks(content).every(block => block?.type === "text")
+  const callIds = (content: unknown) => blocks(content).filter(block => block?.type === "tool_use").map(block => block!.id)
+  const resultIds = (content: unknown) => blocks(content).filter(block => block?.type === "tool_result").map(block => block!.tool_use_id)
+  const isNote = (role: string) => role === "user" || role === "system"
+
+  let side = messages.length
+  while (side > result.resumeFrom && isNote(messages[side - 1]!.role) && textOnly(messages[side - 1]!.content)) side--
+  if (!messages.slice(side).some(message => message.role === "user")) return replay("not-side-prompt")
+
   let next = result.resumeFrom
-  while (messages[next]?.role === "assistant" && !blocks(messages[next]!.content).some(block => block?.type === "tool_use")) next++
-  const added = messages.slice(next)
-  const sidePrompt = added.some(message => message.role === "user")
-    && added.every(message => (message.role === "user" || message.role === "system") && textOnly(message.content))
-  return sidePrompt ? { lineage: result } : replay("not-side-prompt")
+  // Over a pending checkpoint the echo is the reply calling those tools; a
+  // reply without calls only echoes a completed turn.
+  const echoes = (content: unknown): boolean => {
+    const calls = callIds(content)
+    return calls.every(id => pending.has(id as string)) && (pending.size === 0 || calls.length > 0)
+  }
+  while (next < side && messages[next]!.role === "assistant" && echoes(messages[next]!.content)) next++
+  const settled = new Set<unknown>()
+  for (; next < side && isNote(messages[next]!.role); next++) {
+    for (const id of resultIds(messages[next]!.content)) {
+      if (!pending.has(id as string) || settled.has(id)) return replay("not-side-prompt")
+      settled.add(id)
+    }
+  }
+  if (settled.size !== pending.size) return replay("pending-tool")
+
+  let inFlight: AuxiliaryFork["inFlight"]
+  if (next < side && messages[next]!.role === "assistant") {
+    const from = next++
+    const calls = callIds(messages[from]!.content)
+    if (calls.some(id => pending.has(id as string))) return replay("not-side-prompt")
+    const filled = next < side && messages[next]!.role === "user" ? messages[next]!.content : undefined
+    const filledIds = resultIds(filled)
+    if (calls.length > 0) {
+      // The client fills in a result for every call it made; without one the
+      // request is not a turn in flight but a history the session never had.
+      const filledSet = new Set(filledIds)
+      if (filledIds.length !== blocks(filled).length || filledSet.size !== filledIds.length || filledSet.size !== calls.length
+        || !calls.every(id => typeof id === "string" && filledSet.has(id))) return replay("not-side-prompt")
+      next++
+    }
+    inFlight = { from, to: next }
+  }
+  if (next !== side) return replay("not-side-prompt")
+  return inFlight ? { lineage: result, inFlight } : { lineage: result }
 }
 
 /**
