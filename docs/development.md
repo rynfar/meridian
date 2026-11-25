@@ -45,6 +45,10 @@ Every incoming request is classified:
 
 Sessions are stored in-memory (LRU) and persisted to `~/.cache/meridian/sessions.json` for cross-proxy resume.
 
+### Request attribution
+
+Client apps can send [optional attribution headers](client-attribution.md) on model requests. They are telemetry only, not adapter detection or session routing signals.
+
 ### Agent Detection
 
 Detection is ordered; the first matching signal wins. See [`detect.ts`](../src/proxy/adapters/detect.ts) for the implementation.

@@ -54,6 +54,10 @@ describe("parseAdapterInstances", () => {
 })
 
 describe("matchesInstance", () => {
+  it("cannot use telemetry identity as a match rule", () => {
+    expect(matchesInstance({ base: "opencode", match: { header: { "X-Meridian-Client": "voice-ai" } } },
+      name => name === "x-meridian-client" ? "voice-ai" : undefined)).toBe(false)
+  })
   const def = (match: AdapterInstanceDef["match"]): AdapterInstanceDef => ({ base: "opencode", match })
   const headers = (h: Record<string, string>) => (name: string) => h[name.toLowerCase()]
 

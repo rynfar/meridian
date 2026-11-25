@@ -208,6 +208,8 @@ export function createCacheKeepaliveRunner(deps: CacheKeepaliveRunnerDeps) {
       timestamp: finishedAt,
       adapter: recipe.adapterName,
       requestSource: CACHE_KEEPALIVE_SOURCE,
+      client: { name: "meridian" },
+      purpose: "keepalive",
       profileId: recipe.profileId,
       model: recipe.model,
       requestModel: recipe.requestModel,

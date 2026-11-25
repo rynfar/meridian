@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto"
 import type { ProxyConfig, ProxyServer } from "../types"
 import { buildRuntime } from "../buildRuntime"
 import { hasValidApiKey } from "../auth"
+import { readClientAttribution } from "../clientIdentity"
 import { headerSettingsResponse, healthHostname } from "../../headerSettings"
 import { AntigravityRuntime, type AntigravityRun } from "./antigravityRuntime"
 import { AntigravityError, forcedAgTool, toolChoiceInstruction, blocks, contractKey, historyKey, sameAgExecutionContract, parseAgRequestWithMeta, type AgBlock, type AgResult, type AgRequest } from "./antigravityProtocol"
@@ -123,6 +124,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
   async function messages(request: Request, saveCompletedAnswers = true): Promise<Response> {
     if (runtime.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
     if (request.headers.has("x-meridian-profile")) throw new AntigravityError("Antigravity uses the current agy account; Claude profile routing is unavailable")
+    const attribution = readClientAttribution(request.headers)
     const { request: body, droppedTools } = parseAgRequestWithMeta(await runtime.plugins.request(await readBody(request), request.signal), runtime.options.adaptThinkingBudgets)
     if (request.signal.aborted) throw new AntigravityError("Request cancelled", 499, "api_error")
     const adaptationHeaders: Record<string, string> = {
@@ -247,7 +249,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
             catch (error) { console.error("[antigravity] Interrupted-continuation recovery could not be recorded:", String(error)) }
           }
           const priming = run.historyUsage()
-          const metric = { conversationId: run.conversationId ?? run.id, continuation: run.continuation, requestId: id, timestamp: started, durationMs: Date.now() - started, model: body.model, status, error: failure, inputTokens: usage.input_tokens + priming.input, outputTokens: usage.output_tokens + priming.output, cacheReadTokens: usage.cache_read_input_tokens + priming.cache }
+          const metric = { ...attribution, conversationId: run.conversationId ?? run.id, continuation: run.continuation, requestId: id, timestamp: started, durationMs: Date.now() - started, model: body.model, status, error: failure, inputTokens: usage.input_tokens + priming.input, outputTokens: usage.output_tokens + priming.output, cacheReadTokens: usage.cache_read_input_tokens + priming.cache }
           runtime.record(metric)
           await runtime.plugins.observe("onTelemetry", metric, request.signal)
         } finally {

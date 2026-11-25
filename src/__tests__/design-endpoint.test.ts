@@ -7,7 +7,7 @@
  * headers, serves the local GET keepalive stream, and that /design-login
  * exchanges a code and persists the token file. From #543 by @sittitep.
  */
-import { describe, it, expect, mock, beforeEach, afterAll } from "bun:test"
+import { describe, it, expect, beforeEach, afterAll } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -134,7 +134,7 @@ describe("/v1/design proxy (#543)", () => {
     expect(upstreamCalls).toHaveLength(0)
   })
 
-  it("POST proxies to upstream with identity encoding and forwards mcp-session-id both ways", async () => {
+  it("POST forwards MCP protocol headers but keeps Meridian headers off the upstream request", async () => {
     upstreamResponse = () =>
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -144,7 +144,17 @@ describe("/v1/design proxy (#543)", () => {
     const res = await app.fetch(
       new Request("http://localhost/v1/design/mcp?x=1", {
         method: "POST",
-        headers: { "content-type": "application/json", "mcp-session-id": "client-sess", "anthropic-beta": "mcp-beta" },
+        headers: {
+          "content-type": "application/json",
+          "mcp-session-id": "client-sess",
+          "anthropic-beta": "mcp-beta",
+          "x-meridian-client": "voice-ai/0.9.3",
+          "x-meridian-installation": "verify-client-id",
+          "x-meridian-device": "m4max",
+          "x-meridian-purpose": "test",
+          "x-meridian-session": "verify-1",
+          "X-Meridian-Attribution-Probe": "unknown-local-header",
+        },
         body: JSON.stringify({ jsonrpc: "2.0", method: "tools/list", id: 1 }),
       }),
     )
@@ -158,6 +168,7 @@ describe("/v1/design proxy (#543)", () => {
     expect(call.headers["accept-encoding"]).toBe("identity")
     expect(call.headers["mcp-session-id"]).toBe("client-sess")
     expect(call.headers["anthropic-beta"]).toBe("mcp-beta")
+    expect(Object.keys(call.headers).filter(name => name.startsWith("x-meridian-"))).toEqual([])
     expect(call.body).toContain("tools/list")
   })
 

@@ -32,6 +32,7 @@ Code: `src/proxy/chatgpt/` (incl. `migrate/`), `src/proxy/codex/`,
   request. Bodies are adapted only where the Codex backend requires it; the
   response streams back byte for byte. A GPT model is never answered by Claude
   (`/v1/messages` returns 404 when ChatGPT is configured).
+- **Client attribution stays local.** Turn events retain the optional client and purpose for request telemetry, including retries and Images requests. Codex request headers are assembled separately and never contain a Meridian header.
 - **Exactly one program refreshes a seat.** ChatGPT refresh tokens are
   single-use: exchanging one invalidates every other copy and breaks the account
   (`refresh_token_reused`). Hence:

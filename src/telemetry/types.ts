@@ -46,7 +46,19 @@ export interface RouteHop {
   refusedBucket?: string
 }
 
-export interface RequestMetric {
+export type RequestClient = {
+  readonly name: string
+  readonly version?: string
+  readonly installation?: string
+  readonly device?: string
+}
+
+export type RequestAttribution = {
+  readonly client?: RequestClient
+  readonly purpose?: string
+}
+
+export interface RequestMetric extends RequestAttribution {
   /** Unique request identifier */
   requestId: string
 

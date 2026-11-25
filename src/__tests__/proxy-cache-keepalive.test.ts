@@ -443,12 +443,12 @@ describe("cache keepalive", () => {
     process.env.MERIDIAN_CACHE_KEEPALIVE = "1"
     const proxy = createProxyServer({ port: 0, host: "127.0.0.1" })
     const start = Date.now()
-    await turn(proxy, { "x-opencode-session": "ses_telemetry" })
+    await turn(proxy, { "x-opencode-session": "ses_telemetry", "x-meridian-client": "opencode", "x-meridian-purpose": "chat" })
     await tickAt(proxy, start + INTERVAL + 1_000)
     expect(beatCalls()).toHaveLength(1)
 
     const rows = telemetryStore.getRecent({ limit: 10 })
-    expect(rows.map(row => row.requestSource ?? null)).toContain("cache-keepalive")
+    expect(rows.find(row => row.requestSource === "cache-keepalive")).toMatchObject({ client: { name: "meridian" }, purpose: "keepalive" })
     const summary = telemetryStore.summarize(24 * 60 * MIN)
     expect(summary.totalRequests).toBe(1)
     expect(summary.errorCount).toBe(0)

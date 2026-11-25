@@ -227,8 +227,20 @@ async function main(inputPrompt) {
   if (prompt.includes('LINGER')) setInterval(() => {}, 1000)
 }
 async function run() {
-  if (!args.includes('--input-format')) return main()
+  const egress = JSON.parse(process.env.AGY_FIXTURE_EGRESS_CAPTURE || 'null')
+  const capture = stdin => {
+    if (!egress) return
+    const envKeys = Object.entries(process.env).filter(([key, value]) => key !== 'AGY_FIXTURE_EGRESS_CAPTURE' && (
+      /^x[-_]meridian[-_]/i.test(key) || egress.markers.some(marker => value.includes(marker))
+    )).map(([key]) => key)
+    const mcp = stdin === undefined ? undefined : readFileSync('.agents/mcp_config.json', 'utf8')
+    appendFileSync(egress.path, JSON.stringify({ args, stdin, envKeys, mcp }) + '\n')
+  }
+  if (!args.includes('--input-format')) { capture(); return main() }
   const lines = require('node:readline').createInterface({ input: process.stdin })
-  for await (const line of lines) await main(JSON.parse(line).message.content)
+  for await (const line of lines) {
+    capture(line)
+    await main(JSON.parse(line).message.content)
+  }
 }
 run().catch(error => { console.error(error); process.exitCode = 1 })
