@@ -212,16 +212,19 @@ wrote it. Its heartbeat had stopped and its turn was over, but no process could
 prove the owner dead, so every later turn on that conversation waited behind it
 until the proxy restarted.
 
-So a release that fails still ends the lease, and the coordinator keeps the
-tokens of the leases this process holds. A lock stamped with this process's
-incarnation whose token is not among them is abandoned: an acquire in this
-process reclaims it at once through the normal recovery claim, with no
+So a release that fails still ends the lease, and this process keeps the
+tokens of the leases it holds (`liveLockTokens.ts`). A lock stamped with this
+process's incarnation whose token is not among them is abandoned: an acquire in
+this process reclaims it at once through the normal recovery claim, with no
 staleness wait. This grants nothing a successful release would not have; the
 lease had already been released. A lease that is never released (the turn
 watchdog's abort, or the fence kept after a mandatory cleanup failure) still
-holds its token and is never reclaimed this way. The token set lives on
-`globalThis`, so a second copy of the module in one process cannot read the
-other copy's live leases as abandoned.
+holds its token and is never reclaimed this way. The token is held from before
+the lock directory is published, so no acquire in this process can see a live
+lease's lock without its token. The token set lives on `globalThis`, so a
+second copy of the module in one process cannot read the other copy's live
+leases as abandoned. Worker threads have their own `globalThis`; none of them
+takes these locks.
 
 Another process cannot prove the lock abandoned, so the owning process also
 keeps clearing it in the background (`releaseRetryDelaysMs`, whose last delay
@@ -230,6 +233,43 @@ That retry goes through the same recovery claim and identity recheck as a
 reclaim, not through a second `releaseOwned`: a bare release racing a
 same-process reclaim could move a successor's live lock between its check and
 its rename, breaking mutual exclusion.
+
+## Abandoned lifecycle and store locks
+
+The same failure wedges the session-lifecycle lock (`session-gc.json.lock`,
+every `withSidecarLock` caller, including `reconcile` and transcript
+publication) and the session-store lock (`sessions.json.lock`, the async
+`acquireLock` and the offline `withLegacyStoreMaintenanceLock`). Releasing
+either unlinks the lock file; when that fails, for example with EACCES after a
+permissions change on the store directory, the file is left behind with this
+process's own owner record. Stale recovery required a dead owner, the owner was
+alive, and every later bookkeeping call waited out its deadline and failed
+until a restart, however briefly the permission problem lasted.
+
+Both locks and the recovery claims of all three protocols (lifecycle, store,
+turn) now follow the turn-lock rule, through the same token set:
+
+- The owner token is held from before the lock (or claim) can be published
+  until its release attempt is over, whatever the outcome. A claim whose
+  publication fails partway is dropped at once, since nothing then holds it.
+- A lock or claim stamped with this process's exact incarnation whose token is
+  not held is abandoned and is retired at once, without the staleness wait.
+  Another process's lock or claim is still retired only once stale and once
+  its owner is proven dead; for the lifecycle lock, an unparseable owner still
+  needs a lock that predates the current boot (#1548). The store lock still
+  fails closed without a parseable owner.
+- A failed release of the lifecycle or async store lock is retried in the
+  background on the same schedule as turn locks (1 s, 5 s, 30 s, then every
+  60 s, `DEFAULT_RELEASE_RETRY_DELAYS_MS`), so other processes sharing the store
+  are unblocked once the error clears. The retry goes through stale recovery,
+  with its claim and identity recheck, and stops once the file is gone or
+  holds another owner. The offline maintenance lock has no background retry:
+  its token is dropped, so the next maintenance call in this process reclaims
+  it.
+
+Release paths that find a different owner (a successor, or a migration
+barrier that replaced the lock) do not retry, and drop the token like any
+other finished release.
 
 ## Process-lifetime files
 
@@ -247,7 +287,7 @@ one: it writes the candidate completely before linking it. Stale recovery
 therefore reclaims an unparseable lock once its mtime predates the current
 boot (`predatesBoot` in `processIncarnation.ts`); one written during this boot
 still fails closed. A parseable lock is still recovered only from a proven
-dead owner.
+dead owner, or from this process when its own release failed (above).
 
 Kept fsynced: recovery claims, since an unreadable claim would block recovery
 of its generation even after a reboot; `session-gc.json` and the store files;

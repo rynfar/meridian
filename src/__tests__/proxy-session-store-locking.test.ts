@@ -26,6 +26,7 @@ import {
   getRecoveryClaimPath,
   getRecoveryClaimTombstonePath,
 } from "../proxy/session/recoveryClaim"
+import { dropLockToken, holdLockToken } from "../proxy/session/liveLockTokens"
 
 describe("Shared session store locking", () => {
   let tmpDir: string
@@ -134,10 +135,16 @@ describe("Shared session store locking", () => {
       utimesSync(lockPath, staleTime, staleTime)
       const claimPath = getRecoveryClaimPath(lockPath, staleOwner)
       writeRecoveryClaim(claimPath, staleOwner, `blocked-${claimHostname}`, claimPid, claimHostname)
+      // A live claim of this process is one a recovery here still holds.
+      if (claimPid === process.pid) holdLockToken(`blocked-${claimHostname}`)
 
-      await expect(storeSharedSession(`blocked-${claimHostname}`, "claude-never-written")).rejects
-        .toThrow("timed out waiting for lock")
-      expect(existsSync(join(claimPath, "owner.json"))).toBe(true)
+      try {
+        await expect(storeSharedSession(`blocked-${claimHostname}`, "claude-never-written")).rejects
+          .toThrow("timed out waiting for lock")
+        expect(existsSync(join(claimPath, "owner.json"))).toBe(true)
+      } finally {
+        dropLockToken(`blocked-${claimHostname}`)
+      }
 
       rmSync(claimPath, { recursive: true, force: true })
       rmSync(lockPath, { force: true })

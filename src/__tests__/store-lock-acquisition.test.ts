@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process"
 import * as fs from "node:fs"
 import { hostname, tmpdir } from "node:os"
 import { join } from "node:path"
+import { dropLockToken, holdLockToken } from "../proxy/session/liveLockTokens"
 import * as processIdentity from "../proxy/session/processIncarnation"
 import { barrierBytes } from "../proxy/session/bookkeeping/maintenanceJournal"
 import { SessionStoreLockTimeoutError } from "../proxy/session/storeErrors"
@@ -110,6 +111,8 @@ it.each(["live", "empty", "malformed", "barrier"])("keeps an occupied %s lock wi
   const candidates = observeCandidates(lockPath)
   const deadSpy = spyOn(processIdentity, "processIncarnationIsDead")
   let entered = false
+  // A live lock of this process is one an operation here still holds.
+  if (kind === "live") holdLockToken("live-owner")
   try {
     expect(() => withLegacyStoreMaintenanceLock(directory, () => { entered = true }))
       .toThrow(SessionStoreLockTimeoutError)
@@ -119,6 +122,7 @@ it.each(["live", "empty", "malformed", "barrier"])("keeps an occupied %s lock wi
     expect(deadSpy).toHaveBeenCalledTimes(kind === "live" ? 1 : 0)
     expect(fs.readdirSync(directory)).toEqual(["sessions.json.lock"])
   } finally {
+    if (kind === "live") dropLockToken("live-owner")
     deadSpy.mockRestore()
     candidates.restore()
     nowSpy.mockRestore()
