@@ -285,8 +285,15 @@ export function stable(value: unknown): string {
   if (value && typeof value === "object") return "{" + Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, val]) => JSON.stringify(key) + ":" + stable(val)).join(",") + "}"
   return JSON.stringify(value) ?? "null"
 }
+/** Conversation identity for continuation and reuse. Boundary whitespace of
+ *  assistant text is not part of it; see the backend SPEC, *History identity*. */
 export function historyKey(messages: AgMessage[]): string {
-  return stable(messages.map(m => ({ role: m.role, content: blocks(m) })))
+  return stable(messages.map(m => ({
+    role: m.role,
+    content: m.role === "assistant"
+      ? blocks(m).map(block => block.type === "text" ? { ...block, text: block.text.trim() } : block)
+      : blocks(m),
+  })))
 }
 export function contractKey(request: AgRequest): string {
   return stable({ session: request.meridian_session_key, grammars: request.meridian_tool_grammars, model: request.model, system: request.system, tools: request.tools, max_tokens: request.max_tokens, thinking: request.thinking, stop_sequences: request.stop_sequences, output_config: request.output_config })

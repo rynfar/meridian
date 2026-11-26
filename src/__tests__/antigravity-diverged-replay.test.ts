@@ -131,6 +131,22 @@ describe.skipIf(process.platform === "win32")("Antigravity completed-history rec
     expect(JSON.stringify([...runtime.runs.values()][0]?.history)).toContain("Do not write; explain the receipt instead.")
   })
 
+  for (const native of [false, true]) it(`continues the pending process when the client trims earlier assistant text${native ? " (native grants on)" : ""}`, async () => {
+    const { send, runtime } = fixture(native)
+    const prior = (text: string) => [{ role: "user", content: "Hello" }, { role: "assistant", content: [{ type: "text", text }] }]
+    const initial = { model: "fixture-model", tools: [tool], messages: [...prior("Earlier answer.\n"), { role: "user", content: "Run lookup" }] }
+    const first = await (await send(initial)).json() as { content: Array<{ id: string }> }
+    const old = [...runtime.runs.values()][0]!
+    const response = await send({ ...initial, messages: [...prior("Earlier answer."), { role: "user", content: "Run lookup" },
+      { role: "assistant", content: first.content },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: first.content[0]!.id, content: "receipt" }] },
+    ] })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain("receipt")
+    expect(runtime.requests[0]?.continuation).toBe("tool-result")
+    expect(runtime.runs.has(old.id)).toBe(true)
+  })
+
   it("waits for join and claims even the removed IDs of the old delivered batch", async () => {
     const { send, runtime } = fixture()
     const initial = { model: "fixture-model", messages: [{ role: "user", content: "PARALLEL2" }], tools: [tool] }

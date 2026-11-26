@@ -88,6 +88,27 @@ describe("Antigravity request contract", () => {
   it("normalizes string/text messages and JSON key order for continuation", () => {
     expect(historyKey([{ role: "user", content: "hello" }])).toBe(historyKey([{ role: "user", content: [{ type: "text", text: "hello" }] }]))
   })
+  it("ignores boundary whitespace in assistant text for continuation, and nothing else", () => {
+    const call = { type: "tool_use" as const, id: "toolu_fixture", name: "lookup", input: { key: "fixture" } }
+    const narrated = (text: string) => [{ role: "assistant" as const, content: [{ type: "text" as const, text }, call] }]
+    expect(historyKey(narrated("Reading the receipt.\n"))).toBe(historyKey(narrated("Reading the receipt.")))
+    expect(historyKey(narrated("\nReading the receipt.\n\n"))).toBe(historyKey(narrated("Reading the receipt.")))
+    expect(historyKey([{ role: "assistant", content: "Done.\n" }])).toBe(historyKey([{ role: "assistant", content: "Done." }]))
+    // Edits, inner whitespace, user text, tool results and tool calls stay exact.
+    expect(historyKey(narrated("Reading the receipt."))).not.toBe(historyKey(narrated("Deleting the receipt.")))
+    expect(historyKey(narrated("Reading  the receipt."))).not.toBe(historyKey(narrated("Reading the receipt.")))
+    expect(historyKey([{ role: "user", content: "hello\n" }])).not.toBe(historyKey([{ role: "user", content: "hello" }]))
+    const result = (content: string) => [{ role: "user" as const, content: [{ type: "tool_result" as const, tool_use_id: call.id, content }] }]
+    expect(historyKey(result("receipt\n"))).not.toBe(historyKey(result("receipt")))
+    for (const changed of [{ ...call, id: "toolu_other" }, { ...call, name: "other" }, { ...call, input: { key: "other" } }]) {
+      expect(historyKey([{ role: "assistant", content: [{ type: "text", text: "Reading the receipt." }, changed] }])).not.toBe(historyKey(narrated("Reading the receipt.")))
+    }
+    // The comparison never rewrites the history it is given.
+    const original = narrated("\nReading the receipt.\n")
+    const snapshot = structuredClone(original)
+    historyKey(original)
+    expect(original).toEqual(snapshot)
+  })
 })
 
 describe.skipIf(process.platform === "win32")("Antigravity HTTP/CLI integration", () => {
@@ -124,6 +145,19 @@ describe.skipIf(process.platform === "win32")("Antigravity HTTP/CLI integration"
     expect(edited.status).toBe(200)
     expect(runtime.reused).toBe(1)
     expect(runtime.runs.size).toBe(2)
+  })
+  it("reuses the native conversation when the client trims earlier assistant text", async () => {
+    const { send, runtime } = fixture({ reuseConversations: true })
+    const prior = (text: string) => [{ role: "user", content: "Hello" }, { role: "assistant", content: text }]
+    const request = { ...initial(), tools: [], messages: [...prior("Earlier answer.\n"), { role: "user", content: "NATIVE_FIRST" }] }
+    const first = await decode(await send(request))
+    const next = { ...request, messages: [...prior("Earlier answer."), { role: "user", content: "NATIVE_FIRST" },
+      { role: "assistant", content: first.content }, { role: "user", content: "NATIVE_SECOND" }] }
+    const second = await send(next)
+    expect(second.status).toBe(200)
+    expect((await decode(second)).content[0]!.text).toBe("NATIVE_REUSED")
+    expect(runtime.reused).toBe(1)
+    expect(runtime.runs.size).toBe(1)
   })
   for (const path of ["/v1/chat/completions", "/v1/responses"]) {
     it(`translates JSON and incremental SSE on ${path}`, async () => {

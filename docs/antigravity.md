@@ -133,7 +133,8 @@ responsibility.
 ## State and recovery
 
 Pending tool calls retain a live `agy` process. Exact continuations preserve the
-delivered prefix and batch. A complete changed history or batch can instead retire
+delivered prefix and batch; leading and trailing whitespace in earlier assistant
+text does not count as a change. A complete changed history or batch can instead retire
 and join its single idle owner before replay (`history-replay`), with native grants
 disabled. Some completed IDs may have no live owner; two different live owners
 remain a conflict. Model, session identity and execution controls must still match. A client plugin may update
