@@ -24,9 +24,15 @@ import {
   getRecoveryClaimPath,
   getRecoveryClaimTombstonePath,
   parseRecoveryClaimOwnerJson,
-  recoveryClaimOwnerIsDead,
+  recoveryClaimIsAbandoned,
   type RecoveryClaimOwner,
 } from "./recoveryClaim"
+import {
+  DEFAULT_RELEASE_RETRY_DELAYS_MS,
+  abandonedBySelf,
+  dropLockToken,
+  holdLockToken,
+} from "./liveLockTokens"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
@@ -38,19 +44,6 @@ const OWNER_FILE = "owner.json"
 const DEFAULT_ACQUIRE_TIMEOUT_MS = 30_000
 const DEFAULT_STALE_AFTER_MS = 30_000
 const DEFAULT_RETRY_DELAY_MS = 25
-/** The last delay repeats until the abandoned lock is gone. */
-const DEFAULT_RELEASE_RETRY_DELAYS_MS: readonly number[] = [1_000, 5_000, 30_000, 60_000]
-
-/**
- * Tokens of the leases this process currently holds, across every coordinator
- * instance. A lock stamped with this process's incarnation whose token is not
- * here was released by its lease, so it is abandoned, not live. Kept on
- * `globalThis` so a second copy of this module in the same process shares it
- * instead of reading the other copy's live leases as abandoned.
- */
-const LIVE_LEASE_TOKENS: unique symbol = Symbol.for("meridian.crossProcessTurn.liveLeaseTokens")
-const leaseTokenRegistry = globalThis as typeof globalThis & { [LIVE_LEASE_TOKENS]?: Set<string> }
-const liveLeaseTokens = leaseTokenRegistry[LIVE_LEASE_TOKENS] ??= new Set<string>()
 // os.uptime() is whole seconds on some platforms, so the boot instant derived
 // from it can land up to a second late. Only activity clearly before it counts
 // as belonging to an earlier boot.
@@ -249,21 +242,6 @@ function ownerIsDead(owner: OwnerRecord | undefined): boolean {
   return owner ? processIncarnationIsDead(owner.incarnation) : false
 }
 
-function sameIncarnation(left: ProcessIncarnation, right: ProcessIncarnation): boolean {
-  return left.pid === right.pid
-    && left.hostId === right.hostId
-    && left.bootId === right.bootId
-    && left.startId === right.startId
-    && left.startIdKind === right.startIdKind
-}
-
-/** A lock this exact process published and no longer holds a lease for. */
-function abandonedBySelf(owner: OwnerRecord): boolean {
-  if (liveLeaseTokens.has(owner.token)) return false
-  const current = captureProcessIncarnation()
-  return current !== undefined && sameIncarnation(owner.incarnation, current)
-}
-
 interface RecoveryPolicy {
   staleAfterMs: number
   bootTimeMs: () => number
@@ -336,6 +314,9 @@ async function tryPublishRecoveryClaim(
   generation: string,
 ): Promise<RecoveryClaimOwner | undefined> {
   const owner = createRecoveryClaimOwner(generation)
+  // Held until the recoverer releases the claim (see liveLockTokens).
+  holdLockToken(owner.token)
+  let claimed = false
   const candidate = `${claimPath}.candidate-${process.pid}-${owner.token}`
   let handle: Awaited<ReturnType<typeof open>> | undefined
   let published = false
@@ -360,25 +341,28 @@ async function tryPublishRecoveryClaim(
       await rename(candidate, claimPath)
       published = true
       await syncDirectoryDurably(dirname(claimPath))
+      claimed = true
       return owner
     } catch (error) {
       if (await directoryRenameWasBlocked(error, claimPath)) return undefined
       throw error
     }
   } finally {
+    // Unless the caller now owns the claim, nothing here holds it.
+    if (!claimed) dropLockToken(owner.token)
     await handle?.close().catch(() => undefined)
     if (!published) await rm(candidate, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
-/** Retire only the observed dead claim generation. Its tombstone fences ABA. */
+/** Retire only the observed abandoned claim generation. Its tombstone fences ABA. */
 async function retireDeadRecoveryClaim(claimPath: string, generation: string): Promise<boolean> {
   const observed = await snapshotRecoveryClaim(claimPath)
   if (!observed) return true
   if (
     !observed.owner
     || observed.owner.generation !== generation
-    || !recoveryClaimOwnerIsDead(observed.owner)
+    || !recoveryClaimIsAbandoned(observed.owner)
   ) return false
 
   const tombstone = getRecoveryClaimTombstonePath(claimPath, observed.owner.token)
@@ -398,7 +382,7 @@ async function retireDeadRecoveryClaim(claimPath: string, generation: string): P
     || !currentOwner
     || currentOwner.token !== observed.owner.token
     || currentOwner.generation !== generation
-    || !recoveryClaimOwnerIsDead(currentOwner)
+    || !recoveryClaimIsAbandoned(currentOwner)
   ) return false
 
   try {
@@ -571,6 +555,8 @@ export class CrossProcessTurnCoordinator {
       createdAt: Date.now(),
       incarnation,
     }
+    // Held from before publication until the lease's release attempt is over.
+    holdLockToken(owner.token)
     const candidate = `${lockPath}.candidate-${process.pid}-${owner.token}`
     let published = false
     try {
@@ -597,7 +583,10 @@ export class CrossProcessTurnCoordinator {
 
       return this.createLease(lockPath, owner, Date.now() - arrivedAt)
     } finally {
-      if (!published) await rm(candidate, { recursive: true, force: true }).catch(() => undefined)
+      if (!published) {
+        dropLockToken(owner.token)
+        await rm(candidate, { recursive: true, force: true }).catch(() => undefined)
+      }
     }
   }
 
@@ -612,7 +601,6 @@ export class CrossProcessTurnCoordinator {
     let released = false
     let releasePromise: Promise<void> | undefined
 
-    liveLeaseTokens.add(owner.token)
     const timer = setInterval(() => {
       if (refreshing || released) return
       refreshing = true
@@ -648,7 +636,7 @@ export class CrossProcessTurnCoordinator {
           .finally(() => {
             // The turn is over whether or not the directory moved. Dropping the
             // token lets this process reclaim a lock the release left behind.
-            liveLeaseTokens.delete(owner.token)
+            dropLockToken(owner.token)
           })
         return releasePromise
       },
@@ -730,6 +718,8 @@ export class CrossProcessTurnCoordinator {
       else throw error
     } finally {
       await releaseRecoveryClaim(claimPath, claimOwner)
+      // A claim whose cleanup failed now reads as abandoned, not live.
+      dropLockToken(claimOwner.token)
       if (generationResolved) {
         await cleanupRecoveryTombstones(claimPath).catch((error) => {
           console.error("[crossProcessTurnCoordinator] recovery tombstone cleanup failed:", (error as Error).message)

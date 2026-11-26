@@ -58,9 +58,15 @@ import {
   getRecoveryClaimPath,
   getRecoveryClaimTombstonePath,
   parseRecoveryClaimOwnerJson,
-  recoveryClaimOwnerIsDead,
+  recoveryClaimIsAbandoned,
   type RecoveryClaimOwner,
 } from "./session/recoveryClaim"
+import {
+  abandonedBySelf,
+  dropLockToken,
+  holdLockToken,
+  retryAbandonedLockRelease,
+} from "./session/liveLockTokens"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
@@ -198,6 +204,8 @@ function getLockWaitMs(): number {
 interface StoreLock {
   path: string
   token: string
+  /** The owner record's `token` field, held in liveLockTokens. */
+  ownerToken: string
 }
 
 interface StoreLockCandidate {
@@ -290,9 +298,14 @@ function parseCanonicalStoreLockOwner(contents: string): CanonicalStoreLockOwner
   }
 }
 
-function canonicalStoreLockOwnerIsDead(contents: string): boolean {
+/** Whether no running operation can hold this lock. One this live process
+ *  left behind when its release failed is abandoned at once; otherwise the
+ *  lock must be stale and its owner proven dead. */
+function storeLockIsAbandoned(contents: string, mtimeMs: number, staleMs: number): boolean {
   const owner = parseCanonicalStoreLockOwner(contents)
-  return owner ? processIncarnationIsDead(owner.incarnation) : false
+  if (!owner) return false
+  if (abandonedBySelf(owner)) return true
+  return Date.now() - mtimeMs > staleMs && processIncarnationIsDead(owner.incarnation)
 }
 
 interface StoreRecoveryClaimSnapshot {
@@ -322,6 +335,9 @@ function snapshotStoreRecoveryClaim(claimPath: string): StoreRecoveryClaimSnapsh
 
 /** Atomically publish a fully initialized, non-empty recovery owner directory. */
 function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner): boolean {
+  // Held until the recoverer releases the claim (see liveLockTokens).
+  holdLockToken(owner.token)
+  let claimed = false
   const candidate = `${claimPath}.candidate-${process.pid}-${owner.token}`
   let fd: number | undefined
   let published = false
@@ -346,12 +362,15 @@ function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner)
       renameSync(candidate, claimPath)
       published = true
       syncDirectoryDurablySync(dirname(claimPath))
+      claimed = true
       return true
     } catch (error) {
       if (directoryRenameWasBlockedSync(error, claimPath)) return false
       throw error
     }
   } finally {
+    // Unless the caller now owns the claim, nothing here holds it.
+    if (!claimed) dropLockToken(owner.token)
     if (fd !== undefined) {
       try { closeSync(fd) } catch (error) {
         console.error("[sessionStore] recovery claim owner close failed:", (error as Error).message)
@@ -365,14 +384,14 @@ function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner)
   }
 }
 
-/** Retire only the observed dead claim generation. Its tombstone fences ABA. */
+/** Retire only the observed abandoned claim generation. Its tombstone fences ABA. */
 function retireDeadStoreRecoveryClaim(claimPath: string, generation: string): boolean {
   const observed = snapshotStoreRecoveryClaim(claimPath)
   if (!observed) return true
   if (
     !observed.owner
     || observed.owner.generation !== generation
-    || !recoveryClaimOwnerIsDead(observed.owner)
+    || !recoveryClaimIsAbandoned(observed.owner)
   ) return false
 
   const tombstone = getRecoveryClaimTombstonePath(claimPath, observed.owner.token)
@@ -390,7 +409,7 @@ function retireDeadStoreRecoveryClaim(claimPath: string, generation: string): bo
     || current.ino !== observed.ino
     || current.owner?.token !== observed.owner.token
     || current.owner.generation !== generation
-    || !recoveryClaimOwnerIsDead(current.owner)
+    || !recoveryClaimIsAbandoned(current.owner)
   ) return !current
 
   try {
@@ -452,10 +471,7 @@ function retireStaleLock(lockPath: string, staleMs = STALE_LOCK_THRESHOLD_MS): b
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true
     throw new Error(`[sessionStore] stale lock inspection failed: ${(error as Error).message}`, { cause: error })
   }
-  if (
-    Date.now() - info.mtimeMs <= staleMs
-    || !canonicalStoreLockOwnerIsDead(token)
-  ) return false
+  if (!storeLockIsAbandoned(token, info.mtimeMs, staleMs)) return false
 
   const generation = token
   const claimPath = getRecoveryClaimPath(lockPath, generation)
@@ -491,10 +507,7 @@ function retireStaleLock(lockPath: string, staleMs = STALE_LOCK_THRESHOLD_MS): b
       generationResolved = true
       return true
     }
-    if (
-      Date.now() - currentInfo.mtimeMs <= staleMs
-      || !canonicalStoreLockOwnerIsDead(currentToken)
-    ) return false
+    if (!storeLockIsAbandoned(currentToken, currentInfo.mtimeMs, staleMs)) return false
 
     const retiredPath = `${lockPath}.stale-${process.pid}-${randomUUID()}`
     renameSync(lockPath, retiredPath)
@@ -518,6 +531,8 @@ function retireStaleLock(lockPath: string, staleMs = STALE_LOCK_THRESHOLD_MS): b
     throw new Error(`[sessionStore] stale lock recovery failed: ${err.message}`, { cause: err })
   } finally {
     releaseStoreRecoveryClaim(claimPath, claimOwner)
+    // A claim whose cleanup failed now reads as abandoned, not live.
+    dropLockToken(claimOwner.token)
     if (generationResolved) cleanupStoreRecoveryTombstones(claimPath)
   }
 }
@@ -525,10 +540,11 @@ function retireStaleLock(lockPath: string, staleMs = STALE_LOCK_THRESHOLD_MS): b
 async function acquireLock(lockPath: string, waitMs = getLockWaitMs(), staleMs = STALE_LOCK_THRESHOLD_MS): Promise<StoreLock> {
   const incarnation = captureProcessIncarnation()
   if (!incarnation) throw new Error("[sessionStore] cannot capture lock owner process incarnation")
+  const ownerToken = randomUUID()
   const token = JSON.stringify({
     pid: process.pid,
     hostname: hostname(),
-    token: randomUUID(),
+    token: ownerToken,
     incarnation,
   })
   const deadline = performance.now() + waitMs
@@ -539,10 +555,17 @@ async function acquireLock(lockPath: string, waitMs = getLockWaitMs(), staleMs =
   } catch (error) {
     throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
   }
+  // Held until the release attempt is over, so a lock file that a failed
+  // release leaves behind reads as abandoned, not live (liveLockTokens).
+  holdLockToken(ownerToken)
+  let acquired = false
   try {
     while (true) {
       try {
-        if (await candidate.publish()) return { path: lockPath, token }
+        if (await candidate.publish()) {
+          acquired = true
+          return { path: lockPath, token, ownerToken }
+        }
       } catch (error) {
         throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
       }
@@ -558,11 +581,13 @@ async function acquireLock(lockPath: string, waitMs = getLockWaitMs(), staleMs =
       await waitForLockRetry(Math.min(LOCK_RETRY_MS, remaining))
     }
   } finally {
+    if (!acquired) dropLockToken(ownerToken)
     await candidate.discard()
   }
 }
 
 async function releaseLock(lock: StoreLock): Promise<void> {
+  let releaseFailed = false
   try {
     if (await readFile(lock.path, "utf8") !== lock.token) {
       console.error("[sessionStore] lock ownership changed before release")
@@ -572,9 +597,33 @@ async function releaseLock(lock: StoreLock): Promise<void> {
   } catch (error) {
     const err = error as NodeJS.ErrnoException
     if (err.code !== "ENOENT") {
+      releaseFailed = true
       console.error("[sessionStore] lock release failed:", err.message)
     }
+  } finally {
+    // The operation is over whether or not the file went away.
+    dropLockToken(lock.ownerToken)
   }
+  if (releaseFailed) retryStoreLockRelease(lock)
+}
+
+/** Keep clearing a lock this process's failed release left behind, so other
+ *  processes waiting on it are unblocked once the error clears. It goes
+ *  through stale recovery, whose claim and identity recheck guard a successor. */
+function retryStoreLockRelease(lock: StoreLock): void {
+  const stillLeaked = async (): Promise<boolean> => {
+    try {
+      return await readFile(lock.path, "utf8") === lock.token
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+      throw error
+    }
+  }
+  retryAbandonedLockRelease("sessionStore", async () => {
+    if (!await stillLeaked()) return
+    retireStaleLock(lock.path)
+    if (await stillLeaked()) throw new Error(`abandoned lock ${lock.path} is still present`)
+  })
 }
 
 // One store's mutations run one at a time within this process, in call order.
@@ -651,33 +700,41 @@ function lockPathIsOccupied(lockPath: string): boolean {
 function acquireLegacyMaintenanceLockSync(lockPath: string, waitMs = getLockWaitMs(), staleMs = STALE_LOCK_THRESHOLD_MS): StoreLock {
   const incarnation = captureProcessIncarnation()
   if (!incarnation) throw new Error("[sessionStore] cannot capture lock owner process incarnation")
+  const ownerToken = randomUUID()
   const token = JSON.stringify({
     pid: process.pid,
     hostname: hostname(),
-    token: randomUUID(),
+    token: ownerToken,
     incarnation,
   })
   const deadline = performance.now() + waitMs
-
-  while (true) {
-    try {
-      // The occupancy check avoids needless durable staging, not the atomic publication check.
-      if (!lockPathIsOccupied(lockPath) && publishInitializedLockFile(lockPath, token)) {
-        return { path: lockPath, token }
+  // Held until the release attempt is over (liveLockTokens).
+  holdLockToken(ownerToken)
+  let acquired = false
+  try {
+    while (true) {
+      try {
+        // The occupancy check avoids needless durable staging, not the atomic publication check.
+        if (!lockPathIsOccupied(lockPath) && publishInitializedLockFile(lockPath, token)) {
+          acquired = true
+          return { path: lockPath, token, ownerToken }
+        }
+      } catch (error) {
+        throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
       }
-    } catch (error) {
-      throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
-    }
 
-    if (deadline - performance.now() <= 0) {
-      throw new SessionStoreLockTimeoutError(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      if (deadline - performance.now() <= 0) {
+        throw new SessionStoreLockTimeoutError(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      }
+      if (retireStaleLock(lockPath, staleMs)) continue
+      const remaining = deadline - performance.now()
+      if (remaining <= 0) {
+        throw new SessionStoreLockTimeoutError(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      }
+      sleepSync(Math.min(LOCK_RETRY_MS, remaining))
     }
-    if (retireStaleLock(lockPath, staleMs)) continue
-    const remaining = deadline - performance.now()
-    if (remaining <= 0) {
-      throw new SessionStoreLockTimeoutError(`[sessionStore] timed out waiting for lock ${lockPath}`)
-    }
-    sleepSync(Math.min(LOCK_RETRY_MS, remaining))
+  } finally {
+    if (!acquired) dropLockToken(ownerToken)
   }
 }
 
@@ -702,7 +759,13 @@ export function withLegacyStoreMaintenanceLock<T>(directory: string, operation: 
   try {
     return operation()
   } finally {
-    if (readFileSync(lock.path, "utf8") === lock.token) releaseLegacyMaintenanceLockSync(lock)
+    try {
+      if (readFileSync(lock.path, "utf8") === lock.token) releaseLegacyMaintenanceLockSync(lock)
+    } finally {
+      // Also when the lock became a barrier or could not be read: nothing
+      // here holds it any more.
+      dropLockToken(lock.ownerToken)
+    }
   }
 }
 

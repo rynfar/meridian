@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import { hostname } from "node:os"
+import { abandonedBySelf } from "./liveLockTokens"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
@@ -78,6 +79,18 @@ export function recoveryClaimOwnerIsDead(
   probe: (incarnation: ProcessIncarnation) => boolean = processIncarnationIsDead,
 ): boolean {
   return probe(owner.incarnation)
+}
+
+/**
+ * Whether recovery may retire this claim: its owner is proven dead, or it is a
+ * claim this live process left behind (its cleanup failed) that no recovery
+ * here still holds.
+ */
+export function recoveryClaimIsAbandoned(
+  owner: RecoveryClaimOwner,
+  probe: (incarnation: ProcessIncarnation) => boolean = processIncarnationIsDead,
+): boolean {
+  return abandonedBySelf(owner) || recoveryClaimOwnerIsDead(owner, probe)
 }
 
 export function getRecoveryClaimPath(lockPath: string, generation: string): string {

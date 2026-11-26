@@ -62,9 +62,15 @@ import {
   getRecoveryClaimPath,
   getRecoveryClaimTombstonePath,
   parseRecoveryClaimOwnerJson,
-  recoveryClaimOwnerIsDead,
+  recoveryClaimIsAbandoned,
   type RecoveryClaimOwner,
 } from "./session/recoveryClaim"
+import {
+  abandonedBySelf,
+  dropLockToken,
+  holdLockToken,
+  retryAbandonedLockRelease,
+} from "./session/liveLockTokens"
 import {
   captureProcessIncarnation,
   parseProcessIncarnation,
@@ -1428,7 +1434,8 @@ async function withSidecarLock<T>(
     options.admissionSignal?.throwIfAborted()
     const incarnation = captureProcessIncarnation()
     if (!incarnation) throw new SessionLifecycleLockError("cannot capture lock owner process incarnation")
-    const token = JSON.stringify({ pid: process.pid, hostname: hostname(), token: randomUUID(), incarnation })
+    const ownerToken = randomUUID()
+    const token = JSON.stringify({ pid: process.pid, hostname: hostname(), token: ownerToken, incarnation })
     const deadline = performance.now() + nonNegativeOption(options.lockWaitMs, DEFAULT_LOCK_WAIT_MS, "lockWaitMs")
     const retryMs = option(options.lockRetryMs, DEFAULT_LOCK_RETRY_MS, "lockRetryMs")
     const staleMs = option(options.lockStaleMs, DEFAULT_LOCK_STALE_MS, "lockStaleMs")
@@ -1439,6 +1446,9 @@ async function withSidecarLock<T>(
       `${token}\n${Date.now()}\n`,
     )
     let acquired = false
+    // Held until the release attempt is over, so a lock file that a failed
+    // release leaves behind reads as abandoned, not live (liveLockTokens).
+    holdLockToken(ownerToken)
     try {
       try {
         while (!acquired) {
@@ -1466,6 +1476,7 @@ async function withSidecarLock<T>(
       return await operation(paths)
     } finally {
       // Only the owner may release. A stale-lock recovery must not unlink a successor.
+      let releaseFailed = false
       try {
         if (acquired) {
           const contents = await readFile(paths.lock, "utf8")
@@ -1473,10 +1484,33 @@ async function withSidecarLock<T>(
         }
       } catch (error) {
         if (!hasCode(error, "ENOENT")) {
+          releaseFailed = true
           console.error("[sessionLifecycle] lock release failed:", errorMessage(error))
         }
       }
+      // The operation is over whether or not the file went away.
+      dropLockToken(ownerToken)
+      if (releaseFailed) retryLifecycleLockRelease(paths.lock, token, staleMs)
     }
+  })
+}
+
+/** Keep clearing a lock this process's failed release left behind, so other
+ *  processes waiting on it are unblocked once the error clears. It goes
+ *  through stale recovery, whose claim and identity recheck guard a successor. */
+function retryLifecycleLockRelease(lockPath: string, token: string, staleMs: number): void {
+  const stillLeaked = async (): Promise<boolean> => {
+    try {
+      return (await readFile(lockPath, "utf8")).startsWith(`${token}\n`)
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) return false
+      throw error
+    }
+  }
+  retryAbandonedLockRelease("sessionLifecycle", async () => {
+    if (!await stillLeaked()) return
+    await recoverStaleLock(lockPath, staleMs)
+    if (await stillLeaked()) throw new Error(`abandoned lock ${lockPath} is still present`)
   })
 }
 
@@ -1514,10 +1548,14 @@ function parseCanonicalLifecycleLockOwner(contents: string): CanonicalLifecycleL
   }
 }
 
-/** Whether no running process can hold this lock: its owner is proven dead,
- *  or, when no owner is readable, the lock was written before this boot. */
-function lifecycleLockIsAbandoned(contents: string, mtimeMs: number): boolean {
+/** Whether no running operation can hold this lock. One this live process
+ *  left behind when its release failed is abandoned at once. Otherwise the
+ *  lock must be stale, and its owner proven dead or, when no owner is
+ *  readable, the lock written before this boot. */
+function lifecycleLockIsAbandoned(contents: string, mtimeMs: number, staleMs: number): boolean {
   const owner = parseCanonicalLifecycleLockOwner(contents)
+  if (owner && abandonedBySelf(owner)) return true
+  if (Date.now() - mtimeMs <= staleMs) return false
   return owner ? processIncarnationIsDead(owner.incarnation) : predatesBoot(mtimeMs)
 }
 
@@ -1553,6 +1591,9 @@ async function publishLifecycleRecoveryClaim(
   claimPath: string,
   owner: RecoveryClaimOwner,
 ): Promise<boolean> {
+  // Held until the recoverer releases the claim (see liveLockTokens).
+  holdLockToken(owner.token)
+  let claimed = false
   const candidate = `${claimPath}.candidate-${process.pid}-${owner.token}`
   let handle: Awaited<ReturnType<typeof open>> | undefined
   let published = false
@@ -1575,18 +1616,21 @@ async function publishLifecycleRecoveryClaim(
       await rename(candidate, claimPath)
       published = true
       await syncDirectoryDurably(dirname(claimPath))
+      claimed = true
       return true
     } catch (error) {
       if (await directoryRenameWasBlocked(error, claimPath)) return false
       throw error
     }
   } finally {
+    // Unless the caller now owns the claim, nothing here holds it.
+    if (!claimed) dropLockToken(owner.token)
     await handle?.close().catch(() => undefined)
     if (!published) await rm(candidate, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
-/** Retire only the observed dead claim generation. Its tombstone fences ABA. */
+/** Retire only the observed abandoned claim generation. Its tombstone fences ABA. */
 async function retireDeadLifecycleRecoveryClaim(
   claimPath: string,
   generation: string,
@@ -1596,7 +1640,7 @@ async function retireDeadLifecycleRecoveryClaim(
   if (
     !observed.owner
     || observed.owner.generation !== generation
-    || !recoveryClaimOwnerIsDead(observed.owner)
+    || !recoveryClaimIsAbandoned(observed.owner)
   ) return false
 
   const tombstone = getRecoveryClaimTombstonePath(claimPath, observed.owner.token)
@@ -1616,7 +1660,7 @@ async function retireDeadLifecycleRecoveryClaim(
     || !currentOwner
     || currentOwner.token !== observed.owner.token
     || currentOwner.generation !== generation
-    || !recoveryClaimOwnerIsDead(currentOwner)
+    || !recoveryClaimIsAbandoned(currentOwner)
   ) return false
 
   try {
@@ -1680,10 +1724,7 @@ async function recoverStaleLock(lockPath: string, staleMs: number): Promise<void
     if (hasCode(error, "ENOENT")) return
     throw error
   }
-  if (
-    Date.now() - info.mtimeMs <= staleMs
-    || !lifecycleLockIsAbandoned(contents, info.mtimeMs)
-  ) return
+  if (!lifecycleLockIsAbandoned(contents, info.mtimeMs, staleMs)) return
 
   const generation = contents
   const claimPath = getRecoveryClaimPath(lockPath, generation)
@@ -1715,10 +1756,7 @@ async function recoverStaleLock(lockPath: string, staleMs: number): Promise<void
       generationResolved = true
       return
     }
-    if (
-      Date.now() - currentInfo.mtimeMs <= staleMs
-      || !lifecycleLockIsAbandoned(currentContents, currentInfo.mtimeMs)
-    ) return
+    if (!lifecycleLockIsAbandoned(currentContents, currentInfo.mtimeMs, staleMs)) return
 
     const quarantine = `${lockPath}.stale-${process.pid}-${randomUUID()}`
     await rename(lockPath, quarantine)
@@ -1733,6 +1771,8 @@ async function recoverStaleLock(lockPath: string, staleMs: number): Promise<void
     else throw error
   } finally {
     await releaseLifecycleRecoveryClaim(claimPath, claimOwner)
+    // A claim whose cleanup failed now reads as abandoned, not live.
+    dropLockToken(claimOwner.token)
     if (generationResolved) await cleanupLifecycleRecoveryTombstones(claimPath)
   }
 }

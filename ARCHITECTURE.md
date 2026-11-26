@@ -326,6 +326,7 @@ src/
 │   │   ├── turnCoordinator.ts ← Process-wide serialization for reliable session IDs
 │   │   ├── crossProcessTurnCoordinator.ts ← Durable coordination across proxy processes
 │   │   ├── processIncarnation.ts ← Process/host identity for lock ownership
+│   │   ├── liveLockTokens.ts  ← Lock tokens this process holds; tells its leaked locks from live ones
 │   │   └── durableFileSystem.ts ← Durable file operations
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
 │   ├── sessionGcLimits.ts     ← Session GC deletion, shutdown and backlog limits and their resolution (PURE)

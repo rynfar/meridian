@@ -50,6 +50,7 @@ import {
   getRecoveryClaimPath,
   getRecoveryClaimTombstonePath,
 } from "../proxy/session/recoveryClaim"
+import { dropLockToken, holdLockToken } from "../proxy/session/liveLockTokens"
 
 interface StoredSidecar {
   version?: number
@@ -997,14 +998,20 @@ describe("session transcript lifecycle", () => {
       utimesSync(lock, stale, stale)
       const claim = getRecoveryClaimPath(lock, contents)
       writeLifecycleRecoveryClaim(claim, contents, `blocked-${claimHostname}`, claimPid, claimHostname)
+      // A live claim of this process is one a recovery here still holds.
+      if (claimPid === process.pid) holdLockToken(`blocked-${claimHostname}`)
 
-      await expect(prepareFork(locator(`blocked-${claimHostname}`), {
-        ...options,
-        lockWaitMs: 5,
-        lockRetryMs: 1,
-        lockStaleMs: 10,
-      })).rejects.toBeInstanceOf(SessionLifecycleLockError)
-      expect(readFileSync(join(claim, "owner.json"), "utf8")).toContain(`blocked-${claimHostname}`)
+      try {
+        await expect(prepareFork(locator(`blocked-${claimHostname}`), {
+          ...options,
+          lockWaitMs: 5,
+          lockRetryMs: 1,
+          lockStaleMs: 10,
+        })).rejects.toBeInstanceOf(SessionLifecycleLockError)
+        expect(readFileSync(join(claim, "owner.json"), "utf8")).toContain(`blocked-${claimHostname}`)
+      } finally {
+        dropLockToken(`blocked-${claimHostname}`)
+      }
 
       rmSync(claim, { recursive: true, force: true })
       rmSync(lock, { force: true })
