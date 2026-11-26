@@ -10,7 +10,7 @@
  * and the next turn, fresh again, failed the same way.
  */
 import { installModelsMock } from "./modelsMock"
-import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { createHash } from "node:crypto"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -92,7 +92,11 @@ installModelsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 
-const profiles = [{ id: "personal", claudeConfigDir: "/home/.claude" }]
+// Profile config dirs live under a private temporary root, never the host's
+// real home: the proxy resolves them on disk.
+const profileRoot = mkdtempSync(join(tmpdir(), "meridian-keyed-cas-profiles-"))
+afterAll(() => rmSync(profileRoot, { recursive: true, force: true }))
+const profiles = [{ id: "personal", claudeConfigDir: join(profileRoot, "personal") }]
 
 const FIRST_TURN = [{ role: "user", content: "hi" }]
 const SECOND_TURN = [...FIRST_TURN, { role: "assistant", content: "ok" }, { role: "user", content: "again" }]

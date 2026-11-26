@@ -7,7 +7,7 @@
  * to fail at once with a 503, and each client re-ran its whole turn.
  */
 import { installModelsMock } from "./modelsMock"
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -94,7 +94,11 @@ installModelsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 
-const profiles = [{ id: "personal", claudeConfigDir: "/home/.claude" }]
+// Profile config dirs live under a private temporary root, never the host's
+// real home: the proxy resolves them on disk.
+const profileRoot = mkdtempSync(join(tmpdir(), "meridian-publication-degrade-profiles-"))
+afterAll(() => rmSync(profileRoot, { recursive: true, force: true }))
+const profiles = [{ id: "personal", claudeConfigDir: join(profileRoot, "personal") }]
 const FIRST_TURN = [{ role: "user", content: "hi" }]
 const SECOND_TURN = [...FIRST_TURN, { role: "assistant", content: "answered" }, { role: "user", content: "again" }]
 const THIRD_TURN = [...SECOND_TURN, { role: "assistant", content: "answered" }, { role: "user", content: "once more" }]
@@ -401,7 +405,7 @@ describe("terminal publication under a stalled lifecycle lock", () => {
       try {
         const { app } = createProxyServer({
           port: 0, host: "127.0.0.1", silent: true,
-          profiles: [...profiles, { id: "secondary", claudeConfigDir: "/home/.claude-secondary" }],
+          profiles: [...profiles, { id: "secondary", claudeConfigDir: join(profileRoot, "secondary") }],
         })
         expect((await app.fetch(turn(key, FIRST_TURN, false, { headers: headers("human-1", 0) }))).status).toBe(200)
         const before = sessionStore.lookupPriorityAssignmentResult(`opencode:${key}`)

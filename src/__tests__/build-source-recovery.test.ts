@@ -69,7 +69,7 @@ function finiteTermResistantGit() {
 trap '' TERM
 printf '{"pid":%s,"args":[]}\\n' "$$" >> ${quotedLog}
 printf 'READY\\n'
-exec /bin/sleep 1.5
+exec sleep 1.5
 `)
   chmodSync(join(bin, "git"), 0o755)
   return { env: { PATH: bin + delimiter + process.env.PATH }, log }
