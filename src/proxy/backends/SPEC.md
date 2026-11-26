@@ -75,6 +75,21 @@ the consumed-result conflict. Failure to record the recovery fingerprint logs an
 error but cannot replace the original response status or Retry-After. Successful
 result duplicate guards and response snapshots remain in force; native-capability work is never made replayable this way.
 
+## History identity
+
+`historyKey` (`antigravityProtocol.ts`) decides whether a request continues a
+pending tool turn, reuses a warm process, restores a saved conversation or
+matches a saved answer. It compares roles and blocks exactly, except that
+assistant text blocks are compared with leading and trailing whitespace
+trimmed. Some clients trim the assistant narration they send back, typically a
+trailing newline before a tool call. Compared exactly, that read as a changed
+history: with native grants off the warm process was retired and the whole
+history replayed cold (`history-replay`); with native grants on the request
+returned 409. Whitespace around text the model already produced does not change
+what the conversation said, so the process continues. Only the comparison
+trims; the history Meridian keeps, renders and replays is unchanged. Inner
+whitespace, user and system text, tool calls and tool results stay exact.
+
 ## Input and context budgets
 
 Keep the existing byte guard and apply a separate estimated token guard to
