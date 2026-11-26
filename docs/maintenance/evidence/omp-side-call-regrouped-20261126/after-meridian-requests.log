@@ -1,0 +1,13 @@
+Build: running a local build, branch fix/pi-side-call-regrouped, d065fb02, with uncommitted changes — reported version 1.94.0 is the tree's last release, not proof of what is running
+[PROXY] 0d630986-18f1-4e5b-a8e7-e39d276e25a4 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text,text,text]
+[PROXY] 0d630986-18f1-4e5b-a8e7-e39d276e25a4 usage: input=10 output=44 cache_read=9k cache_write=8k cache=52%
+[PROXY] 122a8bd0-bb4f-43d8-aadb-d68af4a6a17a adapter=pi model=opus stream=true tools=12 lineage=continuation session=7aaabaca auxiliary=fork sessionWait=0ms msgCount=4 msgs=user[text,text] → assistant[thinking,text] → user[text] → user[text]
+[PROXY] bd97dd40-2e5d-44e4-8d86-f6e12c4ba458 adapter=pi model=opus stream=true tools=12 lineage=continuation session=7aaabaca sessionWait=0ms msgCount=3 msgs=user[text,text,text] → assistant[thinking,text] → user[text]
+[PROXY] 122a8bd0-bb4f-43d8-aadb-d68af4a6a17a usage: input=10 output=3 cache_read=17k cache_write=127 cache=99%
+[PROXY] bd97dd40-2e5d-44e4-8d86-f6e12c4ba458 usage: input=10 output=43 cache_read=17k cache_write=65 cache=100%
+[PROXY] 351b8ae6-aa50-4b67-800a-1599da0ec4df adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text,text]
+[PROXY] 351b8ae6-aa50-4b67-800a-1599da0ec4df usage: input=10 output=29 cache_read=9k cache_write=8k cache=52%
+[PROXY] c8a37853-4387-48d2-bf78-df3d369a6697 adapter=pi model=opus stream=true tools=12 lineage=continuation session=a4793014 auxiliary=fork sessionWait=0ms msgCount=4 msgs=user[text,text] → assistant[thinking,text] → user[text] → user[text]
+[PROXY] 05947cfb-a678-4a8e-945b-0526f28c66e6 adapter=pi model=opus stream=true tools=12 lineage=continuation session=a4793014 sessionWait=0ms msgCount=3 msgs=user[text,text] → assistant[thinking,text] → user[text]
+[PROXY] c8a37853-4387-48d2-bf78-df3d369a6697 usage: input=10 output=8 cache_read=17k cache_write=112 cache=99%
+[PROXY] 05947cfb-a678-4a8e-945b-0526f28c66e6 usage: input=10 output=42 cache_read=17k cache_write=50 cache=100%

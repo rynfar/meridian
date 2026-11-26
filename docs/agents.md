@@ -598,9 +598,12 @@ accounts does (`<session>~<suffix>`). omp runs a side call on the
 conversation's own system prompt and tools, so one that only adds user text
 after a completed turn resumes the conversation's SDK session as a fork that is
 never published (`lineage=continuation … auxiliary=fork`). It reads the
-conversation's prompt cache and writes only its own prompt. A side call over a
-pending tool call, or carrying a snapshot of a reply still in flight, is answered
-from a fresh replay (`diverged=independent-request:auxiliary-request`).
+conversation's prompt cache and writes only its own prompt. A side call whose
+history lacks a reminder-only block the conversation's turns carry (seen in
+production, cause in omp unknown) is realigned as a regrouped history, as a
+turn would be, and still forks. A side call over a pending tool call, or
+carrying a snapshot of a reply still in flight, is answered from a fresh replay
+(`diverged=independent-request:auxiliary-request`).
 
 Fresh side requests use their own tool declarations. Tool definitions omitted
 on a continuation can be inherited only from that same published SDK branch;

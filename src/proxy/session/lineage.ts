@@ -526,7 +526,6 @@ export type AuxiliaryForkRefusal =
   /** The conversation's lineage for the body was not a plain continuation:
    *  `lineage-<type>`, or `lineage-diverged:<reason>`. */
   | `lineage-${string}`
-  | "regrouped"
   | "partial-message"
   /** The stored session waits for tool results. */
   | "pending-tool"
@@ -544,9 +543,11 @@ export type AuxiliaryForkRefusal =
  * prompt. After the stored prefix the client's copy of the session's last
  * reply comes first, as on every continuation; it must not call a tool. The
  * side prompt may carry mid-conversation `system` notes, as the conversation's
- * own turns do. Any other shape is answered from a fresh replay, as every
- * auxiliary request was before, and `refusal` says why. Either way the request
- * never publishes, so the conversation's mapping is untouched.
+ * own turns do. A history whose user messages the client regrouped resumes on
+ * the realigned session, as the conversation's own turn would (#1510). Any
+ * other shape is answered from a fresh replay, as every auxiliary request was
+ * before, and `refusal` says why. Either way the request never publishes, so
+ * the conversation's mapping is untouched.
  */
 export function auxiliaryLineage(
   result: LineageResult,
@@ -556,7 +557,6 @@ export function auxiliaryLineage(
   const replay = (refusal: AuxiliaryForkRefusal) => ({ lineage: independent, refusal })
   if (result.type === "diverged") return replay(`lineage-diverged:${result.reason}`)
   if (result.type !== "continuation") return replay(`lineage-${result.type}`)
-  if (result.regrouped) return replay("regrouped")
   if (result.resumeContentFrom !== undefined) return replay("partial-message")
   if (result.session.passthroughToolCallIds?.length) return replay("pending-tool")
   const blocks = (content: unknown): Array<{ type?: unknown } | null> => Array.isArray(content) ? content : []

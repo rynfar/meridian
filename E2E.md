@@ -160,6 +160,19 @@ fresh replay before); the second turn started while the side call was still
 answering and resumed the first turn's session (`lineage=continuation`, read
 15k, wrote 63). [Evidence](docs/maintenance/evidence/1553-omp-side-call-fork-20261116/README.md).
 
+`--reminder` adds a second hook whose `context` handler gives the first user
+message of the conversation's turns, but not of the side call, one extra
+reminder-only block: the regrouped shape a production side call had on
+2026-11-26. The harness checks the side call's first message has one block
+fewer. With `--expect=auxiliary` it is the baseline for builds before
+regrouped side calls forked (up to `d065fb02`) and asserts
+`auxiliary=replay:regrouped`, a reason later builds never log. Recorded
+2026-11-26 on Linux x64, Node 24.22.3,
+omp 19.2.1, Claude Code 2.1.322, `opus`: on main the side call replayed fresh
+(`auxiliary=replay:regrouped`); with the regrouped fork it was
+`auxiliary=fork`, read 17k and wrote 127, and the second turn continued the
+same session. [Evidence](docs/maintenance/evidence/omp-side-call-regrouped-20261126/README.md).
+
 ## Priority affinity across a restart
 
 `node scripts/e2e-priority-restart.mjs --omp=<omp> --profiles=<A>,<B>

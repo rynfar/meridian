@@ -1,8 +1,9 @@
 /**
  * Which auxiliary requests fork the conversation's session (auxiliaryLineage):
  * only a side call that adds user text, with any system notes, after a
- * completed turn. Every other shape replays fresh, because a resumed fork
- * would hand the model a history the client does not hold, and says why.
+ * completed turn, on the stored history or one realigned to regrouped user
+ * messages. Every other shape replays fresh, because a resumed fork would hand
+ * the model a history the client does not hold, and says why.
  */
 
 import { describe, expect, it } from "bun:test"
@@ -66,10 +67,15 @@ describe("auxiliaryLineage", () => {
     })
   })
 
-  it("replays a partial-message or regrouped resume", () => {
+  it("replays a partial-message resume", () => {
     const partial: LineageResult = { type: "continuation", session: session(), resumeFrom: 1, resumeContentFrom: 2 }
     expect(auxiliaryLineage(partial, [FIRST, REPLY, RECAP]).refusal).toBe("partial-message")
+  })
+
+  it("forks a regrouped continuation as it would a plain one", () => {
     const regrouped: LineageResult = { ...continuation(), regrouped: { runs: 1, storedMessages: 1, incomingMessages: 1 } }
-    expect(auxiliaryLineage(regrouped, [FIRST, REPLY, RECAP]).refusal).toBe("regrouped")
+    expect(auxiliaryLineage(regrouped, [FIRST, REPLY, RECAP])).toEqual({ lineage: regrouped })
+    // A regroup does not relax the side-prompt rule.
+    expect(auxiliaryLineage(regrouped, [FIRST, REPLY, { role: "user", content: "and?" }, REPLY, RECAP]).refusal).toBe("not-side-prompt")
   })
 })

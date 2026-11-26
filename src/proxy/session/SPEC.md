@@ -61,7 +61,8 @@ Code: `src/proxy/session/`, plus `sessionStore.ts`, `sessionLifecycle.ts` and
   the published mapping retains the source, and if another process retires it
   anyway the beat only fails and is retried or stopped.
 - An auxiliary fork (an adapter's `forksAuxiliaryRequests` side call that
-  `auxiliaryLineage` accepts: user text after a completed turn) also only
+  `auxiliaryLineage` accepts: user text after a completed turn, on the stored
+  history or one realigned to regrouped user messages) also only
   **reads** the mapping. It resumes the mapping's current transcript into a
   managed fork target, holds no turn lease, takes the writer lease on its
   target alone (the conversation's own turn may hold the source's), neither
@@ -297,6 +298,12 @@ A turn that resumed a realigned session and was stopped mid-stream is not
 marked interrupted (`interruptCandidateOf` skips it): the marking keeps the
 durable mapping's hashes, which are in stored positions. It evicts, and the
 next request replays, as main's fresh replay of that turn would have.
+
+An auxiliary fork forks a realigned session as it forks a plain one. An Oh My
+Pi side call can lack a reminder-only block the conversation's turns carry
+(seen in production 2026-11-26; its cause in omp is not known). The fork
+writes nothing back and is never marked interrupted (`interruptCandidateOf`
+skips side requests), so the positions it resumed in never reach the mapping.
 
 ## Known limitations
 
