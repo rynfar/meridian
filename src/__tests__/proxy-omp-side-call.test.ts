@@ -16,18 +16,19 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 const mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-const queries: Array<{ resume?: string; fork: boolean }> = []
+const queries: Array<{ resume?: string; fork: boolean; prompt?: unknown }> = []
 /** When set, the query with this index reports `started` and waits for `release` before it answers. */
 let hold: { index: number; started: () => void; release: Promise<void> } | undefined
 /** Resumes of this session id are refused as a transcript that no longer exists. */
 let goneSession: string | undefined
 
 installSdkMock(() => ({
-  query: (params: { options?: Record<string, unknown> }) => {
+  query: (params: { prompt?: unknown; options?: Record<string, unknown> }) => {
     const options = params.options || {}
     const index = queries.push({
       resume: typeof options.resume === "string" ? options.resume : undefined,
       fork: options.forkSession === true,
+      prompt: params.prompt,
     }) - 1
     const sessionId = resolveMockSdkSessionId(options, "omp-side-call-session")
     const held = hold?.index === index ? hold : undefined
@@ -159,6 +160,55 @@ describe("Oh My Pi side calls", () => {
     expect(typeof queries[1]?.resume).toBe("string")
     expect(queries[1]?.fork).toBe(true)
     expect(lines[1]).toContain("auxiliary=fork")
+  })
+
+  it("fork a side call whose history leaves out a reminder the conversation's turns carry", async () => {
+    // A production side call lacked a reminder-only block the conversation's
+    // turns carried: `user[text,text]` in the turns, `user[text]` in the side
+    // call. Meridian realigns that as a regrouped history.
+    const reminded = { role: "user", content: [{ type: "text", text: FIRST.content }, { type: "text", text: "<system-reminder>todo: 2 open</system-reminder>" }] }
+    const plain = { role: "user", content: [{ type: "text", text: FIRST.content }] }
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    await post(app, turn(reminded), mainHeaders)
+    await post(app, turn(plain, ANSWER, RECAP), sideHeaders)
+    await post(app, turn(reminded, ANSWER, { role: "user", content: "now update the changelog" }), mainHeaders)
+
+    const lines = requestLines()
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toContain("lineage=continuation")
+    expect(lines[1]).toContain("auxiliary=fork")
+    expect(errSpy.mock.calls.some((call: unknown[]) => String(call[0]).includes("Regrouped user messages"))).toBe(true)
+    const source = queries[1]?.resume
+    expect(typeof source).toBe("string")
+    expect(queries[1]?.fork).toBe(true)
+    // The fork published nothing: the turn after it continues the same session.
+    expect(lines[2]).toContain("lineage=continuation")
+    expect(queries[2]?.resume).toBe(source)
+  })
+
+  it("fork a regrouped side call from its own positions, sending only what follows the stored session", async () => {
+    const promptText = async (prompt: unknown): Promise<string> => {
+      if (typeof prompt === "string") return prompt
+      const messages: unknown[] = []
+      for await (const message of prompt as AsyncIterable<unknown>) messages.push(message)
+      return JSON.stringify(messages)
+    }
+    // The turn sends one user message; the side call splits it in two, so
+    // every later message sits one position further in the side call.
+    const whole = { role: "user", content: [{ type: "text", text: "read the config" }, { type: "text", text: "and the lockfile" }] }
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    await post(app, turn(whole), mainHeaders)
+    const split = [{ role: "user", content: [{ type: "text", text: "read the config" }] }, { role: "user", content: [{ type: "text", text: "and the lockfile" }] }]
+    await post(app, turn(...split, ANSWER, RECAP), sideHeaders)
+
+    const lines = requestLines()
+    expect(lines[1]).toContain("auxiliary=fork")
+    expect(queries[1]?.fork).toBe(true)
+    // Only the side prompt: neither half of the stored first message again.
+    const sent = await promptText(queries[1]?.prompt)
+    expect(sent).toContain("Summarise where this session stands.")
+    expect(sent).not.toContain("lockfile")
+    expect(sent).not.toContain("read the config")
   })
 
   it("replay a side call fresh, without evicting the mapping, when its fork's source is gone", async () => {

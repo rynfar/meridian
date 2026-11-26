@@ -20,10 +20,19 @@
  *
  * Run: node scripts/e2e-omp-side-call.mjs --omp=<omp> --agent-dir=<dir>
  *        --log=<meridian log> [--model=opus] [--expect=fork|auxiliary|turn]
+ *        [--reminder]
  * `fork` (default): the side call forks the conversation's session without
  * publishing it and reads most of its input from the conversation's cache.
  * `auxiliary`: the side call is answered from a fresh replay. `turn`: the
  * side call is served as a turn of the conversation (no side-call support).
+ * `--reminder` loads, on both turns, a second hook whose `context` handler
+ * adds a reminder-only text block to the first user message of the
+ * conversation's turns but not of the side call, the shape a production side
+ * call had on 2026-11-26 (`user[text,text]` in the turns, `user[text]` in the
+ * side call; its cause in omp is not known). Meridian sees a regrouped
+ * history. `--reminder --expect=auxiliary` is the baseline for builds before
+ * regrouped side calls forked (up to `d065fb02`): it asserts the side call
+ * replayed as `auxiliary=replay:regrouped`, a reason later builds never log.
  */
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -41,6 +50,7 @@ const agentDir = arg("agent-dir")
 const logPath = arg("log")
 const model = arg("model", "opus")
 const expectation = arg("expect", "fork")
+const reminder = process.argv.includes("--reminder")
 assert.ok(["fork", "auxiliary", "turn"].includes(expectation), `unknown --expect=${expectation}`)
 assert.ok(agentDir && logPath, "--agent-dir and --log are required")
 
@@ -56,14 +66,34 @@ export default function (pi) {
   pi.on("agent_end", async (_event, ctx) => {
     if (ran) return
     ran = true
+    globalThis.__harnessSideCall = true
     const { replyText } = await ctx.runEphemeralTurn({ promptText: "Summarise this session in three words." })
+      .finally(() => { globalThis.__harnessSideCall = false })
     console.error("SIDE_CALL_REPLY " + JSON.stringify(replyText))
+  })
+}
+`)
+
+// The conversation's own requests carry a reminder-only block the side call's
+// history lacks.
+const reminderHook = join(root, "reminder-hook.ts")
+writeFileSync(reminderHook, `export default function (pi) {
+  pi.on("context", async (event) => {
+    if (globalThis.__harnessSideCall) return
+    const messages = event.messages.slice()
+    const index = messages.findIndex(message => message.role === "user")
+    if (index < 0) return
+    const first = messages[index]
+    const content = typeof first.content === "string" ? [{ type: "text", text: first.content }] : first.content
+    messages[index] = { ...first, content: [...content, { type: "text", text: "<system-reminder>harness note</system-reminder>" }] }
+    return { messages }
   })
 }
 `)
 
 function turn(prompt, { resume, withHook }) {
   const args = ["-p", "--no-extensions", ...(withHook ? [`--hook=${hook}`] : []),
+    ...(reminder ? [`--hook=${reminderHook}`] : []),
     "--session-dir", sessionDir, "--model", model, ...(resume ? ["-c"] : []), prompt]
   return execFileSync(omp, args, {
     cwd: root, encoding: "utf8", timeout: 300_000, stdio: ["ignore", "pipe", "inherit"],
@@ -103,6 +133,11 @@ try {
   console.log(JSON.stringify({ answer, firstTurn: brief(firstTurn[0]), side: brief(side), sideCache, main: brief(main) }, null, 2))
 
   assert.match(answer, new RegExp(marker))
+  if (reminder) {
+    // The turn carried one more block on its first message than the side call.
+    const firstBlocks = line => line.match(/ msgs=user\[([^\]]*)\]/)?.[1].split(",").length
+    assert.equal(firstBlocks(side), firstBlocks(firstTurn[0]) - 1, "the side call's first message did not lack the reminder")
+  }
   const sessionOf = line => line.match(/ session=(\S+)/)?.[1]
   if (expectation === "fork") {
     assert.match(side, / lineage=continuation .*auxiliary=fork /)
@@ -117,6 +152,7 @@ try {
     assert.ok(sideCache.read > sideCache.write, `side call wrote more cache than it read: ${JSON.stringify(sideCache)}`)
   } else if (expectation === "auxiliary") {
     assert.match(side, / diverged=independent-request:auxiliary-request /)
+    if (reminder) assert.match(side, / auxiliary=replay:regrouped /)
     assert.match(main, / lineage=continuation /)
   } else {
     // Without side-call support it resumes the conversation's own SDK session.

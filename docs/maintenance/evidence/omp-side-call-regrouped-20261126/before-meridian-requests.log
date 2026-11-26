@@ -1,0 +1,7 @@
+Build: running a local build, d065fb02 — reported version 1.94.0 is the tree's last release, not proof of what is running
+[PROXY] a18f3fe0-72ca-49e5-be70-b2ff0d6d6768 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=not-found sessionWait=0ms msgCount=1 msgs=user[text,text,text]
+[PROXY] a18f3fe0-72ca-49e5-be70-b2ff0d6d6768 usage: input=10 output=39 cache_read=9k cache_write=8k cache=52%
+[PROXY] 983fe940-2cc1-471e-b1d4-1d3be9a5b2e3 adapter=pi model=opus stream=true tools=12 lineage=new session=new diverged=independent-request:auxiliary-request auxiliary=replay:regrouped sessionWait=0ms msgCount=4 msgs=user[text,text] → assistant[thinking,text] → user[text] → user[text]
+[PROXY] e2c44b74-d09a-4b29-855b-cc3dedd8a7dd adapter=pi model=opus stream=true tools=12 lineage=continuation session=040c2454 sessionWait=0ms msgCount=3 msgs=user[text,text,text] → assistant[thinking,text] → user[text]
+[PROXY] 983fe940-2cc1-471e-b1d4-1d3be9a5b2e3 usage: input=10 output=3 cache_read=15k cache_write=1k cache=92%
+[PROXY] e2c44b74-d09a-4b29-855b-cc3dedd8a7dd usage: input=10 output=43 cache_read=17k cache_write=60 cache=100%
