@@ -5,7 +5,10 @@
  * and settings persistence contract.
  */
 import { installModelsMock } from "./modelsMock"
-import { describe, test, expect, beforeEach } from "bun:test"
+import { afterAll, describe, test, expect, beforeEach } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { mock } from "bun:test"
@@ -53,6 +56,11 @@ const { createProxyServer } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { storeSession, lookupSession, clearSessionCache } = await import("../proxy/session/cache")
 
+// Profile config dirs live under a private temporary root, never the host's
+// real home: the proxy resolves them on disk.
+const profileRoot = mkdtempSync(join(tmpdir(), "meridian-switch-integration-profiles-"))
+afterAll(() => rmSync(profileRoot, { recursive: true, force: true }))
+
 beforeEach(async () => {
   resetActiveProfile()
   await clearSessionCache()
@@ -73,8 +81,8 @@ function req(url: string, init?: RequestInit): Request {
 
 describe("Profile switch API", () => {
   const profiles = [
-    { id: "personal", claudeConfigDir: "/home/.claude" },
-    { id: "work", claudeConfigDir: "/home/.claude-work" },
+    { id: "personal", claudeConfigDir: join(profileRoot, "personal") },
+    { id: "work", claudeConfigDir: join(profileRoot, "work") },
   ]
 
   test("POST /profiles/active switches profile", async () => {
@@ -155,8 +163,8 @@ describe("Profile switch API", () => {
 
 describe("Profile rename API", () => {
   const profiles = [
-    { id: "personal", claudeConfigDir: "/home/.claude" },
-    { id: "employer", claudeConfigDir: "/home/.claude-work", aliases: ["work"] },
+    { id: "personal", claudeConfigDir: join(profileRoot, "personal") },
+    { id: "employer", claudeConfigDir: join(profileRoot, "work"), aliases: ["work"] },
   ]
 
   // Only the paths that refuse BEFORE touching disk are exercised here: the
@@ -216,8 +224,8 @@ describe("Profile rename API", () => {
 
 describe("Session mappings across a profile switch", () => {
   const profiles = [
-    { id: "personal", claudeConfigDir: "/home/.claude" },
-    { id: "work", claudeConfigDir: "/home/.claude-work" },
+    { id: "personal", claudeConfigDir: join(profileRoot, "personal") },
+    { id: "work", claudeConfigDir: join(profileRoot, "work") },
   ]
 
   test("switching profile keeps profile-scoped sessions resumable", async () => {
@@ -244,8 +252,8 @@ describe("Session mappings across a profile switch", () => {
 
 describe("Profile-scoped request routing", () => {
   const profiles = [
-    { id: "personal", claudeConfigDir: "/home/.claude" },
-    { id: "work", claudeConfigDir: "/home/.claude-work" },
+    { id: "personal", claudeConfigDir: join(profileRoot, "personal") },
+    { id: "work", claudeConfigDir: join(profileRoot, "work") },
   ]
 
   test("x-meridian-profile header overrides active profile", async () => {

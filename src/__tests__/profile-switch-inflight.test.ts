@@ -9,7 +9,7 @@
  * which made this routine rather than a corner case.
  */
 import { installModelsMock } from "./modelsMock"
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -85,9 +85,13 @@ installModelsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 
+// Profile config dirs live under a private temporary root, never the host's
+// real home: the proxy resolves them on disk.
+const profileRoot = mkdtempSync(join(tmpdir(), "meridian-switch-inflight-profiles-"))
+afterAll(() => rmSync(profileRoot, { recursive: true, force: true }))
 const profiles = [
-  { id: "personal", claudeConfigDir: "/home/.claude" },
-  { id: "work", claudeConfigDir: "/home/.claude-work" },
+  { id: "personal", claudeConfigDir: join(profileRoot, "personal") },
+  { id: "work", claudeConfigDir: join(profileRoot, "work") },
 ]
 
 const FIRST_TURN = [{ role: "user", content: "hi" }]
