@@ -2846,10 +2846,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
         const cacheTtl = cacheTtlFromHeader(c.req.header(CACHE_TTL_HEADER))
         if (!cacheTtl.ok) {
-          claudeLog("cache_ttl.invalid", { requestId: requestMeta.requestId, value: cacheTtl.value })
-          return invalidCacheTtlResponse(cacheTtl.value)
+          claudeLog("cache_ttl.invalid", { requestId: requestMeta.requestId })
+          return invalidCacheTtlResponse()
         }
-        const requestedCacheTtlEnv = cacheTtl.env
         const body = options.body
         // #874: `max_tokens` is required on /v1/messages and is a hard cap on
         // output, but nothing on this path ever read it. Honour it through the
@@ -3286,9 +3285,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // the lineage and also covers an auxiliary fork: the fork still reads
         // the conversation's cache (TTL is not part of a cache hit), and the
         // tail only it writes, which no later turn of the conversation reads,
-        // is written at the cheaper 5-minute rate.
-        const envOverrides = requestMeta.auxiliaryRequest
-          ? { ...explicitModelPin(requestedModel), FORCE_PROMPT_CACHING_5M: "1" }
+        // is written at the cheaper 5-minute rate. Other requests may also
+        // opt in to the same pin with x-meridian-cache-ttl.
+        const cacheTtlEnv = requestMeta.auxiliaryRequest ? { FORCE_PROMPT_CACHING_5M: "1" } : cacheTtl.env
+        const envOverrides = cacheTtlEnv
+          ? { ...explicitModelPin(requestedModel), ...cacheTtlEnv }
           : explicitModelPin(requestedModel)
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
@@ -3374,7 +3375,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const sdkModelDefaults = resolveSdkModelDefaults()
 
         // Overlay profile-specific env vars (e.g. CLAUDE_CONFIG_DIR for multi-account)
-        const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env, ...requestedCacheTtlEnv }
+        const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env }
         // The Sonnet the SDK will actually serve (query.ts spreads the explicit
         // pin last). Plain `sonnet` on Sonnet 5+ has a native 1M window, so the
         // replay budget must not assume 200k from the alias alone (#1212).

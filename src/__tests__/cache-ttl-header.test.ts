@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import type { Options } from "@anthropic-ai/claude-agent-sdk"
 
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
@@ -23,15 +24,17 @@ describe("cacheTtlFromHeader", () => {
   })
 
   it("refuses any other lifetime", () => {
-    expect(cacheTtlFromHeader("1h")).toEqual({ ok: false, value: "1h" })
-    expect(cacheTtlFromHeader("300")).toEqual({ ok: false, value: "300" })
+    expect(cacheTtlFromHeader("1h")).toEqual({ ok: false })
+    expect(cacheTtlFromHeader("300")).toEqual({ ok: false })
+    expect(cacheTtlFromHeader("5m, 5m")).toEqual({ ok: false })
   })
 })
 
 let queryEnvs: Array<Record<string, string | undefined>> = []
+let invalidTtlLogs: unknown[] = []
 
 installSdkMock(() => ({
-  query: (opts: any) => {
+  query: (opts: { options?: Options }) => {
     queryEnvs.push(opts.options?.env || {})
     const sessionId = resolveMockSdkSessionId(opts.options, "sdk-1")
     return (async function* () {
@@ -43,8 +46,9 @@ installSdkMock(() => ({
 }), "cache-ttl-header.test.ts")
 
 installLoggerMock(() => ({
-  claudeLog: () => {},
-  withClaudeLogContext: (_ctx: any, fn: any) => fn(),
+  claudeLog: (event: string, data: unknown) => {
+    if (event === "cache_ttl.invalid") invalidTtlLogs.push(data)
+  },
 }))
 
 installMcpToolsMock(() => ({
@@ -60,8 +64,13 @@ function app() {
   return proxy.app
 }
 
-function post(path: string, body: Record<string, unknown>, headers: Record<string, string> = {}) {
-  return app().fetch(new Request(`http://localhost${path}`, {
+function post(
+  path: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+  proxyApp = app(),
+) {
+  return proxyApp.fetch(new Request(`http://localhost${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
@@ -74,6 +83,7 @@ describe("x-meridian-cache-ttl reaches the subprocess env", () => {
   beforeEach(async () => {
     await clearSessionCache()
     queryEnvs = []
+    invalidTtlLogs = []
   })
 
   afterEach(async () => {
@@ -87,9 +97,17 @@ describe("x-meridian-cache-ttl reaches the subprocess env", () => {
   })
 
   it("pins five minutes on a working request", async () => {
-    const res = await post("/v1/messages", message(), { [CACHE_TTL_HEADER]: "5m" })
+    const proxyApp = app()
+    const res = await post("/v1/messages", message(), { [CACHE_TTL_HEADER]: "5m" }, proxyApp)
     expect(res.status).toBe(200)
     expect(queryEnvs[0]!.FORCE_PROMPT_CACHING_5M).toBe("1")
+
+    const followup = await post("/v1/messages", {
+      ...message(),
+      messages: [{ role: "user", content: "A separate request" }],
+    }, {}, proxyApp)
+    expect(followup.status).toBe(200)
+    expect(queryEnvs[1]!.FORCE_PROMPT_CACHING_5M).toBeUndefined()
   })
 
   it("keeps an explicit model pin next to it", async () => {
@@ -99,12 +117,15 @@ describe("x-meridian-cache-ttl reaches the subprocess env", () => {
     expect(queryEnvs[0]!.FORCE_PROMPT_CACHING_5M).toBe("1")
   })
 
-  it("answers 400 to another lifetime and never starts the CLI", async () => {
-    const res = await post("/v1/messages", message(), { [CACHE_TTL_HEADER]: "1h" })
+  it("rejects invalid values without starting the CLI or recording the input", async () => {
+    const invalid = "invalid-header-content"
+    const res = await post("/v1/messages", message(), { [CACHE_TTL_HEADER]: invalid })
     expect(res.status).toBe(400)
     const body = await res.json() as { error: { type: string; message: string } }
     expect(body.error.type).toBe("invalid_request_error")
     expect(body.error.message).toContain(CACHE_TTL_HEADER)
+    expect(body.error.message).not.toContain(invalid)
+    expect(invalidTtlLogs).toEqual([{ requestId: expect.any(String) }])
     expect(queryEnvs).toHaveLength(0)
   })
 
@@ -112,5 +133,18 @@ describe("x-meridian-cache-ttl reaches the subprocess env", () => {
     const res = await post("/v1/chat/completions", message(), { [CACHE_TTL_HEADER]: "5m" })
     expect(res.status).toBe(200)
     expect(queryEnvs[0]!.FORCE_PROMPT_CACHING_5M).toBe("1")
+  })
+
+  it("carries the header through the Responses hop", async () => {
+    const res = await post("/v1/responses", { model: "sonnet", input: "hi", stream: false }, { [CACHE_TTL_HEADER]: "5m" })
+    expect(res.status).toBe(200)
+    expect(queryEnvs[0]!.FORCE_PROMPT_CACHING_5M).toBe("1")
+  })
+
+  it("returns an OpenAI error for an invalid Responses header", async () => {
+    const res = await post("/v1/responses", { model: "sonnet", input: "hi", stream: false }, { [CACHE_TTL_HEADER]: "1h" })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: { type: "invalid_request_error", code: null } })
+    expect(queryEnvs).toHaveLength(0)
   })
 })
