@@ -1271,6 +1271,20 @@ extension) is not checked after a stop yet. Its next message resumes the
 session as it always has, so a client that kept the partial output (OpenCode)
 is answered without it.
 
+### Prompt-cache lifetime per request
+
+A batch client that can reuse its prompt cache within five minutes can opt
+into the cheaper five-minute write tier on a Claude subscription. Send
+`x-meridian-cache-ttl: 5m` with a Claude request to `/v1/messages`,
+`/v1/chat/completions`, or `/v1/responses`. Claude Code clients can set
+`ANTHROPIC_CUSTOM_HEADERS="x-meridian-cache-ttl: 5m"`.
+
+Meridian sets `FORCE_PROMPT_CACHING_5M=1` on that request's Claude Code
+subprocess. The value is case-insensitive and surrounding whitespace is
+ignored. Omit the header or leave it blank to keep the CLI default. Other
+values receive `400 invalid_request_error`. Existing cache entries keep
+their original lifetime.
+
 ### Prompt-cache keepalive
 
 Off by default. When a session sits idle long enough for its prompt cache to

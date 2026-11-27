@@ -203,6 +203,18 @@ Contract*, *Cancellation Contract*; public routes and headers are in
 - **`max_tokens` is not enforced by default:** the Agent SDK exposes no output
   cap, and the CLI's cap counts thinking plus text, so an answer-sized cap can
   leave no room for an answer. `MERIDIAN_ENFORCE_MAX_TOKENS=1` honors it exactly.
+- **Per-request cache lifetime** (`cacheTtl.ts`, #1618).
+  On the three Claude generation routes, `x-meridian-cache-ttl: 5m` sets
+  `FORCE_PROMPT_CACHING_5M=1` on that request's Claude Code subprocess.
+  Auxiliary requests retain their existing pin.
+  - Interactive and short-lived batch callers can share a Claude profile
+    while choosing the cache write tier that fits each workload. The
+    override follows the request through translation and profile failover.
+  - The token `5m` is case-insensitive. Surrounding whitespace is ignored.
+    Absent or blank uses the CLI default. Other values get a 400 before
+    generation.
+  - Existing entries retain their lifetime. A turn that makes a five-minute
+    write stops keepalive tracking for its session.
 - **Prompt-cache keepalive** (#1193, contributed by @XInTheDark, redesigned
   with the owner 2026-10-26; `cacheKeepalive.ts` schedules, pure;
   `cacheKeepaliveRunner.ts` sends one beat).
