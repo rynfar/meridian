@@ -13,7 +13,9 @@ import {
   classifyCacheTier,
   decideCacheKeepalive,
   resolveCacheKeepaliveEnabled,
+  resolveCacheKeepaliveMaxBeats,
   resolveCacheKeepaliveMaxInFlight,
+  resolveCacheKeepaliveMode,
   type CacheKeepaliveAccountFacts,
   type CacheKeepaliveBeatOutcome,
   type CacheTier,
@@ -40,6 +42,24 @@ describe("resolveCacheKeepaliveEnabled", () => {
   it("lets the environment force either way", () => {
     for (const on of ["1", "true", "YES", "on"]) expect(resolveCacheKeepaliveEnabled(on, () => false)).toBe(true)
     for (const off of ["0", "false", "no", "OFF"]) expect(resolveCacheKeepaliveEnabled(off, () => true)).toBe(false)
+  })
+})
+
+describe("resolveCacheKeepaliveMode", () => {
+  it("reads client mode from the environment or the setting", () => {
+    expect(resolveCacheKeepaliveMode("client", () => false)).toBe("client")
+    expect(resolveCacheKeepaliveMode(undefined, () => "client")).toBe("client")
+    expect(resolveCacheKeepaliveMode("1", () => "client")).toBe("auto")
+    expect(resolveCacheKeepaliveMode("0", () => "client")).toBe("off")
+    expect(resolveCacheKeepaliveEnabled("client", () => false)).toBe(true)
+  })
+})
+
+describe("resolveCacheKeepaliveMaxBeats", () => {
+  it("defaults to three and allows at least one", () => {
+    expect(resolveCacheKeepaliveMaxBeats(undefined)).toBe(3)
+    expect(resolveCacheKeepaliveMaxBeats(6)).toBe(6)
+    expect(resolveCacheKeepaliveMaxBeats(0)).toBe(1)
   })
 })
 
@@ -106,6 +126,10 @@ describe("cacheKeepaliveAccountBlock", () => {
       ...healthy,
       rateLimits: [{ status: "allowed", isUsingOverage: true, resetsAt: now + HOUR }],
     })).toBe("overage")
+  })
+
+  it("never beats an account whose cached usage says its plan is spent with Extra Usage on", () => {
+    expect(cacheKeepaliveAccountBlock({ ...healthy, drawsExtraUsage: true })).toBe("overage")
   })
 
   it("never beats a rate-limited, cooling-down, spent or benched account", () => {
@@ -182,7 +206,7 @@ describe("decideCacheKeepalive", () => {
 })
 
 describe("CacheKeepaliveScheduler", () => {
-  function harness(results: Array<CacheKeepaliveBeatOutcome | Error> = [], options: { maxInFlight?: number; enabled?: () => boolean } = {}) {
+  function harness(results: Array<CacheKeepaliveBeatOutcome | Error> = [], options: { maxInFlight?: number; maxBeats?: number; enabled?: () => boolean; autoBeats?: () => boolean } = {}) {
     let now = 0
     let current: string | undefined = "s1"
     const beats: Array<{ recipe: string; sessionId: string; signal: AbortSignal; at: number }> = []
@@ -426,6 +450,123 @@ describe("CacheKeepaliveScheduler", () => {
     h.at(2 * INTERVAL)
     h.scheduler.tick()
     expect(h.beats).toHaveLength(1)
+  })
+
+  describe("client mode", () => {
+    const client = () => harness([], { autoBeats: () => false })
+
+    it("never beats on its own, and forgets a session once its cache has expired", async () => {
+      const h = client()
+      h.turn("codex:k", "r", 0, "1h")
+      const times = await runIdle(h, HOUR - 10_000)
+      expect(times).toEqual([])
+      expect(h.scheduler.size).toBe(1)
+      h.at(HOUR)
+      h.scheduler.tick()
+      expect(h.scheduler.size).toBe(0)
+    })
+
+    it("beats on request up to the per-period cap, each beat extending the cache", async () => {
+      const h = harness([], { autoBeats: () => false, maxBeats: 4 })
+      h.turn("codex:k", "r", 0, "1h")
+      const outcomes: string[] = []
+      for (let beat = 1; beat <= 5; beat++) {
+        h.at(beat * 50 * MIN)
+        const pending = h.scheduler.beatNow("codex:k")
+        await h.settleAll()
+        outcomes.push(await pending)
+      }
+      expect(outcomes).toEqual(["reached", "reached", "reached", "reached", "stop"])
+      expect(h.beats).toHaveLength(4)
+      h.at(4 * 50 * MIN + HOUR - 10_000)
+      h.scheduler.tick()
+      expect(h.scheduler.size).toBe(1)
+    })
+
+    it("a real turn starts a new period of beats", async () => {
+      const h = harness([], { autoBeats: () => false, maxBeats: 1 })
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(50 * MIN)
+      const first = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await first).toBe("reached")
+      h.at(100 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("stop")
+      h.turn("codex:k", "r", 101 * MIN, "read")
+      h.at(130 * MIN)
+      const next = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await next).toBe("reached")
+    })
+
+    it("refuses a beat sooner than the minimum gap after the last turn or beat", async () => {
+      const h = client()
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(19 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      h.at(20 * MIN)
+      const pending = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await pending).toBe("reached")
+      h.at(39 * MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      expect(h.beats).toHaveLength(1)
+    })
+
+    it("waits out the retry backoff after a beat that did not reach upstream", async () => {
+      const h = harness(["retry"], { autoBeats: () => false })
+      h.turn("codex:k", "r", 0, "1h")
+      h.at(30 * MIN)
+      const failed = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await failed).toBe("retry")
+      h.at(30 * MIN + 29_000)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("early")
+      expect(h.beats).toHaveLength(1)
+      h.at(30 * MIN + 30_000)
+      const next = h.scheduler.beatNow("codex:k")
+      await h.settleAll()
+      expect(await next).toBe("reached")
+      expect(h.beats).toHaveLength(2)
+    })
+
+    it("refuses to beat an expired cache, an untracked key or a session mid-turn", async () => {
+      const h = client()
+      expect(await h.scheduler.beatNow("codex:none")).toBe("untracked")
+      h.turn("codex:k", "r", 0, "1h")
+      h.scheduler.noteTurnStart("codex:k", MIN)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("busy")
+      h.scheduler.noteTurnEnd("codex:k", { recipe: "r", startedAt: MIN, tier: "read" })
+      h.at(MIN + HOUR)
+      expect(await h.scheduler.beatNow("codex:k")).toBe("expired")
+      expect(h.beats).toHaveLength(0)
+    })
+
+    it("refuses every request unless the operator chose client mode", async () => {
+      const auto = harness([], { autoBeats: () => true })
+      auto.turn("codex:k", "r", 0, "1h")
+      auto.at(50 * MIN)
+      expect(await auto.scheduler.beatNow("codex:k")).toBe("disabled")
+      const unset = harness()
+      unset.turn("codex:k", "r", 0, "1h")
+      unset.at(50 * MIN)
+      expect(await unset.scheduler.beatNow("codex:k")).toBe("disabled")
+      const off = harness([], { autoBeats: () => false, enabled: () => false })
+      off.turn("codex:k", "r", 0, "1h")
+      off.at(50 * MIN)
+      expect(await off.scheduler.beatNow("codex:k")).toBe("disabled")
+      expect(auto.beats.length + unset.beats.length + off.beats.length).toBe(0)
+    })
+
+    it("finds tracked keys by the client's exact session id", () => {
+      const h = client()
+      h.turn("codex:abc", "r", 0, "1h")
+      h.turn("codex:xabc", "r", 0, "1h")
+      h.turn("opencode:x:abc", "r", 0, "1h")
+      h.turn("opencode:other", "r", 0, "1h")
+      expect(h.scheduler.keysForSession("abc")).toEqual(["codex:abc"])
+      expect(h.scheduler.keysForSession("x:abc")).toEqual(["opencode:x:abc"])
+    })
   })
 
   it("labels beats with the source telemetry excludes", () => {

@@ -42,7 +42,7 @@ describe("Antigravity request contract", () => {
 
   it("rejects images and unsupported controls before creating a process", () => {
     expect(() => parseAgRequest({ ...initial(), messages: [{ role: "user", content: [{ type: "image", source: {} }] }] })).toThrow("text")
-    expect(() => parseAgRequest({ ...initial(), temperature: 0 })).toThrow("temperature")
+    expect(() => parseAgRequest({ ...initial(), betas: ["interleaved-thinking-2025-05-14"] })).toThrow("betas")
     expect(() => parseAgRequest({ ...initial(), thinking: { type: "enabled", budget_tokens: 100 } })).toThrow()
     expect(() => parseAgRequest({ ...initial(), tool_choice: { type: "tool", name: "unknown" } })).toThrow()
   })
@@ -264,8 +264,8 @@ describe.skipIf(process.platform === "win32")("Antigravity HTTP/CLI integration"
     const text = { type: "text", text: "Do not write a file; explain the receipt instead." }
     const suffix = separateMessage ? [{ role: "user", content: [result] }, { role: "user", content: [text] }] : [{ role: "user", content: [result, text] }]
     const followup = { ...request, messages: [...request.messages, { role: "assistant", content: first.content }, ...suffix] }
-    const changed = { ...followup, messages: [{ role: "user", content: "changed" }, ...followup.messages.slice(1)] }
-    expect((await send(changed)).status).toBe(409)
+    const retargeted = { ...followup, model: "fixture-model-high" }
+    expect((await send(retargeted)).status).toBe(409)
     expect(runtime.runs.size).toBe(1)
     const answer = await decode(await send(followup))
     expect(answer.stop_reason).toBe("end_turn")
@@ -668,7 +668,7 @@ describe("Antigravity client plugin context changes", () => {
     expect((await decode(await send(updated))).content[0]?.text).toBe("ONCE")
     expect((await send(updated)).headers.get("x-meridian-response-replayed")).toBe("true")
   })
-  it("does not relax pending model or history identity when a plugin changes context", async () => {
+  it("rejects retargeted execution controls but replays complete edited history with refreshed plugin context", async () => {
     const { send, runtime } = fixture()
     const request = initial()
     const first = await decode(await send(request))
@@ -676,9 +676,13 @@ describe("Antigravity client plugin context changes", () => {
     expect((await send({ ...updated, model: "fixture-model-high" })).status).toBe(409)
     expect((await send({ ...updated, max_tokens: 200 })).status).toBe(409)
     expect((await send({ ...updated, meridian_session_key: "other-session" })).status).toBe(409)
-    expect((await send({ ...updated, messages: [{ role: "user", content: "Edited history" }, ...updated.messages.slice(1)] })).status).toBe(409)
     expect(runtime.runs.size).toBe(1)
-    expect((await send(updated)).status).toBe(200)
+    const old = [...runtime.runs.values()][0]!
+    const edited = { ...updated, messages: [{ role: "user", content: "Edited history" }, ...updated.messages.slice(1)] }
+    expect((await send(edited)).status).toBe(200)
+    await old.settled
+    expect(runtime.runs.has(old.id)).toBe(false)
+    expect(runtime.requests[0]?.continuation).toBe("history-replay")
   })
 })
 

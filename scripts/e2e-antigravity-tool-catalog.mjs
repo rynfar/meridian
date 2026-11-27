@@ -25,7 +25,7 @@ function version(binary) {
   assert.equal(result.status, 0, result.stderr)
   return result.stdout.trim()
 }
-assert.equal(version(executable), '1.2.7')
+assert.equal(version(executable), '1.5.13')
 assert.equal(version(client), '1.18.30')
 const receipt = 'MCP-CATALOG-' + randomUUID()
 const config = join(root, 'config'), project = join(root, 'project'), calls = join(root, 'calls.jsonl'), lifecycle = join(root, 'mcp-lifecycle.jsonl')

@@ -21,6 +21,7 @@ import { homedir, platform, userInfo } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { claudeLog } from "../logger"
+import { authLifecycleFor, noteRefreshRejected, noteRefreshSucceeded, recordInBackground, refreshTokenId } from "./authLifecycle"
 import { isCredentialsReadOnly, refuseCredentialWrite } from "./credentialsMode"
 import { planReadingDue, readPlanUpdate, resetPlanRecheck, runCredentialMaintenance } from "./planRecheck"
 
@@ -304,6 +305,8 @@ export interface StoredCredentialSnapshot {
   presence: StoredCredentialPresence
   refreshTokenExpiresAt?: number
   accessTokenExpiresAt?: number
+  /** Which refresh token is stored, as authLifecycle identifies it; never the token. */
+  refreshTokenId?: string
 }
 
 function validStoredExpiry(value: unknown): number | undefined {
@@ -325,6 +328,7 @@ export async function readStoredCredentialSnapshot(store: CredentialStore): Prom
     presence: typeof accessToken === "string" && accessToken.length > 0 ? "present" : "absent",
     refreshTokenExpiresAt: validStoredExpiry(oauth?.refreshTokenExpiresAt),
     accessTokenExpiresAt: validStoredExpiry(oauth?.expiresAt),
+    refreshTokenId: refreshTokenId(typeof oauth?.refreshToken === "string" ? oauth.refreshToken : undefined),
   }
 }
 
@@ -424,6 +428,11 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
   if (!response.ok) {
     const body = await response.text().catch(() => "")
     claudeLog("token_refresh.bad_response", { status: response.status, body })
+    // Only RFC 6749 `invalid_grant` says the refresh token itself is no good.
+    // `invalid_request`, `invalid_client`, a throttle or an outage says nothing
+    // about whether the login is alive.
+    const code = oauthErrorCode(body)
+    if (code === "invalid_grant") recordInBackground(() => noteRefreshRefused(store, refreshToken, code))
     return false
   }
 
@@ -495,7 +504,65 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     refreshTokenExpiresAt,
     backfilledPlan: Object.keys(planUpdate?.fields ?? {}),
   })
+  const { refreshTokenExpiresAt: renewedDeadline, refreshToken: renewedToken } = credentials.claudeAiOauth
+  recordInBackground(() => noteRefreshSucceeded(store.refreshKey, { refreshTokenExpiresAt: renewedDeadline, refreshToken: renewedToken }))
   return true
+}
+
+/**
+ * The `error` code of a refused token request: a fixed vocabulary such as
+ * `invalid_grant`, never a secret. Accepts the OAuth shape (`error: "…"`) and
+ * the Anthropic API shape (`error: { type: "…" }`).
+ */
+export function oauthErrorCode(body: string): string | undefined {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  if (typeof parsed !== "object" || parsed === null) return undefined
+  const error = (parsed as { error?: unknown }).error
+  const code = typeof error === "string"
+    ? error
+    : typeof error === "object" && error !== null ? (error as { type?: unknown }).type : undefined
+  return typeof code === "string" && /^[a-z_]{1,40}$/.test(code) ? code : undefined
+}
+
+/** How long a Claude Code process that rotated the token first may take to write its replacement down. */
+export const ROTATION_SETTLE_MS = 750
+
+/**
+ * Record an `invalid_grant` as a logout only when the refused refresh token is
+ * provably still the stored one. Claude Code refreshes the same credential
+ * from its own processes, and a token rotated there a moment earlier is
+ * refused for that reason alone. The store is read twice, ROTATION_SETTLE_MS
+ * apart, because the rotating process may still be writing. A read that fails
+ * or returns nothing proves nothing, so it records nothing: unknown stays
+ * unknown.
+ */
+async function noteRefreshRefused(store: CredentialStore, sentRefreshToken: string, detail: string): Promise<void> {
+  if (!store.refreshKey || authLifecycleFor(store.refreshKey)?.firstUnauthedAt) return
+  const stillStored = async (): Promise<boolean | undefined> => {
+    let onDisk: CredentialsFile | null
+    try {
+      onDisk = await store.read()
+    } catch {
+      return undefined
+    }
+    const token = onDisk?.claudeAiOauth?.refreshToken
+    return typeof token === "string" && token.length > 0 ? token === sentRefreshToken : undefined
+  }
+  let verdict = await stillStored()
+  if (verdict === true) {
+    await new Promise(resolve => setTimeout(resolve, ROTATION_SETTLE_MS))
+    verdict = await stillStored()
+  }
+  if (verdict === true) {
+    await noteRefreshRejected(store.refreshKey, { detail, refreshToken: sentRefreshToken })
+    return
+  }
+  claudeLog(verdict === false ? "token_refresh.rotated_elsewhere" : "token_refresh.refusal_unverified", { detail })
 }
 
 /**

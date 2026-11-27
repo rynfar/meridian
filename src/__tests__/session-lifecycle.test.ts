@@ -599,6 +599,62 @@ describe("session transcript lifecycle", () => {
     expect(resources.filter((resource) => resource.state === "deleted")).toHaveLength(2)
   })
 
+  it("never replenishes a lowered remaining attempt allowance, including failed attempts", async () => {
+    for (let i = 0; i < 6; i++) {
+      const fork = locator(`remaining-budget-${i}`)
+      await prepareFork(fork, options)
+      await abandonFork(fork, options)
+    }
+    let allowance = 64
+    let calls = 0
+    const result = await runGc([], {
+      ...options,
+      maxDeletesPerRun: 64,
+      maxRemainingDeletes: () => allowance,
+      deleter: async () => {
+        calls++
+        if (calls === 1) {
+          allowance = 3
+          throw new Error("retry this deletion later")
+        }
+        allowance = 64
+      },
+    })
+    expect(calls).toBe(3)
+    expect(result).toEqual({ deleted: 2, notFound: 0, failed: 1, deferred: 4 })
+    expect(Object.values(readSidecar(storeDir).resources).some(resource => resource.state === "deleting")).toBe(false)
+  })
+
+  it("can lower the remaining allowance to zero before claiming a deletion", async () => {
+    const fork = locator("zero-remaining-budget")
+    await prepareFork(fork, options)
+    await abandonFork(fork, options)
+    let calls = 0
+    expect(await runGc([], {
+      ...options,
+      maxRemainingDeletes: () => 0,
+      deleter: async () => { calls++ },
+    })).toEqual({ deleted: 0, notFound: 0, failed: 0, deferred: 1 })
+    expect(calls).toBe(0)
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(fork)]?.state).toBe("retired")
+  })
+
+  for (const allowance of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    it(`rejects an invalid remaining allowance (${allowance}) before claiming a deletion`, async () => {
+      const fork = locator("invalid-remaining-budget")
+      await prepareFork(fork, options)
+      await abandonFork(fork, options)
+      let calls = 0
+      await expect(runGc([], {
+        ...options,
+        maxRemainingDeletes: () => allowance,
+        deleter: async () => { calls++ },
+      })).rejects.toThrow("maxRemainingDeletes must be a non-negative integer")
+      expect(calls).toBe(0)
+      expect(readSidecar(storeDir).resources[getTranscriptResourceKey(fork)]?.state).toBe("retired")
+    })
+  }
+
   it("treats not-found as idempotent success and tombstones the resource", async () => {
     const fork = locator("already-gone")
     await prepareFork(fork, options)

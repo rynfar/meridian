@@ -86,12 +86,26 @@ export interface AgentIdentity {
    * True when this request is a client side call that carries the
    * conversation's session key without being a turn of that conversation.
    *
-   * Such a request skips lineage lookup and never publishes, evicts or
-   * recovers the session mapping, and never takes the session turn lease: it
-   * has no turn to serialize. Undefined or false keeps normal session handling, which is
-   * what every client that separates its side calls by key already gets.
+   * Such a request never publishes, evicts or recovers the session mapping,
+   * and never takes the session turn lease: it has no turn to serialize.
+   * Unless the adapter sets `forksAuxiliaryRequests`, it also skips lineage
+   * lookup and is answered from a fresh replay. Undefined or false keeps
+   * normal session handling, which is what every client that separates its
+   * side calls by key already gets.
    */
   isAuxiliaryRequest?(c: Context, body?: unknown): boolean
+
+  /**
+   * True when this client's auxiliary requests send the conversation's own
+   * system prompt and tools. One that only adds user text after a completed
+   * turn of the conversation is then resumed as an unpublished fork of the
+   * conversation's SDK session (`auxiliaryLineage`), which reads the
+   * conversation's prompt cache instead of writing the whole history again.
+   * A client whose side calls bring their own system prompt or tool set must
+   * not set it: the fork would change the cached prefix and lose the replay
+   * breakpoint consecutive side calls share.
+   */
+  readonly forksAuxiliaryRequests?: boolean
 
   /**
    * Optional trusted identity for a visible human turn.
@@ -151,9 +165,15 @@ export interface AgentIdentity {
 
   /**
    * Remove request-scoped client metadata before lineage hashing while keeping
-   * the original request body untouched for model execution. Implementations
-   * must preserve message count and order because SDK UUIDs and resume indexes
-   * are aligned by message position.
+   * the original request body untouched for model execution.
+   *
+   * SDK UUIDs and resume indexes are aligned by message position, so
+   * implementations must preserve message count and order (#879). The one
+   * owner-approved exception (2026-11-22, #1396) is the Claude Code adapter
+   * dropping a trailing `system` turn that holds only its one-request batching
+   * reminder; no other adapter may drop a message. The server records the
+   * reply's SDK UUID at the returned array's length (`replyPosition`), which is
+   * where the client puts the reply in its next request.
    */
   canonicalizeMessagesForLineage?(
     messages: Array<{ role: string; content: unknown }>,

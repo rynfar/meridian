@@ -16,8 +16,9 @@ Own the operator's **Claude accounts** and decide which one serves a request:
   `tokenRefresh.ts`, `oauth*.ts`,
   `planAllowance.ts`, `credentialsMode.ts`), the account each profile is
   signed in to (`organizationName.ts`), profiles signed in to one account
-  (`duplicateProfiles.ts`) and the post-sign-in re-read state
-  (`profileFactsRefresh.ts`);
+  (`duplicateProfiles.ts`), the post-sign-in re-read state
+  (`profileFactsRefresh.ts`) and each credential's login history
+  (`authLifecycle.ts`);
 - routing modes (`routing.ts`): `active` (default), `sticky` (rendezvous
   hashing), `priority` (fail-over pool) and `active+priority`, plus
   follow-another-instance mode (`followActive.ts`, with its usage figures in
@@ -71,6 +72,19 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   key, so a collision merely shares an account. Subagents use their root
   session and stay on the parent's account. Assignments are an LRU (cap 5000);
   keyed routes are additionally durable in SQLite bookkeeping.
+- **A restart keeps a running conversation on its account.** The LRU lives in
+  process memory, so after a restart an unattested session (Pi, Oh My Pi,
+  OpenCode without its plugin) has no assignment. The account holding the most
+  recently used mapping (`<profile>:<session>`) of the conversation's root or
+  of the request's own key stands in for it; otherwise the conversation would
+  start on the head of the order and replay its whole history there, though
+  its prompt cache is warm on the old account. The root counts because a
+  subagent keyed apart has no mapping on its first request, and its dispatch
+  would assign the head of the order to the whole conversation. The stand-in
+  only retains, like the lost assignment: a benched or removed account still
+  falls through to the order, and it never grants promotion authority. A store
+  read error answers 503, like the durable route lookups beside it, rather
+  than guessing an account.
 - **Keyless forks share the parent's account on purpose.** This deliberately
   diverges from the session-resume guard, which forces keyless `fork-` /
   `subagent-` requests to replay fresh: a *session* collision would
@@ -93,6 +107,26 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   alternative is failing it. Cache-keepalive beats skip held profiles. Pins and
   the `active` / `sticky` modes ignore the reserve. Invalid values and reserves
   naming no profile are logged once and ignored.
+- **Extra Usage is a last resort under pool routing** (`claudeExtraUsage` /
+  `MERIDIAN_CLAUDE_EXTRA_USAGE`, default `reserve`). An account whose next
+  turn would be paid with Extra Usage moves behind every account with plan
+  allowance and is no home for an existing assignment, so a conversation on
+  it moves on its next turn; when no account with plan allowance can take
+  work, the pool keeps its order. The evidence is already observed, never
+  fetched (the usage endpoint rate-limits): the newest of the SDK's
+  `isUsingOverage` from an account-wide bucket (`five_hour`, `seven_day`,
+  `default`, `overage`; a per-model bucket such as `seven_day_opus` says
+  nothing about other models, as in #1524) and a cached OAuth snapshot whose
+  `five_hour` or `seven_day` window is at 100%. `extraUsage.isEnabled` is not
+  consulted: Team seats can report it off while organisation overage serves
+  them (#1347). A reading past its reset, or one with no reset older than an
+  hour, says nothing. `never` drops such accounts and answers 429 with the
+  earliest plan reset as `Retry-After` when none is left; it is not a spend
+  cap, because evidence arrives only after a paid turn and retain-only work
+  still runs on the account. `immediately` changes nothing. Retain-only
+  work keeps its route, as with the weekly reserve. Cache-keepalive beats
+  skip such accounts under every mode. The three words match the ChatGPT
+  Codex credits policy.
 - **Cooldowns are layered:** Anthropic's named reset first, then the profile's
   own observed window (5-hour or 7-day, capped per window), then a 10-minute
   default. An OAuth-usage refinement may only *extend* a cooldown, runs only at
@@ -133,6 +167,49 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   `claude auth status` and contributes nothing to duplicate detection, so a
   profile re-logged into another account with `claude login` is never flagged
   from its previous account's record.
+- **Login history is Meridian's own record, per credential.**
+  `auth-lifecycle.json` beside settings (Claude Code owns and wipes the
+  credential file) keeps, keyed by the credential store's `refreshKey`: when
+  the current grant was obtained and whether Meridian performed the login
+  (`login`) or found it on disk (`observed`, timed when noticed), Meridian's
+  last renewal of that grant, the last deadline seen, a truncated SHA-256 of
+  the refresh token (never the token), and when and why authentication was
+  first found failing. A rename that moves the credential directory moves
+  the record, and removing a profile deletes the records of the credential
+  directories it removed. Every transition is logged and stored in
+  diagnostics under `auth`.
+- **Writers serialize across processes.** The server and
+  `meridian profile login` both write the file. Each update reads, applies
+  and publishes under one exclusive lock file (`lockedFile.ts`, shared with
+  `profileConfigStore.ts`), so no transition is overwritten by a stale copy.
+  A file that cannot be parsed is never replaced, and a held or failed lock
+  leaves the file as it was. Reads for display take no lock.
+- **The history never holds up a request.** Token refreshes and
+  `/profiles/list` queue their history writes in the background, one at a
+  time, and never await them; `/profiles/list` shows the record the
+  observation leads to before it is written. A lock left behind by an
+  interrupted writer therefore costs only skipped history entries, never a
+  slower refresh or page. Only `meridian profile login`, a rename and a
+  removal wait for the lock.
+- **Only a grant rejection is a logout.** A refresh answered with RFC 6749
+  `invalid_grant` is `refresh_rejected`, and only when a successful re-read
+  shows the refused refresh token is still the stored one, twice, 750 ms
+  apart (another Claude Code process may have just rotated it). Other OAuth
+  errors, statuses without that code, outages and unreadable stores record
+  nothing: unknown stays unknown. A credential read successfully with no
+  access token is `credentials_cleared`.
+- **A new grant replaces the record.** The refresh token identifies the
+  grant: a different one with a different deadline, nearer or later, is a
+  new login (`new_grant`, `observed`); with the same deadline it is the same
+  grant rotated elsewhere; where either side's token or deadline is unknown
+  and what is known differs, the record keeps no login time
+  (`credential_replaced`) rather than a wrong one. A new grant or a Meridian
+  login drops the previous grant's renewal time, deadline and logout.
+- **A refused renewal still serves.** Its access token keeps working until it
+  expires, so until then `/profiles/list` keeps `loggedIn` and the card says
+  "Renewal refused, stops in …" next to the access-token countdown. Only
+  after that expiry, or for a cleared credential, is the account logged out
+  (`loggedIn: false`, "Logged out … ago").
 - **Duplicate badges are informational.** `duplicateOf` /
   `duplicateBasis` on `/profiles/list` name profiles holding one account: a
   Claude account is account UUID **and** organization UUID (email **and**
@@ -250,8 +327,20 @@ User-facing behavior: `docs/profiles.md`. Throttling and `[1m]` bench scope:
   and `ineligibleReason`, and per grant `startsAt`, `paused` and `usableNow`;
   malformed values become `null`. Meridian never picks a grant itself.
 
+### Banked reset scope
+
+- `kind: "full"` means the provider lists `seven_day` in `clears`. For example, `full-reset-2611` has `type: "weekly"` and clears `seven_day` and `seven_day_overage_included`. A Team grant with `type: "full"` also counts as full if it clears `seven_day`; the raw type does not determine scope.
+- `kind: "fable"` identifies the known Fable launch grants (`launch-2610-fable`, `launch-2610-fable-6mo`, `launch-2610-fable-12mo`) when `clears` contains `seven_day_overage_included` and no other window except optional `five_hour`, and `gives_back_weekly` is not explicitly false. Personal grants have been observed clearing only the former; Team grants clear both. The observed grants have `type: "full"` and `gives_back_weekly: true`. Order and repeated window IDs do not affect classification or change the reported `clears`. Other grant IDs do not become Fable grants just because they share these windows and flags.
+- If `clears` is absent or null, those exact IDs are a fallback when `gives_back_weekly` does not contradict the known scope. An explicit empty or different list, or an unreadable list, does not trigger that fallback. If no rule identifies the scope, `kind` is `"unknown"` and the provider's ID, type and label remain available.
+- `providerType`, `clears`, `givesBackWeekly`, `description` and `percentUsed` preserve the corresponding readable provider metadata. `description` is the provider's `label`, not a scope rule. `percentUsed` keeps finite numeric values from 0 through 100 inclusive, including `seven_day_overage_included` and unfamiliar window IDs, without rescaling or coercing them. These fields describe the inventory only; 0% does not override the provider's `usableNow` flag.
+
 ## Known limitations
 
+- A refresh token rotated by another process and given a new deadline in the
+  same rotation reads as a new login found on disk. Rotations measured so
+  far keep the deadline.
+- A refresh Claude Code performs itself is not a Meridian renewal, so it
+  never sets `lastRefreshAt`.
 - Exhaustion and cooldown state is in memory; a restart forgets it.
 - A twin benched by a shared-quota refusal and then signed in to another
   account with `claude login` stays benched until that reset, exactly as the

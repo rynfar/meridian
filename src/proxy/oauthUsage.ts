@@ -32,6 +32,9 @@ import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
 import { followedUsageSnapshot } from "./followUsage"
 import { bundledClaudeCodeVersion } from "./models"
+import { parseResetGrantMetadata, type OAuthBankedResetGrant, type OAuthBankedResets } from "./oauthResetGrants"
+
+export type { OAuthBankedResetGrant, OAuthBankedResets } from "./oauthResetGrants"
 
 // Policy for the query flag and User-Agent: profiles-routing.spec.md, "OAuth usage request identity".
 const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
@@ -117,26 +120,6 @@ export interface OAuthExtraUsageInfo {
    * same names.
    */
   exponent: number
-}
-
-export interface OAuthBankedResetGrant {
-  id: string | null
-  resetsLeft: number
-  expiresAt: number | null
-  /** Epoch ms the grant becomes usable, or null when absent/unreadable. */
-  startsAt: number | null
-  /** Provider's flags; null when absent or not a boolean. */
-  paused: boolean | null
-  usableNow: boolean | null
-}
-
-export interface OAuthBankedResets {
-  eligible: boolean
-  /** Provider's reason the account is ineligible, or null when absent/unreadable. */
-  ineligibleReason: string | null
-  /** The grant the provider would redeem next; null unless it names a listed grant. */
-  nextGrantId: string | null
-  grants: OAuthBankedResetGrant[]
 }
 
 export interface OAuthUsageSnapshot {
@@ -343,13 +326,15 @@ function parseBankedResets(raw: unknown): OAuthBankedResets | null {
     if (typeof grant !== "object" || grant === null || !("resets_left" in grant)
       || typeof grant.resets_left !== "number" || !Number.isSafeInteger(grant.resets_left) || grant.resets_left < 0) continue
 
+    const id = "id" in grant && typeof grant.id === "string" ? grant.id : null
     grants.push({
-      id: "id" in grant && typeof grant.id === "string" ? grant.id : null,
+      id,
       resetsLeft: grant.resets_left,
       expiresAt: parseResetDate("ends_at" in grant ? grant.ends_at : null),
       startsAt: parseResetDate("starts_at" in grant ? grant.starts_at : null),
       paused: optionalBoolean(grant, "paused"),
       usableNow: optionalBoolean(grant, "usable_now"),
+      ...parseResetGrantMetadata(grant, id),
     })
   }
   const next: unknown = "next_grant_id" in raw ? raw.next_grant_id : null

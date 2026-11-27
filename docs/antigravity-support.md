@@ -2,8 +2,9 @@
 
 Meridian uses the official, signed-in `agy` CLI for subscription-backed generation.
 It does not use a Google model SDK, copy credentials, or fall back to a paid API.
-The validated CLI version is **1.2.7**. The tested clients are **Pi 0.72.1** and
-**OpenCode V1 1.18.31** on macOS arm64. See [live evidence](../E2E.md) and the
+The validated CLI version is **1.5.13** (Linux x64, Pi **1.3.0**). Earlier
+evidence covers **agy 1.2.7** with **Pi 0.72.1** and **OpenCode V1 1.18.31** on
+macOS arm64; that platform still needs a 1.5.13 re-run. See [live evidence](../E2E.md) and the
 [setup guide](antigravity.md). New CLI versions require validation.
 
 ## Everyday supported use
@@ -49,15 +50,16 @@ tools. They are listed below rather than treated as promised wrapper features.
 | Exact output-token or quota cap | `max_tokens` is advisory. Enforce a turn deadline and client loop limits instead. | An official CLI generation-budget control. |
 | Exact token counting | Estimates are labeled; upstream reported usage is preserved where available. | An official tokenizer/count interface matching the selected model. |
 | Exact numeric thinking budget | Optional adaptation selects low/medium/high effort; it is not a token allocation. | An official numeric budget control. |
-| `temperature`, `top_p`, `top_k` | Unsupported values are rejected; use model/effort selection and instructions. | Official sampling controls. |
+| `temperature`, `top_p`, `top_k` | Numeric values are ignored (not forwarded); use model/effort selection and instructions. | Official sampling controls. |
 | Private/signed reasoning | No private transcript, signatures or encrypted reasoning are fabricated. | An official compatible reasoning interface. |
 | Native PDF citations | Rendered pages carry page labels; model-written page references are not native citation objects. | An official document/citation interface. |
 | Continuous video, non-speech audio, generated media | Video frames carry measured source timestamps; local Whisper supplies an estimated SRT speech transcript. Brief visual events and other sounds can be missed. | Official native modalities, or separately scoped client tools with their own dependencies. |
 | Resume an active CLI process/background job after service death | Completed snapshots may survive; unfinished identified Messages requests return an explicit conflict. | Official active-task reattachment plus durable client execution coordination. |
 | Exactly-once arbitrary external actions | Stable IDs and saved responses prevent covered duplicate-delivery cases. An action may finish before the client records its result. | Idempotency or verifiable outcomes in each executing tool; no universal solution for arbitrary shell commands. |
 | Provider-hosted OpenAI tools and uploaded file IDs | Use supported client-owned function/custom tools and inline attachments. | Explicit adapters and acceptance tests for each tool/storage contract. They would not become OpenAI-hosted services. |
+| Provider-hosted Anthropic tools (`web_search_*`, `web_fetch_*`, `code_execution_*` without `input_schema`) | Dropped; `tool_choice` targeting only a dropped tool becomes `auto`, preserving serial-call constraints; exposed via `x-meridian-dropped-tools` (first 16 names), `x-meridian-dropped-tools-count` (distinct names), and one bounded warning per request. Use client-owned tools with `input_schema`. | Official hosted-tool execution or client-side tool equivalents. |
 | Claude SDK hooks, profile pools and signed lineage | Provider-specific plugins and telemetry are available; agy uses its own signed-in account. | Official matching CLI capabilities. No unofficial account isolation. |
-| Arbitrary native plugin MCP tools / every client version | Client-owned Pi/OpenCode plugins work through the supported bridge; native grants are explicit. | Per-capability permission design and actual-client testing. OpenCode 1.2.15's unsupported `top_p` is not accepted. |
+| Arbitrary native plugin MCP tools / every client version | Client-owned Pi/OpenCode plugins work through the supported bridge; native grants are explicit. | Per-capability permission design and actual-client testing. Numeric `top_p` defaults (such as OpenCode 1.2.15) are accepted and ignored. |
 | Authenticated Linux/Windows acceptance | CI fixtures exist; Windows production use remains gated. | Real account/CLI/client testing on those platforms. |
 | Eliminate upstream outages and CLI faults | Bounded read-only timeout recovery, failure diagnostics and a short failure cooldown. Active generation is not blindly restarted. | Upstream fixes; Meridian can contain failures, not repair the service. |
 
@@ -99,7 +101,7 @@ or active-resume guarantee. No automatic client-side reconciliation UI is claime
 
 ## Practical execution budgets
 
-`MERIDIAN_AGY_TURN_TIMEOUT_MS` bounds an active CLI turn (default 300,000 ms).
+`MERIDIAN_AGY_TURN_TIMEOUT_MS` bounds each model/preprocessing phase (default 300,000 ms), refreshing after each accepted client-tool batch and pausing during client waits. `MERIDIAN_AGY_TURN_MAX_DURATION_MS` separately caps wall time including those waits (default two hours) and is passed as `--print-timeout` to every detached `agy` child, so an unclean Meridian crash can leave a child running up to that cap (live `agy` behavior across reused stdin turns is unverified).
 `MERIDIAN_AGY_TOOL_TIMEOUT_MS` bounds idle waiting for a client result
 (default 60,000 ms); a late result can recover through completed history.
 `MERIDIAN_AGY_IDLE_CONVERSATION_MS` keeps a completed conversation's live process

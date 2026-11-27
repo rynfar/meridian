@@ -1,18 +1,64 @@
 #!/usr/bin/env node
 // Deterministic official-CLI protocol fixture. Never contacts a model service.
 const { spawnSync } = require('node:child_process')
-const { readFileSync } = require('node:fs')
+const { readFileSync, appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
-const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
+let contextFrameIndex
+const emit = value => {
+  if (contextFrameIndex !== undefined && value.step_update) {
+    value = { ...value, step_update: { step_index: contextFrameIndex + 1, ...value.step_update } }
+  }
+  process.stdout.write(JSON.stringify(value) + '\n')
+}
 const nativePrompts = []
 async function main(inputPrompt) {
-  if (args[0] === '--version') return console.log(process.env.AGY_FIXTURE_VERSION || '1.2.7')
+  if (args[0] === '--version') return console.log(process.env.AGY_FIXTURE_VERSION || '1.5.13')
   if (args[0] === 'models') return console.log('fixture-model\tFixture Model\nfixture-model-high\tFixture High\ngemini-fixture-low\tGemini Low\ngemini-fixture-medium\tGemini Medium\ngemini-fixture-high\tGemini High')
   let prompt = args[args.indexOf('-p') + 1]
   if (inputPrompt !== undefined) prompt = inputPrompt
   nativePrompts.push(prompt)
+  if (inputPrompt !== undefined && process.env.AGY_FIXTURE_CONTEXT_LOG) {
+    contextFrameIndex = (nativePrompts.length - 1) * 2
+    if (process.env.AGY_FIXTURE_CONTEXT_PRIMING !== 'no-marker') {
+      emit({ event: 'step_update', step_update: { step_type: 'user_input', step_index: contextFrameIndex } })
+    }
+    appendFileSync(process.env.AGY_FIXTURE_CONTEXT_LOG, JSON.stringify({ pid: process.pid, prompt }) + '\n')
+    if (prompt.startsWith('History loading step.')) {
+      const result = spawnSync(process.execPath, ['policy.cjs'], {
+        input: JSON.stringify({ toolCall: { name: 'call_mcp_tool', args: { ServerName: 'meridian_client', ToolName: 'lookup' } } }),
+        encoding: 'utf8',
+      })
+      if (JSON.parse(result.stdout).decision !== 'deny') throw new Error('History loading allowed a client tool')
+      const mode = process.env.AGY_FIXTURE_CONTEXT_PRIMING
+      if (mode === 'tool-frame') {
+        emit({ event: 'step_update', step_update: { step_type: 'tool', tool_name: 'lookup' } })
+      }
+      if (mode === 'rpc') {
+        const config = JSON.parse(readFileSync('.agents/mcp_config.json', 'utf8'))
+        const response = await fetch(config.mcpServers.meridian_client.serverUrl, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 770, method: 'tools/call', params: { name: 'lookup', arguments: { key: 'priming' } } }),
+        })
+        const reply = await response.json()
+        if (!reply.error?.message.includes('disabled during Antigravity history loading')) {
+          throw new Error('Priming MCP dispatch was not denied')
+        }
+      }
+      if (mode !== 'silent') emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'PRIMING_ACK' } })
+      emit({ event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE', usage: { input_tokens: 100, output_tokens: 1 } } })
+      return emit({ event: 'result', result: { status: 'SUCCESS' } })
+    }
+    if (prompt.startsWith('The earlier input steps')) {
+      emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'STALE_ACK', step_index: contextFrameIndex - 1 } })
+      const policy = spawnSync(process.execPath, ['policy.cjs'], {
+        input: JSON.stringify({ toolCall: { name: 'call_mcp_tool', args: { ServerName: 'meridian_client', ToolName: 'lookup' } } }),
+        encoding: 'utf8',
+      })
+      if (JSON.parse(policy.stdout).decision !== 'allow') throw new Error('Final input did not restore client tool policy')
+    }
+  }
   if (prompt === '/config' && process.env.AGY_FIXTURE_CONFIG_EXIT) return process.exit(2)
-  if (prompt === '/config') return emit({ command: { data: { config: { customModelsConfig: process.env.AGY_FIXTURE_CUSTOM ? { fixture: {} } : {}, modelProvider: process.env.AGY_FIXTURE_API ? 'gemini' : '', useG1Credits: false } } } })
+  if (prompt === '/config') return emit({ conversation_id: '', status: 'SUCCESS', duration_seconds: 0, num_turns: 0, response: 'customModelsConfig\t' + (process.env.AGY_FIXTURE_CUSTOM ? '{"fixture":{}}' : '') + '\nmodelProvider\t' + (process.env.AGY_FIXTURE_API ? 'gemini' : '') + '\nuseG1Credits\tfalse' })
   if (prompt === '/usage') return emit({command:{data:{groups:[{name:'Gemini Models',buckets:[{id:'gemini-5h',window:'5h',remaining_fraction:0.75,reset_time:'2099-01-01T00:00:00Z'}]}]}}})
   if (prompt.includes('POLICY_PROBE')) {
     const check = (input, decision) => {
@@ -50,6 +96,53 @@ async function main(inputPrompt) {
     return value.result
   }
   const { tools } = await rpc('tools/list')
+  if (prompt.includes('MODEL_DELAY')) await new Promise(resolve => setTimeout(resolve, 3100))
+  if (prompt.includes('CLIENT_LEDGER_BOUNDARY')) {
+    for (let at = 0; at < 2; at++) {
+      try {
+        await rpc('tools/call', { name: tools[0].name, arguments: { key: at } })
+        throw new Error('Invalid tool unexpectedly succeeded')
+      } catch (error) {
+        if (!String(error.message).includes('Invalid arguments for lookup')) throw error
+      }
+    }
+    const batch = tools.find(tool => tool.name === 'meridian_parallel')
+    try {
+      await rpc('tools/call', { name: batch.name, arguments: { calls: [{ name: 'lookup', arguments: { key: 'a' } }, { name: 'lookup', arguments: { key: 'b' } }] } })
+      throw new Error('Full replay ledger admitted another batch')
+    } catch (error) {
+      if (!String(error.message).includes('exceeded 2 tool calls')) throw error
+    }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LEDGER_BOUNDARY_PRESERVED' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
+  const longLoop = prompt.match(/CLIENT_TOOL_LOOP_(\d+)/)
+  if (longLoop) {
+    try {
+      for (let at = 0; at < Number(longLoop[1]); at++) {
+        const params = { name: tools[0].name, arguments: { key: String(at) } }
+        const first = await rpc('tools/call', params)
+        const repeated = await rpc('tools/call', params, nextId)
+        if (JSON.stringify(first) !== JSON.stringify(repeated)) throw new Error('Duplicate MCP result changed')
+      }
+    } catch (error) { console.error(error.message); return process.exit(1) }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LONG_LOOP_COMPLETE' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
+  const longBatchLoop = prompt.match(/CLIENT_BATCH_LOOP_(\d+)/)
+  if (longBatchLoop) {
+    const batch = tools.find(tool => tool.name === 'meridian_parallel')
+    try {
+      for (let at = 0; at < Number(longBatchLoop[1]); at += 16) {
+        const params = { name: batch.name, arguments: { calls: Array.from({ length: Math.min(16, Number(longBatchLoop[1]) - at) }, (_, index) => ({ name: 'lookup', arguments: { key: String(at + index) } })) } }
+        const first = await rpc('tools/call', params)
+        const repeated = await rpc('tools/call', params, nextId)
+        if (JSON.stringify(first) !== JSON.stringify(repeated)) throw new Error('Duplicate batch result changed')
+      }
+    } catch (error) { console.error(error.message); return process.exit(1) }
+    emit({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'LONG_LOOP_COMPLETE' } })
+    return emit({ event: 'result', result: { status: 'SUCCESS' } })
+  }
   if (prompt.includes('UNICODE_CHUNKS')) {
     const { request } = require('node:http')
     const input = { key: 'café/你好/🧪.txt' }
@@ -107,6 +200,14 @@ async function main(inputPrompt) {
     const calls = Array.from({ length: prompt.includes('PARALLEL2') ? 2 : 1 }, (_, n) => rpc('tools/call', { name: tools[0].name, arguments: { key: `probe${n}` } }))
     if (prompt.includes('RPC_RETRY')) calls.push(rpc('tools/call', {name:tools[0].name,arguments:{key:'probe0'}},2))
     const results = await Promise.all(calls)
+    if (prompt.includes('FAIL_CONTINUATION_504')) { setInterval(() => {}, 1000); return }
+    if (prompt.includes('FAIL_CONTINUATION')) {
+      const error = prompt.includes('_503') ? 'Service unavailable' : prompt.includes('_429') ? 'Quota exhausted; retry in 1 seconds' : prompt.includes('_401') ? 'Authentication required' : 'Fixture process lost after receiving tool results'
+      return emit({ event: 'result', result: { status: 'ERROR', error } })
+    }
+    if (prompt.includes('LARGE_NEXT_TOOL')) await Promise.all([0, 1].map(() => rpc('tools/call', { name: tools[0].name, arguments: { key: 'x'.repeat(700000) } })))
+
+    if (prompt.includes('MODEL_DELAY')) await new Promise(resolve => setTimeout(resolve, 3100))
     if (prompt.includes('NEXT_TOOL')) await rpc('tools/call', { name: tools[0].name, arguments: { key: 'next' } })
     if (prompt.includes('STEERING')) {
       const followup = JSON.parse(results[0].content[0].text).meridian_client_followup

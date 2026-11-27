@@ -86,30 +86,32 @@ const report = { platform: process.platform, arch: process.arch, node: process.v
   initialBinaryHash, updateDisabled: 'AGY_CLI_DISABLE_AUTO_UPDATE=true',
   nativeVersion: null, commands, result: 'INCOMPLETE', fields: null, modelCommands: 0 }
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
-const shape = value => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value
 try {
   const version = await read(['--version'])
-  if (version?.trim() !== '1.2.7') report.result = 'UNSUPPORTED_OR_UNREADABLE_VERSION'
+  if (version?.trim() !== '1.5.13') report.result = 'UNSUPPORTED_OR_UNREADABLE_VERSION'
   else {
-    report.nativeVersion = '1.2.7'
+    report.nativeVersion = '1.5.13'
     const raw = await read(['-p', '/config', '--output-format', 'json'])
     if (raw === null) report.result = 'CONFIG_COMMAND_FAILED'
     else {
       let parsed
       try { parsed = JSON.parse(raw) } catch { report.result = 'INVALID_JSON' }
-      const settings = object(parsed) && object(parsed.command) && object(parsed.command.data) && parsed.command.data.config
-      if (report.result !== 'INVALID_JSON' && !object(settings)) report.result = 'UNKNOWN_CONFIG_ENVELOPE'
-      if (object(settings)) {
-        report.fields = Object.fromEntries(['customModelsConfig', 'modelProvider', 'useG1Credits', 'gcp'].map(key => {
-          const present = Object.hasOwn(settings, key), value = settings[key]
-          const field = { present, type: shape(value) }
-          if (key === 'useG1Credits' && typeof value === 'boolean') field.enabled = value
-          else if (typeof value === 'string') field.empty = value.length === 0
-          else if (object(value) || Array.isArray(value)) field.empty = Object.keys(value).length === 0
-          else if (typeof value === 'boolean') field.enabled = value
-          return [key, field]
-        }))
-        report.result = 'TYPED_EFFECTIVE_SETTINGS_OBSERVED'
+      const envelope = object(parsed) && typeof parsed.status === 'string' && typeof parsed.response === 'string' ? parsed : null
+      if (report.result !== 'INVALID_JSON' && !envelope) report.result = 'UNKNOWN_CONFIG_ENVELOPE'
+      if (envelope) {
+        if (envelope.status !== 'SUCCESS') report.result = 'CONFIG_STATUS_NOT_SUCCESS'
+        else {
+          // agy 1.5.5 and 1.5.13 print effective settings as a TSV block in `response`.
+          const rows = new Map(envelope.response.split('\n').filter(line => line.includes('\t')).map(line => [line.slice(0, line.indexOf('\t')), line.slice(line.indexOf('\t') + 1)]))
+          report.fields = Object.fromEntries(['customModelsConfig', 'modelProvider', 'useG1Credits', 'gcp'].map(key => {
+            const present = rows.has(key), value = rows.get(key)
+            const field = { present, type: present ? 'string' : 'undefined' }
+            if (key === 'useG1Credits') field.value = value
+            else if (present) field.empty = value.trim().length === 0
+            return [key, field]
+          }))
+          report.result = 'TSV_EFFECTIVE_SETTINGS_OBSERVED'
+        }
       }
     }
   }
@@ -117,4 +119,4 @@ try {
   await writeFile(outputPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
   console.log(JSON.stringify(report))
 }
-if (report.result !== 'TYPED_EFFECTIVE_SETTINGS_OBSERVED') process.exitCode = 1
+if (report.result !== 'TSV_EFFECTIVE_SETTINGS_OBSERVED') process.exitCode = 1

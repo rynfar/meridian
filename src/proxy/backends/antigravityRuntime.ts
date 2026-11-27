@@ -9,12 +9,16 @@ import { spawn, execFile, type ChildProcessWithoutNullStreams } from "node:child
 import { promisify } from "node:util"
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http"
 import { mkdtemp, mkdir, realpath, writeFile, readFile, rm } from "node:fs/promises"
+import { unlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createHash, randomUUID } from "node:crypto"
 import { createInterface } from "node:readline"
 import { z } from "zod"
-import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, renderAgPromptWithinLimit, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
+import { AgEventQueue, AntigravityError, classifyAgFailure, availableAgTools, parallelAgTool, hasAgImages, agClientToolCallLimit, agPromptByteLimit, renderAgPrompt, contractKey, historyKey, stable, type AgRequest, type AgMessage, type AgCall, type AgResult } from "./antigravityProtocol"
+import { agHistoryLimits, assertAgStep, planAgHistory } from "./antigravityHistory"
+import { estimateAgTextTokens, estimateAgTokens } from "./antigravityTokens"
+import { renderAgColdTrim } from "./antigravityColdTrim"
 
 import { AgSchemaCompiler, agSchemaError, agUpstreamSchema } from "./antigravitySchema"
 import type { ValidateFunction } from "ajv"
@@ -35,8 +39,8 @@ export interface AgQuota { fetchedAt?: number; error?: string; windows: Array<{ 
 const exec = promisify(execFile)
 const envelope = z.object({
   event: z.string(), conversation_id: z.string().optional(),
-  step_update: z.object({ step_type: z.string().optional(), tool_name: z.string().optional(), state: z.string().optional(), text_delta: z.string().optional(), usage: z.object({ input_tokens: z.number().optional(), output_tokens: z.number().optional(), cache_read_tokens: z.number().optional() }).optional() }).optional(),
-  result: z.object({ status: z.string(), error: z.string().optional(), denied_actions: z.array(z.unknown()).optional(), structured_output: z.unknown().optional() }).optional(),
+  step_update: z.object({ step_type: z.string().optional(), step_index: z.number().int().nonnegative().optional(), conversation_id: z.string().optional(), tool_name: z.string().optional(), state: z.string().optional(), text_delta: z.string().optional(), usage: z.object({ input_tokens: z.number().optional(), output_tokens: z.number().optional(), cache_read_tokens: z.number().optional() }).optional() }).optional(),
+  result: z.object({ status: z.string(), conversation_id: z.string().optional(), error: z.string().optional(), denied_actions: z.array(z.unknown()).optional(), structured_output: z.unknown().optional() }).optional(),
 })
 const rpcSchema = z.object({ jsonrpc: z.literal("2.0"), id: z.union([z.string(), z.number()]).optional(), method: z.string(), params: z.record(z.string(), z.unknown()).optional() })
 const toolParams = z.object({ name: z.string(), arguments: z.record(z.string(), z.unknown()).default({}) })
@@ -68,11 +72,28 @@ export class AntigravityRun {
   private outputBytes = 0
   readonly reusable: boolean
   private structuredText?: string
+  private steps: string[] = []
+  private stepIndex = 0
+  private replayInputIndex?: number
+  private replaySeenIndex = -1
+  private replayFinalText = false
+  private writtenTokens = 0
+  private reportedInput = 0
+  private outputTokens = 0
+  private primingUsage = { input: 0, output: 0, cache: 0 }
+  private get loadingHistory(): boolean { return this.stepIndex < this.steps.length - 1 }
+  private get replayBlocksTools(): boolean { return this.steps.length > 1 && (this.loadingHistory || this.replayInputIndex === undefined) }
+  historyUsage(): { input: number; output: number; cache: number } {
+    const usage = this.primingUsage
+    this.primingUsage = { input: 0, output: 0, cache: 0 }
+    return usage
+  }
   private readonly toolValidators = new Map<string, ValidateFunction>()
   private readonly outputValidator?: ValidateFunction
   private exited = false
   private cleaning?: Promise<void>
   private timer?: ReturnType<typeof setTimeout>
+  private absoluteTimer?: ReturnType<typeof setTimeout>
   private pendingTimer?: ReturnType<typeof setTimeout>
   private killTimer?: ReturnType<typeof setTimeout>
   private readonly pending = new Map<string, { call: AgCall; resolve: (result: AgToolReply) => void; reject: (error: Error) => void }>()
@@ -83,6 +104,7 @@ export class AntigravityRun {
   constructor(readonly runtime: AntigravityRuntime, readonly request: AgRequest, private readonly restored?: AgNativeSnapshot) {
     this.grammars = new AgGrammars(request, this.attachmentAbort.signal)
     this.continuation = restored ? "restored" : "new"
+    if (restored) this.writtenTokens = estimateAgTokens({ ...request, messages: request.messages.slice(0, restored.count) }).input_tokens
     this.reusable = runtime.options.reuseConversations !== false && !request.output_config?.format && !request.stop_sequences?.length
     this.history = request.messages
     this.contract = contractKey(request)
@@ -90,13 +112,86 @@ export class AntigravityRun {
     for (const tool of request.tools) this.toolValidators.set(tool.name, schemas.compile(tool.input_schema, `Tool ${tool.name}`))
     if (request.output_config?.format) this.outputValidator = schemas.compile(request.output_config.format.schema, "output_config.format.schema")
   }
-  private prompt(request: AgRequest): string {
+  private get promptSuffix(): string {
+    return this.runtime.options.allowNativeBrowser ? "\nFor browser work, invoke_subagent with TypeName browser and Workspace inherit. Its chrome_devtools MCP tools are enabled; ordinary self agents may not have that browser tool catalog." : ""
+  }
+  private plan(request: AgRequest): string[] {
+    const { historyLimits: limits, promptBytes } = this.runtime
     const native = agNativeTools(this.runtime.options)
-    return renderAgPromptWithinLimit(request, native, this.runtime.options.allowNativeBrowser ? "\nFor browser work, invoke_subagent with TypeName browser and Workspace inherit. Its chrome_devtools MCP tools are enabled; ordinary self agents may not have that browser tool catalog." : "")
+    const maxTokens = Math.min(limits.stepTokens, limits.contextTokens - (request.max_tokens ?? 8192) - 32)
+    if (maxTokens < 1) throw new AntigravityError("prompt is too long: output reserve exceeds the estimated context budget")
+    const full = renderAgPrompt(request, native) + this.promptSuffix
+    if (this.restored) {
+      this.checkContext(full, request.max_tokens)
+      return [assertAgStep(full, promptBytes, maxTokens)]
+    }
+    if ((!promptBytes || Buffer.byteLength(full) <= promptBytes) && estimateAgTextTokens(full) <= maxTokens) return [full]
+    if (limits.chunked && !request.output_config?.format &&
+      !this.runtime.options.allowNativeBrowser && !this.runtime.options.allowNativeSubagents &&
+      estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) <= limits.contextTokens) {
+      const steps = planAgHistory(request, native, this.promptSuffix, Math.min(promptBytes || limits.stepBytes, limits.stepBytes), limits.maxSteps, maxTokens)
+      if (steps.reduce((sum, step) => sum + estimateAgTextTokens(step) + 32, 0) + (request.max_tokens ?? 8192) <= limits.contextTokens) return steps
+    }
+    return [renderAgColdTrim(request, native, this.promptSuffix, { bytes: promptBytes, tokens: maxTokens, estimateTokens: estimateAgTextTokens })]
+  }
+  private contextFits(next: number, output?: number): boolean {
+    return Math.max(this.writtenTokens, this.reportedInput) + this.outputTokens + next + 32 + (output ?? 8192) <= this.runtime.historyLimits.contextTokens
+  }
+  private checkContext(prompt: string, output?: number): void {
+    if (!this.contextFits(estimateAgTextTokens(prompt), output)) throw new AntigravityError("prompt is too long: new input exceeds the estimated Antigravity context budget")
+  }
+  fitsContinuation(request: AgRequest): boolean {
+    const delta = { ...request, messages: request.messages.slice(this.history.length) }
+    return this.contextFits(estimateAgTokens(delta).input_tokens, request.max_tokens)
+  }
+  private writeInput(prompt: string): void {
+    this.writtenTokens += estimateAgTextTokens(prompt) + 32
+    this.child!.stdin.write(JSON.stringify({ event: "user", message: { content: prompt } }) + "\n")
+  }
+  private writeReplayStep(): void {
+    const prompt = this.steps[this.stepIndex]!
+    this.checkContext(prompt, this.request.max_tokens)
+    this.writeInput(prompt)
+    if (!this.loadingHistory && !this.reusable) this.child!.stdin.end()
+  }
+  private acceptReplayFrame(event: z.infer<typeof envelope>): boolean {
+    const step = event.step_update
+    const cid = step?.conversation_id ?? event.result?.conversation_id ?? event.conversation_id
+    if (cid && this.conversationId && cid !== this.conversationId) throw new Error("Antigravity changed conversation during history loading")
+    const index = step?.step_index
+    if (step?.step_type === "user_input") {
+      if (index === undefined || index <= this.replaySeenIndex) return false
+      if (this.replayInputIndex !== undefined) throw new Error("Antigravity emitted a second input marker during one history step")
+      this.replayInputIndex = this.replaySeenIndex = index
+      if (!this.loadingHistory) unlinkSync(join(this.workspace!, "history-loading"))
+      return false
+    }
+    if (event.result && this.replayInputIndex === undefined) {
+      if (event.result.status !== "SUCCESS" || event.result.error || event.result.denied_actions?.length) return true
+      throw new Error("Antigravity completed a history step without observing its input marker")
+    }
+    if (!step) return true
+    if (this.replayInputIndex === undefined || index === undefined || index <= this.replayInputIndex) return false
+    this.replaySeenIndex = Math.max(this.replaySeenIndex, index)
+    return true
+  }
+  private beginTurn(): void {
+    clearTimeout(this.timer)
+    clearTimeout(this.absoluteTimer)
+    this.absoluteTimer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn exceeded its absolute deadline", 504, "api_error")), this.runtime.turnMaxDurationMs)
+    this.absoluteTimer.unref()
+    this.resumeModelTimer()
+  }
+  private resumeModelTimer(): void {
+    clearTimeout(this.timer)
+    this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity model phase timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
+    this.timer.unref()
+  }
+  private pauseModelTimer(): void {
+    clearTimeout(this.timer)
   }
   async start(): Promise<void> {
-      this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
-      this.timer.unref()
+    this.beginTurn()
     try {
       await this.grammars.prepare()
       this.workspace = this.restored?.workspace ?? await realpath(await mkdtemp(this.runtime.nativeSessions ? join(this.runtime.nativeSessions.directory, "conversation-") : join(tmpdir(), "meridian-agy-")))
@@ -105,11 +200,13 @@ export class AntigravityRun {
       const tools = [...this.request.tools, ...[parallelAgTool({ ...this.request, tool_choice: { type: "auto" } })].filter(tool => tool !== undefined)]
       this.attachments = new AgAttachments(this.workspace, this.attachmentAbort.signal)
       const messages = await this.attachments.messages(this.request.messages.slice(this.restored?.count ?? 0))
+      this.steps = this.plan({ ...this.request, messages })
+      if (this.loadingHistory) await writeFile(join(this.workspace, "history-loading"), "", { mode: 0o600 })
       await writeFile(join(this.workspace, "policy-audit.jsonl"), "", { mode: 0o600 })
       const hookPath = join(this.workspace, "policy.cjs")
       // Workspace contains bridge configuration and supplied attachment bytes only.
       // Permit client MCP dispatch, exact supplied image reads, or schema submission.
-      await writeFile(hookPath, `let input='';process.stdin.on('data',d=>input+=d);process.stdin.on('end',()=>{try{const p=JSON.parse(input);const t=p.toolCall;const a=t?.args;const allowed=(${agNativeAllowed.toString()})(t?.name,a,${JSON.stringify(agNativeTools(this.runtime.options))},${!!this.runtime.options.allowNativeBrowser},${!!this.runtime.options.allowNativeSubagents})||(t?.name==='call_mcp_tool'&&a?.ServerName==='meridian_client'&&${JSON.stringify(tools.map(t => t.name))}.includes(a?.ToolName))||(t?.name==='finish'&&${Boolean(this.request.output_config?.format)})||(t?.name==='view_file'&&JSON.parse(require('node:fs').readFileSync(${JSON.stringify(join(this.workspace, 'attachment-paths.json'))},'utf8')).includes(a?.AbsolutePath));const fs=require('node:fs');const audit=${JSON.stringify(join(this.workspace, 'policy-audit.jsonl'))};if(!fs.existsSync(audit)||fs.statSync(audit).size<65536)fs.appendFileSync(audit,JSON.stringify({name:t?.name,allowed,conversationId:p.conversationId})+'\\n',{mode:384});console.log(JSON.stringify({decision:allowed?'allow':'deny',reason:'Meridian restricts tools to client dispatch, supplied attachments, schema submission and operator-enabled native capabilities'}));}catch(e){console.log(JSON.stringify({decision:'deny',reason:'Invalid Meridian hook payload'}));}});`)
+      await writeFile(hookPath, `let input='';process.stdin.on('data',d=>input+=d);process.stdin.on('end',()=>{try{const p=JSON.parse(input);const t=p.toolCall;const a=t?.args;const fs=require('node:fs');const loading=fs.existsSync(${JSON.stringify(join(this.workspace, 'history-loading'))});const allowed=!loading&&((${agNativeAllowed.toString()})(t?.name,a,${JSON.stringify(agNativeTools(this.runtime.options))},${!!this.runtime.options.allowNativeBrowser},${!!this.runtime.options.allowNativeSubagents})||(t?.name==='call_mcp_tool'&&a?.ServerName==='meridian_client'&&${JSON.stringify(tools.map(t => t.name))}.includes(a?.ToolName))||(t?.name==='finish'&&${Boolean(this.request.output_config?.format)})||(t?.name==='view_file'&&JSON.parse(fs.readFileSync(${JSON.stringify(join(this.workspace, 'attachment-paths.json'))},'utf8')).includes(a?.AbsolutePath)));const audit=${JSON.stringify(join(this.workspace, 'policy-audit.jsonl'))};if(!fs.existsSync(audit)||fs.statSync(audit).size<65536)fs.appendFileSync(audit,JSON.stringify({name:t?.name,allowed,conversationId:p.conversationId})+'\\n',{mode:384});console.log(JSON.stringify({decision:allowed?'allow':'deny',reason:'Meridian restricts tools to client dispatch, supplied attachments, schema submission and operator-enabled native capabilities'}));}catch(e){console.log(JSON.stringify({decision:'deny',reason:'Invalid Meridian hook payload'}));}});`)
       await writeFile(join(this.workspace, ".agents/hooks.json"), JSON.stringify({ meridian_policy: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: agHookCommand(process.execPath, hookPath), timeout: 5 }] }] } }))
       await writeFile(join(this.workspace, ".agents/mcp_config.json"), JSON.stringify({ mcpServers: {
         meridian_client: { serverUrl: `${this.runtime.mcpUrl}/${this.id}` },
@@ -119,7 +216,7 @@ export class AntigravityRun {
         } } : {}),
       } }))
       if (this.stopped) { await this.cleanup(); return }
-      const args = [...(this.restored ? ["--conversation", this.restored.conversationId] : ["--new-project"]), "--add-dir", this.workspace, "--input-format", "stream-json", "--model", this.request.model, "--output-format", "stream-json", "--print-timeout", `${Math.ceil(this.runtime.turnTimeoutMs / 1000)}s`, "--disable-slash-commands", "--sandbox"]
+      const args = [...(this.restored ? ["--conversation", this.restored.conversationId] : ["--new-project"]), "--add-dir", this.workspace, "--input-format", "stream-json", "--model", this.request.model, "--output-format", "stream-json", "--print-timeout", `${Math.ceil(this.runtime.turnMaxDurationMs / 1000)}s`, "--disable-slash-commands", "--sandbox"]
       if (this.request.output_config?.format) {
         const schemaPath = join(this.workspace, "output-schema.json")
         await writeFile(schemaPath, JSON.stringify(agUpstreamSchema(this.request.output_config.format.schema)))
@@ -131,8 +228,7 @@ export class AntigravityRun {
       const child = this.child = spawn(this.runtime.executable, args, { cwd: this.workspace, env: this.runtime.childEnv, stdio: ["pipe", "pipe", "pipe"], detached: process.platform !== "win32", windowsHide: true })
       if (child.pid) this.runtime.nativeSessions?.register(this.workspace, child.pid)
       child.stdin.on("error", error => this.abort(new AntigravityError(`Antigravity input failed: ${error.message}`, 502, "api_error")))
-      child.stdin.write(JSON.stringify({ event: "user", message: { content: this.prompt({ ...this.request, messages }) } }) + "\n")
-      if (!this.reusable) child.stdin.end()
+      this.writeReplayStep()
       let stderr = ""
       child.stderr.on("data", chunk => { stderr = (stderr + String(chunk)).slice(-8192) })
       child.stdout.on("data", chunk => {
@@ -145,15 +241,43 @@ export class AntigravityRun {
         try {
           if (this.terminal) throw new Error("CLI emitted data after its terminal result")
           const event = envelope.parse(JSON.parse(line))
-          if (event.event === "init" && event.conversation_id) this.conversationId = event.conversation_id
+          if (event.event === "init" && event.conversation_id && !this.conversationId) this.conversationId = event.conversation_id
+          if (this.steps.length > 1 && !this.acceptReplayFrame(event)) return
           const step = event.step_update
+          if (step?.state === "DONE" && step.usage) {
+            this.reportedInput = Math.max(this.reportedInput, step.usage.input_tokens ?? 0)
+            this.outputTokens += step.usage.output_tokens ?? 0
+          }
+          if (this.loadingHistory) {
+            if (step?.step_type === "tool" || step?.step_type === "subagent") throw new Error("Antigravity attempted an action while loading history")
+            if (step?.state === "DONE" && step.usage) {
+              this.primingUsage.input += step.usage.input_tokens ?? 0
+              this.primingUsage.output += step.usage.output_tokens ?? 0
+              this.primingUsage.cache += step.usage.cache_read_tokens ?? 0
+            }
+            if (event.event === "result" && event.result) {
+              if (event.result.status !== "SUCCESS" || event.result.error || event.result.denied_actions?.length) {
+                this.abort(classifyAgFailure(event.result.error || "Antigravity history loading failed"))
+                return
+              }
+              this.stepIndex++
+              this.replayInputIndex = undefined
+              this.writeReplayStep()
+            }
+            return
+          }
           if ((step?.step_type === "tool" || step?.step_type === "subagent") && step.tool_name && agNativeTools(this.runtime.options).includes(step.tool_name)) this.runtime.recordNative({ runId: this.id, name: step.tool_name, state: step.state ?? "unknown", timestamp: Date.now() })
-          if (step?.step_type === "agent_response" && step.text_delta && !this.request.output_config?.format) this.queue.push({ kind: "text", text: step.text_delta })
+          if (step?.step_type === "agent_response" && step.text_delta && !this.request.output_config?.format) {
+            if (step.text_delta.trim()) this.replayFinalText = true
+            this.queue.push({ kind: "text", text: step.text_delta })
+          }
           if (step?.state === "DONE" && step.usage) this.queue.push({ kind: "usage", input: step.usage.input_tokens ?? 0, output: step.usage.output_tokens ?? 0, cache: step.usage.cache_read_tokens ?? 0 })
           if (event.event === "result" && event.result) {
             this.terminal = true
-            if (event.result.status !== "SUCCESS" || event.result.denied_actions?.length) {
+            if (event.result.status !== "SUCCESS" || event.result.error || event.result.denied_actions?.length) {
               this.abort(classifyAgFailure(event.result.error || "Antigravity denied an action; client-owned tool policy or account permission prevented completion"))
+            } else if (this.steps.length > 1 && !this.replayFinalText) {
+              this.abort(new AntigravityError("Antigravity returned no final text after loading history", 502, "api_error"))
             } else if (this.pending.size) this.abort(new AntigravityError("Antigravity ended with unresolved client tools", 502, "api_error"))
             // Success is committed only after a clean process exit, not merely a result line.
             else if (this.request.output_config?.format) {
@@ -164,7 +288,8 @@ export class AntigravityRun {
             }
             if (!this.stopped && this.reusable) {
               this.runtime.completed++
-              clearTimeout(this.timer)
+              this.pauseModelTimer()
+              clearTimeout(this.absoluteTimer)
               this.idle = true
               this.queue.push({ kind: "end" })
               this.pendingTimer = setTimeout(() => this.abort(new Error("Idle conversation expired"), "retired"), this.runtime.idleConversationMs)
@@ -203,18 +328,19 @@ export class AntigravityRun {
       if (existing.identity !== identity) return Promise.reject(new Error("MCP request ID was reused for a different tool call"))
       return existing.result
     }
-    if (this.rpcCalls.size >= 256) return Promise.reject(new Error("Antigravity turn exceeded 256 tool calls"))
+    if (this.rpcCalls.size >= this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity turn exceeded ${this.runtime.maxClientToolCalls} tool calls`))
     const result = this.call(name, input)
     this.rpcCalls.set(key, { identity, result })
     return result
   }
   dispatchBatch(id: string | number, input: Record<string, unknown>): Promise<AgToolReply> {
+    if (this.replayBlocksTools) throw new Error("Client tools are disabled during Antigravity history loading")
     const parsed = z.object({ calls: z.array(toolParams).min(2).max(16) }).strict().parse(input)
     const key = typeof id + ':' + id
     const identity = stable({ batch: parsed })
     const existing = this.rpcCalls.get(key)
     if (existing) return existing.identity === identity ? existing.result : Promise.reject(new Error("MCP request ID was reused for a different tool call"))
-    if (this.rpcCalls.size >= 256) return Promise.reject(new Error("Antigravity turn exceeded 256 tool calls"))
+    if (this.rpcCalls.size >= this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity turn exceeded ${this.runtime.maxClientToolCalls} tool calls`))
     if (this.pending.size + parsed.calls.length > 32) return Promise.reject(new Error("Too many outstanding tools"))
     const allowed = availableAgTools(this.request)
     for (const call of parsed.calls) {
@@ -223,16 +349,17 @@ export class AntigravityRun {
       const invalid = agSchemaError(validator, call.arguments)
       if (invalid) return Promise.reject(new Error(`Invalid arguments for ${call.name}: ${invalid}`))
     }
-    if (this.toolCalls + parsed.calls.length > 256) return Promise.reject(new Error("Antigravity conversation exceeded 256 client tool calls"))
+    if (this.toolCalls + parsed.calls.length > this.runtime.maxClientToolCalls) return Promise.reject(new Error(`Antigravity conversation exceeded ${this.runtime.maxClientToolCalls} client tool calls`))
     const result = (async () => {
       await Promise.all(parsed.calls.map(call => this.grammars.validate(call.name, call.arguments)))
-      if (this.pending.size + parsed.calls.length > 32 || this.toolCalls + parsed.calls.length > 256) throw new Error('Parallel tool capacity changed during validation')
+      if (this.pending.size + parsed.calls.length > 32 || this.toolCalls + parsed.calls.length > this.runtime.maxClientToolCalls) throw new Error('Parallel tool capacity changed during validation')
       return Promise.all(parsed.calls.map(call => this.call(call.name, call.arguments, true)))
     })().then(results => ({ type: "tool_result" as const, tool_use_id: "batch", content: JSON.stringify(results.map((result, index) => ({ name: parsed.calls[index]!.name, input: parsed.calls[index]!.arguments, result: result.content, is_error: result.is_error ?? false, clientMessages: result.clientMessages }))) }))
     this.rpcCalls.set(key, { identity, result })
     return result
   }
   async call(name: string, input: Record<string, unknown>, grammarChecked = false): Promise<AgToolReply> {
+    if (this.replayBlocksTools) throw new Error("Client tools are disabled during Antigravity history loading")
     if (this.stopped || this.terminal) throw new Error("Turn is closed")
     const validate = this.toolValidators.get(name)
     if (!validate) throw new Error("Unknown client tool")
@@ -241,7 +368,7 @@ export class AntigravityRun {
     if (!grammarChecked) await this.grammars.validate(name, input)
     if (this.stopped || this.terminal) throw new Error("Turn is closed")
     if (this.pending.size >= 32) throw new Error("Too many outstanding tools")
-    if (this.toolCalls >= 256) throw new Error("Antigravity conversation exceeded 256 client tool calls")
+    if (this.toolCalls >= this.runtime.maxClientToolCalls) throw new Error(`Antigravity conversation exceeded ${this.runtime.maxClientToolCalls} client tool calls`)
     this.toolCalls++
     const call: AgCall = { type: "tool_use", id: "toolu_agy_" + randomUUID().replaceAll("-", ""), name, input }
     return new Promise((resolve, reject) => {
@@ -264,8 +391,7 @@ export class AntigravityRun {
     this.busy = true
     this.idle = false
     clearTimeout(this.pendingTimer)
-    this.timer = setTimeout(() => this.abort(new AntigravityError("Antigravity turn timed out", 504, "api_error")), this.runtime.turnTimeoutMs)
-    this.timer.unref()
+    this.beginTurn()
     const cancel = () => this.abort(new AntigravityError("Request cancelled", 499, "api_error"))
     signal?.addEventListener("abort", cancel, { once: true })
     if (signal?.aborted) cancel()
@@ -276,7 +402,10 @@ export class AntigravityRun {
       Object.assign(this.request, request)
       this.history = request.messages
       this.terminal = false; this.idle = false; this.outputBytes = 0
-      this.child!.stdin.write(JSON.stringify({ event: "user", message: { content: this.prompt({ ...request, messages: delta }) } }) + "\n")
+      this.steps = []; this.stepIndex = 0
+      const prompt = assertAgStep(renderAgPrompt({ ...request, messages: delta }, agNativeTools(this.runtime.options)) + this.promptSuffix, this.runtime.promptBytes, this.runtime.historyLimits.stepTokens)
+      this.checkContext(prompt, request.max_tokens)
+      this.writeInput(prompt)
       this.runtime.reused++
     } catch (error) {
       this.abort(error instanceof Error ? error : new Error(String(error)))
@@ -284,6 +413,8 @@ export class AntigravityRun {
     } finally { signal?.removeEventListener("abort", cancel) }
   }
   markDelivered(calls: AgCall[]): void {
+    this.pauseModelTimer()
+    clearTimeout(this.pendingTimer)
     this.delivered = calls
     this.pendingTimer = setTimeout(() => this.abort(new AntigravityError("Client tool result deadline expired; completed history can be replayed", 409, "invalid_request_error")), this.runtime.pendingToolTimeoutMs)
     this.pendingTimer.unref()
@@ -299,12 +430,16 @@ export class AntigravityRun {
     this.continuation = "tool-result"
     if (results.length !== this.delivered.length || results.some(result => !this.delivered.some(call => call.id === result.tool_use_id))) throw new AntigravityError("Tool results must match the entire delivered batch", 409)
     if (hasAgImages([{ role: "user", content: results }, ...clientMessages]) && !this.runtime.options.allowToolBridge) throw new AntigravityError("Images require explicit MERIDIAN_AGY_ALLOW_TOOL_BRIDGE=1")
+    this.resumeModelTimer()
     // Prepare the whole batch before resolving anything: malformed attachments
     // must never partially execute a continuation.
     const prepared: AgResult[] = []
     for (const result of results) prepared.push(await this.attachments!.toolResult(result))
     const messages = await this.attachments!.messages(clientMessages)
     if (this.stopped || results.some(result => !this.pending.has(result.tool_use_id))) throw new AntigravityError("Tool result was not requested by this turn", 409)
+    const batch = assertAgStep(JSON.stringify({ results: prepared, messages }), this.runtime.promptBytes, this.runtime.historyLimits.stepTokens)
+    this.checkContext(batch, this.request.max_tokens)
+    this.writtenTokens += estimateAgTextTokens(batch) + 32
     clearTimeout(this.pendingTimer)
     this.delivered = []
     for (let index = 0; index < results.length; index++) {
@@ -330,7 +465,7 @@ export class AntigravityRun {
     this.queue.fail(error)
     for (const [id, pending] of this.pending) { this.runtime.toolOwners.delete(id); pending.reject(error) }
     this.pending.clear()
-    clearTimeout(this.timer); clearTimeout(this.pendingTimer)
+    clearTimeout(this.timer); clearTimeout(this.absoluteTimer); clearTimeout(this.pendingTimer)
     if (this.child?.pid && !this.exited) {
       this.signal("SIGTERM")
       this.killTimer = setTimeout(() => this.signal("SIGKILL"), 1000)
@@ -347,7 +482,7 @@ export class AntigravityRun {
     return this.cleaning
   }
   private async cleanupOnce(): Promise<void> {
-    clearTimeout(this.timer); clearTimeout(this.pendingTimer); clearTimeout(this.killTimer)
+    clearTimeout(this.timer); clearTimeout(this.absoluteTimer); clearTimeout(this.pendingTimer); clearTimeout(this.killTimer)
     this.runtime.settling.add(this.settled)
     this.runtime.runs.delete(this.id)
     if (this.workspace) {
@@ -373,11 +508,14 @@ export class AntigravityRun {
 }
 
 export class AntigravityRuntime {
+  readonly historyLimits = agHistoryLimits()
+  readonly promptBytes = agPromptByteLimit()
   // Exited processes leave admission maps before asynchronous workspace cleanup.
   // Keep joining them before the backend closes the shared state database.
   readonly settling = new Set<Promise<void>>()
   readonly executable: string
   readonly turnTimeoutMs: number
+  readonly turnMaxDurationMs: number
   readonly pendingToolTimeoutMs: number
   readonly idleConversationMs: number
   readonly maxConcurrent: number
@@ -460,13 +598,17 @@ export class AntigravityRuntime {
   private verifying?: Promise<void>
   private checking?: Promise<string[]>
   private closing?: Promise<void>
+  readonly maxClientToolCalls = agClientToolCallLimit()
   constructor(readonly options: AntigravityOptions = {}) {
     this.plugins = new AgPlugins(options.plugins, options.pluginPaths)
     this.executable = options.executable ?? "agy"
     this.maxConcurrent = options.maxConcurrent ?? 4
     this.turnTimeoutMs = options.turnTimeoutMs ?? 300_000
+    if (!Number.isSafeInteger(this.turnTimeoutMs) || this.turnTimeoutMs <= 0 || this.turnTimeoutMs > 2_147_483_647) throw new Error("Antigravity model phase deadline must be an integer from 1 to 2147483647 ms")
     this.pendingToolTimeoutMs = options.pendingToolTimeoutMs ?? 60_000
-    for (const value of [this.maxConcurrent, this.turnTimeoutMs, this.pendingToolTimeoutMs]) if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Antigravity limits must be positive integers")
+    for (const value of [this.maxConcurrent, this.pendingToolTimeoutMs]) if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Antigravity limits must be positive integers")
+    this.turnMaxDurationMs = options.turnMaxDurationMs ?? 7_200_000
+    if (!Number.isSafeInteger(this.turnMaxDurationMs) || this.turnMaxDurationMs <= 0 || this.turnMaxDurationMs > 2_147_483_647) throw new Error("Antigravity absolute turn deadline must be an integer from 1 to 2147483647 ms")
     this.idleConversationMs = options.idleConversationMs ?? this.pendingToolTimeoutMs
     // The new option has its own range; leaving it unset retains every
     // previously accepted tool deadline rather than adding a startup refusal.
@@ -545,14 +687,18 @@ export class AntigravityRuntime {
     const options = { env: this.childEnv, signal: this.shutdown.signal }
     this.cliVersion = (await readAgProbe(this.executable, "version", options)).trim()
     // Validate the binary before asking it to inspect subscription configuration.
-    if (this.cliVersion !== "1.2.7") throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy 1.2.7. Validate a CLI upgrade before updating the compatibility gate.`)
+    if (this.cliVersion !== "1.5.13") throw new Error(`Unsupported agy version ${this.cliVersion}; this Meridian build validates agy 1.5.13. Validate a CLI upgrade before updating the compatibility gate.`)
     const config = await readAgProbe(this.executable, "configuration", options)
-    // The verified 1.2.7 effective settings expose an explicit boolean here.
-    // Missing or malformed credits are indeterminate, not verified disabled.
-    const settings = z.object({ command: z.object({ data: z.object({ config: z.object({ customModelsConfig: z.unknown().optional(), modelProvider: z.unknown().optional(), useG1Credits: z.boolean(), gcp: z.unknown().optional() }) }) }) }).parse(JSON.parse(config)).command.data.config
-    const customModels = settings.customModelsConfig
-    if (customModels && (typeof customModels !== "object" || Object.keys(customModels).length > 0)) throw new Error("Antigravity custom model providers must be disabled for subscription-only access")
-    if (settings.modelProvider || settings.useG1Credits || settings.gcp) throw new Error("Antigravity requires default account authentication with paid overage credits disabled; configure agy first")
+    // agy 1.5.5 and 1.5.13 print the effective settings as a TSV block inside `response`,
+    // replacing 1.2.7's command.data.config envelope. An explicit `false` credits
+    // row is required: a missing or malformed row is indeterminate, not verified disabled.
+    const envelope = z.object({ status: z.string(), response: z.string() }).parse(JSON.parse(config))
+    if (envelope.status !== "SUCCESS") throw new Error(`Antigravity subscription configuration check returned status "${envelope.status}"; configure agy first`)
+    const settings = new Map(envelope.response.split("\n").filter(line => line.includes("\t")).map(line => [line.slice(0, line.indexOf("\t")), line.slice(line.indexOf("\t") + 1)] as const))
+    const setting = (key: string): string | undefined => settings.get(key)
+    const customModels = setting("customModelsConfig")?.trim() ?? ""
+    if (customModels && customModels !== "{}") throw new Error("Antigravity custom model providers must be disabled for subscription-only access")
+    if (setting("modelProvider")?.trim() || setting("gcp")?.trim() || setting("useG1Credits") !== "false") throw new Error("Antigravity requires default account authentication with paid overage credits disabled; configure agy first")
   }
   async availableModels(): Promise<string[]> {
     if (Date.now() - this.checkedAt < 60_000) return this.models
@@ -593,9 +739,10 @@ export class AntigravityRuntime {
     if (this.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
     if (((request.tools.length && request.tool_choice?.type !== "none") || hasAgImages(request.messages)) && !this.options.allowToolBridge) throw new AntigravityError("Client tools and images require explicit MERIDIAN_AGY_ALLOW_TOOL_BRIDGE=1; see the Antigravity guide")
     const reusable = [...this.runs.values()].find(run => run.matches(request))
-    if (reusable) { await reusable.resume(request, signal); return reusable }
-    const reclaim = this.runs.size + this.preparing >= this.maxConcurrent
+    if (reusable?.fitsContinuation(request)) { await reusable.resume(request, signal); return reusable }
+    const reclaim = reusable ?? (this.runs.size + this.preparing >= this.maxConcurrent
       ? [...this.runs.values()].find(run => run.reclaimable) : undefined
+    )
     if (this.runs.size + this.preparing >= this.maxConcurrent && !reclaim) throw new AntigravityError("Antigravity process capacity is full with active requests", 429, "rate_limit_error", 5)
     // Reserve admission and claim the idle process synchronously, before waiting
     // for exit. Concurrent admissions cannot reclaim the same process or exceed capacity.
@@ -612,7 +759,7 @@ export class AntigravityRuntime {
       if (!(await this.availableModels()).includes(request.model)) throw new AntigravityError("Unknown Antigravity model; use GET /v1/models for account model slugs")
       if (this.draining) throw new AntigravityError("Antigravity is shutting down", 503, "api_error")
       if (signal?.aborted) throw new AntigravityError("Request cancelled", 499, "api_error")
-      const restored = this.nativeSessions?.claim(request)
+      const restored = !reusable && estimateAgTokens(request).input_tokens + (request.max_tokens ?? 8192) + 32 <= this.historyLimits.contextTokens ? this.nativeSessions?.claim(request) : undefined
       const run = new AntigravityRun(this, request, restored)
       if (restored) this.restored++
       this.runs.set(run.id, run)

@@ -14,7 +14,10 @@ export interface AntigravityOptions {
   /** Map numeric client thinking budgets to approximate Gemini effort variants. */
   adaptThinkingBudgets?: boolean
   maxConcurrent?: number
+  /** Model/preprocessing deadline for each phase; refreshed after an accepted client-tool batch. */
   turnTimeoutMs?: number
+  /** Absolute per-turn deadline including tool waits (default 7200000). */
+  turnMaxDurationMs?: number
   /** Retain matching ordinary conversations in a live official CLI process. */
   reuseConversations?: boolean
   /** Explicit opt-in until an authenticated Windows live gate is available. */
@@ -83,6 +86,7 @@ export function resolveBackendConfig(config: Partial<ProxyConfig>): ProxyConfig 
       allowNativeSubagents: process.env.MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS === "1",
       maxConcurrent: process.env.MERIDIAN_AGY_MAX_CONCURRENT === undefined ? undefined : Number(process.env.MERIDIAN_AGY_MAX_CONCURRENT),
       turnTimeoutMs: process.env.MERIDIAN_AGY_TURN_TIMEOUT_MS === undefined ? undefined : Number(process.env.MERIDIAN_AGY_TURN_TIMEOUT_MS),
+      turnMaxDurationMs: process.env.MERIDIAN_AGY_TURN_MAX_DURATION_MS === undefined ? undefined : Number(process.env.MERIDIAN_AGY_TURN_MAX_DURATION_MS),
       pendingToolTimeoutMs: process.env.MERIDIAN_AGY_TOOL_TIMEOUT_MS === undefined ? undefined : Number(process.env.MERIDIAN_AGY_TOOL_TIMEOUT_MS),
       idleConversationMs: process.env.MERIDIAN_AGY_IDLE_CONVERSATION_MS === undefined ? undefined : Number(process.env.MERIDIAN_AGY_IDLE_CONVERSATION_MS),
       ...config.antigravity,
