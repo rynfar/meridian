@@ -3018,11 +3018,13 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // An auxiliary replay carries a 5-minute breakpoint of its own
         // (layoutReplayBlocks). The API rejects a longer-lived breakpoint
         // after a shorter one, and the CLI may choose 1h for its own, so pin
-        // the CLI to 5 minutes for these requests. Any other request may ask
-        // for the same pin with x-meridian-cache-ttl (cacheTtl.ts).
-        const cacheTtlEnv = requestMeta.auxiliaryRequest ? { FORCE_PROMPT_CACHING_5M: "1" } : requestedCacheTtlEnv
-        const envOverrides = cacheTtlEnv
-          ? { ...explicitModelPin(requestedModel), ...cacheTtlEnv }
+        // the CLI to 5 minutes for these requests. The pin is decided before
+        // the lineage and also covers an auxiliary fork: the fork still reads
+        // the conversation's cache (TTL is not part of a cache hit), and the
+        // tail only it writes, which no later turn of the conversation reads,
+        // is written at the cheaper 5-minute rate.
+        const envOverrides = requestMeta.auxiliaryRequest
+          ? { ...explicitModelPin(requestedModel), FORCE_PROMPT_CACHING_5M: "1" }
           : explicitModelPin(requestedModel)
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
@@ -3108,7 +3110,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const sdkModelDefaults = resolveSdkModelDefaults()
 
         // Overlay profile-specific env vars (e.g. CLAUDE_CONFIG_DIR for multi-account)
-        const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env }
+        const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env, ...requestedCacheTtlEnv }
         // The Sonnet the SDK will actually serve (query.ts spreads the explicit
         // pin last). Plain `sonnet` on Sonnet 5+ has a native 1M window, so the
         // replay budget must not assume 200k from the alias alone (#1212).
